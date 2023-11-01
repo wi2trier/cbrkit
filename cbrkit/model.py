@@ -16,6 +16,19 @@ LoadFormat = Literal["csv", "yaml", "yml", "json", "toml"]
 LoadFunc = Callable[[FilePath], Casebase[CaseType]]
 
 RetrievalType = Literal["linear"]
+AggregationOperation = Literal[
+    "mean",
+    "fmean",
+    "geometric_mean",
+    "harmonic_mean",
+    "median",
+    "median_low",
+    "median_high",
+    "mode",
+    "min",
+    "max",
+    "sum",
+]
 
 # TODO: How to perform astar search?
 # TODO: Is the linear retriever the only option?
