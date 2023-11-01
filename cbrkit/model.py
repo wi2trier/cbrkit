@@ -3,13 +3,14 @@ from pathlib import Path
 from typing import Callable, Generic, Hashable, Literal, TypeVar
 
 FilePath = str | Path
+SimilarityValue = float
 
 CaseType = TypeVar("CaseType")
 CaseName = Hashable
 Casebase = dict[CaseName, CaseType]
 
 SimilarityType = Literal["equality"]
-SimilarityFunc = Callable[[CaseType, CaseType], float]
+SimilarityFunc = Callable[[CaseType, CaseType], SimilarityValue]
 
 LoadFormat = Literal["csv", "yaml", "yml", "json", "toml"]
 LoadFunc = Callable[[FilePath], Casebase[CaseType]]
@@ -21,6 +22,6 @@ RetrievalType = Literal["linear"]
 
 @dataclass
 class RetrievalResult(Generic[CaseType]):
-    similarities: dict[CaseName, float]
+    similarities: dict[CaseName, SimilarityValue]
     ranking: list[CaseName]
     casebase: Casebase[CaseType]

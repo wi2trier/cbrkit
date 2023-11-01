@@ -1,7 +1,7 @@
 from cbrkit import model
 
 
-def equality(case: model.CaseType, query: model.CaseType) -> float:
+def equality(case: model.CaseType, query: model.CaseType) -> model.SimilarityValue:
     return case == query
 
 
