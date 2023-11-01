@@ -17,7 +17,10 @@ LoadFunc = Callable[[FilePath], Casebase[CaseType]]
 
 RetrievalType = Literal["linear"]
 
-# TODO: Expand model to support yaml and csv data sources
+# TODO: How to perform astar search?
+# TODO: Is the linear retriever the only option?
+# TODO: Rest API
+# TODO: CLI Interface for two-dimensional (i.e., tabular) data
 
 
 @dataclass
