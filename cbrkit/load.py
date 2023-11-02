@@ -33,11 +33,11 @@ def load_yaml(path: model.FilePath) -> model.Casebase[model.CaseType]:
 
 
 _mapping: dict[model.LoadFormat, model.LoadFunc] = {
-    "csv": load_csv,
-    "json": load_json,
-    "toml": load_toml,
-    "yaml": load_yaml,
-    "yml": load_yaml,
+    ".csv": load_csv,
+    ".json": load_json,
+    ".toml": load_toml,
+    ".yaml": load_yaml,
+    ".yml": load_yaml,
 }
 
 
