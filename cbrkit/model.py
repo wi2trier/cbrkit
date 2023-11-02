@@ -1,13 +1,21 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Generic, Hashable, Literal, TypeVar
+from typing import (
+    Callable,
+    Generic,
+    Hashable,
+    Literal,
+    Mapping,
+    Sequence,
+    TypeVar,
+)
 
 FilePath = str | Path
 SimilarityValue = float
 
 CaseType = TypeVar("CaseType")
 CaseName = Hashable
-Casebase = dict[CaseName, CaseType]
+Casebase = Mapping[CaseName, CaseType]
 
 SimilarityType = Literal["equality"]
 SimilarityFunc = Callable[[CaseType, CaseType], SimilarityValue]
