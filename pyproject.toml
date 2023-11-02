@@ -15,9 +15,11 @@ cbrkit = "cbrkit.cli:app"
 python = ">=3.11, <3.13"
 pandas = { version = "^2.1", optional = true }
 pyyaml = { version = "^6.0", optional = true }
+orjson = { version = "^3.9", optional = true }
 typer = { version = "^0.9", extras = ["all"], optional = true }
 fastapi = { version = "^0.104", optional = true }
 networkx = { version = "^3.2", optional = true }
+pyarrow = { version = "^14.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"
@@ -27,10 +29,10 @@ pytest-cov = "^4.1"
 pdoc = "^14.1"
 
 [tool.poetry.extras]
-all = ["pandas", "pyyaml", "typer", "fastapi", "networkx"]
-csv = ["pandas"]
-pandas = ["pandas"]
+all = ["pandas", "pyarrow", "pyyaml", "orjson", "typer", "fastapi", "networkx"]
+pandas = ["pandas", "pyarrow"]
 yaml = ["pyyaml"]
+json = ["orjson"]
 cli = ["typer"]
 rest = ["fastapi"]
 graph = ["networkx"]
