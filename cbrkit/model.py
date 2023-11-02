@@ -36,6 +36,11 @@ AggregationOperation = Literal[
     "max",
     "sum",
 ]
+AggregationType = TypeVar(
+    "AggregationType",
+    Sequence[SimilarityValue],
+    Mapping[Hashable, SimilarityValue],
+)
 
 # TODO: Create helper for astar search
 # TODO: Rest API

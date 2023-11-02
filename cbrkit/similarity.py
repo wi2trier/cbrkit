@@ -1,5 +1,5 @@
 import statistics
-from typing import Hashable, Mapping, Sequence, TypeVar
+from typing import Mapping, Sequence
 
 from cbrkit import model
 
@@ -17,17 +17,10 @@ def get(name: model.SimilarityType) -> model.SimilarityFunc[model.CaseType]:
     return _mapping[name]
 
 
-AggregationType = TypeVar(
-    "AggregationType",
-    Sequence[model.SimilarityValue],
-    Mapping[Hashable, model.SimilarityValue],
-)
-
-
 def aggregate(
     operation: model.AggregationOperation,
-    similarities: AggregationType,
-    weights: AggregationType | None = None,
+    similarities: model.AggregationType,
+    weights: model.AggregationType | None = None,
 ) -> model.SimilarityValue:
     assert weights is None or type(similarities) == type(weights)
 
