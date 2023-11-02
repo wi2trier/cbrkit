@@ -43,12 +43,30 @@
             inherit python;
             projectDir = ./.;
             preferWheels = true;
+            checkPhase = "pytest";
           };
           cbrkit = self'.packages.default;
+          docker = pkgs.dockerTools.buildLayeredImage {
+            name = "cbrkit";
+            tag = "latest";
+            created = "now";
+            config = {
+              entrypoint = [(lib.getExe self'.packages.default)];
+              cmd = [];
+            };
+          };
           releaseEnv = pkgs.buildEnv {
             name = "release-env";
             paths = packages;
           };
+        };
+        legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
+          github = {
+            enable = true;
+            token = builtins.getEnv "GH_TOKEN";
+          };
+          version = builtins.getEnv "VERSION";
+          images = with self.packages; [x86_64-linux.docker aarch64-linux.docker];
         };
         devShells.default = pkgs.mkShell {
           inherit packages;
