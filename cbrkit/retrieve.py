@@ -1,5 +1,7 @@
 from cbrkit import model, similarity
 
+__all__ = ("retrieve",)
+
 
 def retrieve(
     casebase: model.Casebase[model.CaseType],

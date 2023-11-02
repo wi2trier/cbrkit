@@ -3,6 +3,8 @@ from typing import Mapping, Sequence
 
 from cbrkit import model
 
+__all__ = ("equality", "aggregate", "get")
+
 
 def equality(case: model.CaseType, query: model.CaseType) -> model.SimilarityValue:
     return case == query
