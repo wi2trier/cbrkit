@@ -15,7 +15,6 @@ SimilarityFunc = Callable[[CaseType, CaseType], SimilarityValue]
 LoadFormat = Literal["csv", "yaml", "yml", "json", "toml"]
 LoadFunc = Callable[[FilePath], Casebase[CaseType]]
 
-RetrievalType = Literal["linear"]
 AggregationOperation = Literal[
     "mean",
     "fmean",
@@ -30,8 +29,7 @@ AggregationOperation = Literal[
     "sum",
 ]
 
-# TODO: How to perform astar search?
-# TODO: Is the linear retriever the only option?
+# TODO: Create helper for astar search
 # TODO: Rest API
 # TODO: CLI Interface for two-dimensional (i.e., tabular) data
 

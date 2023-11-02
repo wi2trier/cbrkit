@@ -6,40 +6,29 @@ def retrieve(
     query: model.CaseType,
     similarity_func: model.SimilarityType
     | model.SimilarityFunc[model.CaseType] = similarity.equality,
-    type: model.RetrievalType = "linear",
+    parallel: bool = False,
     casebase_limit: int | None = None,
 ) -> model.RetrievalResult[model.CaseType]:
     if isinstance(similarity_func, str):
         similarity_func = similarity.get(similarity_func)
 
-    result: model.RetrievalResult[model.CaseType] | None = None
+    similarities: dict[model.CaseName, model.SimilarityValue]
 
-    if type == "linear":
-        result = _retrieve_linear(casebase, query, similarity_func)
-    else:
+    if parallel:
         raise NotImplementedError()
-
-    assert result is not None
-
-    if casebase_limit is not None:
-        result.casebase = {
-            key: result.casebase[key] for key in result.ranking[:casebase_limit]
+    else:
+        similarities = {
+            key: similarity_func(case, query) for key, case in casebase.items()
         }
 
-    return result
-
-
-def _retrieve_linear(
-    casebase: model.Casebase[model.CaseType],
-    query: model.CaseType,
-    similarity_func: model.SimilarityFunc[model.CaseType],
-) -> model.RetrievalResult[model.CaseType]:
-    similarities = {key: similarity_func(case, query) for key, case in casebase.items()}
     ranked_tuples = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
     ranking = [key for key, _ in ranked_tuples]
+    filtered_casebase = (
+        casebase
+        if casebase_limit is None
+        else {key: casebase[key] for key in ranking[:casebase_limit]}
+    )
 
     return model.RetrievalResult(
-        similarities=similarities,
-        ranking=ranking,
-        casebase=casebase,
+        similarities=similarities, ranking=ranking, casebase=filtered_casebase
     )
