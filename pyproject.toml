@@ -6,24 +6,44 @@ authors = ["Mirko Lenz <mirko@mirkolenz.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/recap-utr/cbrkit"
+packages = [{ include = "cbrkit" }]
+
+[tool.poetry.scripts]
+cbrkit = "cbrkit.cli:app"
 
 [tool.poetry.dependencies]
 python = ">=3.11, <3.13"
 pandas = { version = "^2.1", optional = true }
 pyyaml = { version = "^6.0", optional = true }
-typer = { version = "^0.9", optional = true }
+typer = { version = "^0.9", extras = ["all"], optional = true }
 fastapi = { version = "^0.104", optional = true }
+networkx = { version = "^3.2", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4"
+pytest-cov = "^4.1"
+
+[tool.poetry.group.docs.dependencies]
+pdoc = "^14.1"
 
 [tool.poetry.extras]
-all = ["pandas", "pyyaml", "typer", "fastapi"]
+all = ["pandas", "pyyaml", "typer", "fastapi", "networkx"]
 csv = ["pandas"]
 pandas = ["pandas"]
 yaml = ["pyyaml"]
 cli = ["typer"]
 rest = ["fastapi"]
+graph = ["networkx"]
+
+[tool.pytest.ini_options]
+addopts = "--cov cbrkit --cov-report term-missing --doctest-modules"
+doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.pydocstyle]
+convention = "google"
 
 [build-system]
 requires = ["poetry-core"]
