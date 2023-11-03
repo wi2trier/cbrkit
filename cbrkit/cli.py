@@ -14,7 +14,7 @@ def retrieve(path: Path):
     if path.suffix == ".csv":
         casebase = cbrkit.load_dataframe(pd.read_csv(path))
     else:
-        casebase = cbrkit.load_file(path)
+        casebase = cbrkit.load_path(path)
 
     result = cbrkit.retrieve(
         casebase,

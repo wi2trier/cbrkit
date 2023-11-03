@@ -1,7 +1,7 @@
 import tomllib
 from collections import abc
 from pathlib import Path
-from typing import Any, Hashable, Iterator, cast
+from typing import Any, Callable, Hashable, Iterator, cast
 
 import orjson as json
 import pandas as pd
@@ -10,7 +10,7 @@ from pandas import DataFrame, Series
 
 from cbrkit import model
 
-__all__ = ("load_file", "load_dataframe")
+__all__ = ("load_path", "load_dataframe")
 
 
 class DataFrameCasebase(abc.Mapping[model.CaseName, model.CaseType]):
@@ -33,27 +33,29 @@ def load_dataframe(df: DataFrame) -> model.Casebase[pd.Series]:
     return DataFrameCasebase(df)
 
 
-def _load_json(path: model.FilePath) -> model.Casebase[Any]:
+def _load_json(path: model.FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
         return json.loads(fp.read())
 
 
-def _load_toml(path: model.FilePath) -> model.Casebase[Any]:
+def _load_toml(path: model.FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
-        return cast(model.Casebase, tomllib.load(fp))
+        return tomllib.load(fp)
 
 
-def _load_yaml(path: model.FilePath) -> model.Casebase[Any]:
+def _load_yaml(path: model.FilePath) -> dict[str, Any]:
     data: dict[str, Any] = {}
 
     with open(path, "rb") as fp:
         for doc in yaml.safe_load_all(fp):
             data |= doc
 
-    return cast(model.Casebase, data)
+    return data
 
 
-_mapping: dict[model.LoadFormat, model.LoadFunc[Any]] = {
+FileLoader = Callable[[model.FilePath], dict[str, Any]]
+
+_file_loaders: dict[str, FileLoader] = {
     ".json": _load_json,
     ".toml": _load_toml,
     ".yaml": _load_yaml,
@@ -61,10 +63,43 @@ _mapping: dict[model.LoadFormat, model.LoadFunc[Any]] = {
 }
 
 
-def load_file(path: model.FilePath) -> model.Casebase[Any]:
+def load_path(path: model.FilePath) -> model.Casebase[Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    format = cast(model.LoadFormat, path.suffix)
+    cb: model.Casebase[Any] | None = None
 
-    return _mapping[format](path)
+    if path.is_file():
+        cb = load_file(path)
+    elif path.is_dir():
+        cb = load_folder(path)
+    else:
+        raise FileNotFoundError(path)
+
+    if cb is None:
+        raise NotImplementedError()
+
+    return cb
+
+
+def load_file(path: Path) -> model.Casebase[Any] | None:
+    if path.suffix not in _file_loaders:
+        return None
+
+    loader = _file_loaders[path.suffix]
+
+    return cast(model.Casebase[Any], loader(path))
+
+
+def load_folder(path: Path, pattern: str = "**/*") -> model.Casebase[Any] | None:
+    cb: model.Casebase[Any] = {}
+
+    for file in path.glob(pattern):
+        if file.is_file() and file.suffix in _file_loaders:
+            loader = _file_loaders[path.suffix]
+            cb[file.name] = loader(file)
+
+    if len(cb) == 0:
+        return None
+
+    return cb

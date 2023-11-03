@@ -20,9 +20,6 @@ Casebase = Mapping[CaseName, CaseType]
 SimilarityType = Literal["equality"]
 SimilarityFunc = Callable[[CaseType, CaseType], SimilarityValue]
 
-LoadFormat = Literal[".csv", ".yaml", ".yml", ".json", ".toml"]
-LoadFunc = Callable[[FilePath], Casebase[CaseType]]
-
 AggregationOperation = Literal[
     "mean",
     "fmean",
