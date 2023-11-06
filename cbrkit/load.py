@@ -1,3 +1,4 @@
+import csv
 import tomllib
 from collections import abc
 from pathlib import Path
@@ -33,6 +34,19 @@ def load_dataframe(df: DataFrame) -> model.Casebase[pd.Series]:
     return DataFrameCasebase(df)
 
 
+def _load_csv(path: model.FilePath) -> dict[str, dict[str, str]]:
+    data: dict[str, dict[str, str]] = {}
+
+    with open(path) as fp:
+        reader = csv.DictReader(fp)
+        row: dict[str, str]
+
+        for idx, row in enumerate(reader):
+            data[str(idx)] = row
+
+        return data
+
+
 def _load_json(path: model.FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
         return json.loads(fp.read())
@@ -60,6 +74,7 @@ _file_loaders: dict[str, FileLoader] = {
     ".toml": _load_toml,
     ".yaml": _load_yaml,
     ".yml": _load_yaml,
+    ".csv": _load_csv,
 }
 
 
