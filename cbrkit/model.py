@@ -8,14 +8,17 @@ from typing import (
 )
 
 FilePath = str | Path
-SimilarityValue = float
 
 CaseType = TypeVar("CaseType")
 CaseName = Hashable
 Casebase = Mapping[CaseName, CaseType]
 
-SimilarityType = Literal["equality"]
-SimilarityFunc = Callable[[CaseType, CaseType], SimilarityValue]
+SimilarityValue = float
+SimilarityMap = Mapping[CaseName, SimilarityValue]
+
+SimilarityFuncName = Literal["equality"]
+SimilarityBatchFunc = Callable[[Casebase[CaseType], CaseType], SimilarityMap]
+SimilaritySingleFunc = Callable[[CaseType, CaseType], SimilarityValue]
 
 AggregationOperation = Literal[
     "mean",
@@ -43,6 +46,6 @@ AggregationType = TypeVar(
 
 @dataclass
 class RetrievalResult(Generic[CaseType]):
-    similarities: dict[CaseName, SimilarityValue]
+    similarities: SimilarityMap
     ranking: list[CaseName]
     casebase: Casebase[CaseType]

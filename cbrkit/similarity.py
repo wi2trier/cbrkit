@@ -3,19 +3,31 @@ from collections.abc import Mapping, Sequence
 
 from cbrkit import model
 
-__all__ = ("equality", "aggregate", "get")
+__all__ = ("equality", "aggregate", "get", "apply")
+
+
+def apply(
+    func: model.SimilaritySingleFunc[model.CaseType],
+) -> model.SimilarityBatchFunc[model.CaseType]:
+    def wrapped_func(
+        casebase: model.Casebase[model.CaseType],
+        query: model.CaseType,
+    ) -> model.SimilarityMap:
+        return {key: func(case, query) for key, case in casebase.items()}
+
+    return wrapped_func
 
 
 def equality(case: model.CaseType, query: model.CaseType) -> model.SimilarityValue:
     return case == query
 
 
-_mapping: dict[model.SimilarityType, model.SimilarityFunc] = {
-    "equality": equality,
+_mapping: dict[model.SimilarityFuncName, model.SimilarityBatchFunc] = {
+    "equality": apply(equality),
 }
 
 
-def get(name: model.SimilarityType) -> model.SimilarityFunc[model.CaseType]:
+def get(name: model.SimilarityFuncName) -> model.SimilarityBatchFunc[model.CaseType]:
     return _mapping[name]
 
 

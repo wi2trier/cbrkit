@@ -15,7 +15,7 @@ def retrieve(path: Path):
     result = cbrkit.retrieve(
         casebase,
         query=casebase[0],
-        similarity_func=lambda x, y: x.equals(y),
+        similarity_func="equality",
         casebase_limit=5,
     )
 
