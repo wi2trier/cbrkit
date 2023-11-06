@@ -10,7 +10,7 @@ from typing import (
 FilePath = str | Path
 
 CaseType = TypeVar("CaseType")
-CaseName = Hashable
+CaseName = str
 Casebase = Mapping[CaseName, CaseType]
 
 SimilarityValue = float
