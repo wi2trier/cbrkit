@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pandas as pd
 from rich import print
 from typer import Typer
 
@@ -11,10 +10,7 @@ app = Typer()
 
 @app.command()
 def retrieve(path: Path):
-    if path.suffix == ".csv":
-        casebase = cbrkit.load_dataframe(pd.read_csv(path))
-    else:
-        casebase = cbrkit.load_path(path)
+    casebase = cbrkit.load_path(path)
 
     result = cbrkit.retrieve(
         casebase,
