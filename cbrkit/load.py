@@ -1,8 +1,9 @@
 import csv
 import tomllib
 from collections import abc
+from collections.abc import Callable, Hashable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Hashable, Iterator, cast
+from typing import Any, cast
 
 import orjson as json
 import pandas as pd
