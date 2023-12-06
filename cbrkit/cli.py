@@ -9,17 +9,21 @@ app = Typer()
 
 
 @app.command()
-def retrieve(path: Path):
-    casebase: cbrkit.model.Casebase[dict[str, dict[str, str]]] = cbrkit.load_path(path)
+def retrieve(casebase_path: Path, queries_path: Path):
+    casebase: cbrkit.model.Casebase[dict[str, str]] = cbrkit.load_path(casebase_path)
+    queries: cbrkit.model.Casebase[dict[str, str]] = cbrkit.load_path(queries_path)
 
-    result = cbrkit.retrieve(
-        casebase,
-        query=casebase["42"],
-        similarity_func="equality",
-        casebase_limit=5,
-    )
+    for query_name, query in queries.items():
+        result = cbrkit.retrieve(
+            casebase,
+            query=query,
+            similarity_func="equality",
+            casebase_limit=5,
+        )
 
-    print(result.ranking)
+        print(f"Query: {query_name}")
+        print(result.ranking)
+        print()
 
 
 if __name__ == "__main__":
