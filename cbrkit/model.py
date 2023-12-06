@@ -42,6 +42,7 @@ AggregationType = TypeVar(
 # TODO: Create helper for astar search
 # TODO: Rest API
 # TODO: CLI Interface for two-dimensional (i.e., tabular) data
+# TODO: How to design similarity helper methods
 
 
 @dataclass
