@@ -9,7 +9,7 @@ def retrieve(
     casebase: model.Casebase[model.CaseType],
     query: model.CaseType,
     similarity_func: model.SimilarityFuncName
-    | model.SimilarityBatchFunc[model.CaseType],
+    | model.CaseSimilarityBatchFunc[model.CaseType],
     casebase_limit: int | None = None,
 ) -> model.RetrievalResult[model.CaseType]:
     if not isinstance(similarity_func, Callable):

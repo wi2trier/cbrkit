@@ -1,9 +1,10 @@
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Generic,
     Literal,
+    Protocol,
     TypeVar,
 )
 
@@ -13,14 +14,46 @@ CaseType = TypeVar("CaseType")
 CaseName = str
 Casebase = Mapping[CaseName, CaseType]
 
+DataType = TypeVar("DataType", contravariant=True)
+
 SimilarityValue = float
-SimilarityMap = Mapping[CaseName, SimilarityValue]
+DataSimilarityMap = Mapping[DataType, SimilarityValue]
+CaseSimilarityMap = Mapping[CaseName, SimilarityValue]
+SimilaritySequence = Sequence[SimilarityValue]
+SimilarityValues = TypeVar(
+    "SimilarityValues", SimilaritySequence, CaseSimilarityMap, DataSimilarityMap
+)
 
 SimilarityFuncName = Literal["equality"]
-SimilarityBatchFunc = Callable[[Casebase[CaseType], CaseType], SimilarityMap]
-SimilaritySingleFunc = Callable[[CaseType, CaseType], SimilarityValue]
+CaseSimilarityBatchFunc = Callable[[Casebase[CaseType], CaseType], CaseSimilarityMap]
+CaseSimilaritySingleFunc = Callable[[CaseType, CaseType], SimilarityValue]
 
-AggregationOperation = Literal[
+# DataType = TypeVar("DataType")
+# DataSimilaritySingleFunc = Callable[[DataType, DataType], SimilarityValue]
+# DataSimilarityBatchFunc = Callable[[Sequence[tuple[DataType, DataType]]], SimilarityValue]
+
+
+# class SimilarityBatchFunc(Protocol[CaseType]):
+#     def __call__(self, casebase: Casebase[CaseType], query: CaseType) -> SimilarityCaseMap:
+#         ...
+
+
+# class SimilaritySingleFunc(Protocol[CaseType]):
+#     def __call__(self, case: CaseType, query: CaseType) -> SimilarityValue:
+#         ...
+
+
+class DataSimilarityBatchFunc(Protocol[DataType]):
+    def __call__(self, *args: tuple[DataType, DataType]) -> SimilaritySequence:
+        ...
+
+
+class DataSimilaritySingleFunc(Protocol[DataType]):
+    def __call__(self, data1: DataType, data2: DataType) -> SimilarityValue:
+        ...
+
+
+Pooling = Literal[
     "mean",
     "fmean",
     "geometric_mean",
@@ -33,11 +66,6 @@ AggregationOperation = Literal[
     "max",
     "sum",
 ]
-AggregationType = TypeVar(
-    "AggregationType",
-    Sequence[SimilarityValue],
-    Mapping[Hashable, SimilarityValue],
-)
 
 # TODO: Create helper for astar search
 # TODO: Rest API
@@ -47,6 +75,6 @@ AggregationType = TypeVar(
 
 @dataclass
 class RetrievalResult(Generic[CaseType]):
-    similarities: SimilarityMap
+    similarities: CaseSimilarityMap
     ranking: list[CaseName]
     casebase: Casebase[CaseType]

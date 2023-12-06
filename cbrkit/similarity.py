@@ -1,19 +1,72 @@
 import statistics
-from collections.abc import Mapping, Sequence
+from collections import defaultdict
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from cbrkit import model
 
-__all__ = ("equality", "aggregate", "get", "apply")
+__all__: tuple[str, ...] = (
+    "equality",
+    "aggregate",
+    "get",
+    "apply_global",
+    "apply_local",
+)
 
 
-def apply(
-    func: model.SimilaritySingleFunc[model.CaseType],
-) -> model.SimilarityBatchFunc[model.CaseType]:
+# TODO: Document that this shall be applied when using a CaseSimilaritySingleFunc
+def apply_global(
+    func: model.CaseSimilaritySingleFunc[model.CaseType],
+) -> model.CaseSimilarityBatchFunc[model.CaseType]:
     def wrapped_func(
         casebase: model.Casebase[model.CaseType],
         query: model.CaseType,
-    ) -> model.SimilarityMap:
+    ) -> model.CaseSimilarityMap:
         return {key: func(case, query) for key, case in casebase.items()}
+
+    return wrapped_func
+
+
+# TODO: Document that this shall be applied when using a DataSimilaritySingleFunc
+def apply_local(
+    func: model.DataSimilaritySingleFunc[model.DataType]
+) -> model.DataSimilarityBatchFunc[model.DataType]:
+    def wrapped_func(
+        *args: tuple[model.DataType, model.DataType]
+    ) -> model.SimilaritySequence:
+        return [func(data1, data2) for (data1, data2) in args]
+
+    return wrapped_func
+
+
+def by_attributes(
+    mapping: Mapping[str, model.DataSimilarityBatchFunc],
+    pooling: model.Pooling = "mean",
+    pooling_weights: Mapping[str, float] | None = None,
+    getter: Callable[[Any, str], Any] = getattr,
+) -> model.CaseSimilarityBatchFunc:
+    def wrapped_func(
+        casebase: model.Casebase[model.CaseType], query: model.CaseType
+    ) -> model.CaseSimilarityMap:
+        sims_per_case: defaultdict[str, dict[str, model.SimilarityValue]] = defaultdict(
+            dict
+        )
+
+        for attr, sim_func in mapping.items():
+            casebase_attribute_pairs = [
+                (getter(case, attr), getter(query, attr)) for case in casebase.values()
+            ]
+            casebase_similarities = sim_func(*casebase_attribute_pairs)
+
+            for casename, similarity in zip(
+                casebase.keys(), casebase_similarities, strict=True
+            ):
+                sims_per_case[casename][attr] = similarity
+
+        return {
+            casename: aggregate(similarities, pooling, pooling_weights)
+            for casename, similarities in sims_per_case.items()
+        }
 
     return wrapped_func
 
@@ -22,56 +75,58 @@ def equality(case: model.CaseType, query: model.CaseType) -> model.SimilarityVal
     return case == query
 
 
-_mapping: dict[model.SimilarityFuncName, model.SimilarityBatchFunc] = {
-    "equality": apply(equality),
+_mapping: dict[model.SimilarityFuncName, model.CaseSimilarityBatchFunc] = {
+    "equality": apply_global(equality),
 }
 
 
-def get(name: model.SimilarityFuncName) -> model.SimilarityBatchFunc[model.CaseType]:
+def get(
+    name: model.SimilarityFuncName
+) -> model.CaseSimilarityBatchFunc[model.CaseType]:
     return _mapping[name]
 
 
 def aggregate(
-    operation: model.AggregationOperation,
-    similarities: model.AggregationType,
-    weights: model.AggregationType | None = None,
+    similarities: model.SimilarityValues,
+    pooling: model.Pooling,
+    pooling_weights: model.SimilarityValues | None = None,
 ) -> model.SimilarityValue:
-    assert weights is None or type(similarities) == type(weights)
+    assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
     sims: Sequence[model.SimilarityValue]
 
-    if isinstance(similarities, Mapping) and isinstance(weights, Mapping):
-        sims = [sim * weights[key] for key, sim in similarities.items()]
-    elif isinstance(similarities, Sequence) and isinstance(weights, Sequence):
-        sims = [s * w for s, w in zip(similarities, weights, strict=True)]
-    elif isinstance(similarities, Sequence) and weights is None:
+    if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
+        sims = [sim * pooling_weights[key] for key, sim in similarities.items()]
+    elif isinstance(similarities, Sequence) and isinstance(pooling_weights, Sequence):
+        sims = [s * w for s, w in zip(similarities, pooling_weights, strict=True)]
+    elif isinstance(similarities, Sequence) and pooling_weights is None:
         sims = similarities
-    elif isinstance(similarities, Mapping) and weights is None:
+    elif isinstance(similarities, Mapping) and pooling_weights is None:
         sims = list(similarities.values())
     else:
         raise NotImplementedError()
 
-    if operation == "mean":
+    if pooling == "mean":
         return statistics.mean(sims)
-    if operation == "fmean":
+    if pooling == "fmean":
         return statistics.fmean(sims)
-    if operation == "geometric_mean":
+    if pooling == "geometric_mean":
         return statistics.geometric_mean(sims)
-    if operation == "harmonic_mean":
+    if pooling == "harmonic_mean":
         return statistics.harmonic_mean(sims)
-    elif operation == "median":
+    elif pooling == "median":
         return statistics.median(sims)
-    elif operation == "median_low":
+    elif pooling == "median_low":
         return statistics.median_low(sims)
-    elif operation == "median_high":
+    elif pooling == "median_high":
         return statistics.median_high(sims)
-    elif operation == "mode":
+    elif pooling == "mode":
         return statistics.mode(sims)
-    elif operation == "min":
+    elif pooling == "min":
         return min(sims)
-    elif operation == "max":
+    elif pooling == "max":
         return max(sims)
-    elif operation == "sum":
+    elif pooling == "sum":
         return sum(sims)
     else:
         raise NotImplementedError()
