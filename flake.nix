@@ -59,6 +59,7 @@
             name = "release-env";
             paths = packages;
           };
+          ci = pkgs.nixci;
         };
         legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
           github = {
