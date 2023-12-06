@@ -1,9 +1,9 @@
 import csv
 import tomllib
 from collections import abc
-from collections.abc import Callable, Hashable, Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import orjson as json
 import pandas as pd
@@ -24,7 +24,7 @@ class DataFrameCasebase(abc.Mapping[model.CaseName, model.CaseType]):
     def __getitem__(self, key: int) -> Series:
         return self.df.iloc[key]
 
-    def __iter__(self) -> Iterator[Hashable]:
+    def __iter__(self) -> Iterator[str]:
         return iter(self.df.index)
 
     def __len__(self) -> int:
@@ -68,9 +68,16 @@ def _load_yaml(path: model.FilePath) -> dict[str, Any]:
     return data
 
 
-FileLoader = Callable[[model.FilePath], dict[str, Any]]
+def _load_txt(path: model.FilePath) -> str:
+    with open(path) as fp:
+        return fp.read()
 
-_file_loaders: dict[str, FileLoader] = {
+
+SingleLoader = Callable[[model.FilePath], Any]
+BatchLoader = Callable[[model.FilePath], dict[str, Any]]
+
+# They contain the whole casebase in one file
+_batch_loaders: dict[str, BatchLoader] = {
     ".json": _load_json,
     ".toml": _load_toml,
     ".yaml": _load_yaml,
@@ -78,8 +85,15 @@ _file_loaders: dict[str, FileLoader] = {
     ".csv": _load_csv,
 }
 
+# They contain one case per file
+# Since structured formats may also be used for single cases, they are also included here
+_single_loaders: dict[str, SingleLoader] = {
+    **_batch_loaders,
+    ".txt": _load_txt,
+}
 
-def load_path(path: model.FilePath) -> model.Casebase[Any]:
+
+def load_path(path: model.FilePath, pattern: str | None = None) -> model.Casebase[Any]:
     if isinstance(path, str):
         path = Path(path)
 
@@ -88,7 +102,7 @@ def load_path(path: model.FilePath) -> model.Casebase[Any]:
     if path.is_file():
         cb = load_file(path)
     elif path.is_dir():
-        cb = load_folder(path)
+        cb = load_folder(path, pattern or "**/*")
     else:
         raise FileNotFoundError(path)
 
@@ -99,20 +113,21 @@ def load_path(path: model.FilePath) -> model.Casebase[Any]:
 
 
 def load_file(path: Path) -> model.Casebase[Any] | None:
-    if path.suffix not in _file_loaders:
+    if path.suffix not in _batch_loaders:
         return None
 
-    loader = _file_loaders[path.suffix]
+    loader = _batch_loaders[path.suffix]
+    cb = loader(path)
 
-    return cast(model.Casebase[Any], loader(path))
+    return cb
 
 
-def load_folder(path: Path, pattern: str = "**/*") -> model.Casebase[Any] | None:
+def load_folder(path: Path, pattern: str) -> model.Casebase[Any] | None:
     cb: model.Casebase[Any] = {}
 
     for file in path.glob(pattern):
-        if file.is_file() and file.suffix in _file_loaders:
-            loader = _file_loaders[path.suffix]
+        if file.is_file() and file.suffix in _single_loaders:
+            loader = _single_loaders[path.suffix]
             cb[file.name] = loader(file)
 
     if len(cb) == 0:
