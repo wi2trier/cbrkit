@@ -225,4 +225,5 @@ poetry.toml
 
 .vscode/
 .python-version
-/.github/workflows
+/data/*
+!/data/cars-1k.csv
