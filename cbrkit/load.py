@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-import orjson as json
+import orjson
 import pandas as pd
 import yaml
 from pandas import DataFrame, Series
@@ -55,7 +55,7 @@ def _load_csv(path: model.FilePath) -> dict[str, dict[str, str]]:
 
 def _load_json(path: model.FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
-        return json.loads(fp.read())
+        return orjson.loads(fp.read())
 
 
 def _load_toml(path: model.FilePath) -> dict[str, Any]:
