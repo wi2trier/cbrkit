@@ -17,7 +17,6 @@ Casebase = Mapping[CaseName, CaseType]
 
 DataType = TypeVar("DataType", contravariant=True)
 
-SimilarityFuncName = Literal["equality", "datatypes"]
 SimilarityValue = float
 DataSimilarityMap = Mapping[DataType, SimilarityValue]
 CaseSimilarityMap = Mapping[CaseName, SimilarityValue]
@@ -78,6 +77,15 @@ class RetrievalResult(Generic[CaseType]):
     similarities: CaseSimilarityMap
     ranking: list[CaseName]
     casebase: Casebase[CaseType]
+
+
+class Retriever(Protocol[CaseType]):
+    def __call__(
+        self,
+        casebase: Casebase[CaseType],
+        query: CaseType,
+    ) -> RetrievalResult[CaseType]:
+        ...
 
 
 # TODO: Create helper for astar search
