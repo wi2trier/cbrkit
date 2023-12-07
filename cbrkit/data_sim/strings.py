@@ -1,3 +1,4 @@
+import itertools
 from pathlib import Path
 
 import Levenshtein
@@ -5,6 +6,22 @@ import Levenshtein
 from cbrkit import model
 from cbrkit.data_sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.data_sim.helpers import apply
+
+
+def spacy(model_name: str = "en_core_web_lg") -> model.DataSimilarityBatchFunc[str]:
+    import spacy
+
+    nlp = spacy.load(model_name)
+
+    def wrapped_func(*args: tuple[str, str]) -> model.SimilaritySequence:
+        texts = set(itertools.chain.from_iterable((x[0], x[1]) for x in args))
+
+        with nlp.select_pipes(enable=[]):
+            docs = dict(zip(texts, nlp.pipe(texts), strict=True))
+
+        return [docs[x].similarity(docs[y]) for x, y in args]
+
+    return wrapped_func
 
 
 def taxonomy(
