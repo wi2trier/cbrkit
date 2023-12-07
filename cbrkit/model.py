@@ -49,7 +49,7 @@ class DataSimilarityBatchFunc(Protocol[DataType]):
 
 
 class DataSimilaritySingleFunc(Protocol[DataType]):
-    def __call__(self, data1: DataType, data2: DataType) -> SimilarityValue:
+    def __call__(self, x: DataType, y: DataType) -> SimilarityValue:
         ...
 
 
