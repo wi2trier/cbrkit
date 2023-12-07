@@ -11,7 +11,7 @@ def test_retrieve_pandas():
     df = pd.read_csv(casebase_file)
     casebase = cbrkit.load_dataframe(df)
     query = casebase[query_name]
-    retrieve = cbrkit.retriever(
+    retriever = cbrkit.retriever(
         cbrkit.case_sim.factories.by_attributes(
             {
                 "manufacturer": cbrkit.data_sim.strings.levenshtein(),
@@ -20,7 +20,7 @@ def test_retrieve_pandas():
         ),
         casebase_limit=5,
     )
-    result = retrieve(casebase, query)
+    result = cbrkit.retrieve(casebase, query, retriever)
 
     assert len(casebase) == 999  # csv contains header
     assert len(result.ranking) == len(casebase)

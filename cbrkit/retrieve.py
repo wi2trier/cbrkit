@@ -1,6 +1,58 @@
-from cbrkit import model
+from collections.abc import Callable, Sequence
+from typing import Any, Literal, overload
 
-__all__ = ("retriever",)
+from cbrkit import load, model
+
+__all__ = ("retrieve", "retriever", "import_retrievers")
+
+
+@overload
+def retrieve(
+    casebase: model.Casebase[model.CaseType],
+    query: model.CaseType,
+    retrievers: model.Retriever[model.CaseType]
+    | Sequence[model.Retriever[model.CaseType]],
+    all_results: Literal[False] = False,
+) -> model.RetrievalResult[model.CaseType]:
+    ...
+
+
+@overload
+def retrieve(
+    casebase: model.Casebase[model.CaseType],
+    query: model.CaseType,
+    retrievers: model.Retriever[model.CaseType]
+    | Sequence[model.Retriever[model.CaseType]],
+    all_results: Literal[True] = True,
+) -> list[model.RetrievalResult[model.CaseType]]:
+    ...
+
+
+def retrieve(
+    casebase: model.Casebase[model.CaseType],
+    query: model.CaseType,
+    retrievers: model.Retriever[model.CaseType]
+    | Sequence[model.Retriever[model.CaseType]],
+    all_results: bool = False,
+) -> (
+    model.RetrievalResult[model.CaseType] | list[model.RetrievalResult[model.CaseType]]
+):
+    if not isinstance(retrievers, Sequence):
+        retrievers = [retrievers]
+
+    assert len(retrievers) > 0
+    results: list[model.RetrievalResult[model.CaseType]] = []
+    current_casebase = casebase
+
+    for retriever_func in retrievers:
+        result = retriever_func(current_casebase, query)
+        current_casebase = result.casebase
+        results.append(result)
+
+    if all_results:
+        return results
+    else:
+        return results[-1]
 
 
 def retriever(
@@ -26,3 +78,16 @@ def retriever(
         )
 
     return wrapped_func
+
+
+def import_retrievers(retriever: str) -> Sequence[model.Retriever[Any]]:
+    retriever_funcs: model.Retriever | Sequence[model.Retriever] = load.import_string(
+        retriever
+    )
+
+    if not isinstance(retriever_funcs, Sequence):
+        retriever_funcs = [retriever_funcs]
+
+    assert all(isinstance(func, Callable) for func in retriever_funcs)
+
+    return retriever_funcs
