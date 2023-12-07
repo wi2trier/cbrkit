@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from cbrkit import model, similarity
+from cbrkit import case_sim, model
 
 __all__ = ("retrieve",)
 
@@ -13,7 +13,7 @@ def retrieve(
     casebase_limit: int | None = None,
 ) -> model.RetrievalResult[model.CaseType]:
     if not isinstance(similarity_func, Callable):
-        similarity_func = similarity.get(similarity_func)
+        similarity_func = case_sim.get(similarity_func)
 
     similarities = similarity_func(casebase, query)
 
