@@ -15,7 +15,7 @@ from cbrkit import model
 __all__ = ("load_path", "load_dataframe")
 
 
-class DataFrameCasebase(abc.Mapping[model.CaseName, model.CaseType]):
+class DataFrameCasebase(abc.Mapping):
     df: DataFrame
 
     def __init__(self, df: DataFrame) -> None:
@@ -40,15 +40,16 @@ def load_dataframe(df: DataFrame) -> model.Casebase[pd.Series]:
     return DataFrameCasebase(df)
 
 
-def _load_csv(path: model.FilePath) -> dict[str, dict[str, str]]:
-    data: dict[str, dict[str, str]] = {}
+# TODO: Automatically detect numeric values
+def _load_csv(path: model.FilePath) -> dict[int, dict[str, str]]:
+    data: dict[int, dict[str, str]] = {}
 
     with open(path) as fp:
         reader = csv.DictReader(fp)
         row: dict[str, str]
 
         for idx, row in enumerate(reader):
-            data[str(idx)] = row
+            data[idx] = row
 
         return data
 
@@ -80,7 +81,7 @@ def _load_txt(path: model.FilePath) -> str:
 
 DataLoader = Callable[[model.FilePath], dict[str, Any]]
 SingleLoader = Callable[[model.FilePath], Any]
-BatchLoader = Callable[[model.FilePath], dict[str, Any]]
+BatchLoader = Callable[[model.FilePath], dict[Any, Any]]
 
 data_loaders: dict[str, DataLoader] = {
     ".json": _load_json,

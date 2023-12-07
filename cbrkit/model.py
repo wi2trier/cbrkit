@@ -1,7 +1,8 @@
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
+    Any,
     Generic,
     Literal,
     Protocol,
@@ -10,37 +11,41 @@ from typing import (
 
 FilePath = str | Path
 
-CaseType = TypeVar("CaseType")
-CaseName = str
+CaseType = TypeVar("CaseType", contravariant=True)
+CaseName = Any
 Casebase = Mapping[CaseName, CaseType]
 
 DataType = TypeVar("DataType", contravariant=True)
 
+SimilarityFuncName = Literal["equality", "datatypes"]
 SimilarityValue = float
 DataSimilarityMap = Mapping[DataType, SimilarityValue]
 CaseSimilarityMap = Mapping[CaseName, SimilarityValue]
 SimilaritySequence = Sequence[SimilarityValue]
 SimilarityValues = TypeVar(
-    "SimilarityValues", SimilaritySequence, CaseSimilarityMap, DataSimilarityMap
+    "SimilarityValues",
+    SimilaritySequence,
+    CaseSimilarityMap,
+    DataSimilarityMap,
+    contravariant=True,
 )
 
-SimilarityFuncName = Literal["equality"]
-CaseSimilarityBatchFunc = Callable[[Casebase[CaseType], CaseType], CaseSimilarityMap]
-CaseSimilaritySingleFunc = Callable[[CaseType, CaseType], SimilarityValue]
 
-# DataType = TypeVar("DataType")
-# DataSimilaritySingleFunc = Callable[[DataType, DataType], SimilarityValue]
-# DataSimilarityBatchFunc = Callable[[Sequence[tuple[DataType, DataType]]], SimilarityValue]
+class AggregateFunc(Protocol[SimilarityValues]):
+    def __call__(self, similarities: SimilarityValues) -> SimilarityValue:
+        ...
 
 
-# class SimilarityBatchFunc(Protocol[CaseType]):
-#     def __call__(self, casebase: Casebase[CaseType], query: CaseType) -> SimilarityCaseMap:
-#         ...
+class CaseSimilarityBatchFunc(Protocol[CaseType]):
+    def __call__(
+        self, casebase: Casebase[CaseType], query: CaseType
+    ) -> CaseSimilarityMap:
+        ...
 
 
-# class SimilaritySingleFunc(Protocol[CaseType]):
-#     def __call__(self, case: CaseType, query: CaseType) -> SimilarityValue:
-#         ...
+class CaseSimilaritySingleFunc(Protocol[CaseType]):
+    def __call__(self, case: CaseType, query: CaseType) -> SimilarityValue:
+        ...
 
 
 class DataSimilarityBatchFunc(Protocol[DataType]):
@@ -67,14 +72,15 @@ Pooling = Literal[
     "sum",
 ]
 
-# TODO: Create helper for astar search
-# TODO: Rest API
-# TODO: CLI Interface for two-dimensional (i.e., tabular) data
-# TODO: How to design similarity helper methods
-
 
 @dataclass
 class RetrievalResult(Generic[CaseType]):
     similarities: CaseSimilarityMap
     ranking: list[CaseName]
     casebase: Casebase[CaseType]
+
+
+# TODO: Create helper for astar search
+# TODO: Rest API
+# TODO: CLI Interface for two-dimensional (i.e., tabular) data
+# TODO: How to handle similarity function composition via config files (e.g., for CLI)?

@@ -5,16 +5,34 @@ from typing import Any
 import pandas as pd
 
 from cbrkit import model
-from cbrkit.case_sim.helpers import aggregate
+from cbrkit.case_sim.helpers import aggregate_default
+
+SupportsGetter = Mapping[Any, Any] | pd.Series
+
+
+def _key_getter(obj: SupportsGetter) -> Iterator[str]:
+    if isinstance(obj, Mapping):
+        yield from obj.keys()
+    elif isinstance(obj, pd.Series):
+        yield from obj.index
+    else:
+        raise NotImplementedError()
+
+
+def _value_getter(obj: SupportsGetter, key: Any) -> Any:
+    if isinstance(obj, Mapping):
+        return obj[key]
+    elif isinstance(obj, pd.Series):
+        return obj[key]
+    else:
+        return getattr(obj, key)
 
 
 def by_attributes(
     mapping: Mapping[str, model.DataSimilarityBatchFunc[Any]],
-    pooling: model.Pooling = "mean",
-    pooling_weights: Mapping[str, float] | None = None,
-    default_pooling_weight: model.SimilarityValue = 1.0,
-    getter: Callable[[Any, str], Any] = getattr,
-) -> model.CaseSimilarityBatchFunc[Any]:
+    aggregate: model.AggregateFunc = aggregate_default,
+    value_getter: Callable[[Any, str], Any] = _value_getter,
+) -> model.CaseSimilarityBatchFunc[SupportsGetter]:
     def wrapped_func(
         casebase: model.Casebase[model.CaseType], query: model.CaseType
     ) -> model.CaseSimilarityMap:
@@ -24,7 +42,8 @@ def by_attributes(
 
         for attr, sim_func in mapping.items():
             casebase_attribute_pairs = [
-                (getter(case, attr), getter(query, attr)) for case in casebase.values()
+                (value_getter(case, attr), value_getter(query, attr))
+                for case in casebase.values()
             ]
             casebase_similarities = sim_func(*casebase_attribute_pairs)
 
@@ -34,32 +53,20 @@ def by_attributes(
                 sims_per_case[casename][attr] = similarity
 
         return {
-            casename: aggregate(
-                similarities, pooling, pooling_weights, default_pooling_weight
-            )
+            casename: aggregate(similarities)
             for casename, similarities in sims_per_case.items()
         }
 
     return wrapped_func
 
 
-def _attributes_getter(obj: Any) -> Iterator[str]:
-    if isinstance(obj, Mapping):
-        yield from obj.keys()
-    elif isinstance(obj, pd.Series):
-        yield from obj.index
-    else:
-        raise NotImplementedError()
-
-
 def by_types(
     mapping: Mapping[type[Any], model.DataSimilarityBatchFunc[Any]],
-    pooling: model.Pooling = "mean",
-    pooling_weights: Mapping[str, float] | None = None,
-    default_pooling_weight: model.SimilarityValue = 1.0,
-    getter: Callable[[Any, str], Any] = getattr,
-    attributes_getter: Callable[[Any], Iterator[str]] = _attributes_getter,
-) -> model.CaseSimilarityBatchFunc[Any]:
+    default_sim_func: model.DataSimilarityBatchFunc[Any] | None = None,
+    aggregate: model.AggregateFunc = aggregate_default,
+    value_getter: Callable[[Any, str], Any] = _value_getter,
+    key_getter: Callable[[Any], Iterator[str]] = _key_getter,
+) -> model.CaseSimilarityBatchFunc[SupportsGetter]:
     def wrapped_func(
         casebase: model.Casebase[model.CaseType], query: model.CaseType
     ) -> model.CaseSimilarityMap:
@@ -67,12 +74,14 @@ def by_types(
             dict
         )
 
-        for attr in attributes_getter(query):
+        for attr in key_getter(query):
             casebase_attribute_pairs = [
-                (getter(case, attr), getter(query, attr)) for case in casebase.values()
+                (value_getter(case, attr), value_getter(query, attr))
+                for case in casebase.values()
             ]
             attr_type = type(casebase_attribute_pairs[0][0])
-            sim_func = mapping[attr_type]
+            sim_func = mapping.get(attr_type, default_sim_func)
+            assert sim_func is not None, f"no similarity function for {attr_type}"
             casebase_similarities = sim_func(*casebase_attribute_pairs)
 
             for casename, similarity in zip(
@@ -81,9 +90,7 @@ def by_types(
                 sims_per_case[casename][attr] = similarity
 
         return {
-            casename: aggregate(
-                similarities, pooling, pooling_weights, default_pooling_weight
-            )
+            casename: aggregate(similarities)
             for casename, similarities in sims_per_case.items()
         }
 
