@@ -1,9 +1,9 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, Literal, overload
 
 from cbrkit import load, model
 
-__all__ = ("retrieve", "retriever", "import_retrievers")
+__all__ = ("retrieve", "retriever", "import_retrievers", "import_retrievers_map")
 
 
 @overload
@@ -80,14 +80,37 @@ def retriever(
     return wrapped_func
 
 
-def import_retrievers(retriever: str) -> Sequence[model.Retriever[Any]]:
-    retriever_funcs: model.Retriever | Sequence[model.Retriever] = load.import_string(
-        retriever
-    )
+def import_retrievers(import_paths: Sequence[str] | str) -> list[model.Retriever[Any]]:
+    if isinstance(import_paths, str):
+        import_paths = [import_paths]
 
-    if not isinstance(retriever_funcs, Sequence):
-        retriever_funcs = [retriever_funcs]
+    retrievers: list[model.Retriever] = []
 
-    assert all(isinstance(func, Callable) for func in retriever_funcs)
+    for import_path in import_paths:
+        obj = load.import_string(import_path)
 
-    return retriever_funcs
+        if isinstance(obj, Sequence):
+            assert all(isinstance(func, Callable) for func in retrievers)
+            retrievers.extend(obj)
+        elif isinstance(obj, Callable):
+            retrievers.append(obj)
+
+    return retrievers
+
+
+def import_retrievers_map(
+    import_paths: Collection[str] | str
+) -> dict[str, model.Retriever[Any]]:
+    if isinstance(import_paths, str):
+        import_paths = [import_paths]
+
+    retrievers: dict[str, model.Retriever] = {}
+
+    for import_path in import_paths:
+        obj = load.import_string(import_path)
+
+        if isinstance(obj, Mapping):
+            assert all(isinstance(func, Callable) for func in obj.values())
+            retrievers.update(obj)
+
+    return retrievers
