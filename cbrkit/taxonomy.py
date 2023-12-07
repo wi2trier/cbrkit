@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, TypedDict, cast
+from typing import Literal, Optional, TypedDict, cast
 
 from cbrkit import load, model
 
@@ -22,7 +22,7 @@ class TaxonomyNode:
     key: str
     weight: float | None
     depth: int
-    parent: "TaxonomyNode" | None
+    parent: Optional["TaxonomyNode"]
     children: dict[str, "TaxonomyNode"] = field(default_factory=dict)
 
 
