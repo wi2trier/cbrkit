@@ -21,8 +21,13 @@ class DataFrameCasebase(abc.Mapping[model.CaseName, model.CaseType]):
     def __init__(self, df: DataFrame) -> None:
         self.df = df
 
-    def __getitem__(self, key: int) -> Series:
-        return self.df.iloc[key]
+    def __getitem__(self, key: str | int) -> Series:
+        if isinstance(key, int):
+            return self.df.iloc[key]
+        elif isinstance(key, str):
+            return self.df.loc[key]
+
+        raise TypeError(f"Invalid key type: {type(key)}")
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.df.index)
@@ -73,15 +78,20 @@ def _load_txt(path: model.FilePath) -> str:
         return fp.read()
 
 
+DataLoader = Callable[[model.FilePath], dict[str, Any]]
 SingleLoader = Callable[[model.FilePath], Any]
 BatchLoader = Callable[[model.FilePath], dict[str, Any]]
 
-# They contain the whole casebase in one file
-_batch_loaders: dict[str, BatchLoader] = {
+data_loaders: dict[str, DataLoader] = {
     ".json": _load_json,
     ".toml": _load_toml,
     ".yaml": _load_yaml,
     ".yml": _load_yaml,
+}
+
+# They contain the whole casebase in one file
+_batch_loaders: dict[str, BatchLoader] = {
+    **data_loaders,
     ".csv": _load_csv,
 }
 
