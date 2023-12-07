@@ -1,7 +1,6 @@
 from cbrkit import model
 
 
-# TODO: Document that this shall be applied when using a DataSimilaritySingleFunc
 def apply(
     func: model.DataSimilaritySingleFunc[model.DataType]
 ) -> model.DataSimilarityBatchFunc[model.DataType]:

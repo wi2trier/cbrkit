@@ -89,6 +89,3 @@ class Retriever(Protocol[CaseType]):
 
 
 # TODO: Create helper for astar search
-# TODO: Rest API
-# TODO: CLI Interface for two-dimensional (i.e., tabular) data
-# TODO: How to handle similarity function composition via config files (e.g., for CLI)?

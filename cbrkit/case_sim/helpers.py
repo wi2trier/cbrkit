@@ -4,7 +4,6 @@ from collections.abc import Mapping, Sequence
 from cbrkit import model
 
 
-# TODO: Document that this shall be applied when using a CaseSimilaritySingleFunc
 def apply(
     func: model.CaseSimilaritySingleFunc[model.CaseType],
 ) -> model.CaseSimilarityBatchFunc[model.CaseType]:

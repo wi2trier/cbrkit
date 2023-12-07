@@ -64,7 +64,6 @@ def load_dataframe(df: DataFrame) -> model.Casebase[pd.Series]:
     return DataFrameCasebase(df)
 
 
-# TODO: Automatically detect numeric values
 def _load_csv(path: model.FilePath) -> dict[int, dict[str, str]]:
     data: dict[int, dict[str, str]] = {}
 
