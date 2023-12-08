@@ -4,9 +4,9 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit.sim.helpers import aggregate_default, sim2map, soft_sim2seq
+from cbrkit.sim.helpers import aggregator, sim2map, soft_sim2seq
 from cbrkit.typing import (
-    AggregateFunc,
+    AggregatorFunc,
     Casebase,
     SimMap,
     SimMapFunc,
@@ -44,11 +44,14 @@ def equality() -> SimMapFunc[Any, Any]:
     return wrapped_func
 
 
+_aggregator = aggregator()
+
+
 def tabular(
     attributes: Mapping[str, SimPairOrSeqFunc[Any]] | None = None,
     types: Mapping[type[Any], SimPairOrSeqFunc[Any]] | None = None,
     types_fallback: SimPairOrSeqFunc[Any] | None = None,
-    aggregate: AggregateFunc = aggregate_default,
+    aggregator: AggregatorFunc[str] = _aggregator,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
 ) -> SimMapFunc[Any, TabularData]:
@@ -96,7 +99,7 @@ def tabular(
                 sims_per_case[casename][attr] = similarity
 
         return {
-            casename: aggregate(similarities)
+            casename: aggregator(similarities)
             for casename, similarities in sims_per_case.items()
         }
 

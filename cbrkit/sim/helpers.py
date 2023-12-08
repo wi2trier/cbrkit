@@ -4,10 +4,8 @@ from inspect import signature as inspect_signature
 from typing import Any, Literal, cast
 
 from cbrkit.typing import (
-    AggregateFunc,
-    AggregateMapFunc,
+    AggregatorFunc,
     KeyType,
-    OuterKeyType,
     SimFunc,
     SimMap,
     SimMapFunc,
@@ -26,9 +24,7 @@ __all__ = [
     "dist2sim",
     "sim2seq",
     "sim2map",
-    "aggregate",
-    "aggregate_map",
-    "aggregate_default",
+    "aggregator",
 ]
 
 
@@ -88,86 +84,56 @@ Pooling = Literal[
 ]
 
 
-def aggregate(
+def aggregator(
     pooling: Pooling = "mean",
     pooling_weights: SimVals[KeyType] | None = None,
     default_pooling_weight: float = 1.0,
-) -> AggregateFunc[KeyType]:
+) -> AggregatorFunc[KeyType]:
     def wrapped_func(similarities: SimVals[KeyType]) -> SimType:
-        return _aggregate_single(
-            similarities, pooling, pooling_weights, default_pooling_weight
-        )
+        assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
-    return wrapped_func
+        sims: Sequence[SimType]  # noqa: F821
 
-
-def aggregate_map(
-    pooling: Pooling = "mean",
-    pooling_weights: SimVals[KeyType] | None = None,
-    default_pooling_weight: float = 1.0,
-) -> AggregateMapFunc[KeyType, Any]:
-    def wrapped_func(
-        similarities: Mapping[OuterKeyType, SimVals[KeyType]]
-    ) -> Mapping[OuterKeyType, SimType]:
-        return {
-            key: _aggregate_single(
-                value, pooling, pooling_weights, default_pooling_weight
-            )
-            for key, value in similarities.items()
-        }
-
-    return wrapped_func
-
-
-def _aggregate_single(
-    similarities: SimVals[KeyType],
-    pooling: Pooling = "mean",
-    pooling_weights: SimVals[KeyType] | None = None,
-    default_pooling_weight: float = 1.0,
-) -> SimType:
-    assert pooling_weights is None or type(similarities) == type(pooling_weights)
-
-    sims: Sequence[SimType]  # noqa: F821
-
-    if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
-        sims = [
-            sim * pooling_weights.get(key, default_pooling_weight)
-            for key, sim in similarities.items()
-        ]
-    elif isinstance(similarities, Sequence) and isinstance(pooling_weights, Sequence):
-        sims = [s * w for s, w in zip(similarities, pooling_weights, strict=True)]
-    elif isinstance(similarities, Sequence) and pooling_weights is None:
-        sims = similarities
-    elif isinstance(similarities, Mapping) and pooling_weights is None:
-        sims = list(similarities.values())
-    else:
-        raise NotImplementedError()
-
-    match pooling:
-        case "mean":
-            return statistics.mean(sims)
-        case "fmean":
-            return statistics.fmean(sims)
-        case "geometric_mean":
-            return statistics.geometric_mean(sims)
-        case "harmonic_mean":
-            return statistics.harmonic_mean(sims)
-        case "median":
-            return statistics.median(sims)
-        case "median_low":
-            return statistics.median_low(sims)
-        case "median_high":
-            return statistics.median_high(sims)
-        case "mode":
-            return statistics.mode(sims)
-        case "min":
-            return min(sims)
-        case "max":
-            return max(sims)
-        case "sum":
-            return sum(sims)
-        case _:
+        if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
+            sims = [
+                sim * pooling_weights.get(key, default_pooling_weight)
+                for key, sim in similarities.items()
+            ]
+        elif isinstance(similarities, Sequence) and isinstance(
+            pooling_weights, Sequence
+        ):
+            sims = [s * w for s, w in zip(similarities, pooling_weights, strict=True)]
+        elif isinstance(similarities, Sequence) and pooling_weights is None:
+            sims = similarities
+        elif isinstance(similarities, Mapping) and pooling_weights is None:
+            sims = list(similarities.values())
+        else:
             raise NotImplementedError()
 
+        match pooling:
+            case "mean":
+                return statistics.mean(sims)
+            case "fmean":
+                return statistics.fmean(sims)
+            case "geometric_mean":
+                return statistics.geometric_mean(sims)
+            case "harmonic_mean":
+                return statistics.harmonic_mean(sims)
+            case "median":
+                return statistics.median(sims)
+            case "median_low":
+                return statistics.median_low(sims)
+            case "median_high":
+                return statistics.median_high(sims)
+            case "mode":
+                return statistics.mode(sims)
+            case "min":
+                return min(sims)
+            case "max":
+                return max(sims)
+            case "sum":
+                return sum(sims)
+            case _:
+                raise NotImplementedError()
 
-aggregate_default = aggregate()
+    return wrapped_func

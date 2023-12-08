@@ -6,7 +6,6 @@ from typing import (
 )
 
 FilePath = str | Path
-OuterKeyType = TypeVar("OuterKeyType")
 KeyType = TypeVar("KeyType")
 ValueType = TypeVar("ValueType")
 ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
@@ -58,19 +57,10 @@ class RetrieveFunc(Protocol[KeyType, ValueType]):
         ...
 
 
-class AggregateFunc(Protocol[KeyType]):
+class AggregatorFunc(Protocol[KeyType]):
     def __call__(
         self,
         similarities: SimVals[KeyType],
         /,
     ) -> SimType:
-        ...
-
-
-class AggregateMapFunc(Protocol[KeyType, OuterKeyType]):
-    def __call__(
-        self,
-        similarities: Mapping[OuterKeyType, SimVals[KeyType]],
-        /,
-    ) -> Mapping[OuterKeyType, SimType]:
         ...
