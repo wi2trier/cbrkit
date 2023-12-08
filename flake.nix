@@ -61,6 +61,40 @@
             paths = packages;
           };
           ci = pkgs.nixci;
+          docs = let
+            app = pkgs.poetry2nix.mkPoetryApplication {
+              inherit python;
+              projectDir = ./.;
+              preferWheels = true;
+              checkPhase = "pytest";
+              extras = [];
+              groups = ["docs"];
+            };
+            env = app.dependencyEnv;
+          in
+            pkgs.stdenv.mkDerivation {
+              name = "docs";
+              src = ./.;
+              buildPhase = ''
+                mkdir -p "$out"
+
+                {
+                  echo '```txt'
+                  COLUMNS=120 ${lib.getExe app} --help
+                  echo '```'
+                } > ./cli.md
+
+                # remove everyting before the first header
+                ${lib.getExe pkgs.gnused} -i '1,/^# /d' ./README.md
+
+                ${lib.getExe' env "pdoc"} -d google -t pdoc-template --math \
+                  -o "$out" ./cbrkit
+
+                mkdir "$out/assets"
+                cp -rf ./assets/{*.png,*.gif} "$out/assets/"
+              '';
+              dontInstall = true;
+            };
         };
         legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
           github = {
