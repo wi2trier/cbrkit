@@ -1,0 +1,125 @@
+key: Manufacturers
+children:
+  - key: AwtoWAS
+    children:
+      - lada
+  - key: BMW AG
+    children:
+      - bmw
+      - mini
+      - key: Rolls-Royce Motor Cars
+        children:
+          - rolls-royce
+  - key: Fiat Chrysler Automobiles
+    children:
+      - key: alfa-romeo
+      - key: Chrysler Group
+        children:
+          - key: chrysler
+          - key: ram
+      - key: dodge
+      - key: FCA Italy S.p.A.
+        children:
+          - key: fiat
+          - key: lancia
+      - key: ferrari
+      - key: jeep
+  - key: Daimler AG
+    children:
+      - key: mercedes-benz
+      - key: smart
+  - key: Daewoo Motor Company
+    children:
+      - key: daewoo
+  - key: Ford Motor Company
+    children:
+      - key: aston-martin
+      - key: ford
+      - key: jaguar
+      - key: land-rover
+      - key: lincoln
+      - key: mazda
+      - key: mercury
+      - key: rover
+      - key: volvo
+  - key: General Motors
+    children:
+      - key: buick
+      - key: cadillac
+      - key: chevrolet
+      - key: gmc
+      - key: hummer
+      - key: pontiac
+      - key: saturn
+      - key: Saab Automobile
+        children:
+          - key: saab
+  - key: Harley Davidson Inc
+    children:
+      - key: harley-davidson
+  - key: Honda Group
+    children:
+      - key: acura
+      - key: honda
+  - key: Hyundai Motor Company
+    children:
+      - key: hyundai
+  - key: Isuzu Motors Limited
+    children:
+      - key: isuzu
+      - key: statesman
+      - key: suzuki
+  - key: Kia Motors
+    children:
+      - key: asia
+      - key: kia
+  - key: Lotus Cars
+    children:
+      - key: lotus
+  - key: Maserati S.p.A.
+    children:
+      - key: maserati
+  - key: Peugeot Societe Anonyme
+    children:
+      - key: citroen
+      - key: peugeot
+      - key: opel
+  - key: Renault-Nissan-Mitsubishi
+    children:
+      - key: Nissan Motor Company
+        children:
+          - key: datsun
+          - key: nissan
+          - key: infiniti
+      - key: Renault Group
+        children:
+          - key: dacia
+          - key: renault
+      - key: Mitsubishi Motors
+        children:
+          - key: mitsubishi
+  - key: Skoda Auto
+    children:
+      - key: skoda
+  - key: Subaru Corporation
+    children:
+      - key: subaru
+  - key: Tesla Inc.
+    children:
+      - key: tesla
+  - key: Toyota Motor Corporation
+    children:
+      - key: lexus
+      - key: daihatsu
+      - key: toyota
+  - key: VEB Automobilwerk
+    children:
+      - key: trabant
+  - key: Volkswagen AG
+    children:
+      - key: audi
+      - key: bentley
+      - key: lamborghini
+      - key: porsche
+      - key: seat
+      - key: volkswagen
