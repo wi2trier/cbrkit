@@ -3,13 +3,14 @@ from dataclasses import dataclass
 from typing import Any, Literal, overload
 
 from cbrkit import load
+from cbrkit.sim.helpers import soft_sim2map
 from cbrkit.typing import (
     Casebase,
     KeyType,
     RetrievalResultProtocol,
     RetrieveFunc,
-    SimilarityMap,
-    SimMapFunc,
+    SimMap,
+    SimPairOrMapFunc,
     ValueType,
 )
 
@@ -18,7 +19,7 @@ __all__ = ("retrieve", "retriever", "import_retrievers", "import_retrievers_map"
 
 @dataclass
 class RetrievalResult(RetrievalResultProtocol[KeyType, ValueType]):
-    similarities: SimilarityMap[KeyType]
+    similarities: SimMap[KeyType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
 
@@ -74,14 +75,16 @@ def retrieve(
 
 
 def retriever(
-    similarity_func: SimMapFunc[KeyType, ValueType],
+    similarity_func: SimPairOrMapFunc[KeyType, ValueType],
     casebase_limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType]:
+    sim_func = soft_sim2map(similarity_func)
+
     def wrapped_func(
         casebase: Casebase[KeyType, ValueType],
         query: ValueType,
     ) -> RetrievalResultProtocol[KeyType, ValueType]:
-        similarities = similarity_func(casebase, query)
+        similarities = sim_func(casebase, query)
 
         ranked_tuples = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
         ranking = [key for key, _ in ranked_tuples]

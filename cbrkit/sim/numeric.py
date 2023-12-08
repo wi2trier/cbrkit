@@ -1,6 +1,6 @@
 import math
 
-from cbrkit.typing import SimFunc, SimilarityValue
+from cbrkit.typing import SimFunc, SimType
 
 Number = float | int
 
@@ -17,7 +17,7 @@ def linear(max: float, min: float = 0.0) -> SimFunc[Number]:
     ![linear](../../assets/numeric/linear.png)
     """
 
-    def wrapped_func(x: Number, y: Number) -> SimilarityValue:
+    def wrapped_func(x: Number, y: Number) -> SimType:
         return (max - abs(x - y)) / (max - min)
 
     return wrapped_func
@@ -32,7 +32,7 @@ def threshold(threshold: float) -> SimFunc[Number]:
     ![threshold](../../assets/numeric/threshold.png)
     """
 
-    def wrapped_func(x: Number, y: Number) -> SimilarityValue:
+    def wrapped_func(x: Number, y: Number) -> SimType:
         return 1.0 if abs(x - y) <= threshold else 0.0
 
     return wrapped_func
@@ -47,7 +47,7 @@ def exponential(alpha: float = 1.0) -> SimFunc[Number]:
     ![exponential](../../assets/numeric/exponential.png)
     """
 
-    def wrapped_func(x: Number, y: Number) -> SimilarityValue:
+    def wrapped_func(x: Number, y: Number) -> SimType:
         return math.exp(-alpha * abs(x - y))
 
     return wrapped_func
@@ -63,7 +63,7 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimFunc[Number]:
     ![sigmoid](../../assets/numeric/sigmoid.png)
     """
 
-    def wrapped_func(x: Number, y: Number) -> SimilarityValue:
+    def wrapped_func(x: Number, y: Number) -> SimType:
         return 1.0 / (1.0 + math.exp((abs(x - y) - theta) / alpha))
 
     return wrapped_func

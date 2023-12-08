@@ -8,10 +8,10 @@ from cbrkit.sim.helpers import aggregate_default, sim2map, soft_sim2seq
 from cbrkit.typing import (
     AggregateFunc,
     Casebase,
-    SimilarityMap,
-    SimilarityValue,
+    SimMap,
     SimMapFunc,
     SimPairOrSeqFunc,
+    SimType,
     ValueType,
 )
 
@@ -38,7 +38,7 @@ def _value_getter(obj: TabularData, key: Any) -> Any:
 
 def equality() -> SimMapFunc[Any, Any]:
     @sim2map
-    def wrapped_func(x: Any, y: Any) -> SimilarityValue:
+    def wrapped_func(x: Any, y: Any) -> SimType:
         return x == y
 
     return wrapped_func
@@ -59,10 +59,8 @@ def tabular(
         {} if types is None else types
     )
 
-    def wrapped_func(
-        x_map: Casebase[Any, ValueType], y: ValueType
-    ) -> SimilarityMap[Any]:
-        sims_per_case: defaultdict[str, dict[str, SimilarityValue]] = defaultdict(dict)
+    def wrapped_func(x_map: Casebase[Any, ValueType], y: ValueType) -> SimMap[Any]:
+        sims_per_case: defaultdict[str, dict[str, SimType]] = defaultdict(dict)
 
         attribute_names = (
             set(attributes_map)

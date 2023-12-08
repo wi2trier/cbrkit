@@ -3,11 +3,11 @@ from pathlib import Path
 from typing import Literal, Optional, Protocol, TypedDict, cast
 
 from cbrkit import load
-from cbrkit.typing import FilePath, SimilarityValue
+from cbrkit.typing import FilePath, SimType
 
 
 class TaxonomyMeasureFunc(Protocol):
-    def __call__(self, tax: "Taxonomy", x: str, y: str) -> SimilarityValue:
+    def __call__(self, tax: "Taxonomy", x: str, y: str) -> SimType:
         ...
 
 
@@ -85,14 +85,14 @@ class Taxonomy:
         key1: str,
         key2: str,
         measure: TaxonomyMeasure,
-    ) -> SimilarityValue:
+    ) -> SimType:
         if isinstance(measure, str):
             measure = measures[measure]
 
         return measure(self, key1, key2)
 
 
-def wu_palmer(tax: Taxonomy, x: str, y: str) -> SimilarityValue:
+def wu_palmer(tax: Taxonomy, x: str, y: str) -> SimType:
     node1 = tax.nodes[x]
     node2 = tax.nodes[y]
     lca = tax.lca(node1, node2)

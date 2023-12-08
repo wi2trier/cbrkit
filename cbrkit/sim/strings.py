@@ -5,9 +5,9 @@ from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.typing import (
     FilePath,
     SimFunc,
-    SimilaritySequence,
-    SimilarityValue,
+    SimSeq,
     SimSeqFunc,
+    SimType,
 )
 
 
@@ -16,7 +16,7 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
 
     nlp = spacy.load(model_name)
 
-    def wrapped_func(pairs: Sequence[tuple[str, str]]) -> SimilaritySequence:
+    def wrapped_func(pairs: Sequence[tuple[str, str]]) -> SimSeq:
         texts = set(itertools.chain.from_iterable(pairs))
 
         with nlp.select_pipes(enable=[]):
@@ -30,7 +30,7 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
 def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimFunc[str]:
     taxonomy = Taxonomy(path)
 
-    def wrapped_func(x: str, y: str) -> SimilarityValue:
+    def wrapped_func(x: str, y: str) -> SimType:
         return taxonomy.similarity(x, y, measure)
 
     return wrapped_func
@@ -39,7 +39,7 @@ def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimFunc[
 def levenshtein(score_cutoff: float | None = None) -> SimFunc[str]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimilarityValue:
+    def wrapped_func(x: str, y: str) -> SimType:
         return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
@@ -48,7 +48,7 @@ def levenshtein(score_cutoff: float | None = None) -> SimFunc[str]:
 def jaro(score_cutoff: float | None = None) -> SimFunc[str]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimilarityValue:
+    def wrapped_func(x: str, y: str) -> SimType:
         return Levenshtein.jaro(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
@@ -59,7 +59,7 @@ def jaro_winkler(
 ) -> SimFunc[str]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimilarityValue:
+    def wrapped_func(x: str, y: str) -> SimType:
         return Levenshtein.jaro_winkler(
             x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight
         )
