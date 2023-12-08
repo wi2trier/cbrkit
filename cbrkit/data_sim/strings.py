@@ -1,5 +1,4 @@
 import itertools
-from pathlib import Path
 
 from cbrkit import model
 from cbrkit.data_sim._taxonomy import Taxonomy, TaxonomyMeasure
@@ -23,7 +22,7 @@ def spacy(model_name: str = "en_core_web_lg") -> model.DataSimilarityBatchFunc[s
 
 
 def taxonomy(
-    path: Path, measure: TaxonomyMeasure | None = None
+    path: model.FilePath, measure: TaxonomyMeasure | None = None
 ) -> model.DataSimilarityBatchFunc[str]:
     taxonomy = Taxonomy(path)
 

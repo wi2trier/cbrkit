@@ -9,7 +9,7 @@ from cbrkit import load, model
 class SerializedNode(TypedDict, total=False):
     key: str
     weight: float
-    children: dict[str, "SerializedNode"]
+    children: list["SerializedNode | str"]
 
 
 TaxonomyMeasureName = Literal["wu_palmer"]
@@ -35,11 +35,18 @@ class Taxonomy:
             path = Path(path)
 
         root_data = cast(SerializedNode, load.data_loaders[path.suffix](path))
+        self.nodes = {}
         self.root = self._load(root_data)
 
     def _load(
-        self, data: SerializedNode, parent: TaxonomyNode | None = None, depth: int = 0
+        self,
+        data: SerializedNode | str,
+        parent: TaxonomyNode | None = None,
+        depth: int = 0,
     ) -> TaxonomyNode:
+        if isinstance(data, str):
+            data = {"key": data}
+
         assert "key" in data, "Missing key in some node"
 
         node = TaxonomyNode(
@@ -49,8 +56,9 @@ class Taxonomy:
             parent=parent,
         )
 
-        for key, child in data.get("children", {}).items():
-            node.children[key] = self._load(child, node, depth + 1)
+        for child in data.get("children", []):
+            child_node = self._load(child, node, depth + 1)
+            node.children[child_node.key] = child_node
 
         self.nodes[node.key] = node
 
