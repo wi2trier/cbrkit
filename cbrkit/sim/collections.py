@@ -1,14 +1,13 @@
 from collections.abc import Collection, Set
 from typing import Any
 
-from cbrkit.sim.helpers import dist2sim, sim2seq
-from cbrkit.typing import SimSeqFunc
+from cbrkit.sim.helpers import dist2sim
+from cbrkit.typing import SimFunc
 
 
-def jaccard() -> SimSeqFunc[Collection[Any]]:
+def jaccard() -> SimFunc[Collection[Any]]:
     from nltk.metrics import jaccard_distance
 
-    @sim2seq
     def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:
         if not isinstance(x, Set):
             x = set(x)

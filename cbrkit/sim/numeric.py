@@ -1,14 +1,13 @@
 import math
 
-from cbrkit.sim.helpers import sim2seq
-from cbrkit.typing import SimilarityValue, SimSeqFunc
+from cbrkit.typing import SimFunc, SimilarityValue
 
 Number = float | int
 
 __all__ = ["linear", "threshold", "exponential", "sigmoid"]
 
 
-def linear(max: float, min: float = 0.0) -> SimSeqFunc[Number]:
+def linear(max: float, min: float = 0.0) -> SimFunc[Number]:
     """Linear similarity function.
 
     Args:
@@ -18,14 +17,13 @@ def linear(max: float, min: float = 0.0) -> SimSeqFunc[Number]:
     ![linear](../../assets/numeric/linear.png)
     """
 
-    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return (max - abs(x - y)) / (max - min)
 
     return wrapped_func
 
 
-def threshold(threshold: float) -> SimSeqFunc[Number]:
+def threshold(threshold: float) -> SimFunc[Number]:
     """Threshold similarity function.
 
     Args:
@@ -34,14 +32,13 @@ def threshold(threshold: float) -> SimSeqFunc[Number]:
     ![threshold](../../assets/numeric/threshold.png)
     """
 
-    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 if abs(x - y) <= threshold else 0.0
 
     return wrapped_func
 
 
-def exponential(alpha: float = 1.0) -> SimSeqFunc[Number]:
+def exponential(alpha: float = 1.0) -> SimFunc[Number]:
     """Exponential similarity function.
 
     Args:
@@ -50,14 +47,13 @@ def exponential(alpha: float = 1.0) -> SimSeqFunc[Number]:
     ![exponential](../../assets/numeric/exponential.png)
     """
 
-    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return math.exp(-alpha * abs(x - y))
 
     return wrapped_func
 
 
-def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimSeqFunc[Number]:
+def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimFunc[Number]:
     """Sigmoid similarity function.
 
     Args:
@@ -67,7 +63,6 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimSeqFunc[Number]:
     ![sigmoid](../../assets/numeric/sigmoid.png)
     """
 
-    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 / (1.0 + math.exp((abs(x - y) - theta) / alpha))
 

@@ -4,14 +4,14 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit.sim.helpers import aggregate_default, sim2map
+from cbrkit.sim.helpers import aggregate_default, sim2map, soft_sim2seq
 from cbrkit.typing import (
     AggregateFunc,
     Casebase,
     SimilarityMap,
     SimilarityValue,
     SimMapFunc,
-    SimSeqFunc,
+    SimPairOrSeqFunc,
     ValueType,
 )
 
@@ -45,20 +45,22 @@ def equality() -> SimMapFunc[Any, Any]:
 
 
 def tabular(
-    attributes: Mapping[str, SimSeqFunc[Any]] | None = None,
-    types: Mapping[type[Any], SimSeqFunc[Any]] | None = None,
-    types_fallback: SimSeqFunc[Any] | None = None,
+    attributes: Mapping[str, SimPairOrSeqFunc[Any]] | None = None,
+    types: Mapping[type[Any], SimPairOrSeqFunc[Any]] | None = None,
+    types_fallback: SimPairOrSeqFunc[Any] | None = None,
     aggregate: AggregateFunc = aggregate_default,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
 ) -> SimMapFunc[Any, TabularData]:
-    attributes_map: Mapping[str, SimSeqFunc[Any]] = (
+    attributes_map: Mapping[str, SimPairOrSeqFunc[Any]] = (
         {} if attributes is None else attributes
     )
-    types_map: Mapping[type[Any], SimSeqFunc[Any]] = {} if types is None else types
+    types_map: Mapping[type[Any], SimPairOrSeqFunc[Any]] = (
+        {} if types is None else types
+    )
 
     def wrapped_func(
-        casebase: Casebase[Any, ValueType], query: ValueType
+        x_map: Casebase[Any, ValueType], y: ValueType
     ) -> SimilarityMap[Any]:
         sims_per_case: defaultdict[str, dict[str, SimilarityValue]] = defaultdict(dict)
 
@@ -67,13 +69,13 @@ def tabular(
             if len(attributes_map) > 0
             and len(types_map) == 0
             and types_fallback is None
-            else set(attributes_map).union(key_getter(query))
+            else set(attributes_map).union(key_getter(y))
         )
 
         for attr in attribute_names:
             casebase_attribute_pairs = [
-                (value_getter(case, attr), value_getter(query, attr))
-                for case in casebase.values()
+                (value_getter(case, attr), value_getter(y, attr))
+                for case in x_map.values()
             ]
             attr_type = type(casebase_attribute_pairs[0][0])
 
@@ -86,10 +88,12 @@ def tabular(
             assert (
                 sim_func is not None
             ), f"no similarity function for {attr} with type {attr_type}"
+
+            sim_func = soft_sim2seq(sim_func)
             casebase_similarities = sim_func(casebase_attribute_pairs)
 
             for casename, similarity in zip(
-                casebase.keys(), casebase_similarities, strict=True
+                x_map.keys(), casebase_similarities, strict=True
             ):
                 sims_per_case[casename][attr] = similarity
 

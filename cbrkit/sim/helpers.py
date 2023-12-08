@@ -1,6 +1,7 @@
 import statistics
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from inspect import signature as inspect_signature
+from typing import Any, Literal, cast
 
 from cbrkit.typing import (
     AggregateFunc,
@@ -11,9 +12,31 @@ from cbrkit.typing import (
     SimilarityValue,
     SimilarityValues,
     SimMapFunc,
+    SimPairOrMapFunc,
+    SimPairOrSeqFunc,
     SimSeqFunc,
     ValueType,
 )
+
+
+def soft_sim2seq(func: SimPairOrSeqFunc[ValueType]) -> SimSeqFunc[ValueType]:
+    signature = inspect_signature(func)
+
+    if len(signature.parameters) == 2:
+        return sim2seq(cast(SimFunc[ValueType], func))
+
+    return cast(SimSeqFunc[ValueType], func)
+
+
+def soft_sim2map(
+    func: SimPairOrMapFunc[KeyType, ValueType]
+) -> SimMapFunc[KeyType, ValueType]:
+    signature = inspect_signature(func)
+
+    if signature.parameters.keys() == {"x", "y"}:
+        return sim2map(cast(SimFunc[ValueType], func))
+
+    return cast(SimMapFunc[KeyType, ValueType], func)
 
 
 def dist2sim(distance: float) -> float:

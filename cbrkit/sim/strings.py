@@ -2,9 +2,9 @@ import itertools
 from collections.abc import Sequence
 
 from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
-from cbrkit.sim.helpers import sim2seq
 from cbrkit.typing import (
     FilePath,
+    SimFunc,
     SimilaritySequence,
     SimilarityValue,
     SimSeqFunc,
@@ -27,30 +27,27 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
     return wrapped_func
 
 
-def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimSeqFunc[str]:
+def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimFunc[str]:
     taxonomy = Taxonomy(path)
 
-    @sim2seq
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return taxonomy.similarity(x, y, measure)
 
     return wrapped_func
 
 
-def levenshtein(score_cutoff: float | None = None) -> SimSeqFunc[str]:
+def levenshtein(score_cutoff: float | None = None) -> SimFunc[str]:
     import Levenshtein
 
-    @sim2seq
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
 
 
-def jaro(score_cutoff: float | None = None) -> SimSeqFunc[str]:
+def jaro(score_cutoff: float | None = None) -> SimFunc[str]:
     import Levenshtein
 
-    @sim2seq
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.jaro(x, y, score_cutoff=score_cutoff)
 
@@ -59,10 +56,9 @@ def jaro(score_cutoff: float | None = None) -> SimSeqFunc[str]:
 
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float | None = None
-) -> SimSeqFunc[str]:
+) -> SimFunc[str]:
     import Levenshtein
 
-    @sim2seq
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.jaro_winkler(
             x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight
