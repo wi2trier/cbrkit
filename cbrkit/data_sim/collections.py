@@ -2,10 +2,10 @@ from collections.abc import Collection, Set
 from typing import Any
 
 from cbrkit.data_sim.helpers import apply, dist2sim
-from cbrkit.typing import DataSimFunc
+from cbrkit.typing import DataSimBatchFunc
 
 
-def jaccard() -> DataSimFunc[Collection[Any]]:
+def jaccard() -> DataSimBatchFunc[Collection[Any]]:
     from nltk.metrics import jaccard_distance
 
     @apply

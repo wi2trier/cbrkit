@@ -1,14 +1,14 @@
 import math
 
 from cbrkit.data_sim.helpers import apply
-from cbrkit.typing import DataSimFunc, SimilarityValue
+from cbrkit.typing import DataSimBatchFunc, SimilarityValue
 
 Number = float | int
 
 __all__ = ["linear", "threshold", "exponential", "sigmoid"]
 
 
-def linear(max: float, min: float = 0.0) -> DataSimFunc[Number]:
+def linear(max: float, min: float = 0.0) -> DataSimBatchFunc[Number]:
     """Linear similarity function.
 
     Args:
@@ -25,7 +25,7 @@ def linear(max: float, min: float = 0.0) -> DataSimFunc[Number]:
     return wrapped_func
 
 
-def threshold(threshold: float) -> DataSimFunc[Number]:
+def threshold(threshold: float) -> DataSimBatchFunc[Number]:
     """Threshold similarity function.
 
     Args:
@@ -41,7 +41,7 @@ def threshold(threshold: float) -> DataSimFunc[Number]:
     return wrapped_func
 
 
-def exponential(alpha: float = 1.0) -> DataSimFunc[Number]:
+def exponential(alpha: float = 1.0) -> DataSimBatchFunc[Number]:
     """Exponential similarity function.
 
     Args:
@@ -57,7 +57,7 @@ def exponential(alpha: float = 1.0) -> DataSimFunc[Number]:
     return wrapped_func
 
 
-def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> DataSimFunc[Number]:
+def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> DataSimBatchFunc[Number]:
     """Sigmoid similarity function.
 
     Args:

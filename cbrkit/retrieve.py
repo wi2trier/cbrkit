@@ -5,8 +5,8 @@ from typing import Any, Literal, overload
 from cbrkit import load
 from cbrkit.typing import (
     Casebase,
-    CasebaseSimFunc,
     CaseName,
+    CaseSimBatchFunc,
     CaseType,
     RetrievalResultProtocol,
     RetrieveFunc,
@@ -74,7 +74,7 @@ def retrieve(
 
 
 def retriever(
-    similarity_func: CasebaseSimFunc[CaseName, CaseType],
+    similarity_func: CaseSimBatchFunc[CaseName, CaseType],
     casebase_limit: int | None = None,
 ) -> RetrieveFunc[CaseName, CaseType]:
     def wrapped_func(

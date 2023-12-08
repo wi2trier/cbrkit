@@ -8,9 +8,9 @@ from cbrkit.case_sim.helpers import aggregate_default
 from cbrkit.typing import (
     AggregateFunc,
     Casebase,
-    CasebaseSimFunc,
+    CaseSimBatchFunc,
     CaseType,
-    DataSimFunc,
+    DataSimBatchFunc,
     SimilarityMap,
     SimilarityValue,
 )
@@ -37,17 +37,19 @@ def _value_getter(obj: TabularData, key: Any) -> Any:
 
 
 def factory(
-    attributes: Mapping[str, DataSimFunc[Any]] | None = None,
-    types: Mapping[type[Any], DataSimFunc[Any]] | None = None,
-    types_fallback: DataSimFunc[Any] | None = None,
+    attributes: Mapping[str, DataSimBatchFunc[Any]] | None = None,
+    types: Mapping[type[Any], DataSimBatchFunc[Any]] | None = None,
+    types_fallback: DataSimBatchFunc[Any] | None = None,
     aggregate: AggregateFunc = aggregate_default,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
-) -> CasebaseSimFunc[Any, TabularData]:
-    attributes_map: Mapping[str, DataSimFunc[Any]] = (
+) -> CaseSimBatchFunc[Any, TabularData]:
+    attributes_map: Mapping[str, DataSimBatchFunc[Any]] = (
         {} if attributes is None else attributes
     )
-    types_map: Mapping[type[Any], DataSimFunc[Any]] = {} if types is None else types
+    types_map: Mapping[type[Any], DataSimBatchFunc[Any]] = (
+        {} if types is None else types
+    )
 
     def wrapped_func(
         casebase: Casebase[Any, CaseType], query: CaseType

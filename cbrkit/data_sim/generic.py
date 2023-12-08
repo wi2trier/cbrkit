@@ -3,7 +3,7 @@ from typing import Any
 
 from cbrkit.data_sim.helpers import apply
 from cbrkit.typing import (
-    DataSimFunc,
+    DataSimBatchFunc,
     DataType,
     SimilaritySequence,
     SimilarityValue,
@@ -14,7 +14,7 @@ def table(
     *args: tuple[DataType, DataType, SimilarityValue],
     symmetric: bool = True,
     default: SimilarityValue = 0.0,
-) -> DataSimFunc[DataType]:
+) -> DataSimBatchFunc[DataType]:
     table: defaultdict[DataType, defaultdict[DataType, SimilarityValue]] = defaultdict(
         lambda: defaultdict(lambda: default)
     )
@@ -31,7 +31,7 @@ def table(
     return wrapped_func
 
 
-def equality() -> DataSimFunc[Any]:
+def equality() -> DataSimBatchFunc[Any]:
     @apply
     def wrapped_func(x: Any, y: Any) -> SimilarityValue:
         return x == y

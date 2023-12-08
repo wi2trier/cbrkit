@@ -31,7 +31,7 @@ SimilarityValues_contra = TypeVar(
 )
 
 
-class CasebaseSimFunc(Protocol[CaseName, CaseType_contra]):
+class CaseSimBatchFunc(Protocol[CaseName, CaseType_contra]):
     def __call__(
         self, casebase: Casebase[CaseName, CaseType_contra], query: CaseType_contra
     ) -> SimilarityMap[CaseName]:
@@ -45,14 +45,14 @@ class CaseSimFunc(Protocol[CaseType_contra]):
         ...
 
 
-class DataSimFunc(Protocol[DataType_contra]):
+class DataSimBatchFunc(Protocol[DataType_contra]):
     def __call__(
         self, *args: tuple[DataType_contra, DataType_contra]
     ) -> SimilaritySequence:
         ...
 
 
-class DataPairSimFunc(Protocol[DataType_contra]):
+class DataSimFunc(Protocol[DataType_contra]):
     def __call__(self, x: DataType_contra, y: DataType_contra) -> SimilarityValue:
         ...
 

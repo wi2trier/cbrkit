@@ -3,14 +3,14 @@ import itertools
 from cbrkit.data_sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.data_sim.helpers import apply
 from cbrkit.typing import (
-    DataSimFunc,
+    DataSimBatchFunc,
     FilePath,
     SimilaritySequence,
     SimilarityValue,
 )
 
 
-def spacy(model_name: str = "en_core_web_lg") -> DataSimFunc[str]:
+def spacy(model_name: str = "en_core_web_lg") -> DataSimBatchFunc[str]:
     import spacy
 
     nlp = spacy.load(model_name)
@@ -28,7 +28,7 @@ def spacy(model_name: str = "en_core_web_lg") -> DataSimFunc[str]:
 
 def taxonomy(
     path: FilePath, measure: TaxonomyMeasure = "wu_palmer"
-) -> DataSimFunc[str]:
+) -> DataSimBatchFunc[str]:
     taxonomy = Taxonomy(path)
 
     @apply
@@ -38,7 +38,7 @@ def taxonomy(
     return wrapped_func
 
 
-def levenshtein(score_cutoff: float | None = None) -> DataSimFunc[str]:
+def levenshtein(score_cutoff: float | None = None) -> DataSimBatchFunc[str]:
     import Levenshtein
 
     @apply
@@ -48,7 +48,7 @@ def levenshtein(score_cutoff: float | None = None) -> DataSimFunc[str]:
     return wrapped_func
 
 
-def jaro(score_cutoff: float | None = None) -> DataSimFunc[str]:
+def jaro(score_cutoff: float | None = None) -> DataSimBatchFunc[str]:
     import Levenshtein
 
     @apply
@@ -60,7 +60,7 @@ def jaro(score_cutoff: float | None = None) -> DataSimFunc[str]:
 
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float | None = None
-) -> DataSimFunc[str]:
+) -> DataSimBatchFunc[str]:
     import Levenshtein
 
     @apply

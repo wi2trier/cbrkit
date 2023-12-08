@@ -5,8 +5,8 @@ from typing import Any, Literal
 from cbrkit.typing import (
     AggregateFunc,
     Casebase,
-    CasebaseSimFunc,
     CaseName,
+    CaseSimBatchFunc,
     CaseSimFunc,
     CaseType,
     SimilarityMap,
@@ -17,7 +17,7 @@ from cbrkit.typing import (
 
 def apply(
     func: CaseSimFunc[CaseType],
-) -> CasebaseSimFunc[Any, CaseType]:
+) -> CaseSimBatchFunc[Any, CaseType]:
     def wrapped_func(
         casebase: Casebase[CaseName, CaseType],
         query: CaseType,
