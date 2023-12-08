@@ -1,14 +1,14 @@
 import math
 
-from cbrkit.data_sim.helpers import batchify
-from cbrkit.typing import DataSimBatchFunc, SimilarityValue
+from cbrkit.sim.helpers import sim2seq
+from cbrkit.typing import SimilarityValue, SimSeqFunc
 
 Number = float | int
 
 __all__ = ["linear", "threshold", "exponential", "sigmoid"]
 
 
-def linear(max: float, min: float = 0.0) -> DataSimBatchFunc[Number]:
+def linear(max: float, min: float = 0.0) -> SimSeqFunc[Number]:
     """Linear similarity function.
 
     Args:
@@ -18,14 +18,14 @@ def linear(max: float, min: float = 0.0) -> DataSimBatchFunc[Number]:
     ![linear](../../assets/numeric/linear.png)
     """
 
-    @batchify
+    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return (max - abs(x - y)) / (max - min)
 
     return wrapped_func
 
 
-def threshold(threshold: float) -> DataSimBatchFunc[Number]:
+def threshold(threshold: float) -> SimSeqFunc[Number]:
     """Threshold similarity function.
 
     Args:
@@ -34,14 +34,14 @@ def threshold(threshold: float) -> DataSimBatchFunc[Number]:
     ![threshold](../../assets/numeric/threshold.png)
     """
 
-    @batchify
+    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 if abs(x - y) <= threshold else 0.0
 
     return wrapped_func
 
 
-def exponential(alpha: float = 1.0) -> DataSimBatchFunc[Number]:
+def exponential(alpha: float = 1.0) -> SimSeqFunc[Number]:
     """Exponential similarity function.
 
     Args:
@@ -50,14 +50,14 @@ def exponential(alpha: float = 1.0) -> DataSimBatchFunc[Number]:
     ![exponential](../../assets/numeric/exponential.png)
     """
 
-    @batchify
+    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return math.exp(-alpha * abs(x - y))
 
     return wrapped_func
 
 
-def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> DataSimBatchFunc[Number]:
+def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimSeqFunc[Number]:
     """Sigmoid similarity function.
 
     Args:
@@ -67,7 +67,7 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> DataSimBatchFunc[Number]:
     ![sigmoid](../../assets/numeric/sigmoid.png)
     """
 
-    @batchify
+    @sim2seq
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 / (1.0 + math.exp((abs(x - y) - theta) / alpha))
 

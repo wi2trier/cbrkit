@@ -4,25 +4,37 @@ from typing import Any, Literal
 
 from cbrkit.typing import (
     AggregateFunc,
-    Casebase,
-    CaseName,
-    CaseSimBatchFunc,
-    CaseSimFunc,
-    CaseType,
+    KeyType,
+    SimFunc,
     SimilarityMap,
+    SimilaritySequence,
     SimilarityValue,
     SimilarityValues,
+    SimMapFunc,
+    SimSeqFunc,
+    ValueType,
 )
 
 
-def batchify(
-    func: CaseSimFunc[CaseType],
-) -> CaseSimBatchFunc[Any, CaseType]:
+def dist2sim(distance: float) -> float:
+    return 1 / (1 + distance)
+
+
+def sim2seq(func: SimFunc[ValueType]) -> SimSeqFunc[ValueType]:
     def wrapped_func(
-        casebase: Casebase[CaseName, CaseType],
-        query: CaseType,
-    ) -> SimilarityMap[CaseName]:
-        return {key: func(case, query) for key, case in casebase.items()}
+        pairs: Sequence[tuple[ValueType, ValueType]]
+    ) -> SimilaritySequence:
+        return [func(x, y) for (x, y) in pairs]
+
+    return wrapped_func
+
+
+def sim2map(func: SimFunc[ValueType]) -> SimMapFunc[Any, ValueType]:
+    def wrapped_func(
+        x_map: Mapping[KeyType, ValueType],
+        y: ValueType,
+    ) -> SimilarityMap[KeyType]:
+        return {key: func(x, y) for key, x in x_map.items()}
 
     return wrapped_func
 
@@ -46,7 +58,7 @@ def aggregate(
     pooling: Pooling = "mean",
     pooling_weights: SimilarityValues | None = None,
     default_pooling_weight: SimilarityValue = 1.0,
-) -> AggregateFunc:
+) -> AggregateFunc[SimilarityValues]:
     def wrapped_func(similarities: SimilarityValues) -> SimilarityValue:
         assert pooling_weights is None or type(similarities) == type(pooling_weights)
 

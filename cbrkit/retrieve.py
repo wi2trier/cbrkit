@@ -5,61 +5,61 @@ from typing import Any, Literal, overload
 from cbrkit import load
 from cbrkit.typing import (
     Casebase,
-    CaseName,
-    CaseSimBatchFunc,
-    CaseType,
+    KeyType,
     RetrievalResultProtocol,
     RetrieveFunc,
     SimilarityMap,
+    SimMapFunc,
+    ValueType,
 )
 
 __all__ = ("retrieve", "retriever", "import_retrievers", "import_retrievers_map")
 
 
 @dataclass
-class RetrievalResult(RetrievalResultProtocol[CaseName, CaseType]):
-    similarities: SimilarityMap[CaseName]
-    ranking: list[CaseName]
-    casebase: Casebase[CaseName, CaseType]
+class RetrievalResult(RetrievalResultProtocol[KeyType, ValueType]):
+    similarities: SimilarityMap[KeyType]
+    ranking: list[KeyType]
+    casebase: Casebase[KeyType, ValueType]
 
 
 @overload
 def retrieve(
-    casebase: Casebase[CaseName, CaseType],
-    query: CaseType,
-    retrievers: RetrieveFunc[CaseName, CaseType]
-    | Sequence[RetrieveFunc[CaseName, CaseType]],
+    casebase: Casebase[KeyType, ValueType],
+    query: ValueType,
+    retrievers: RetrieveFunc[KeyType, ValueType]
+    | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: Literal[False] = False,
-) -> RetrievalResultProtocol[CaseName, CaseType]:
+) -> RetrievalResultProtocol[KeyType, ValueType]:
     ...
 
 
 @overload
 def retrieve(
-    casebase: Casebase[CaseName, CaseType],
-    query: CaseType,
-    retrievers: RetrieveFunc[CaseName, CaseType]
-    | Sequence[RetrieveFunc[CaseName, CaseType]],
+    casebase: Casebase[KeyType, ValueType],
+    query: ValueType,
+    retrievers: RetrieveFunc[KeyType, ValueType]
+    | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: Literal[True] = True,
-) -> list[RetrievalResultProtocol[CaseName, CaseType]]:
+) -> list[RetrievalResultProtocol[KeyType, ValueType]]:
     ...
 
 
 def retrieve(
-    casebase: Casebase[CaseName, CaseType],
-    query: CaseType,
-    retrievers: RetrieveFunc[CaseName, CaseType]
-    | Sequence[RetrieveFunc[CaseName, CaseType]],
+    casebase: Casebase[KeyType, ValueType],
+    query: ValueType,
+    retrievers: RetrieveFunc[KeyType, ValueType]
+    | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: bool = False,
 ) -> (
-    RetrievalResultProtocol[CaseName, CaseType]
-    | list[RetrievalResultProtocol[CaseName, CaseType]]
+    RetrievalResultProtocol[KeyType, ValueType]
+    | list[RetrievalResultProtocol[KeyType, ValueType]]
 ):
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[RetrievalResultProtocol[CaseName, CaseType]] = []
+    results: list[RetrievalResultProtocol[KeyType, ValueType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
@@ -74,13 +74,13 @@ def retrieve(
 
 
 def retriever(
-    similarity_func: CaseSimBatchFunc[CaseName, CaseType],
+    similarity_func: SimMapFunc[KeyType, ValueType],
     casebase_limit: int | None = None,
-) -> RetrieveFunc[CaseName, CaseType]:
+) -> RetrieveFunc[KeyType, ValueType]:
     def wrapped_func(
-        casebase: Casebase[CaseName, CaseType],
-        query: CaseType,
-    ) -> RetrievalResultProtocol[CaseName, CaseType]:
+        casebase: Casebase[KeyType, ValueType],
+        query: ValueType,
+    ) -> RetrievalResultProtocol[KeyType, ValueType]:
         similarities = similarity_func(casebase, query)
 
         ranked_tuples = sorted(similarities.items(), key=lambda x: x[1], reverse=True)

@@ -7,16 +7,13 @@ from typing import (
 
 FilePath = str | Path
 
-CaseName = TypeVar("CaseName")
-CaseType = TypeVar("CaseType")
-CaseType_contra = TypeVar("CaseType_contra", contravariant=True)
-Casebase = Mapping[CaseName, CaseType]
-DataType = TypeVar("DataType", contravariant=True)
-DataType_contra = TypeVar("DataType_contra", contravariant=True)
+KeyType = TypeVar("KeyType")
+ValueType = TypeVar("ValueType")
+ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
+Casebase = Mapping[KeyType, ValueType]
 
 SimilarityValue = float
-SimilarityKey = TypeVar("SimilarityKey")
-SimilarityMap = Mapping[SimilarityKey, SimilarityValue]
+SimilarityMap = Mapping[KeyType, SimilarityValue]
 SimilaritySequence = Sequence[SimilarityValue]
 SimilarityValues = TypeVar(
     "SimilarityValues",
@@ -31,47 +28,45 @@ SimilarityValues_contra = TypeVar(
 )
 
 
-class CaseSimBatchFunc(Protocol[CaseName, CaseType_contra]):
+class SimMapFunc(Protocol[KeyType, ValueType_contra]):
     def __call__(
-        self, casebase: Casebase[CaseName, CaseType_contra], query: CaseType_contra
-    ) -> SimilarityMap[CaseName]:
+        self, x_map: Mapping[KeyType, ValueType_contra], y: ValueType_contra, /
+    ) -> SimilarityMap[KeyType]:
         ...
 
 
-class CaseSimFunc(Protocol[CaseType_contra]):
+class SimSeqFunc(Protocol[ValueType_contra]):
     def __call__(
-        self, case: CaseType_contra, query: CaseType_contra
-    ) -> SimilarityValue:
-        ...
-
-
-class DataSimBatchFunc(Protocol[DataType_contra]):
-    def __call__(
-        self, *args: tuple[DataType_contra, DataType_contra]
+        self, pairs: Sequence[tuple[ValueType_contra, ValueType_contra]], /
     ) -> SimilaritySequence:
         ...
 
 
-class DataSimFunc(Protocol[DataType_contra]):
-    def __call__(self, x: DataType_contra, y: DataType_contra) -> SimilarityValue:
+class SimFunc(Protocol[ValueType_contra]):
+    def __call__(self, x: ValueType_contra, y: ValueType_contra, /) -> SimilarityValue:
         ...
 
 
-class RetrievalResultProtocol(Protocol[CaseName, CaseType]):
-    similarities: SimilarityMap[CaseName]
-    ranking: list[CaseName]
-    casebase: Casebase[CaseName, CaseType]
+DataSimFunc = SimSeqFunc[ValueType] | SimFunc[ValueType]
+CaseSimFunc = SimMapFunc[KeyType, ValueType] | SimFunc[ValueType]
 
 
-class RetrieveFunc(Protocol[CaseName, CaseType]):
+class RetrievalResultProtocol(Protocol[KeyType, ValueType]):
+    similarities: SimilarityMap[KeyType]
+    ranking: list[KeyType]
+    casebase: Casebase[KeyType, ValueType]
+
+
+class RetrieveFunc(Protocol[KeyType, ValueType]):
     def __call__(
         self,
-        casebase: Casebase[CaseName, CaseType],
-        query: CaseType,
-    ) -> RetrievalResultProtocol[CaseName, CaseType]:
+        casebase: Casebase[KeyType, ValueType],
+        query: ValueType,
+        /,
+    ) -> RetrievalResultProtocol[KeyType, ValueType]:
         ...
 
 
 class AggregateFunc(Protocol[SimilarityValues_contra]):
-    def __call__(self, similarities: SimilarityValues_contra) -> SimilarityValue:
+    def __call__(self, similarities: SimilarityValues_contra, /) -> SimilarityValue:
         ...
