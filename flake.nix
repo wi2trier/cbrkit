@@ -91,7 +91,7 @@
                   -o "$out" ./cbrkit
 
                 mkdir "$out/assets"
-                cp -rf ./assets/{*.png,*.gif} "$out/assets/"
+                cp -rf ./assets/**/{*.png,*.gif} "$out/assets/"
               '';
               dontInstall = true;
             };
