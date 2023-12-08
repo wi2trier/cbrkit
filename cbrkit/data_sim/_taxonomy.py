@@ -80,11 +80,8 @@ class Taxonomy:
         self,
         key1: str,
         key2: str,
-        measure: TaxonomyMeasure | None = None,
+        measure: TaxonomyMeasure,
     ) -> model.SimilarityValue:
-        if measure is None:
-            measure = "wu_palmer"
-
         if isinstance(measure, str):
             measure = measures[measure]
 

@@ -22,7 +22,7 @@ def spacy(model_name: str = "en_core_web_lg") -> model.DataSimilarityBatchFunc[s
 
 
 def taxonomy(
-    path: model.FilePath, measure: TaxonomyMeasure | None = None
+    path: model.FilePath, measure: TaxonomyMeasure = "wu_palmer"
 ) -> model.DataSimilarityBatchFunc[str]:
     taxonomy = Taxonomy(path)
 
