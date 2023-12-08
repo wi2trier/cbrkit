@@ -99,15 +99,15 @@ def retriever(
 
 
 def import_retrievers(
-    import_paths: Sequence[str] | str
+    import_names: Sequence[str] | str
 ) -> list[RetrieveFunc[Any, Any]]:
-    if isinstance(import_paths, str):
-        import_paths = [import_paths]
+    if isinstance(import_names, str):
+        import_names = [import_names]
 
     retrievers: list[RetrieveFunc] = []
 
-    for import_path in import_paths:
-        obj = load.import_string(import_path)
+    for import_path in import_names:
+        obj = load.python(import_path)
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in retrievers)
@@ -119,15 +119,15 @@ def import_retrievers(
 
 
 def import_retrievers_map(
-    import_paths: Collection[str] | str
+    import_names: Collection[str] | str
 ) -> dict[str, RetrieveFunc[Any, Any]]:
-    if isinstance(import_paths, str):
-        import_paths = [import_paths]
+    if isinstance(import_names, str):
+        import_names = [import_names]
 
     retrievers: dict[str, RetrieveFunc] = {}
 
-    for import_path in import_paths:
-        obj = load.import_string(import_path)
+    for import_path in import_names:
+        obj = load.python(import_path)
 
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())

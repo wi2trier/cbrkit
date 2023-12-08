@@ -2,6 +2,7 @@ import csv as csvlib
 import tomllib
 from collections import abc
 from collections.abc import Callable, Iterator
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -21,31 +22,31 @@ __all__ = [
     "path",
     "toml",
     "yaml",
+    "python",
 ]
 
 
-def import_string(import_name: str, silent: bool = False) -> Any:
-    """Imports an object based on a string.  This is useful if you want to
-    use import paths as endpoints or something similar.  An import path can
-    be specified either in dotted notation (``xml.sax.saxutils.escape``)
-    or with a colon as object delimiter (``xml.sax.saxutils:escape``).
+def python(import_name: str) -> Any:
+    """Import an object based on a string.
 
-    If the `silent` is True the return value will be `None` if the import
-    fails.
+    Args:
+        import_name: Can either be in in dotted notation (`module.submodule.object`)
+            or with a colon as object delimiter (`module.submodule:object`).
 
-    :return: imported object
+    Returns:
+        The imported object.
     """
-    try:
-        if ":" in import_name:
-            module, obj = import_name.split(":", 1)
-        elif "." in import_name:
-            module, _, obj = import_name.rpartition(".")
-        else:
-            return __import__(import_name)
-        return getattr(__import__(module, None, None, [obj]), obj)
-    except (ImportError, AttributeError):
-        if not silent:
-            raise
+
+    if ":" in import_name:
+        module_name, obj_name = import_name.split(":", 1)
+    elif "." in import_name:
+        module_name, obj_name = import_name.rsplit(".", 1)
+    else:
+        raise ValueError(f"Failed to import {import_name!r}")
+
+    module = import_module(module_name)
+
+    return getattr(module, obj_name)
 
 
 class DataFrameCasebase(abc.Mapping):
