@@ -5,6 +5,8 @@ from cbrkit.data_sim.helpers import apply
 
 Number = float | int
 
+__all__ = ["linear", "threshold", "exponential", "sigmoid"]
+
 
 def linear(max: float, min: float = 0.0) -> model.DataSimilarityBatchFunc[Number]:
     """Linear similarity function.
