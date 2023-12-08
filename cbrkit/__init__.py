@@ -1,3 +1,10 @@
+"""
+**[🌟 GitHub Project 🌟](https://github.com/wi2trier/cbrkit)**
+
+.. include:: ../README.md
+
+"""
+
 from . import case_sim, data_sim, model
 from .load import load_dataframe, load_path
 from .retrieve import import_retrievers, import_retrievers_map, retrieve, retriever

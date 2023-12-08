@@ -1,3 +1,8 @@
+"""
+.. include:: ../cli.md
+"""
+
+
 from pathlib import Path
 
 from rich import print
