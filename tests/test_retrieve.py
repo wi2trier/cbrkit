@@ -6,17 +6,22 @@ query_name = 42
 casebase_file = "data/cars-1k.csv"
 
 
-# TODO: Create some taxonomy similarity measure
 def test_retrieve_pandas():
     df = pd.read_csv(casebase_file)
     casebase = cbrkit.load_dataframe(df)
     query = casebase[query_name]
     retriever = cbrkit.retriever(
-        cbrkit.case_sim.factories.by_attributes(
+        cbrkit.case_sim.tabular(
             {
-                "manufacturer": cbrkit.data_sim.strings.levenshtein(),
+                "price": cbrkit.data_sim.numeric.linear(max=100000),
+                "year": cbrkit.data_sim.numeric.linear(max=2020, min=1960),
+                "manufacturer": cbrkit.data_sim.strings.taxonomy(
+                    "./data/cars-taxonomy.yaml", measure="wu_palmer"
+                ),
+                "make": cbrkit.data_sim.strings.levenshtein(),
                 "miles": cbrkit.data_sim.numeric.linear(max=1000000),
-            }
+            },
+            types_fallback=cbrkit.data_sim.generic.equality(),
         ),
         casebase_limit=5,
     )
