@@ -1,7 +1,11 @@
 from typing import Any
 
-from fastapi import FastAPI
-from pydantic_settings import BaseSettings
+try:
+    from fastapi import FastAPI
+    from pydantic_settings import BaseSettings
+except ModuleNotFoundError:
+    print("Please install cbrkit with the [api] extra to use the REST API server.")
+    raise
 
 import cbrkit
 

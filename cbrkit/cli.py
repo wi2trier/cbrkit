@@ -5,8 +5,14 @@
 
 from pathlib import Path
 
-from rich import print
-from typer import Typer
+try:
+    from rich import print
+    from typer import Typer
+except ModuleNotFoundError:
+    print(
+        "Please install cbrkit with the [cli] extra to use the command line interface."
+    )
+    raise
 
 import cbrkit
 

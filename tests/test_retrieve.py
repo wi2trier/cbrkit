@@ -12,13 +12,14 @@ def test_retrieve_pandas():
     query = casebase[query_name]
     retriever = cbrkit.retriever(
         cbrkit.case_sim.tabular(
-            {
+            attributes={
                 "price": cbrkit.data_sim.numeric.linear(max=100000),
                 "year": cbrkit.data_sim.numeric.linear(max=2020, min=1960),
                 "manufacturer": cbrkit.data_sim.strings.taxonomy(
                     "./data/cars-taxonomy.yaml", measure="wu_palmer"
                 ),
-                "make": cbrkit.data_sim.strings.levenshtein(),
+                # TODO: needs nlp extra to be available during tests
+                # "make": cbrkit.data_sim.strings.levenshtein(),
                 "miles": cbrkit.data_sim.numeric.linear(max=1000000),
             },
             types_fallback=cbrkit.data_sim.generic.equality(),

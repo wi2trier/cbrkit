@@ -39,7 +39,7 @@ api = ["fastapi", "uvicorn"]
 nlp = ["spacy", "nltk", "levenshtein"]
 
 [tool.pytest.ini_options]
-addopts = "--cov cbrkit --cov-report term-missing --doctest-modules"
+addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore cbrkit/cli.py --ignore cbrkit/api.py --ignore result"
 doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
 
 [tool.ruff]

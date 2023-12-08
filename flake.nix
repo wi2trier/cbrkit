@@ -67,7 +67,7 @@
               projectDir = ./.;
               preferWheels = true;
               checkPhase = "pytest";
-              extras = [];
+              extras = ["cli"];
               groups = ["docs"];
             };
             env = app.dependencyEnv;
