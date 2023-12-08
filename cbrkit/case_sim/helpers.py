@@ -15,7 +15,7 @@ from cbrkit.typing import (
 )
 
 
-def apply(
+def batchify(
     func: CaseSimFunc[CaseType],
 ) -> CaseSimBatchFunc[Any, CaseType]:
     def wrapped_func(

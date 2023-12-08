@@ -1,6 +1,6 @@
 import math
 
-from cbrkit.data_sim.helpers import apply
+from cbrkit.data_sim.helpers import batchify
 from cbrkit.typing import DataSimBatchFunc, SimilarityValue
 
 Number = float | int
@@ -18,7 +18,7 @@ def linear(max: float, min: float = 0.0) -> DataSimBatchFunc[Number]:
     ![linear](../../assets/numeric/linear.png)
     """
 
-    @apply
+    @batchify
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return (max - abs(x - y)) / (max - min)
 
@@ -34,7 +34,7 @@ def threshold(threshold: float) -> DataSimBatchFunc[Number]:
     ![threshold](../../assets/numeric/threshold.png)
     """
 
-    @apply
+    @batchify
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 if abs(x - y) <= threshold else 0.0
 
@@ -50,7 +50,7 @@ def exponential(alpha: float = 1.0) -> DataSimBatchFunc[Number]:
     ![exponential](../../assets/numeric/exponential.png)
     """
 
-    @apply
+    @batchify
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return math.exp(-alpha * abs(x - y))
 
@@ -67,7 +67,7 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> DataSimBatchFunc[Number]:
     ![sigmoid](../../assets/numeric/sigmoid.png)
     """
 
-    @apply
+    @batchify
     def wrapped_func(x: Number, y: Number) -> SimilarityValue:
         return 1.0 / (1.0 + math.exp((abs(x - y) - theta) / alpha))
 

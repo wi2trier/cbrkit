@@ -1,9 +1,9 @@
 from . import collections, generic, numeric, strings
 from .generic import equality, table
-from .helpers import apply, dist2sim
+from .helpers import batchify, dist2sim
 
 __all__ = [
-    "apply",
+    "batchify",
     "dist2sim",
     "table",
     "equality",

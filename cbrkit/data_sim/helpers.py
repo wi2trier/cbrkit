@@ -6,7 +6,7 @@ from cbrkit.typing import (
 )
 
 
-def apply(func: DataSimFunc[DataType]) -> DataSimBatchFunc[DataType]:
+def batchify(func: DataSimFunc[DataType]) -> DataSimBatchFunc[DataType]:
     def wrapped_func(*args: tuple[DataType, DataType]) -> SimilaritySequence:
         return [func(data1, data2) for (data1, data2) in args]
 

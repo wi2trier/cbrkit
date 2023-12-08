@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Any
 
-from cbrkit.data_sim.helpers import apply
+from cbrkit.data_sim.helpers import batchify
 from cbrkit.typing import (
     DataSimBatchFunc,
     DataType,
@@ -32,7 +32,7 @@ def table(
 
 
 def equality() -> DataSimBatchFunc[Any]:
-    @apply
+    @batchify
     def wrapped_func(x: Any, y: Any) -> SimilarityValue:
         return x == y
 

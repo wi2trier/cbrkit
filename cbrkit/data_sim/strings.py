@@ -1,7 +1,7 @@
 import itertools
 
 from cbrkit.data_sim._taxonomy import Taxonomy, TaxonomyMeasure
-from cbrkit.data_sim.helpers import apply
+from cbrkit.data_sim.helpers import batchify
 from cbrkit.typing import (
     DataSimBatchFunc,
     FilePath,
@@ -31,7 +31,7 @@ def taxonomy(
 ) -> DataSimBatchFunc[str]:
     taxonomy = Taxonomy(path)
 
-    @apply
+    @batchify
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return taxonomy.similarity(x, y, measure)
 
@@ -41,7 +41,7 @@ def taxonomy(
 def levenshtein(score_cutoff: float | None = None) -> DataSimBatchFunc[str]:
     import Levenshtein
 
-    @apply
+    @batchify
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
 
@@ -51,7 +51,7 @@ def levenshtein(score_cutoff: float | None = None) -> DataSimBatchFunc[str]:
 def jaro(score_cutoff: float | None = None) -> DataSimBatchFunc[str]:
     import Levenshtein
 
-    @apply
+    @batchify
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.jaro(x, y, score_cutoff=score_cutoff)
 
@@ -63,7 +63,7 @@ def jaro_winkler(
 ) -> DataSimBatchFunc[str]:
     import Levenshtein
 
-    @apply
+    @batchify
     def wrapped_func(x: str, y: str) -> SimilarityValue:
         return Levenshtein.jaro_winkler(
             x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight

@@ -1,11 +1,11 @@
 from typing import Any
 
-from cbrkit.case_sim.helpers import apply
+from cbrkit.case_sim.helpers import batchify
 from cbrkit.typing import CaseSimBatchFunc, SimilarityValue
 
 
 def equality() -> CaseSimBatchFunc[Any, Any]:
-    @apply
+    @batchify
     def wrapped_func(case: Any, query: Any) -> SimilarityValue:
         return case == query
 
