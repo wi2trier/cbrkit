@@ -1,20 +1,24 @@
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional, TypedDict, cast
+from typing import Literal, Optional, Protocol, TypedDict, cast
 
-from cbrkit import load, model
+from cbrkit import load
+from cbrkit.typing import FilePath, SimilarityValue
+
+
+class TaxonomyMeasureFunc(Protocol):
+    def __call__(self, tax: "Taxonomy", x: str, y: str) -> SimilarityValue:
+        ...
+
+
+TaxonomyMeasureName = Literal["wu_palmer"]
+TaxonomyMeasure = TaxonomyMeasureName | TaxonomyMeasureFunc
 
 
 class SerializedNode(TypedDict, total=False):
     key: str
     weight: float
     children: list["SerializedNode | str"]
-
-
-TaxonomyMeasureName = Literal["wu_palmer"]
-TaxonomyMeasureFunc = Callable[["Taxonomy", str, str], model.SimilarityValue]
-TaxonomyMeasure = TaxonomyMeasureName | TaxonomyMeasureFunc
 
 
 @dataclass
@@ -30,7 +34,7 @@ class Taxonomy:
     root: TaxonomyNode
     nodes: dict[str, TaxonomyNode]
 
-    def __init__(self, path: model.FilePath) -> None:
+    def __init__(self, path: FilePath) -> None:
         if isinstance(path, str):
             path = Path(path)
 
@@ -81,18 +85,17 @@ class Taxonomy:
         key1: str,
         key2: str,
         measure: TaxonomyMeasure,
-    ) -> model.SimilarityValue:
+    ) -> SimilarityValue:
         if isinstance(measure, str):
             measure = measures[measure]
 
         return measure(self, key1, key2)
 
 
-def wu_palmer(taxonomy: Taxonomy, key1: str, key2: str) -> model.SimilarityValue:
-    node1 = taxonomy.nodes[key1]
-    node2 = taxonomy.nodes[key2]
-
-    lca = taxonomy.lca(node1, node2)
+def wu_palmer(tax: Taxonomy, x: str, y: str) -> SimilarityValue:
+    node1 = tax.nodes[x]
+    node2 = tax.nodes[y]
+    lca = tax.lca(node1, node2)
 
     return (2 * lca.depth) / (node1.depth + node2.depth)
 

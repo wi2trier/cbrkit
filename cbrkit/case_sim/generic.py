@@ -1,12 +1,12 @@
 from typing import Any
 
-from cbrkit import model
 from cbrkit.case_sim.helpers import apply
+from cbrkit.typing import CasebaseSimFunc, SimilarityValue
 
 
-def equality() -> model.CaseSimilarityBatchFunc[Any]:
+def equality() -> CasebaseSimFunc[Any, Any]:
     @apply
-    def wrapped_func(case: Any, query: Any) -> model.SimilarityValue:
+    def wrapped_func(case: Any, query: Any) -> SimilarityValue:
         return case == query
 
     return wrapped_func

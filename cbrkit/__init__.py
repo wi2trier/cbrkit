@@ -5,18 +5,19 @@
 
 """
 
-from . import case_sim, data_sim, model
-from .load import load_dataframe, load_path
-from .retrieve import import_retrievers, import_retrievers_map, retrieve, retriever
+from . import case_sim, data_sim, load, typing
+from .retrieve import (
+    RetrievalResult,
+    retrieve,
+    retriever,
+)
 
 __all__ = (
-    "retrieve",
-    "retriever",
-    "import_retrievers",
-    "import_retrievers_map",
-    "load_path",
-    "load_dataframe",
+    "load",
     "data_sim",
     "case_sim",
-    "model",
+    "typing",
+    "retrieve",
+    "retriever",
+    "RetrievalResult",
 )

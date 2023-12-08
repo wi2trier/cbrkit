@@ -1,11 +1,11 @@
 from collections.abc import Collection, Set
 from typing import Any
 
-from cbrkit import model
 from cbrkit.data_sim.helpers import apply, dist2sim
+from cbrkit.typing import DataSimFunc
 
 
-def jaccard() -> model.DataSimilarityBatchFunc[Collection[Any]]:
+def jaccard() -> DataSimFunc[Collection[Any]]:
     from nltk.metrics import jaccard_distance
 
     @apply

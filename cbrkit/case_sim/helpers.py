@@ -1,30 +1,56 @@
 import statistics
 from collections.abc import Mapping, Sequence
+from typing import Any, Literal
 
-from cbrkit import model
+from cbrkit.typing import (
+    AggregateFunc,
+    Casebase,
+    CasebaseSimFunc,
+    CaseName,
+    CaseSimFunc,
+    CaseType,
+    SimilarityMap,
+    SimilarityValue,
+    SimilarityValues,
+)
 
 
 def apply(
-    func: model.CaseSimilaritySingleFunc[model.CaseType],
-) -> model.CaseSimilarityBatchFunc[model.CaseType]:
+    func: CaseSimFunc[CaseType],
+) -> CasebaseSimFunc[Any, CaseType]:
     def wrapped_func(
-        casebase: model.Casebase[model.CaseType],
-        query: model.CaseType,
-    ) -> model.CaseSimilarityMap:
+        casebase: Casebase[CaseName, CaseType],
+        query: CaseType,
+    ) -> SimilarityMap[CaseName]:
         return {key: func(case, query) for key, case in casebase.items()}
 
     return wrapped_func
 
 
+Pooling = Literal[
+    "mean",
+    "fmean",
+    "geometric_mean",
+    "harmonic_mean",
+    "median",
+    "median_low",
+    "median_high",
+    "mode",
+    "min",
+    "max",
+    "sum",
+]
+
+
 def aggregate(
-    pooling: model.Pooling = "mean",
-    pooling_weights: model.SimilarityValues | None = None,
-    default_pooling_weight: model.SimilarityValue = 1.0,
-) -> model.AggregateFunc:
-    def wrapped_func(similarities: model.SimilarityValues) -> model.SimilarityValue:
+    pooling: Pooling = "mean",
+    pooling_weights: SimilarityValues | None = None,
+    default_pooling_weight: SimilarityValue = 1.0,
+) -> AggregateFunc:
+    def wrapped_func(similarities: SimilarityValues) -> SimilarityValue:
         assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
-        sims: Sequence[model.SimilarityValue]  # noqa: F821
+        sims: Sequence[SimilarityValue]  # noqa: F821
 
         if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
             sims = [

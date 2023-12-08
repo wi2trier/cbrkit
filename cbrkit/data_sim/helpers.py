@@ -1,12 +1,13 @@
-from cbrkit import model
+from cbrkit.typing import (
+    DataPairSimFunc,
+    DataSimFunc,
+    DataType,
+    SimilaritySequence,
+)
 
 
-def apply(
-    func: model.DataSimilaritySingleFunc[model.DataType]
-) -> model.DataSimilarityBatchFunc[model.DataType]:
-    def wrapped_func(
-        *args: tuple[model.DataType, model.DataType]
-    ) -> model.SimilaritySequence:
+def apply(func: DataPairSimFunc[DataType]) -> DataSimFunc[DataType]:
+    def wrapped_func(*args: tuple[DataType, DataType]) -> SimilaritySequence:
         return [func(data1, data2) for (data1, data2) in args]
 
     return wrapped_func

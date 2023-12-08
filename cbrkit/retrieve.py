@@ -1,47 +1,65 @@
 from collections.abc import Callable, Collection, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal, overload
 
-from cbrkit import load, model
+from cbrkit import load
+from cbrkit.typing import (
+    Casebase,
+    CasebaseSimFunc,
+    CaseName,
+    CaseType,
+    RetrievalResultProtocol,
+    RetrieveFunc,
+    SimilarityMap,
+)
 
 __all__ = ("retrieve", "retriever", "import_retrievers", "import_retrievers_map")
 
 
+@dataclass
+class RetrievalResult(RetrievalResultProtocol[CaseName, CaseType]):
+    similarities: SimilarityMap[CaseName]
+    ranking: list[CaseName]
+    casebase: Casebase[CaseName, CaseType]
+
+
 @overload
 def retrieve(
-    casebase: model.Casebase[model.CaseType],
-    query: model.CaseType,
-    retrievers: model.Retriever[model.CaseType]
-    | Sequence[model.Retriever[model.CaseType]],
+    casebase: Casebase[CaseName, CaseType],
+    query: CaseType,
+    retrievers: RetrieveFunc[CaseName, CaseType]
+    | Sequence[RetrieveFunc[CaseName, CaseType]],
     all_results: Literal[False] = False,
-) -> model.RetrievalResult[model.CaseType]:
+) -> RetrievalResultProtocol[CaseName, CaseType]:
     ...
 
 
 @overload
 def retrieve(
-    casebase: model.Casebase[model.CaseType],
-    query: model.CaseType,
-    retrievers: model.Retriever[model.CaseType]
-    | Sequence[model.Retriever[model.CaseType]],
+    casebase: Casebase[CaseName, CaseType],
+    query: CaseType,
+    retrievers: RetrieveFunc[CaseName, CaseType]
+    | Sequence[RetrieveFunc[CaseName, CaseType]],
     all_results: Literal[True] = True,
-) -> list[model.RetrievalResult[model.CaseType]]:
+) -> list[RetrievalResultProtocol[CaseName, CaseType]]:
     ...
 
 
 def retrieve(
-    casebase: model.Casebase[model.CaseType],
-    query: model.CaseType,
-    retrievers: model.Retriever[model.CaseType]
-    | Sequence[model.Retriever[model.CaseType]],
+    casebase: Casebase[CaseName, CaseType],
+    query: CaseType,
+    retrievers: RetrieveFunc[CaseName, CaseType]
+    | Sequence[RetrieveFunc[CaseName, CaseType]],
     all_results: bool = False,
 ) -> (
-    model.RetrievalResult[model.CaseType] | list[model.RetrievalResult[model.CaseType]]
+    RetrievalResultProtocol[CaseName, CaseType]
+    | list[RetrievalResultProtocol[CaseName, CaseType]]
 ):
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[model.RetrievalResult[model.CaseType]] = []
+    results: list[RetrievalResultProtocol[CaseName, CaseType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
@@ -56,13 +74,13 @@ def retrieve(
 
 
 def retriever(
-    similarity_func: model.CaseSimilarityBatchFunc[model.CaseType],
+    similarity_func: CasebaseSimFunc[CaseName, CaseType],
     casebase_limit: int | None = None,
-) -> model.Retriever[model.CaseType]:
+) -> RetrieveFunc[CaseName, CaseType]:
     def wrapped_func(
-        casebase: model.Casebase[model.CaseType],
-        query: model.CaseType,
-    ) -> model.RetrievalResult[model.CaseType]:
+        casebase: Casebase[CaseName, CaseType],
+        query: CaseType,
+    ) -> RetrievalResultProtocol[CaseName, CaseType]:
         similarities = similarity_func(casebase, query)
 
         ranked_tuples = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
@@ -73,18 +91,20 @@ def retriever(
             else {key: casebase[key] for key in ranking[:casebase_limit]}
         )
 
-        return model.RetrievalResult(
+        return RetrievalResult(
             similarities=similarities, ranking=ranking, casebase=filtered_casebase
         )
 
     return wrapped_func
 
 
-def import_retrievers(import_paths: Sequence[str] | str) -> list[model.Retriever[Any]]:
+def import_retrievers(
+    import_paths: Sequence[str] | str
+) -> list[RetrieveFunc[Any, Any]]:
     if isinstance(import_paths, str):
         import_paths = [import_paths]
 
-    retrievers: list[model.Retriever] = []
+    retrievers: list[RetrieveFunc] = []
 
     for import_path in import_paths:
         obj = load.import_string(import_path)
@@ -100,11 +120,11 @@ def import_retrievers(import_paths: Sequence[str] | str) -> list[model.Retriever
 
 def import_retrievers_map(
     import_paths: Collection[str] | str
-) -> dict[str, model.Retriever[Any]]:
+) -> dict[str, RetrieveFunc[Any, Any]]:
     if isinstance(import_paths, str):
         import_paths = [import_paths]
 
-    retrievers: dict[str, model.Retriever] = {}
+    retrievers: dict[str, RetrieveFunc] = {}
 
     for import_path in import_paths:
         obj = load.import_string(import_path)

@@ -4,13 +4,21 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit import model
 from cbrkit.case_sim.helpers import aggregate_default
+from cbrkit.typing import (
+    AggregateFunc,
+    Casebase,
+    CasebaseSimFunc,
+    CaseType,
+    DataSimFunc,
+    SimilarityMap,
+    SimilarityValue,
+)
 
-SupportsGetter = Mapping[Any, Any] | pd.Series
+TabularData = Mapping[Any, Any] | pd.Series
 
 
-def _key_getter(obj: SupportsGetter) -> Iterator[str]:
+def _key_getter(obj: TabularData) -> Iterator[str]:
     if isinstance(obj, Mapping):
         yield from obj.keys()
     elif isinstance(obj, pd.Series):
@@ -19,7 +27,7 @@ def _key_getter(obj: SupportsGetter) -> Iterator[str]:
         raise NotImplementedError()
 
 
-def _value_getter(obj: SupportsGetter, key: Any) -> Any:
+def _value_getter(obj: TabularData, key: Any) -> Any:
     if isinstance(obj, Mapping):
         return obj[key]
     elif isinstance(obj, pd.Series):
@@ -29,26 +37,22 @@ def _value_getter(obj: SupportsGetter, key: Any) -> Any:
 
 
 def factory(
-    attributes: Mapping[str, model.DataSimilarityBatchFunc[Any]] | None = None,
-    types: Mapping[type[Any], model.DataSimilarityBatchFunc[Any]] | None = None,
-    types_fallback: model.DataSimilarityBatchFunc[Any] | None = None,
-    aggregate: model.AggregateFunc = aggregate_default,
+    attributes: Mapping[str, DataSimFunc[Any]] | None = None,
+    types: Mapping[type[Any], DataSimFunc[Any]] | None = None,
+    types_fallback: DataSimFunc[Any] | None = None,
+    aggregate: AggregateFunc = aggregate_default,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
-) -> model.CaseSimilarityBatchFunc[SupportsGetter]:
-    attributes_map: Mapping[str, model.DataSimilarityBatchFunc[Any]] = (
+) -> CasebaseSimFunc[Any, TabularData]:
+    attributes_map: Mapping[str, DataSimFunc[Any]] = (
         {} if attributes is None else attributes
     )
-    types_map: Mapping[type[Any], model.DataSimilarityBatchFunc[Any]] = (
-        {} if types is None else types
-    )
+    types_map: Mapping[type[Any], DataSimFunc[Any]] = {} if types is None else types
 
     def wrapped_func(
-        casebase: model.Casebase[model.CaseType], query: model.CaseType
-    ) -> model.CaseSimilarityMap:
-        sims_per_case: defaultdict[str, dict[str, model.SimilarityValue]] = defaultdict(
-            dict
-        )
+        casebase: Casebase[Any, CaseType], query: CaseType
+    ) -> SimilarityMap[Any]:
+        sims_per_case: defaultdict[str, dict[str, SimilarityValue]] = defaultdict(dict)
 
         attribute_names = (
             set(attributes_map)

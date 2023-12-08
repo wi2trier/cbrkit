@@ -1,4 +1,4 @@
-import csv
+import csv as csvlib
 import tomllib
 from collections import abc
 from collections.abc import Callable, Iterator
@@ -7,12 +7,21 @@ from typing import Any
 
 import orjson
 import pandas as pd
-import yaml
+import yaml as yamllib
 from pandas import DataFrame, Series
 
-from cbrkit import model
+from cbrkit.typing import Casebase, FilePath
 
-__all__ = ("load_path", "load_dataframe", "import_string")
+__all__ = [
+    "csv",
+    "dataframe",
+    "file",
+    "folder",
+    "json",
+    "path",
+    "toml",
+    "yaml",
+]
 
 
 def import_string(import_name: str, silent: bool = False) -> Any:
@@ -60,15 +69,15 @@ class DataFrameCasebase(abc.Mapping):
         return len(self.df)
 
 
-def load_dataframe(df: DataFrame) -> model.Casebase[pd.Series]:
+def dataframe(df: DataFrame) -> Casebase[int | str, pd.Series]:
     return DataFrameCasebase(df)
 
 
-def _load_csv(path: model.FilePath) -> dict[int, dict[str, str]]:
+def csv(path: FilePath) -> dict[int, dict[str, str]]:
     data: dict[int, dict[str, str]] = {}
 
     with open(path) as fp:
-        reader = csv.DictReader(fp)
+        reader = csvlib.DictReader(fp)
         row: dict[str, str]
 
         for idx, row in enumerate(reader):
@@ -77,46 +86,46 @@ def _load_csv(path: model.FilePath) -> dict[int, dict[str, str]]:
         return data
 
 
-def _load_json(path: model.FilePath) -> dict[str, Any]:
+def json(path: FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
         return orjson.loads(fp.read())
 
 
-def _load_toml(path: model.FilePath) -> dict[str, Any]:
+def toml(path: FilePath) -> dict[str, Any]:
     with open(path, "rb") as fp:
         return tomllib.load(fp)
 
 
-def _load_yaml(path: model.FilePath) -> dict[str, Any]:
+def yaml(path: FilePath) -> dict[str, Any]:
     data: dict[str, Any] = {}
 
     with open(path, "rb") as fp:
-        for doc in yaml.safe_load_all(fp):
+        for doc in yamllib.safe_load_all(fp):
             data |= doc
 
     return data
 
 
-def _load_txt(path: model.FilePath) -> str:
+def _load_txt(path: FilePath) -> str:
     with open(path) as fp:
         return fp.read()
 
 
-DataLoader = Callable[[model.FilePath], dict[str, Any]]
-SingleLoader = Callable[[model.FilePath], Any]
-BatchLoader = Callable[[model.FilePath], dict[Any, Any]]
+DataLoader = Callable[[FilePath], dict[str, Any]]
+SingleLoader = Callable[[FilePath], Any]
+BatchLoader = Callable[[FilePath], dict[Any, Any]]
 
 data_loaders: dict[str, DataLoader] = {
-    ".json": _load_json,
-    ".toml": _load_toml,
-    ".yaml": _load_yaml,
-    ".yml": _load_yaml,
+    ".json": json,
+    ".toml": toml,
+    ".yaml": yaml,
+    ".yml": yaml,
 }
 
 # They contain the whole casebase in one file
 _batch_loaders: dict[str, BatchLoader] = {
     **data_loaders,
-    ".csv": _load_csv,
+    ".csv": csv,
 }
 
 # They contain one case per file
@@ -127,16 +136,16 @@ _single_loaders: dict[str, SingleLoader] = {
 }
 
 
-def load_path(path: model.FilePath, pattern: str | None = None) -> model.Casebase[Any]:
+def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    cb: model.Casebase[Any] | None = None
+    cb: Casebase[Any, Any] | None = None
 
     if path.is_file():
-        cb = load_file(path)
+        cb = file(path)
     elif path.is_dir():
-        cb = load_folder(path, pattern or "**/*")
+        cb = folder(path, pattern or "**/*")
     else:
         raise FileNotFoundError(path)
 
@@ -146,7 +155,7 @@ def load_path(path: model.FilePath, pattern: str | None = None) -> model.Casebas
     return cb
 
 
-def load_file(path: Path) -> model.Casebase[Any] | None:
+def file(path: Path) -> Casebase[Any, Any] | None:
     if path.suffix not in _batch_loaders:
         return None
 
@@ -156,8 +165,8 @@ def load_file(path: Path) -> model.Casebase[Any] | None:
     return cb
 
 
-def load_folder(path: Path, pattern: str) -> model.Casebase[Any] | None:
-    cb: model.Casebase[Any] = {}
+def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
+    cb: Casebase[Any, Any] = {}
 
     for file in path.glob(pattern):
         if file.is_file() and file.suffix in _single_loaders:

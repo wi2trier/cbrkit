@@ -8,7 +8,7 @@ casebase_file = "data/cars-1k.csv"
 
 def test_retrieve_pandas():
     df = pd.read_csv(casebase_file)
-    casebase = cbrkit.load_dataframe(df)
+    casebase = cbrkit.load.dataframe(df)
     query = casebase[query_name]
     retriever = cbrkit.retriever(
         cbrkit.case_sim.tabular(
