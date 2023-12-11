@@ -6,7 +6,7 @@ from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.sim.generic import table as generic_table
 from cbrkit.typing import (
     FilePath,
-    SimFunc,
+    SimPairFunc,
     SimSeq,
     SimSeqFunc,
     SimVal,
@@ -29,7 +29,9 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
     return wrapped_func
 
 
-def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimFunc[str]:
+def taxonomy(
+    path: FilePath, measure: TaxonomyMeasure = "wu_palmer"
+) -> SimPairFunc[str]:
     taxonomy = Taxonomy(path)
 
     def wrapped_func(x: str, y: str) -> SimVal:
@@ -38,7 +40,7 @@ def taxonomy(path: FilePath, measure: TaxonomyMeasure = "wu_palmer") -> SimFunc[
     return wrapped_func
 
 
-def levenshtein(score_cutoff: float | None = None) -> SimFunc[str]:
+def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str]:
     import Levenshtein
 
     def wrapped_func(x: str, y: str) -> SimVal:
@@ -47,7 +49,7 @@ def levenshtein(score_cutoff: float | None = None) -> SimFunc[str]:
     return wrapped_func
 
 
-def jaro(score_cutoff: float | None = None) -> SimFunc[str]:
+def jaro(score_cutoff: float | None = None) -> SimPairFunc[str]:
     import Levenshtein
 
     def wrapped_func(x: str, y: str) -> SimVal:
@@ -58,7 +60,7 @@ def jaro(score_cutoff: float | None = None) -> SimFunc[str]:
 
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float | None = None
-) -> SimFunc[str]:
+) -> SimPairFunc[str]:
     import Levenshtein
 
     def wrapped_func(x: str, y: str) -> SimVal:
@@ -73,7 +75,7 @@ def table(
     entries: Sequence[tuple[str, str, SimVal]] | FilePath,
     symmetric: bool = True,
     default: SimVal = 0.0,
-) -> SimFunc[str]:
+) -> SimPairFunc[str]:
     if isinstance(entries, FilePath):
         with open(entries) as f:
             reader = csv.reader(f)

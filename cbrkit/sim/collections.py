@@ -2,10 +2,10 @@ from collections.abc import Collection, Set
 from typing import Any
 
 from cbrkit.sim.helpers import dist2sim
-from cbrkit.typing import SimFunc
+from cbrkit.typing import SimPairFunc
 
 
-def jaccard() -> SimFunc[Collection[Any]]:
+def jaccard() -> SimPairFunc[Collection[Any]]:
     from nltk.metrics import jaccard_distance
 
     def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:

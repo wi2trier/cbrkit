@@ -32,13 +32,14 @@ class SimSeqFunc(Protocol[ValueType_contra]):
 
 
 # Parameter names must match so that the signature can be inspected, do not add `/` here!
-class SimFunc(Protocol[ValueType_contra]):
+class SimPairFunc(Protocol[ValueType_contra]):
     def __call__(self, x: ValueType_contra, y: ValueType_contra) -> SimVal:
         ...
 
 
-SimPairOrSeqFunc = SimSeqFunc[ValueType] | SimFunc[ValueType]
-SimPairOrMapFunc = SimMapFunc[KeyType, ValueType] | SimFunc[ValueType]
+AnySimFunc = (
+    SimMapFunc[KeyType, ValueType] | SimSeqFunc[ValueType] | SimPairFunc[ValueType]
+)
 
 
 class RetrievalResultProtocol(Protocol[KeyType, ValueType]):

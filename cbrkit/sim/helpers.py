@@ -6,9 +6,9 @@ from typing import Any, Literal, cast
 from cbrkit.typing import (
     AggregatorFunc,
     KeyType,
-    SimFunc,
     SimMap,
     SimMapFunc,
+    SimPairFunc,
     SimSeq,
     SimSeqFunc,
     SimSeqOrMap,
@@ -28,11 +28,13 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
-def sim2seq(func: SimFunc[ValueType] | SimSeqFunc[ValueType]) -> SimSeqFunc[ValueType]:
+def sim2seq(
+    func: SimPairFunc[ValueType] | SimSeqFunc[ValueType],
+) -> SimSeqFunc[ValueType]:
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2:
-        casted_func = cast(SimFunc[ValueType], func)
+        casted_func = cast(SimPairFunc[ValueType], func)
 
         def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
             return [casted_func(x, y) for (x, y) in pairs]
@@ -49,12 +51,14 @@ def sim2seq(func: SimFunc[ValueType] | SimSeqFunc[ValueType]) -> SimSeqFunc[Valu
 
 
 def sim2map(
-    func: SimFunc[ValueType] | SimSeqFunc[ValueType] | SimMapFunc[KeyType, ValueType],
+    func: SimPairFunc[ValueType]
+    | SimSeqFunc[ValueType]
+    | SimMapFunc[KeyType, ValueType],
 ) -> SimMapFunc[KeyType, ValueType]:
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2 and signature.parameters.keys() == {"x", "y"}:
-        sim_pair_func = cast(SimFunc[ValueType], func)
+        sim_pair_func = cast(SimPairFunc[ValueType], func)
 
         def wrapped_sim_pair_func(
             x_map: Mapping[KeyType, ValueType],

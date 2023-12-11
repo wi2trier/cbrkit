@@ -4,13 +4,14 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit.sim.helpers import aggregator, sim2map, sim2seq
+from cbrkit.sim.helpers import aggregator, sim2map
 from cbrkit.typing import (
     AggregatorFunc,
+    AnySimFunc,
     Casebase,
+    KeyType,
     SimMap,
     SimMapFunc,
-    SimPairOrSeqFunc,
     SimVal,
     ValueType,
 )
@@ -48,22 +49,24 @@ _aggregator = aggregator()
 
 
 def tabular(
-    attributes: Mapping[str, SimPairOrSeqFunc[Any]] | None = None,
-    types: Mapping[type[Any], SimPairOrSeqFunc[Any]] | None = None,
-    types_fallback: SimPairOrSeqFunc[Any] | None = None,
+    attributes: Mapping[str, AnySimFunc[KeyType, Any]] | None = None,
+    types: Mapping[type[Any], AnySimFunc[KeyType, Any]] | None = None,
+    types_fallback: AnySimFunc[KeyType, Any] | None = None,
     aggregator: AggregatorFunc[str] = _aggregator,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
 ) -> SimMapFunc[Any, TabularData]:
-    attributes_map: Mapping[str, SimPairOrSeqFunc[Any]] = (
+    attributes_map: Mapping[str, AnySimFunc[KeyType, Any]] = (
         {} if attributes is None else attributes
     )
-    types_map: Mapping[type[Any], SimPairOrSeqFunc[Any]] = (
+    types_map: Mapping[type[Any], AnySimFunc[KeyType, Any]] = (
         {} if types is None else types
     )
 
-    def wrapped_func(x_map: Casebase[Any, ValueType], y: ValueType) -> SimMap[Any]:
-        sims_per_case: defaultdict[str, dict[str, SimVal]] = defaultdict(dict)
+    def wrapped_func(
+        x_map: Casebase[KeyType, ValueType], y: ValueType
+    ) -> SimMap[KeyType]:
+        local_sims: defaultdict[KeyType, dict[str, SimVal]] = defaultdict(dict)
 
         attribute_names = (
             set(attributes_map)
@@ -73,34 +76,29 @@ def tabular(
             else set(attributes_map).union(key_getter(y))
         )
 
-        for attr in attribute_names:
-            casebase_attribute_pairs = [
-                (value_getter(case, attr), value_getter(y, attr))
-                for case in x_map.values()
-            ]
-            attr_type = type(casebase_attribute_pairs[0][0])
+        for attr_name in attribute_names:
+            x_attributes = {
+                key: value_getter(value, attr_name) for key, value in x_map.items()
+            }
+            y_attribute = value_getter(y, attr_name)
+            attr_type = type(y_attribute)
 
             sim_func = (
-                attributes_map[attr]
-                if attr in attributes_map
+                attributes_map[attr_name]
+                if attr_name in attributes_map
                 else types_map.get(attr_type, types_fallback)
             )
 
             assert (
                 sim_func is not None
-            ), f"no similarity function for {attr} with type {attr_type}"
+            ), f"no similarity function for {attr_name} with type {attr_type}"
 
-            sim_func = sim2seq(sim_func)
-            casebase_similarities = sim_func(casebase_attribute_pairs)
+            sim_func = sim2map(sim_func)
+            sim_func_result = sim_func(x_attributes, y_attribute)
 
-            for casename, similarity in zip(
-                x_map.keys(), casebase_similarities, strict=True
-            ):
-                sims_per_case[casename][attr] = similarity
+            for key, sim in sim_func_result.items():
+                local_sims[key][attr_name] = sim
 
-        return {
-            casename: aggregator(similarities)
-            for casename, similarities in sims_per_case.items()
-        }
+        return {key: aggregator(sims) for key, sims in local_sims.items()}
 
     return wrapped_func

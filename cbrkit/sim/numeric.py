@@ -1,13 +1,13 @@
 import math
 
-from cbrkit.typing import SimFunc, SimVal
+from cbrkit.typing import SimPairFunc, SimVal
 
 Number = float | int
 
 __all__ = ["linear", "threshold", "exponential", "sigmoid"]
 
 
-def linear(max: float, min: float = 0.0) -> SimFunc[Number]:
+def linear(max: float, min: float = 0.0) -> SimPairFunc[Number]:
     """Linear similarity function.
 
     Args:
@@ -23,7 +23,7 @@ def linear(max: float, min: float = 0.0) -> SimFunc[Number]:
     return wrapped_func
 
 
-def threshold(threshold: float) -> SimFunc[Number]:
+def threshold(threshold: float) -> SimPairFunc[Number]:
     """Threshold similarity function.
 
     Args:
@@ -38,7 +38,7 @@ def threshold(threshold: float) -> SimFunc[Number]:
     return wrapped_func
 
 
-def exponential(alpha: float = 1.0) -> SimFunc[Number]:
+def exponential(alpha: float = 1.0) -> SimPairFunc[Number]:
     """Exponential similarity function.
 
     Args:
@@ -53,7 +53,7 @@ def exponential(alpha: float = 1.0) -> SimFunc[Number]:
     return wrapped_func
 
 
-def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimFunc[Number]:
+def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimPairFunc[Number]:
     """Sigmoid similarity function.
 
     Args:

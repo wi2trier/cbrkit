@@ -5,12 +5,12 @@ from typing import Any, Literal, overload
 from cbrkit import load
 from cbrkit.sim.helpers import sim2map
 from cbrkit.typing import (
+    AnySimFunc,
     Casebase,
     KeyType,
     RetrievalResultProtocol,
     RetrieveFunc,
     SimMap,
-    SimPairOrMapFunc,
     ValueType,
 )
 
@@ -75,7 +75,7 @@ def retrieve(
 
 
 def retriever(
-    similarity_func: SimPairOrMapFunc[KeyType, ValueType],
+    similarity_func: AnySimFunc[KeyType, ValueType],
     casebase_limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType]:
     sim_func = sim2map(similarity_func)
@@ -102,7 +102,7 @@ def retriever(
 
 
 def import_retrievers(
-    import_names: Sequence[str] | str
+    import_names: Sequence[str] | str,
 ) -> list[RetrieveFunc[Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]
@@ -122,7 +122,7 @@ def import_retrievers(
 
 
 def import_retrievers_map(
-    import_names: Collection[str] | str
+    import_names: Collection[str] | str,
 ) -> dict[str, RetrieveFunc[Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]

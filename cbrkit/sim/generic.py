@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from cbrkit.typing import (
-    SimFunc,
+    SimPairFunc,
     SimVal,
     ValueType,
 )
@@ -13,7 +13,7 @@ def table(
     entries: Sequence[tuple[ValueType, ValueType, SimVal]],
     symmetric: bool = True,
     default: SimVal = 0.0,
-) -> SimFunc[ValueType]:
+) -> SimPairFunc[ValueType]:
     table: defaultdict[ValueType, defaultdict[ValueType, SimVal]] = defaultdict(
         lambda: defaultdict(lambda: default)
     )
@@ -30,7 +30,7 @@ def table(
     return wrapped_func
 
 
-def equality() -> SimFunc[Any]:
+def equality() -> SimPairFunc[Any]:
     def wrapped_func(x: Any, y: Any) -> SimVal:
         return x == y
 
