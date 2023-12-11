@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
-from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.sim.generic import table as generic_table
 from cbrkit.typing import (
     FilePath,
@@ -20,7 +19,7 @@ def _cosine(u, v) -> float:
     import scipy.spatial.distance as scipy_dist
 
     if np.any(u) and np.any(v):
-        return cast(float, 1 - scipy_dist._cosine(u, v))
+        return cast(float, 1 - scipy_dist.cosine(u, v))
 
     return 0.0
 
@@ -75,17 +74,6 @@ def openai(model_name: str) -> SimSeqFunc[str]:
         vecs = dict(zip(texts, _vecs, strict=True))
 
         return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
-
-    return wrapped_func
-
-
-def taxonomy(
-    path: FilePath, measure: TaxonomyMeasure = "wu_palmer"
-) -> SimPairFunc[str]:
-    taxonomy = Taxonomy(path)
-
-    def wrapped_func(x: str, y: str) -> SimVal:
-        return taxonomy.similarity(x, y, measure)
 
     return wrapped_func
 

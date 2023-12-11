@@ -1,17 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Literal, Optional, Protocol, TypedDict, cast
+from typing import Optional, Protocol, TypedDict, cast
 
 from cbrkit.loaders import data as load_data
-from cbrkit.typing import FilePath, SimVal
-
-
-class TaxonomyMeasureFunc(Protocol):
-    def __call__(self, tax: "Taxonomy", x: str, y: str) -> SimVal:
-        ...
-
-
-TaxonomyMeasureName = Literal["wu_palmer"]
-TaxonomyMeasure = TaxonomyMeasureName | TaxonomyMeasureFunc
+from cbrkit.typing import FilePath, SimPairFunc, SimVal
 
 
 class SerializedNode(TypedDict, total=False):
@@ -76,26 +67,30 @@ class Taxonomy:
 
         return node1
 
-    def similarity(
-        self,
-        key1: str,
-        key2: str,
-        measure: TaxonomyMeasure,
-    ) -> SimVal:
-        if isinstance(measure, str):
-            measure = measures[measure]
 
-        return measure(self, key1, key2)
+class TaxonomyFunc(Protocol):
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> SimVal:
+        ...
 
 
-def wu_palmer(tax: Taxonomy, x: str, y: str) -> SimVal:
-    node1 = tax.nodes[x]
-    node2 = tax.nodes[y]
-    lca = tax.lca(node1, node2)
+def wu_palmer() -> TaxonomyFunc:
+    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> SimVal:
+        node1 = taxonomy.nodes[x]
+        node2 = taxonomy.nodes[y]
+        lca = taxonomy.lca(node1, node2)
 
-    return (2 * lca.depth) / (node1.depth + node2.depth)
+        return (2 * lca.depth) / (node1.depth + node2.depth)
+
+    return wrapped_func
 
 
-measures: dict[str, TaxonomyMeasureFunc] = {
-    "wu_palmer": wu_palmer,
-}
+_taxonomy_func = wu_palmer()
+
+
+def load(path: FilePath, measure: TaxonomyFunc = _taxonomy_func) -> SimPairFunc[str]:
+    taxonomy = Taxonomy(path)
+
+    def wrapped_func(x: str, y: str) -> SimVal:
+        return measure(taxonomy, x, y)
+
+    return wrapped_func
