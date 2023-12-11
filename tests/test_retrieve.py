@@ -23,6 +23,7 @@ def test_retrieve_pandas():
                 "miles": cbrkit.sim.numeric.linear(max=1000000),
             },
             types_fallback=cbrkit.sim.generic.equality(),
+            aggregator=cbrkit.sim.helpers.aggregator(pooling="mean"),
         ),
         casebase_limit=5,
     )
