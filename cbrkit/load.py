@@ -23,6 +23,7 @@ __all__ = [
     "toml",
     "yaml",
     "python",
+    "txt",
 ]
 
 
@@ -107,7 +108,7 @@ def yaml(path: FilePath) -> dict[str, Any]:
     return data
 
 
-def _load_txt(path: FilePath) -> str:
+def txt(path: FilePath) -> str:
     with open(path) as fp:
         return fp.read()
 
@@ -133,7 +134,7 @@ _batch_loaders: dict[str, BatchLoader] = {
 # Since structured formats may also be used for single cases, they are also included here
 _single_loaders: dict[str, SingleLoader] = {
     **_batch_loaders,
-    ".txt": _load_txt,
+    ".txt": txt,
 }
 
 
