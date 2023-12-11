@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit.sim.helpers import aggregator, sim2map, soft_sim2seq
+from cbrkit.sim.helpers import aggregator, sim2map, sim2seq
 from cbrkit.typing import (
     AggregatorFunc,
     Casebase,
@@ -90,7 +90,7 @@ def tabular(
                 sim_func is not None
             ), f"no similarity function for {attr} with type {attr_type}"
 
-            sim_func = soft_sim2seq(sim_func)
+            sim_func = sim2seq(sim_func)
             casebase_similarities = sim_func(casebase_attribute_pairs)
 
             for casename, similarity in zip(

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, overload
 
 from cbrkit import load
-from cbrkit.sim.helpers import soft_sim2map
+from cbrkit.sim.helpers import sim2map
 from cbrkit.typing import (
     Casebase,
     KeyType,
@@ -78,7 +78,7 @@ def retriever(
     similarity_func: SimPairOrMapFunc[KeyType, ValueType],
     casebase_limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType]:
-    sim_func = soft_sim2map(similarity_func)
+    sim_func = sim2map(similarity_func)
 
     def wrapped_func(
         casebase: Casebase[KeyType, ValueType],

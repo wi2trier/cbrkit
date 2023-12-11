@@ -1,7 +1,7 @@
 import statistics
 from collections.abc import Mapping, Sequence
 from inspect import signature as inspect_signature
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from cbrkit.typing import (
     AggregatorFunc,
@@ -9,8 +9,6 @@ from cbrkit.typing import (
     SimFunc,
     SimMap,
     SimMapFunc,
-    SimPairOrMapFunc,
-    SimPairOrSeqFunc,
     SimSeq,
     SimSeqFunc,
     SimType,
@@ -19,8 +17,6 @@ from cbrkit.typing import (
 )
 
 __all__ = [
-    "soft_sim2seq",
-    "soft_sim2map",
     "dist2sim",
     "sim2seq",
     "sim2map",
@@ -28,45 +24,45 @@ __all__ = [
 ]
 
 
-def soft_sim2seq(func: SimPairOrSeqFunc[ValueType]) -> SimSeqFunc[ValueType]:
-    signature = inspect_signature(func)
-
-    if len(signature.parameters) == 2:
-        return sim2seq(cast(SimFunc[ValueType], func))
-
-    return cast(SimSeqFunc[ValueType], func)
-
-
-def soft_sim2map(
-    func: SimPairOrMapFunc[KeyType, ValueType]
-) -> SimMapFunc[KeyType, ValueType]:
-    signature = inspect_signature(func)
-
-    if signature.parameters.keys() == {"x", "y"}:
-        return sim2map(cast(SimFunc[ValueType], func))
-
-    return cast(SimMapFunc[KeyType, ValueType], func)
-
-
 def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
-def sim2seq(func: SimFunc[ValueType]) -> SimSeqFunc[ValueType]:
-    def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
-        return [func(x, y) for (x, y) in pairs]
+def sim2seq(func: SimFunc[ValueType] | SimSeqFunc[ValueType]) -> SimSeqFunc[ValueType]:
+    signature = inspect_signature(func)
 
-    return wrapped_func
+    if len(signature.parameters) == 2:
+        casted_func = cast(SimFunc[ValueType], func)
+
+        def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
+            return [casted_func(x, y) for (x, y) in pairs]
+
+        return wrapped_func
+
+    return cast(SimSeqFunc[ValueType], func)
 
 
-def sim2map(func: SimFunc[ValueType]) -> SimMapFunc[Any, ValueType]:
-    def wrapped_func(
-        x_map: Mapping[KeyType, ValueType],
-        y: ValueType,
-    ) -> SimMap[KeyType]:
-        return {key: func(x, y) for key, x in x_map.items()}
+def sim2map(
+    func: SimFunc[ValueType] | SimMapFunc[KeyType, ValueType]
+) -> SimMapFunc[KeyType, ValueType]:
+    signature = inspect_signature(func)
 
-    return wrapped_func
+    if (
+        len(signature.parameters) == 2
+        and "x" in signature.parameters
+        and "y" in signature.parameters
+    ):
+        casted_func = cast(SimFunc[ValueType], func)
+
+        def wrapped_func(
+            x_map: Mapping[KeyType, ValueType],
+            y: ValueType,
+        ) -> SimMap[KeyType]:
+            return {key: casted_func(x, y) for key, x in x_map.items()}
+
+        return wrapped_func
+
+    return cast(SimMapFunc[KeyType, ValueType], func)
 
 
 Pooling = Literal[
