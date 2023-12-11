@@ -1,10 +1,12 @@
-from . import collections, factories, generic, helpers, numeric, strings
+from . import collections, generic, numeric, strings
+from ._helpers import dist2sim, sim2map, sim2seq
 
 __all__ = [
-    "helpers",
     "collections",
     "generic",
     "numeric",
     "strings",
-    "factories",
+    "dist2sim",
+    "sim2map",
+    "sim2seq",
 ]

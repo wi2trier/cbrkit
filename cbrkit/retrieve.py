@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, overload
 
 from cbrkit import load
-from cbrkit.sim.helpers import sim2map
+from cbrkit.sim._helpers import sim2map
 from cbrkit.typing import (
     AnySimFunc,
     Casebase,

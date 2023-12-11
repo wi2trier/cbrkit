@@ -5,7 +5,7 @@
 
 """
 
-from . import load, sim, typing
+from . import global_sim, load, sim, typing
 from .retrieve import (
     RetrievalResult,
     retrieve,
@@ -15,6 +15,7 @@ from .retrieve import (
 __all__ = (
     "load",
     "sim",
+    "global_sim",
     "typing",
     "retrieve",
     "retriever",

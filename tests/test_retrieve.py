@@ -11,7 +11,7 @@ def test_retrieve_pandas():
     casebase = cbrkit.load.dataframe(df)
     query = casebase[query_name]
     retriever = cbrkit.retriever(
-        cbrkit.sim.factories.tabular(
+        cbrkit.global_sim.attribute_value(
             attributes={
                 "price": cbrkit.sim.numeric.linear(max=100000),
                 "year": cbrkit.sim.numeric.linear(max=2020, min=1960),
@@ -23,7 +23,7 @@ def test_retrieve_pandas():
                 "miles": cbrkit.sim.numeric.linear(max=1000000),
             },
             types_fallback=cbrkit.sim.generic.equality(),
-            aggregator=cbrkit.sim.helpers.aggregator(pooling="mean"),
+            aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
         ),
         casebase_limit=5,
     )

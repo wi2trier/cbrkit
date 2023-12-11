@@ -1,7 +1,7 @@
 from collections.abc import Collection, Set
 from typing import Any
 
-from cbrkit.sim.helpers import dist2sim
+from cbrkit.sim._helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
 

@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from cbrkit.sim.helpers import aggregator, sim2map
+from cbrkit.sim import sim2map
 from cbrkit.typing import (
     AggregatorFunc,
     AnySimFunc,
@@ -16,10 +16,14 @@ from cbrkit.typing import (
     ValueType,
 )
 
-TabularData = Mapping[Any, Any] | pd.Series
+from ._aggregate import aggregator
+
+__all__ = ["attribute_value", "AttributeValueData"]
+
+AttributeValueData = Mapping[Any, Any] | pd.Series
 
 
-def _key_getter(obj: TabularData) -> Iterator[str]:
+def _key_getter(obj: AttributeValueData) -> Iterator[str]:
     if isinstance(obj, Mapping):
         yield from obj.keys()
     elif isinstance(obj, pd.Series):
@@ -28,7 +32,7 @@ def _key_getter(obj: TabularData) -> Iterator[str]:
         raise NotImplementedError()
 
 
-def _value_getter(obj: TabularData, key: Any) -> Any:
+def _value_getter(obj: AttributeValueData, key: Any) -> Any:
     if isinstance(obj, Mapping):
         return obj[key]
     elif isinstance(obj, pd.Series):
@@ -37,25 +41,17 @@ def _value_getter(obj: TabularData, key: Any) -> Any:
         return getattr(obj, key)
 
 
-def equality() -> SimMapFunc[Any, Any]:
-    @sim2map
-    def wrapped_func(x: Any, y: Any) -> SimVal:
-        return x == y
-
-    return wrapped_func
-
-
 _aggregator = aggregator()
 
 
-def tabular(
+def attribute_value(
     attributes: Mapping[str, AnySimFunc[KeyType, Any]] | None = None,
     types: Mapping[type[Any], AnySimFunc[KeyType, Any]] | None = None,
     types_fallback: AnySimFunc[KeyType, Any] | None = None,
     aggregator: AggregatorFunc[str] = _aggregator,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
-) -> SimMapFunc[Any, TabularData]:
+) -> SimMapFunc[Any, AttributeValueData]:
     attributes_map: Mapping[str, AnySimFunc[KeyType, Any]] = (
         {} if attributes is None else attributes
     )
