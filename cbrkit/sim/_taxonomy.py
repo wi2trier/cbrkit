@@ -17,7 +17,7 @@ TaxonomyMeasure = TaxonomyMeasureName | TaxonomyMeasureFunc
 
 class SerializedNode(TypedDict, total=False):
     key: str
-    weight: float
+    sim: float
     children: list["SerializedNode | str"]
 
 
