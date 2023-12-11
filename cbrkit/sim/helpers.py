@@ -1,7 +1,7 @@
 import statistics
 from collections.abc import Mapping, Sequence
 from inspect import signature as inspect_signature
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from cbrkit.typing import (
     AggregatorFunc,
@@ -39,28 +39,43 @@ def sim2seq(func: SimFunc[ValueType] | SimSeqFunc[ValueType]) -> SimSeqFunc[Valu
 
         return wrapped_func
 
+    #     if len(signature.parameters) == 1:
+    #         casted_func = cast(SimMapFunc[Any, ValueType], func)
+    #         def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
+    #             pass
+    #         return wrapped_func
+
     return cast(SimSeqFunc[ValueType], func)
 
 
 def sim2map(
-    func: SimFunc[ValueType] | SimMapFunc[KeyType, ValueType]
+    func: SimFunc[ValueType] | SimSeqFunc[ValueType] | SimMapFunc[KeyType, ValueType],
 ) -> SimMapFunc[KeyType, ValueType]:
     signature = inspect_signature(func)
 
-    if (
-        len(signature.parameters) == 2
-        and "x" in signature.parameters
-        and "y" in signature.parameters
-    ):
-        casted_func = cast(SimFunc[ValueType], func)
+    if len(signature.parameters) == 2 and signature.parameters.keys() == {"x", "y"}:
+        sim_pair_func = cast(SimFunc[ValueType], func)
 
-        def wrapped_func(
+        def wrapped_sim_pair_func(
             x_map: Mapping[KeyType, ValueType],
             y: ValueType,
         ) -> SimMap[KeyType]:
-            return {key: casted_func(x, y) for key, x in x_map.items()}
+            return {key: sim_pair_func(x, y) for key, x in x_map.items()}
 
-        return wrapped_func
+        return wrapped_sim_pair_func
+
+    elif len(signature.parameters) == 1:
+        sim_seq_func = cast(SimSeqFunc[ValueType], func)
+
+        def wrapped_sim_seq_func(
+            x_map: Mapping[Any, ValueType], y: ValueType
+        ) -> SimMap[KeyType]:
+            pairs = [(x, y) for x in x_map.values()]
+            sims = sim_seq_func(pairs)
+
+            return {key: sim for key, sim in zip(x_map.keys(), sims, strict=True)}
+
+        return wrapped_sim_seq_func
 
     return cast(SimMapFunc[KeyType, ValueType], func)
 
