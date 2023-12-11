@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal, Optional, Protocol, TypedDict, cast
 
-from cbrkit import load
+from cbrkit.loaders import data as load_data
 from cbrkit.typing import FilePath, SimVal
 
 
@@ -35,10 +34,7 @@ class Taxonomy:
     nodes: dict[str, TaxonomyNode]
 
     def __init__(self, path: FilePath) -> None:
-        if isinstance(path, str):
-            path = Path(path)
-
-        root_data = cast(SerializedNode, load.data_loaders[path.suffix](path))
+        root_data = cast(SerializedNode, load_data(path))
         self.nodes = {}
         self.root = self._load(root_data)
 

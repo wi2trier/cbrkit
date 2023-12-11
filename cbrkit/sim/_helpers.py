@@ -36,12 +36,6 @@ def sim2seq(
 
         return wrapped_func
 
-    #     if len(signature.parameters) == 1:
-    #         casted_func = cast(SimMapFunc[Any, ValueType], func)
-    #         def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
-    #             pass
-    #         return wrapped_func
-
     return cast(SimSeqFunc[ValueType], func)
 
 

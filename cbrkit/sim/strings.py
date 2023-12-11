@@ -1,6 +1,7 @@
 import csv
 import itertools
 from collections.abc import Sequence
+from pathlib import Path
 
 from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
 from cbrkit.sim.generic import table as generic_table
@@ -77,9 +78,16 @@ def table(
     default: SimVal = 0.0,
 ) -> SimPairFunc[str]:
     if isinstance(entries, FilePath):
-        with open(entries) as f:
+        if isinstance(entries, str):
+            entries = Path(entries)
+
+        if entries.suffix != ".csv":
+            raise NotImplementedError()
+
+        with entries.open() as f:
             reader = csv.reader(f)
             parsed_entries = [(x, y, float(z)) for x, y, z in reader]
+
     else:
         parsed_entries = entries
 

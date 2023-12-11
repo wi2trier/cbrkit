@@ -4,7 +4,7 @@ from collections import abc
 from collections.abc import Callable, Iterator
 from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import orjson
 import pandas as pd
@@ -73,7 +73,7 @@ class DataFrameCasebase(abc.Mapping):
         return len(self.df)
 
 
-def dataframe(df: DataFrame) -> Casebase[int | str, pd.Series]:
+def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
     return DataFrameCasebase(df)
 
 
@@ -88,6 +88,12 @@ def csv(path: FilePath) -> dict[int, dict[str, str]]:
             data[idx] = row
 
         return data
+
+
+def _csv_pandas(path: FilePath) -> dict[int, pd.Series]:
+    df = pd.read_csv(path)
+
+    return cast(dict[int, pd.Series], dataframe(df))
 
 
 def json(path: FilePath) -> dict[str, Any]:
@@ -131,7 +137,7 @@ DataLoader = Callable[[FilePath], dict[str, Any]]
 SingleLoader = Callable[[FilePath], Any]
 BatchLoader = Callable[[FilePath], dict[Any, Any]]
 
-data_loaders: dict[str, DataLoader] = {
+_data_loaders: dict[str, DataLoader] = {
     ".json": json,
     ".toml": toml,
     ".yaml": yaml,
@@ -140,8 +146,8 @@ data_loaders: dict[str, DataLoader] = {
 
 # They contain the whole casebase in one file
 _batch_loaders: dict[str, BatchLoader] = {
-    **data_loaders,
-    ".csv": csv,
+    **_data_loaders,
+    ".csv": _csv_pandas,
 }
 
 # They contain one case per file
@@ -150,6 +156,17 @@ _single_loaders: dict[str, SingleLoader] = {
     **_batch_loaders,
     ".txt": txt,
 }
+
+
+def data(path: FilePath) -> dict[str, Any]:
+    if isinstance(path, str):
+        path = Path(path)
+
+    if path.suffix not in _data_loaders:
+        raise NotImplementedError()
+
+    loader = _data_loaders[path.suffix]
+    return loader(path)
 
 
 def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
