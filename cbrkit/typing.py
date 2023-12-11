@@ -11,10 +11,10 @@ ValueType = TypeVar("ValueType")
 ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
 Casebase = Mapping[KeyType, ValueType]
 
-SimType = float
-SimMap = Mapping[KeyType, SimType]
-SimSeq = Sequence[SimType]
-SimVals = SimMap[KeyType] | SimSeq
+SimVal = float
+SimMap = Mapping[KeyType, SimVal]
+SimSeq = Sequence[SimVal]
+SimSeqOrMap = SimMap[KeyType] | SimSeq
 
 
 class SimMapFunc(Protocol[KeyType, ValueType_contra]):
@@ -33,7 +33,7 @@ class SimSeqFunc(Protocol[ValueType_contra]):
 
 # Parameter names must match so that the signature can be inspected, do not add `/` here!
 class SimFunc(Protocol[ValueType_contra]):
-    def __call__(self, x: ValueType_contra, y: ValueType_contra) -> SimType:
+    def __call__(self, x: ValueType_contra, y: ValueType_contra) -> SimVal:
         ...
 
 
@@ -60,7 +60,7 @@ class RetrieveFunc(Protocol[KeyType, ValueType]):
 class AggregatorFunc(Protocol[KeyType]):
     def __call__(
         self,
-        similarities: SimVals[KeyType],
+        similarities: SimSeqOrMap[KeyType],
         /,
-    ) -> SimType:
+    ) -> SimVal:
         ...

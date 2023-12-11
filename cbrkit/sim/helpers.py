@@ -11,8 +11,8 @@ from cbrkit.typing import (
     SimMapFunc,
     SimSeq,
     SimSeqFunc,
-    SimType,
-    SimVals,
+    SimSeqOrMap,
+    SimVal,
     ValueType,
 )
 
@@ -82,13 +82,13 @@ Pooling = Literal[
 
 def aggregator(
     pooling: Pooling = "mean",
-    pooling_weights: SimVals[KeyType] | None = None,
+    pooling_weights: SimSeqOrMap[KeyType] | None = None,
     default_pooling_weight: float = 1.0,
 ) -> AggregatorFunc[KeyType]:
-    def wrapped_func(similarities: SimVals[KeyType]) -> SimType:
+    def wrapped_func(similarities: SimSeqOrMap[KeyType]) -> SimVal:
         assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
-        sims: Sequence[SimType]  # noqa: F821
+        sims: Sequence[SimVal]  # noqa: F821
 
         if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
             sims = [
