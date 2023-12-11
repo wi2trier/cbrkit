@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Sequence
 from typing import Any
 
 from cbrkit.typing import (
@@ -9,7 +10,7 @@ from cbrkit.typing import (
 
 
 def table(
-    *args: tuple[ValueType, ValueType, SimVal],
+    entries: Sequence[tuple[ValueType, ValueType, SimVal]],
     symmetric: bool = True,
     default: SimVal = 0.0,
 ) -> SimFunc[ValueType]:
@@ -17,11 +18,11 @@ def table(
         lambda: defaultdict(lambda: default)
     )
 
-    for arg in args:
-        table[arg[0]][arg[1]] = arg[2]
+    for x in entries:
+        table[x[0]][x[1]] = x[2]
 
         if symmetric:
-            table[arg[1]][arg[0]] = arg[2]
+            table[x[1]][x[0]] = x[2]
 
     def wrapped_func(x: ValueType, y: ValueType) -> SimVal:
         return table[x][y]

@@ -1,7 +1,9 @@
+import csv
 import itertools
 from collections.abc import Sequence
 
 from cbrkit.sim._taxonomy import Taxonomy, TaxonomyMeasure
+from cbrkit.sim.generic import table as generic_table
 from cbrkit.typing import (
     FilePath,
     SimFunc,
@@ -65,3 +67,18 @@ def jaro_winkler(
         )
 
     return wrapped_func
+
+
+def table(
+    entries: Sequence[tuple[str, str, SimVal]] | FilePath,
+    symmetric: bool = True,
+    default: SimVal = 0.0,
+) -> SimFunc[str]:
+    if isinstance(entries, FilePath):
+        with open(entries) as f:
+            reader = csv.reader(f)
+            parsed_entries = [(x, y, float(z)) for x, y, z in reader]
+    else:
+        parsed_entries = entries
+
+    return generic_table(parsed_entries, symmetric=symmetric, default=default)
