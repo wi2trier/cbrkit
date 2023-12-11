@@ -65,3 +65,12 @@ class AggregatorFunc(Protocol[KeyType]):
         /,
     ) -> SimVal:
         ...
+
+
+class PoolingFunc(Protocol):
+    def __call__(
+        self,
+        similarities: SimSeq,
+        /,
+    ) -> SimVal:
+        ...

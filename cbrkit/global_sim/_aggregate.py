@@ -5,17 +5,18 @@ from typing import Literal
 from cbrkit.typing import (
     AggregatorFunc,
     KeyType,
+    PoolingFunc,
     SimSeqOrMap,
     SimVal,
 )
 
 __all__ = [
-    "Pooling",
+    "PoolingName",
     "aggregator",
 ]
 
 
-Pooling = Literal[
+PoolingName = Literal[
     "mean",
     "fmean",
     "geometric_mean",
@@ -29,12 +30,28 @@ Pooling = Literal[
     "sum",
 ]
 
+_pooling_funcs: dict[PoolingName, PoolingFunc] = {
+    "mean": statistics.mean,
+    "fmean": statistics.fmean,
+    "geometric_mean": statistics.geometric_mean,
+    "harmonic_mean": statistics.harmonic_mean,
+    "median": statistics.median,
+    "median_low": statistics.median_low,
+    "median_high": statistics.median_high,
+    "mode": statistics.mode,
+    "min": min,
+    "max": max,
+    "sum": sum,
+}
+
 
 def aggregator(
-    pooling: Pooling = "mean",
+    pooling: PoolingName | PoolingFunc = "mean",
     pooling_weights: SimSeqOrMap[KeyType] | None = None,
     default_pooling_weight: float = 1.0,
 ) -> AggregatorFunc[KeyType]:
+    pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
+
     def wrapped_func(similarities: SimSeqOrMap[KeyType]) -> SimVal:
         assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
@@ -56,30 +73,6 @@ def aggregator(
         else:
             raise NotImplementedError()
 
-        match pooling:
-            case "mean":
-                return statistics.mean(sims)
-            case "fmean":
-                return statistics.fmean(sims)
-            case "geometric_mean":
-                return statistics.geometric_mean(sims)
-            case "harmonic_mean":
-                return statistics.harmonic_mean(sims)
-            case "median":
-                return statistics.median(sims)
-            case "median_low":
-                return statistics.median_low(sims)
-            case "median_high":
-                return statistics.median_high(sims)
-            case "mode":
-                return statistics.mode(sims)
-            case "min":
-                return min(sims)
-            case "max":
-                return max(sims)
-            case "sum":
-                return sum(sims)
-            case _:
-                raise NotImplementedError()
+        return pooling_func(sims)
 
     return wrapped_func
