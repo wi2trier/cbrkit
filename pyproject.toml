@@ -5,8 +5,35 @@ description = "Library for Case-Based Reasoning in Python"
 authors = ["Mirko Lenz <mirko@mirkolenz.com>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/wi2trier/cbrkit"
 packages = [{ include = "cbrkit" }]
+repository = "https://github.com/wi2trier/cbrkit"
+homepage = "https://wi2trier.github.io/cbrkit/"
+keywords = [
+    "cbr",
+    "case-based reasoning",
+    "api",
+    "similarity",
+    "nlp",
+    "retrieval",
+    "cli",
+    "tool",
+    "library",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
 
 [tool.poetry.scripts]
 cbrkit = "cbrkit.cli:app"
