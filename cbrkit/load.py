@@ -8,6 +8,7 @@ from typing import Any
 
 import orjson
 import pandas as pd
+import xmltodict
 import yaml as yamllib
 from pandas import DataFrame, Series
 
@@ -24,6 +25,7 @@ __all__ = [
     "yaml",
     "python",
     "txt",
+    "xml",
 ]
 
 
@@ -111,6 +113,18 @@ def yaml(path: FilePath) -> dict[str, Any]:
 def txt(path: FilePath) -> str:
     with open(path) as fp:
         return fp.read()
+
+
+def xml(path: FilePath) -> dict[str, Any]:
+    with open(path, "rb") as fp:
+        data = xmltodict.parse(fp.read())
+
+    if len(data) == 1:
+        data_without_root = data[next(iter(data))]
+
+        return data_without_root
+
+    return data
 
 
 DataLoader = Callable[[FilePath], dict[str, Any]]

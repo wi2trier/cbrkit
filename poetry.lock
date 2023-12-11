@@ -2528,6 +2528,17 @@ files = [
     {file = "websockets-12.0.tar.gz", hash = "sha256:81df9cbcbb6c260de1e007e58c011bfebe2dafc8435107b0537f393dd38c8b1b"},
 ]
 
+[[package]]
+name = "xmltodict"
+version = "0.13.0"
+description = "Makes working with XML feel like you are working with JSON"
+optional = false
+python-versions = ">=3.4"
+files = [
+    {file = "xmltodict-0.13.0-py2.py3-none-any.whl", hash = "sha256:aa89e8fd76320154a40d19a0df04a4695fb9dc5ba977cbb68ab3e4eb225e7852"},
+    {file = "xmltodict-0.13.0.tar.gz", hash = "sha256:341595a488e3e01a85a9d8911d8912fd922ede5fecc4dce437eb4b6c8d037e56"},
+]
+
 [extras]
 all = ["fastapi", "levenshtein", "nltk", "spacy", "typer"]
 api = ["fastapi", "uvicorn"]
@@ -2537,4 +2548,4 @@ nlp = ["levenshtein", "nltk", "spacy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.13"
-content-hash = "41e29b49eadcd3484f5772c211854d3fd1b2c7902db7ffc98a5dc88ed2aa1a09"
+content-hash = "ae9d5e993b23b721d87c9563027b46350406809d1bcf4c30e828dbdef747bca5"
