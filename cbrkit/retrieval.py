@@ -2,7 +2,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, overload
 
-from cbrkit import load
+from cbrkit.loaders import python as load_python
 from cbrkit.sim._helpers import sim2map
 from cbrkit.typing import (
     AnySimFunc,
@@ -14,18 +14,24 @@ from cbrkit.typing import (
     ValueType,
 )
 
-__all__ = ("retrieve", "retriever", "import_retrievers", "import_retrievers_map")
+__all__ = [
+    "build",
+    "apply",
+    "load",
+    "load_map",
+    "Result",
+]
 
 
 @dataclass
-class RetrievalResult(RetrievalResultProtocol[KeyType, ValueType]):
+class Result(RetrievalResultProtocol[KeyType, ValueType]):
     similarities: SimMap[KeyType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
 
 
 @overload
-def retrieve(
+def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
     retrievers: RetrieveFunc[KeyType, ValueType]
@@ -36,7 +42,7 @@ def retrieve(
 
 
 @overload
-def retrieve(
+def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
     retrievers: RetrieveFunc[KeyType, ValueType]
@@ -46,7 +52,7 @@ def retrieve(
     ...
 
 
-def retrieve(
+def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
     retrievers: RetrieveFunc[KeyType, ValueType]
@@ -74,7 +80,7 @@ def retrieve(
         return results[-1]
 
 
-def retriever(
+def build(
     similarity_func: AnySimFunc[KeyType, ValueType],
     casebase_limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType]:
@@ -94,14 +100,14 @@ def retriever(
             else {key: casebase[key] for key in ranking[:casebase_limit]}
         )
 
-        return RetrievalResult(
+        return Result(
             similarities=similarities, ranking=ranking, casebase=filtered_casebase
         )
 
     return wrapped_func
 
 
-def import_retrievers(
+def load(
     import_names: Sequence[str] | str,
 ) -> list[RetrieveFunc[Any, Any]]:
     if isinstance(import_names, str):
@@ -110,7 +116,7 @@ def import_retrievers(
     retrievers: list[RetrieveFunc] = []
 
     for import_path in import_names:
-        obj = load.python(import_path)
+        obj = load_python(import_path)
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in retrievers)
@@ -121,7 +127,7 @@ def import_retrievers(
     return retrievers
 
 
-def import_retrievers_map(
+def load_map(
     import_names: Collection[str] | str,
 ) -> dict[str, RetrieveFunc[Any, Any]]:
     if isinstance(import_names, str):
@@ -130,7 +136,7 @@ def import_retrievers_map(
     retrievers: dict[str, RetrieveFunc] = {}
 
     for import_path in import_names:
-        obj = load.python(import_path)
+        obj = load_python(import_path)
 
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())

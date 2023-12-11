@@ -8,7 +8,6 @@ except ModuleNotFoundError:
     raise
 
 import cbrkit
-from cbrkit.retrieve import import_retrievers, import_retrievers_map
 
 
 class Settings(BaseSettings):
@@ -20,21 +19,21 @@ settings = Settings()
 app = FastAPI()
 
 retrievers = (
-    [] if settings.retrievers is None else import_retrievers(settings.retrievers)
+    [] if settings.retrievers is None else cbrkit.retrieval.load(settings.retrievers)
 )
 named_retrievers = (
     {}
     if settings.named_retrievers is None
-    else import_retrievers_map(settings.named_retrievers)
+    else cbrkit.retrieval.load_map(settings.named_retrievers)
 )
 
 
 @app.post("/retrieve")
 def all_retrievers(
     casebase: dict[str, Any], queries: dict[str, Any]
-) -> dict[str, cbrkit.RetrievalResult]:
+) -> dict[str, cbrkit.retrieval.Result]:
     return {
-        query_name: cbrkit.retrieve(casebase, query, retrievers)
+        query_name: cbrkit.retrieval.apply(casebase, query, retrievers)
         for query_name, query in queries.items()
     }
 
@@ -42,8 +41,10 @@ def all_retrievers(
 @app.post("/retrieve/{retriever_name}")
 def named_retriever(
     retriever_name: str, casebase: dict[str, Any], queries: dict[str, Any]
-) -> dict[str, cbrkit.RetrievalResult]:
+) -> dict[str, cbrkit.retrieval.Result]:
     return {
-        query_name: cbrkit.retrieve(casebase, query, named_retrievers[retriever_name])
+        query_name: cbrkit.retrieval.apply(
+            casebase, query, named_retrievers[retriever_name]
+        )
         for query_name, query in queries.items()
     }

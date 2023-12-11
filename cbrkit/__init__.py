@@ -5,19 +5,12 @@
 
 """
 
-from . import global_sim, load, sim, typing
-from .retrieve import (
-    RetrievalResult,
-    retrieve,
-    retriever,
-)
+from . import global_sim, loaders, retrieval, sim, typing
 
 __all__ = (
-    "load",
+    "loaders",
     "sim",
     "global_sim",
     "typing",
-    "retrieve",
-    "retriever",
-    "RetrievalResult",
+    "retrieval",
 )

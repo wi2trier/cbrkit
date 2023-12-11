@@ -8,9 +8,9 @@ casebase_file = "data/cars-1k.csv"
 
 def test_retrieve_pandas():
     df = pd.read_csv(casebase_file)
-    casebase = cbrkit.load.dataframe(df)
+    casebase = cbrkit.loaders.dataframe(df)
     query = casebase[query_name]
-    retriever = cbrkit.retriever(
+    retriever = cbrkit.retrieval.build(
         cbrkit.global_sim.attribute_value(
             attributes={
                 "price": cbrkit.sim.numeric.linear(max=100000),
@@ -27,7 +27,7 @@ def test_retrieve_pandas():
         ),
         casebase_limit=5,
     )
-    result = cbrkit.retrieve(casebase, query, retriever)
+    result = cbrkit.retrieval.apply(casebase, query, retriever)
 
     assert len(casebase) == 999  # csv contains header
     assert len(result.ranking) == len(casebase)

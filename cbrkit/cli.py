@@ -15,19 +15,18 @@ except ModuleNotFoundError:
     raise
 
 import cbrkit
-from cbrkit.retrieve import import_retrievers
 
 app = Typer()
 
 
 @app.command()
 def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
-    casebase = cbrkit.load.path(casebase_path)
-    queries = cbrkit.load.path(queries_path)
-    retrievers = import_retrievers(retriever)
+    casebase = cbrkit.loaders.path(casebase_path)
+    queries = cbrkit.loaders.path(queries_path)
+    retrievers = cbrkit.retrieval.load(retriever)
 
     for query_name, query in queries.items():
-        result = cbrkit.retrieve(casebase, query, retrievers)
+        result = cbrkit.retrieval.apply(casebase, query, retrievers)
         print(f"Query: {query_name}")
         print(result.ranking)
         print()
