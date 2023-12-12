@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD033 MD041 -->
-<h2><p align="center">cbrkit</p></h2>
+<h2><p align="center">CBRkit</p></h2>
 <p align="center">
   <img width="256px" alt="cbrkit logo" src="https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png" />
 </p>
@@ -14,7 +14,7 @@
 
 ---
 
-# cbrkit
+# CBRkit
 
 > [!caution]
 > The project is under active development and does not yet adhere to semantic versioning.
@@ -41,3 +41,17 @@ where `EXTRA_NAME` is one of the following:
 - `cli`: Command Line Interface (CLI)
 - `api`: REST API Server
 - `all`: All of the above
+
+## Usage
+
+CBRkit allows the definition of similarity metrics through _composition_.
+This means that you can easily build even complex similarities by mixing built-in and/or custom measures.
+CBRkit also includes predefined aggregation functions.
+A working retrieval example can be found as part of our [testing suite](https://github.com/wi2trier/cbrkit/tree/main/tests/test_retrieve.py).
+
+The following modules are part of CBRkit:
+
+- `sim`: Similarity generator functions for various data types (e.g., strings, numbers).
+- `global_sim`: Similarity generator functions for aggregating the above ones.
+- `retrieval`: Functions for retrieving cases based on a query.
+- `typing`: Generic type definitions for defining custom functions.
