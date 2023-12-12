@@ -18,8 +18,8 @@
 
 > [!caution]
 > The project is under active development and does not yet adhere to semantic versioning.
-> Breaking changes may occur at any time for versions `1.x.y`.
-> Once the project reaches version `2.0`, semantic versioning will be applied.
+> Breaking changes may occur at any time for versions `0.x.y`.
+> Once the project reaches version `1.0`, semantic versioning will be applied.
 
 ## Installation
 
