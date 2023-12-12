@@ -88,6 +88,7 @@
                 ${lib.getExe pkgs.gnused} -i '1,/^# /d' ./README.md
 
                 ${lib.getExe' env "pdoc"} -d google -t pdoc-template --math \
+                  --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
                   -o "$out" ./cbrkit
 
                 mkdir "$out/assets"
