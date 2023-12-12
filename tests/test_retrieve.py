@@ -31,6 +31,7 @@ def test_retrieve_pandas():
     result = cbrkit.retrieval.apply(casebase, query, retriever)
 
     assert len(casebase) == 999  # csv contains header
-    assert len(result.ranking) == len(casebase)
+    assert len(result.similarities) == 5
+    assert len(result.ranking) == 5
     assert len(result.casebase) == 5
     assert result.ranking[0] == query_name
