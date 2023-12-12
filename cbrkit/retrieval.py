@@ -1,6 +1,6 @@
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, overload
+from typing import Any, Generic, Literal, overload
 
 from cbrkit.loaders import python as load_python
 from cbrkit.sim._helpers import sim2map
@@ -8,7 +8,6 @@ from cbrkit.typing import (
     AnySimFunc,
     Casebase,
     KeyType,
-    RetrievalResultProtocol,
     RetrieveFunc,
     SimMap,
     ValueType,
@@ -23,11 +22,26 @@ __all__ = [
 ]
 
 
+def _similarities2ranking(
+    sim_map: SimMap[KeyType],
+) -> list[KeyType]:
+    return sorted(sim_map, key=lambda key: sim_map[key], reverse=True)
+
+
 @dataclass
-class Result(RetrievalResultProtocol[KeyType, ValueType]):
+class Result(Generic[KeyType, ValueType]):
     similarities: SimMap[KeyType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
+
+    @classmethod
+    def build(
+        cls, similarities: SimMap[KeyType], full_casebase: Casebase[KeyType, ValueType]
+    ) -> "Result[KeyType, ValueType]":
+        ranking = _similarities2ranking(similarities)
+        casebase = {key: full_casebase[key] for key in ranking}
+
+        return cls(similarities=similarities, ranking=ranking, casebase=casebase)
 
 
 @overload
@@ -37,7 +51,7 @@ def apply(
     retrievers: RetrieveFunc[KeyType, ValueType]
     | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: Literal[False] = False,
-) -> RetrievalResultProtocol[KeyType, ValueType]:
+) -> Result[KeyType, ValueType]:
     ...
 
 
@@ -48,7 +62,7 @@ def apply(
     retrievers: RetrieveFunc[KeyType, ValueType]
     | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: Literal[True] = True,
-) -> list[RetrievalResultProtocol[KeyType, ValueType]]:
+) -> list[Result[KeyType, ValueType]]:
     ...
 
 
@@ -58,21 +72,20 @@ def apply(
     retrievers: RetrieveFunc[KeyType, ValueType]
     | Sequence[RetrieveFunc[KeyType, ValueType]],
     all_results: bool = False,
-) -> (
-    RetrievalResultProtocol[KeyType, ValueType]
-    | list[RetrievalResultProtocol[KeyType, ValueType]]
-):
+) -> Result[KeyType, ValueType] | list[Result[KeyType, ValueType]]:
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[RetrievalResultProtocol[KeyType, ValueType]] = []
+    results: list[Result[KeyType, ValueType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
-        result = retriever_func(current_casebase, query)
-        current_casebase = result.casebase
+        sim_map = retriever_func(current_casebase, query)
+        result = Result.build(sim_map, current_casebase)
+
         results.append(result)
+        current_casebase = result.casebase
 
     if all_results:
         return results
@@ -82,27 +95,18 @@ def apply(
 
 def build(
     similarity_func: AnySimFunc[KeyType, ValueType],
-    casebase_limit: int | None = None,
+    limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType]:
     sim_func = sim2map(similarity_func)
 
     def wrapped_func(
         casebase: Casebase[KeyType, ValueType],
         query: ValueType,
-    ) -> RetrievalResultProtocol[KeyType, ValueType]:
+    ) -> SimMap[KeyType]:
         similarities = sim_func(casebase, query)
+        ranking = _similarities2ranking(similarities)
 
-        ranked_tuples = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
-        ranking = [key for key, _ in ranked_tuples]
-        filtered_casebase = (
-            casebase
-            if casebase_limit is None
-            else {key: casebase[key] for key in ranking[:casebase_limit]}
-        )
-
-        return Result(
-            similarities=similarities, ranking=ranking, casebase=filtered_casebase
-        )
+        return {key: similarities[key] for key in ranking[:limit]}
 
     return wrapped_func
 

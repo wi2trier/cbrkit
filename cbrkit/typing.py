@@ -41,21 +41,7 @@ AnySimFunc = (
     SimMapFunc[KeyType, ValueType] | SimSeqFunc[ValueType] | SimPairFunc[ValueType]
 )
 
-
-class RetrievalResultProtocol(Protocol[KeyType, ValueType]):
-    similarities: SimMap[KeyType]
-    ranking: list[KeyType]
-    casebase: Casebase[KeyType, ValueType]
-
-
-class RetrieveFunc(Protocol[KeyType, ValueType]):
-    def __call__(
-        self,
-        casebase: Casebase[KeyType, ValueType],
-        query: ValueType,
-        /,
-    ) -> RetrievalResultProtocol[KeyType, ValueType]:
-        ...
+RetrieveFunc = SimMapFunc[KeyType, ValueType]
 
 
 class AggregatorFunc(Protocol[KeyType]):

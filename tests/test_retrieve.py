@@ -26,7 +26,7 @@ def test_retrieve_pandas():
             types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
         ),
-        casebase_limit=5,
+        limit=5,
     )
     result = cbrkit.retrieval.apply(casebase, query, retriever)
 
