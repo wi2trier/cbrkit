@@ -1,4 +1,5 @@
 <!-- markdownlint-disable MD033 MD041 -->
+<h2><p align="center">cbrkit</p></h2>
 <p align="center">
   <img width="256px" alt="cbrkit logo" src="https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png" />
 </p>
@@ -8,7 +9,7 @@
   <a href="https://github.com/wi2trier/cbrkit/tree/main/tests/test_retrieve.py">Example</a>
 </p>
 <p align="center">
-  cbrkit is a customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.
+  Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.
 </p>
 
 ---
