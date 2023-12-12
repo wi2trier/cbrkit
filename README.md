@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
-  <img width="256px" alt="cbrkit logo" src="https://raw.githubusercontent.com/mirkolenz/cbrkit/main/assets/logo.png" />
+  <img width="256px" alt="cbrkit logo" src="https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png" />
 </p>
 <p align="center">
   <a href="https://pypi.org/project/cbrkit/">PyPI</a> |
