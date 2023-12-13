@@ -19,6 +19,11 @@ import cbrkit
 app = Typer()
 
 
+@app.callback()
+def app_callback():
+    pass
+
+
 @app.command()
 def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
     casebase = cbrkit.loaders.path(casebase_path)
