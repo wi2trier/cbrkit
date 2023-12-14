@@ -44,8 +44,8 @@ pandas = "^2.1"
 pyyaml = "^6.0"
 orjson = "^3.9"
 xmltodict = "^0.13"
-networkx = "^3.2"
 pyarrow = "^14.0"
+astar = "^0.99"
 typer = { version = "^0.9", extras = ["all"], optional = true }
 fastapi = { version = "^0.104", optional = true, extras = ["all"] }
 uvicorn = { version = "^0.24", optional = true, extras = ["standard"] }
