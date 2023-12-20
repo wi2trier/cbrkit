@@ -19,7 +19,7 @@ def _cosine(u, v) -> float:
     import scipy.spatial.distance as scipy_dist
 
     if np.any(u) and np.any(v):
-        return cast(float, 1 - scipy_dist.cosine(u, v))
+        return 1 - cast(float, scipy_dist.cosine(u, v))
 
     return 0.0
 
