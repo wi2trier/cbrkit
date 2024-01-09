@@ -18,7 +18,14 @@ def linear(max: float, min: float = 0.0) -> SimPairFunc[Number]:
     """
 
     def wrapped_func(x: Number, y: Number) -> SimVal:
-        return (max - abs(x - y)) / (max - min)
+        dist = abs(x - y)
+
+        if dist < min:
+            return 1.0
+        elif dist > max:
+            return 0.0
+
+        return (max - dist) / (max - min)
 
     return wrapped_func
 

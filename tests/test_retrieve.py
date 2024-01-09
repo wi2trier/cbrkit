@@ -14,7 +14,7 @@ def test_retrieve_pandas():
         cbrkit.global_sim.attribute_value(
             attributes={
                 "price": cbrkit.sim.numeric.linear(max=100000),
-                "year": cbrkit.sim.numeric.linear(max=2020, min=1960),
+                "year": cbrkit.sim.numeric.linear(max=50),
                 "manufacturer": cbrkit.sim.taxonomy.load(
                     "./data/cars-taxonomy.yaml",
                     measure=cbrkit.sim.taxonomy.wu_palmer(),
@@ -34,4 +34,5 @@ def test_retrieve_pandas():
     assert len(result.similarities) == 5
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
+    assert result.similarities[query_name] == 1.0
     assert result.ranking[0] == query_name
