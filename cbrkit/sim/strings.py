@@ -10,7 +10,6 @@ from cbrkit.typing import (
     SimPairFunc,
     SimSeq,
     SimSeqFunc,
-    SimVal,
 )
 
 
@@ -28,7 +27,7 @@ def _unique_items(pairs: Sequence[tuple[str, str]]) -> list[str]:
     return [*{*itertools.chain.from_iterable(pairs)}]
 
 
-def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
+def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str, float]:
     from spacy import load as spacy_load
 
     nlp = spacy_load(model_name)
@@ -46,7 +45,7 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str]:
     return wrapped_func
 
 
-def sentence_transformers(model_name: str) -> SimSeqFunc[str]:
+def sentence_transformers(model_name: str) -> SimSeqFunc[str, float]:
     from sentence_transformers import SentenceTransformer
 
     model = SentenceTransformer(model_name)
@@ -61,7 +60,7 @@ def sentence_transformers(model_name: str) -> SimSeqFunc[str]:
     return wrapped_func
 
 
-def openai(model_name: str) -> SimSeqFunc[str]:
+def openai(model_name: str) -> SimSeqFunc[str, float]:
     import numpy as np
     from openai import Client
 
@@ -78,19 +77,19 @@ def openai(model_name: str) -> SimSeqFunc[str]:
     return wrapped_func
 
 
-def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str]:
+def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimVal:
+    def wrapped_func(x: str, y: str) -> float:
         return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
 
 
-def jaro(score_cutoff: float | None = None) -> SimPairFunc[str]:
+def jaro(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimVal:
+    def wrapped_func(x: str, y: str) -> float:
         return Levenshtein.jaro(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
@@ -98,10 +97,10 @@ def jaro(score_cutoff: float | None = None) -> SimPairFunc[str]:
 
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float | None = None
-) -> SimPairFunc[str]:
+) -> SimPairFunc[str, float]:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> SimVal:
+    def wrapped_func(x: str, y: str) -> float:
         return Levenshtein.jaro_winkler(
             x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight
         )
@@ -110,10 +109,10 @@ def jaro_winkler(
 
 
 def table(
-    entries: Sequence[tuple[str, str, SimVal]] | FilePath,
+    entries: Sequence[tuple[str, str, float]] | FilePath,
     symmetric: bool = True,
-    default: SimVal = 0.0,
-) -> SimPairFunc[str]:
+    default: float = 0.0,
+) -> SimPairFunc[str, float]:
     if isinstance(entries, FilePath):
         if isinstance(entries, str):
             entries = Path(entries)

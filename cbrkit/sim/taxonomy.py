@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Protocol, TypedDict, cast
 
 from cbrkit.loaders import data as load_data
-from cbrkit.typing import FilePath, SimPairFunc, SimVal
+from cbrkit.typing import FilePath, SimPairFunc
 
 
 class SerializedNode(TypedDict, total=False):
@@ -69,12 +69,12 @@ class Taxonomy:
 
 
 class TaxonomyFunc(Protocol):
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> SimVal:
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         ...
 
 
 def wu_palmer() -> TaxonomyFunc:
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> SimVal:
+    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
@@ -87,10 +87,12 @@ def wu_palmer() -> TaxonomyFunc:
 _taxonomy_func = wu_palmer()
 
 
-def load(path: FilePath, measure: TaxonomyFunc = _taxonomy_func) -> SimPairFunc[str]:
+def load(
+    path: FilePath, measure: TaxonomyFunc = _taxonomy_func
+) -> SimPairFunc[str, float]:
     taxonomy = Taxonomy(path)
 
-    def wrapped_func(x: str, y: str) -> SimVal:
+    def wrapped_func(x: str, y: str) -> float:
         return measure(taxonomy, x, y)
 
     return wrapped_func

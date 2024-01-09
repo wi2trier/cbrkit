@@ -10,6 +10,7 @@ from cbrkit.typing import (
     KeyType,
     RetrieveFunc,
     SimMap,
+    SimType,
     ValueType,
 )
 
@@ -23,21 +24,23 @@ __all__ = [
 
 
 def _similarities2ranking(
-    sim_map: SimMap[KeyType],
+    sim_map: SimMap[KeyType, SimType],
 ) -> list[KeyType]:
     return sorted(sim_map, key=lambda key: sim_map[key], reverse=True)
 
 
 @dataclass
-class Result(Generic[KeyType, ValueType]):
-    similarities: SimMap[KeyType]
+class Result(Generic[KeyType, ValueType, SimType]):
+    similarities: SimMap[KeyType, SimType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
 
     @classmethod
     def build(
-        cls, similarities: SimMap[KeyType], full_casebase: Casebase[KeyType, ValueType]
-    ) -> "Result[KeyType, ValueType]":
+        cls,
+        similarities: SimMap[KeyType, SimType],
+        full_casebase: Casebase[KeyType, ValueType],
+    ) -> "Result[KeyType, ValueType, SimType]":
         ranking = _similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
@@ -48,10 +51,10 @@ class Result(Generic[KeyType, ValueType]):
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType]
-    | Sequence[RetrieveFunc[KeyType, ValueType]],
+    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
+    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
     all_results: Literal[False] = False,
-) -> Result[KeyType, ValueType]:
+) -> Result[KeyType, ValueType, SimType]:
     ...
 
 
@@ -59,25 +62,25 @@ def apply(
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType]
-    | Sequence[RetrieveFunc[KeyType, ValueType]],
+    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
+    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
     all_results: Literal[True] = True,
-) -> list[Result[KeyType, ValueType]]:
+) -> list[Result[KeyType, ValueType, SimType]]:
     ...
 
 
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType]
-    | Sequence[RetrieveFunc[KeyType, ValueType]],
+    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
+    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
     all_results: bool = False,
-) -> Result[KeyType, ValueType] | list[Result[KeyType, ValueType]]:
+) -> Result[KeyType, ValueType, SimType] | list[Result[KeyType, ValueType, SimType]]:
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[Result[KeyType, ValueType]] = []
+    results: list[Result[KeyType, ValueType, SimType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
@@ -94,15 +97,15 @@ def apply(
 
 
 def build(
-    similarity_func: AnySimFunc[KeyType, ValueType],
+    similarity_func: AnySimFunc[KeyType, ValueType, SimType],
     limit: int | None = None,
-) -> RetrieveFunc[KeyType, ValueType]:
+) -> RetrieveFunc[KeyType, ValueType, SimType]:
     sim_func = sim2map(similarity_func)
 
     def wrapped_func(
         casebase: Casebase[KeyType, ValueType],
         query: ValueType,
-    ) -> SimMap[KeyType]:
+    ) -> SimMap[KeyType, SimType]:
         similarities = sim_func(casebase, query)
         ranking = _similarities2ranking(similarities)
 
@@ -113,7 +116,7 @@ def build(
 
 def load(
     import_names: Sequence[str] | str,
-) -> list[RetrieveFunc[Any, Any]]:
+) -> list[RetrieveFunc[Any, Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]
 
@@ -133,7 +136,7 @@ def load(
 
 def load_map(
     import_names: Collection[str] | str,
-) -> dict[str, RetrieveFunc[Any, Any]]:
+) -> dict[str, RetrieveFunc[Any, Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]
 

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping
-from typing import Any
+from typing import Any, Generic
 
 import pandas as pd
 
@@ -12,7 +12,7 @@ from cbrkit.typing import (
     KeyType,
     SimMap,
     SimMapFunc,
-    SimVal,
+    SimType,
     ValueType,
 )
 
@@ -41,28 +41,38 @@ def _value_getter(obj: AttributeValueData, key: Any) -> Any:
         return getattr(obj, key)
 
 
+class AttributeValueSim(Generic[SimType], float):
+    by_attribute: Mapping[str, SimType]
+
+    def __new__(cls, *args, **kwargs):
+        return float.__new__(cls, args[0])
+
+    def __init__(self, _: float, by_attribute: Mapping[str, SimType] | None = None):
+        self.by_attribute = by_attribute or {}
+
+
 _aggregator = aggregator()
 
 
 def attribute_value(
-    attributes: Mapping[str, AnySimFunc[KeyType, Any]] | None = None,
-    types: Mapping[type[Any], AnySimFunc[KeyType, Any]] | None = None,
-    types_fallback: AnySimFunc[KeyType, Any] | None = None,
-    aggregator: AggregatorFunc[str] = _aggregator,
+    attributes: Mapping[str, AnySimFunc[KeyType, Any, SimType]] | None = None,
+    types: Mapping[type[Any], AnySimFunc[KeyType, Any, SimType]] | None = None,
+    types_fallback: AnySimFunc[KeyType, Any, SimType] | None = None,
+    aggregator: AggregatorFunc[str, float] = _aggregator,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
-) -> SimMapFunc[Any, AttributeValueData]:
-    attributes_map: Mapping[str, AnySimFunc[KeyType, Any]] = (
+) -> SimMapFunc[Any, AttributeValueData, AttributeValueSim[SimType]]:
+    attributes_map: Mapping[str, AnySimFunc[KeyType, Any, SimType]] = (
         {} if attributes is None else attributes
     )
-    types_map: Mapping[type[Any], AnySimFunc[KeyType, Any]] = (
+    types_map: Mapping[type[Any], AnySimFunc[KeyType, Any, SimType]] = (
         {} if types is None else types
     )
 
     def wrapped_func(
         x_map: Casebase[KeyType, ValueType], y: ValueType
-    ) -> SimMap[KeyType]:
-        local_sims: defaultdict[KeyType, dict[str, SimVal]] = defaultdict(dict)
+    ) -> SimMap[KeyType, AttributeValueSim[SimType]]:
+        local_sims: defaultdict[KeyType, dict[str, SimType]] = defaultdict(dict)
 
         attribute_names = (
             set(attributes_map)
@@ -95,6 +105,9 @@ def attribute_value(
             for key, sim in sim_func_result.items():
                 local_sims[key][attr_name] = sim
 
-        return {key: aggregator(sims) for key, sims in local_sims.items()}
+        return {
+            key: AttributeValueSim(aggregator(sims), sims)
+            for key, sims in local_sims.items()
+        }
 
     return wrapped_func

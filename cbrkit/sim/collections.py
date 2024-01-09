@@ -5,7 +5,7 @@ from cbrkit.sim._helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
 
-def jaccard() -> SimPairFunc[Collection[Any]]:
+def jaccard() -> SimPairFunc[Collection[Any], float]:
     from nltk.metrics import jaccard_distance
 
     def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:

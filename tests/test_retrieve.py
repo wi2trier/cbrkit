@@ -2,11 +2,11 @@ import pandas as pd
 
 import cbrkit
 
-query_name = 42
-casebase_file = "data/cars-1k.csv"
-
 
 def test_retrieve_pandas():
+    query_name = 42
+    casebase_file = "data/cars-1k.csv"
+
     df = pd.read_csv(casebase_file)
     casebase = cbrkit.loaders.dataframe(df)
     query = casebase[query_name]
@@ -36,3 +36,40 @@ def test_retrieve_pandas():
     assert len(result.casebase) == 5
     assert result.similarities[query_name] == 1.0
     assert result.ranking[0] == query_name
+
+
+def test_retrieve_nested():
+    query_name = "query"
+    casebase_file = "data/cars-1.yaml"
+
+    casebase = cbrkit.loaders.yaml(casebase_file)
+    query = casebase[query_name]
+    retriever = cbrkit.retrieval.build(
+        cbrkit.global_sim.attribute_value(
+            attributes={
+                "price": cbrkit.sim.numeric.linear(max=100000),
+                "year": cbrkit.sim.numeric.linear(max=50),
+                "model": cbrkit.global_sim.attribute_value(
+                    attributes={
+                        "make": cbrkit.sim.generic.equality(),
+                        "manufacturer": cbrkit.sim.taxonomy.load(
+                            "./data/cars-taxonomy.yaml",
+                            measure=cbrkit.sim.taxonomy.wu_palmer(),
+                        ),
+                    }
+                ),
+            },
+            aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
+        ),
+        limit=5,
+    )
+    result = cbrkit.retrieval.apply(casebase, query, retriever)
+
+    assert len(casebase) == 1
+    assert result.similarities[query_name] == 1.0
+    assert result.ranking[0] == query_name
+    assert result.similarities[query_name].by_attribute["model"] == 1.0
+    assert (
+        result.similarities[query_name].by_attribute["model"].by_attribute["make"]
+        == 1.0
+    )

@@ -7,7 +7,6 @@ from cbrkit.typing import (
     KeyType,
     PoolingFunc,
     SimSeqOrMap,
-    SimVal,
 )
 
 __all__ = [
@@ -30,7 +29,7 @@ PoolingName = Literal[
     "sum",
 ]
 
-_pooling_funcs: dict[PoolingName, PoolingFunc] = {
+_pooling_funcs: dict[PoolingName, PoolingFunc[float]] = {
     "mean": statistics.mean,
     "fmean": statistics.fmean,
     "geometric_mean": statistics.geometric_mean,
@@ -46,16 +45,16 @@ _pooling_funcs: dict[PoolingName, PoolingFunc] = {
 
 
 def aggregator(
-    pooling: PoolingName | PoolingFunc = "mean",
-    pooling_weights: SimSeqOrMap[KeyType] | None = None,
+    pooling: PoolingName | PoolingFunc[float] = "mean",
+    pooling_weights: SimSeqOrMap[KeyType, float] | None = None,
     default_pooling_weight: float = 1.0,
-) -> AggregatorFunc[KeyType]:
+) -> AggregatorFunc[KeyType, float]:
     pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
 
-    def wrapped_func(similarities: SimSeqOrMap[KeyType]) -> SimVal:
+    def wrapped_func(similarities: SimSeqOrMap[KeyType, float]) -> float:
         assert pooling_weights is None or type(similarities) == type(pooling_weights)
 
-        sims: Sequence[SimVal]  # noqa: F821
+        sims: Sequence[float]  # noqa: F821
 
         if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
             sims = [
