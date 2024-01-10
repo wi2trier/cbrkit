@@ -34,7 +34,7 @@ def test_retrieve_pandas():
     assert len(result.similarities) == 5
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
-    assert result.similarities[query_name] == 1.0
+    assert result.similarities[query_name].value == 1.0
     assert result.ranking[0] == query_name
 
 
@@ -66,9 +66,9 @@ def test_retrieve_nested():
     result = cbrkit.retrieval.apply(casebase, query, retriever)
 
     assert len(casebase) == 1
-    assert result.similarities[query_name] == 1.0
+    assert result.similarities[query_name].value == 1.0
     assert result.ranking[0] == query_name
-    assert result.similarities[query_name].by_attribute["model"] == 1.0
+    assert result.similarities[query_name].by_attribute["model"].value == 1.0
     assert (
         result.similarities[query_name].by_attribute["model"].by_attribute["make"]
         == 1.0

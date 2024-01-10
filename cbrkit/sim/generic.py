@@ -31,6 +31,6 @@ def table(
 
 def equality() -> SimPairFunc[Any, float]:
     def wrapped_func(x: Any, y: Any) -> float:
-        return x == y
+        return 1.0 if x == y else 0.0
 
     return wrapped_func

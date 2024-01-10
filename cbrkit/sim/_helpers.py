@@ -1,3 +1,4 @@
+from abc import ABC
 from collections.abc import Mapping, Sequence
 from inspect import signature as inspect_signature
 from typing import Any, cast
@@ -72,3 +73,15 @@ def sim2map(
         return wrapped_sim_seq_func
 
     return cast(SimMapFunc[KeyType, ValueType, SimType], func)
+
+
+def unpack_sim(sim: SimType) -> float:
+    if isinstance(sim, float | int | bool):
+        return sim
+    else:
+        return sim.value
+
+
+class AbstractFloat(ABC, float):
+    def __new__(cls, *args, **kwargs):
+        return float.__new__(cls, args[0])

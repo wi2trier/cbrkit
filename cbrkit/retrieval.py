@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, Literal, overload
 
 from cbrkit.loaders import python as load_python
-from cbrkit.sim._helpers import sim2map
+from cbrkit.sim._helpers import sim2map, unpack_sim
 from cbrkit.typing import (
     AnySimFunc,
     Casebase,
@@ -26,7 +26,7 @@ __all__ = [
 def _similarities2ranking(
     sim_map: SimMap[KeyType, SimType],
 ) -> list[KeyType]:
-    return sorted(sim_map, key=lambda key: sim_map[key], reverse=True)
+    return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
 
 
 @dataclass

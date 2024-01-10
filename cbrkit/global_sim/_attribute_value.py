@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
 from typing import Any, Generic
 
 import pandas as pd
@@ -7,6 +8,7 @@ import pandas as pd
 from cbrkit.sim import sim2map
 from cbrkit.typing import (
     AggregatorFunc,
+    AnnotatedFloat,
     AnySimFunc,
     Casebase,
     KeyType,
@@ -41,14 +43,10 @@ def _value_getter(obj: AttributeValueData, key: Any) -> Any:
         return getattr(obj, key)
 
 
-class AttributeValueSim(Generic[SimType], float):
+@dataclass(frozen=True)
+class AttributeValueSim(AnnotatedFloat, Generic[SimType]):
+    value: float
     by_attribute: Mapping[str, SimType]
-
-    def __new__(cls, *args, **kwargs):
-        return float.__new__(cls, args[0])
-
-    def __init__(self, _: float, by_attribute: Mapping[str, SimType] | None = None):
-        self.by_attribute = by_attribute or {}
 
 
 _aggregator = aggregator()
@@ -58,7 +56,7 @@ def attribute_value(
     attributes: Mapping[str, AnySimFunc[KeyType, Any, SimType]] | None = None,
     types: Mapping[type[Any], AnySimFunc[KeyType, Any, SimType]] | None = None,
     types_fallback: AnySimFunc[KeyType, Any, SimType] | None = None,
-    aggregator: AggregatorFunc[str, float] = _aggregator,
+    aggregator: AggregatorFunc[str, SimType] = _aggregator,
     value_getter: Callable[[Any, str], Any] = _value_getter,
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
 ) -> SimMapFunc[Any, AttributeValueData, AttributeValueSim[SimType]]:

@@ -5,6 +5,11 @@ from typing import (
     TypeVar,
 )
 
+
+class AnnotatedFloat(Protocol):
+    value: float
+
+
 FilePath = str | Path
 KeyType = TypeVar("KeyType")
 ValueType = TypeVar("ValueType")
@@ -12,9 +17,9 @@ ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
 ValueType_cov = TypeVar("ValueType_cov", covariant=True)
 Casebase = Mapping[KeyType, ValueType]
 
-SimType = TypeVar("SimType", bound=float)
-SimType_cov = TypeVar("SimType_cov", bound=float, covariant=True)
-SimType_contra = TypeVar("SimType_contra", bound=float, contravariant=True)
+SimType = TypeVar("SimType", float, AnnotatedFloat)
+SimType_cov = TypeVar("SimType_cov", float, AnnotatedFloat, covariant=True)
+SimType_contra = TypeVar("SimType_contra", float, AnnotatedFloat, contravariant=True)
 
 SimMap = Mapping[KeyType, SimType]
 SimSeq = Sequence[SimType]
@@ -50,19 +55,19 @@ AnySimFunc = (
 RetrieveFunc = SimMapFunc[KeyType, ValueType, SimType]
 
 
-class AggregatorFunc(Protocol[KeyType, SimType]):
+class AggregatorFunc(Protocol[KeyType, SimType_contra]):
     def __call__(
         self,
-        similarities: SimSeqOrMap[KeyType, SimType],
+        similarities: SimSeqOrMap[KeyType, SimType_contra],
         /,
-    ) -> SimType:
+    ) -> float:
         ...
 
 
-class PoolingFunc(Protocol[SimType]):
+class PoolingFunc(Protocol):
     def __call__(
         self,
-        similarities: SimSeq[SimType],
+        similarities: SimSeq[float],
         /,
-    ) -> SimType:
+    ) -> float:
         ...
