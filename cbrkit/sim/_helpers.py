@@ -4,6 +4,7 @@ from inspect import signature as inspect_signature
 from typing import Any, cast
 
 from cbrkit.typing import (
+    AnyFloat,
     KeyType,
     SimMap,
     SimMapFunc,
@@ -75,7 +76,7 @@ def sim2map(
     return cast(SimMapFunc[KeyType, ValueType, SimType], func)
 
 
-def unpack_sim(sim: SimType) -> float:
+def unpack_sim(sim: AnyFloat) -> float:
     if isinstance(sim, float | int | bool):
         return sim
     else:

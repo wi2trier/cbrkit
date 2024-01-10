@@ -10,6 +10,8 @@ class AnnotatedFloat(Protocol):
     value: float
 
 
+AnyFloat = float | AnnotatedFloat
+
 FilePath = str | Path
 KeyType = TypeVar("KeyType")
 ValueType = TypeVar("ValueType")
@@ -17,9 +19,9 @@ ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
 ValueType_cov = TypeVar("ValueType_cov", covariant=True)
 Casebase = Mapping[KeyType, ValueType]
 
-SimType = TypeVar("SimType", float, AnnotatedFloat)
-SimType_cov = TypeVar("SimType_cov", float, AnnotatedFloat, covariant=True)
-SimType_contra = TypeVar("SimType_contra", float, AnnotatedFloat, contravariant=True)
+SimType = TypeVar("SimType", bound=AnyFloat)
+SimType_cov = TypeVar("SimType_cov", bound=AnyFloat, covariant=True)
+SimType_contra = TypeVar("SimType_contra", bound=AnyFloat, contravariant=True)
 
 SimMap = Mapping[KeyType, SimType]
 SimSeq = Sequence[SimType]

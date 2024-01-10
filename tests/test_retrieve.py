@@ -68,8 +68,9 @@ def test_retrieve_nested():
     assert len(casebase) == 1
     assert result.similarities[query_name].value == 1.0
     assert result.ranking[0] == query_name
-    assert result.similarities[query_name].by_attribute["model"].value == 1.0
-    assert (
-        result.similarities[query_name].by_attribute["model"].by_attribute["make"]
-        == 1.0
-    )
+
+    model_sim = result.similarities[query_name].by_attribute["model"]
+
+    assert isinstance(model_sim, cbrkit.global_sim.AttributeValueSim)
+    assert model_sim.value == 1.0
+    assert model_sim.by_attribute["make"] == 1.0

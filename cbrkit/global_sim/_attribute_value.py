@@ -20,7 +20,7 @@ from cbrkit.typing import (
 
 from ._aggregate import aggregator
 
-__all__ = ["attribute_value", "AttributeValueData"]
+__all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
 
 AttributeValueData = Mapping[Any, Any] | pd.Series
 
