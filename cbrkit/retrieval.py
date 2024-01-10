@@ -1,6 +1,6 @@
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, Literal, overload
+from typing import Any, Generic
 
 from cbrkit.loaders import python as load_python
 from cbrkit.sim._helpers import sim2map, unpack_sim
@@ -30,7 +30,7 @@ def _similarities2ranking(
 
 
 @dataclass
-class Result(Generic[KeyType, ValueType, SimType]):
+class _Result(Generic[KeyType, ValueType, SimType]):
     similarities: SimMap[KeyType, SimType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
@@ -40,60 +40,59 @@ class Result(Generic[KeyType, ValueType, SimType]):
         cls,
         similarities: SimMap[KeyType, SimType],
         full_casebase: Casebase[KeyType, ValueType],
-    ) -> "Result[KeyType, ValueType, SimType]":
+    ) -> "_Result[KeyType, ValueType, SimType]":
         ranking = _similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
         return cls(similarities=similarities, ranking=ranking, casebase=casebase)
 
 
-@overload
+@dataclass
+class Result(Generic[KeyType, ValueType, SimType]):
+    _final: _Result[KeyType, ValueType, SimType]
+    intermediate: list[_Result[KeyType, ValueType, SimType]]
+
+    def __init__(
+        self,
+        results: list[_Result[KeyType, ValueType, SimType]],
+    ) -> None:
+        self.final = results[-1]
+        self.intermediate = results
+
+    @property
+    def similarities(self) -> SimMap[KeyType, SimType]:
+        return self.final.similarities
+
+    @property
+    def ranking(self) -> list[KeyType]:
+        return self.final.ranking
+
+    @property
+    def casebase(self) -> Casebase[KeyType, ValueType]:
+        return self.final.casebase
+
+
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
     retrievers: RetrieveFunc[KeyType, ValueType, SimType]
     | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
-    all_results: Literal[False] = False,
 ) -> Result[KeyType, ValueType, SimType]:
-    ...
-
-
-@overload
-def apply(
-    casebase: Casebase[KeyType, ValueType],
-    query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
-    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
-    all_results: Literal[True] = True,
-) -> list[Result[KeyType, ValueType, SimType]]:
-    ...
-
-
-def apply(
-    casebase: Casebase[KeyType, ValueType],
-    query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
-    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
-    all_results: bool = False,
-) -> Result[KeyType, ValueType, SimType] | list[Result[KeyType, ValueType, SimType]]:
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[Result[KeyType, ValueType, SimType]] = []
+    results: list[_Result[KeyType, ValueType, SimType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
         sim_map = retriever_func(current_casebase, query)
-        result = Result.build(sim_map, current_casebase)
+        result = _Result.build(sim_map, current_casebase)
 
         results.append(result)
         current_casebase = result.casebase
 
-    if all_results:
-        return results
-    else:
-        return results[-1]
+    return Result(results)
 
 
 def build(
