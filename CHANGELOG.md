@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/wi2trier/cbrkit/compare/v0.2.0...v0.2.1) (2024-01-11)
+
+
+### Bug Fixes
+
+* correctly use final ([a51c260](https://github.com/wi2trier/cbrkit/commit/a51c260725ccc443eacd66b9a65598dfeae55d99))
+
 ## [0.2.0](https://github.com/wi2trier/cbrkit/compare/v0.1.1...v0.2.0) (2024-01-10)
 
 
