@@ -8,9 +8,9 @@ import pandas as pd
 from cbrkit.sim import sim2map
 from cbrkit.typing import (
     AggregatorFunc,
-    AnnotatedFloat,
     AnySimFunc,
     Casebase,
+    FloatProtocol,
     KeyType,
     SimMap,
     SimMapFunc,
@@ -43,8 +43,8 @@ def _value_getter(obj: AttributeValueData, key: Any) -> Any:
         return getattr(obj, key)
 
 
-@dataclass(frozen=True)
-class AttributeValueSim(AnnotatedFloat, Generic[SimType]):
+@dataclass(slots=True, frozen=True)
+class AttributeValueSim(FloatProtocol, Generic[SimType]):
     value: float
     by_attribute: Mapping[str, SimType]
 

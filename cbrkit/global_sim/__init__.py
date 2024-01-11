@@ -1,3 +1,4 @@
+from . import graph
 from ._aggregate import PoolingName, aggregator
 from ._attribute_value import AttributeValueData, AttributeValueSim, attribute_value
 
@@ -7,4 +8,5 @@ __all__ = [
     "AttributeValueSim",
     "aggregator",
     "PoolingName",
+    "graph",
 ]

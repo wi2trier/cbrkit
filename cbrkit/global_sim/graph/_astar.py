@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Generic, cast
 
-from cbrkit.global_sim._graph.model import (
+from cbrkit.global_sim.graph._model import (
     EdgeData,
     EdgeKey,
     Graph,
@@ -17,7 +17,7 @@ from cbrkit.global_sim._graph.model import (
     NodeKey,
 )
 from cbrkit.sim._helpers import unpack_sims
-from cbrkit.typing import Casebase, KeyType, SimPairFunc, SimType
+from cbrkit.typing import Casebase, FloatProtocol, KeyType, SimPairFunc, SimType
 
 logger = logging.getLogger(__name__)
 
@@ -136,17 +136,21 @@ class SearchNode(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
             self.edges.remove(cast(EdgeKey, q))
 
 
-def run(
+@dataclass(slots=True, frozen=True)
+class GraphSim(FloatProtocol, Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
+    value: float
+    mapping: GraphMapping[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]
+
+
+def astar(
     x_map: Casebase[KeyType, Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]],
     y: Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
     node_sim_func: SimPairFunc[NodeData, SimType],
     edge_sim_func: SimPairFunc[EdgeData, SimType],
     queue_limit: int,
-) -> dict[KeyType, float]:
-    similarities: dict[KeyType, float] = {}
-
+) -> dict[KeyType, GraphSim[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]]:
     results = {
-        key: astar_search(
+        key: _astar_single(
             x,
             y,
             node_sim_func,
@@ -156,15 +160,17 @@ def run(
         for key, x in x_map.items()
     }
 
-    for key, result in results.items():
-        similarities[key] = g(result, node_sim_func, edge_sim_func)
-        # TODO: Add mapping to similarity
-
-    return similarities
+    return {
+        key: GraphSim(
+            g(result, node_sim_func, edge_sim_func),
+            result.mapping,
+        )
+        for key, result in results.items()
+    }
 
 
 # According to Bergmann and Gil, 2014
-def astar_search(
+def _astar_single(
     x: Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
     y: Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
     node_sim_func: SimPairFunc[NodeData, SimType],
@@ -172,17 +178,13 @@ def astar_search(
     queue_limit: int,
 ):
     """Perform an A* analysis of the x base and the y"""
-    q: list[SearchNode[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]] = []
     s0 = SearchNode(GraphMapping(x, y))
-
-    bisect.insort(q, s0, key=lambda x: x.f)
+    q = [s0]
 
     while q[-1].nodes or q[-1].edges:
         q = _expand(q, x, y, node_sim_func, edge_sim_func, queue_limit)
 
-    best_q = q[-1]
-
-    return best_q
+    return q[-1]
 
 
 def _expand(
@@ -197,7 +199,7 @@ def _expand(
 
     s = q[-1]
     mapped = False
-    query_obj, iterator = select1(s, x, y)
+    query_obj, iterator = select1(s, x)
 
     if query_obj and iterator:
         for case_obj in iterator:
@@ -221,11 +223,9 @@ def _expand(
     return q[len(q) - queue_limit :] if queue_limit > 0 else q
 
 
-# TODO: Check node types here
 def select1(
     s: SearchNode[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
     x: Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
-    y: Graph[GraphData, NodeKey, NodeData, EdgeKey, EdgeData],
 ) -> tuple[
     NodeKey | EdgeKey | None,
     Iterable[NodeKey | EdgeKey] | None,

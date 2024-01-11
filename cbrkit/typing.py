@@ -6,11 +6,11 @@ from typing import (
 )
 
 
-class AnnotatedFloat(Protocol):
+class FloatProtocol(Protocol):
     value: float
 
 
-AnyFloat = float | AnnotatedFloat
+AnyFloat = float | FloatProtocol
 
 FilePath = str | Path
 KeyType = TypeVar("KeyType")
