@@ -49,7 +49,7 @@ class _Result(Generic[KeyType, ValueType, SimType]):
 
 @dataclass
 class Result(Generic[KeyType, ValueType, SimType]):
-    _final: _Result[KeyType, ValueType, SimType]
+    final: _Result[KeyType, ValueType, SimType]
     intermediate: list[_Result[KeyType, ValueType, SimType]]
 
     def __init__(
