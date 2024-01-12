@@ -22,7 +22,7 @@ from cbrkit.typing import Casebase, FloatProtocol, KeyType, SimPairFunc, SimType
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class GraphMapping(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
     """Store all mappings and perform integrity checks on them"""
 
@@ -107,7 +107,7 @@ class GraphMapping(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
         self.edge_mappings[x] = y
 
 
-@dataclass
+@dataclass(slots=True)
 class SearchNode(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
     """Specific search node"""
 

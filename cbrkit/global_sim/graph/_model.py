@@ -19,7 +19,7 @@ class NodeProtocol(Hashable, Protocol[NodeData]):
     data: NodeData
 
 
-@dataclass
+@dataclass(slots=True)
 class Graph(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
     nodes: dict[NodeKey, NodeProtocol[NodeData]]
     edges: dict[EdgeKey, EdgeProtocol[EdgeData, NodeKey]]

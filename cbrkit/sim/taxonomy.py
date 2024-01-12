@@ -11,7 +11,7 @@ class SerializedNode(TypedDict, total=False):
     children: list["SerializedNode | str"]
 
 
-@dataclass
+@dataclass(slots=True)
 class TaxonomyNode:
     key: str
     weight: float | None
@@ -21,6 +21,8 @@ class TaxonomyNode:
 
 
 class Taxonomy:
+    __slots__ = ("root", "nodes")
+
     root: TaxonomyNode
     nodes: dict[str, TaxonomyNode]
 

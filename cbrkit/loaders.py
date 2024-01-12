@@ -53,6 +53,8 @@ def python(import_name: str) -> Any:
 
 
 class DataFrameCasebase(abc.Mapping):
+    __slots__ = ("df",)
+
     df: DataFrame
 
     def __init__(self, df: DataFrame) -> None:

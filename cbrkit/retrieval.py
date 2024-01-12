@@ -29,7 +29,7 @@ def _similarities2ranking(
     return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
 
 
-@dataclass
+@dataclass(slots=True)
 class _Result(Generic[KeyType, ValueType, SimType]):
     similarities: SimMap[KeyType, SimType]
     ranking: list[KeyType]
@@ -47,7 +47,7 @@ class _Result(Generic[KeyType, ValueType, SimType]):
         return cls(similarities=similarities, ranking=ranking, casebase=casebase)
 
 
-@dataclass
+@dataclass(slots=True)
 class Result(Generic[KeyType, ValueType, SimType]):
     final: _Result[KeyType, ValueType, SimType]
     intermediate: list[_Result[KeyType, ValueType, SimType]]
