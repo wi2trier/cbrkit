@@ -1,3 +1,5 @@
+from typing import Any
+
 import pandas as pd
 
 import cbrkit
@@ -39,10 +41,10 @@ def test_retrieve_pandas():
 
 
 def test_retrieve_nested():
-    query_name = "query"
-    casebase_file = "data/cars-1.yaml"
+    query_name = 42
+    casebase_file = "data/cars-1k.yaml"
 
-    casebase = cbrkit.loaders.yaml(casebase_file)
+    casebase: dict[int, Any] = cbrkit.loaders.yaml(casebase_file)
     query = casebase[query_name]
     retriever = cbrkit.retrieval.build(
         cbrkit.global_sim.attribute_value(
@@ -65,7 +67,7 @@ def test_retrieve_nested():
     )
     result = cbrkit.retrieval.apply(casebase, query, retriever)
 
-    assert len(casebase) == 1
+    assert len(casebase) == 999
     assert result.similarities[query_name].value == 1.0
     assert result.ranking[0] == query_name
 
