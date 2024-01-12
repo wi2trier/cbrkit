@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/wi2trier/cbrkit/compare/v0.2.1...v0.3.0) (2024-01-12)
+
+
+### Features
+
+* allow loading json/yaml lists ([daf01da](https://github.com/wi2trier/cbrkit/commit/daf01da070907e4bb7a736b55801264add02ea1f))
+
+
+### Bug Fixes
+
+* add slots to all classes ([6aae1d7](https://github.com/wi2trier/cbrkit/commit/6aae1d7b8a938b6395596249c655d324368e72a2))
+
 ## [0.2.1](https://github.com/wi2trier/cbrkit/compare/v0.2.0...v0.2.1) (2024-01-11)
 
 
