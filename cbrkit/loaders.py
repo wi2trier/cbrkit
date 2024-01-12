@@ -98,9 +98,16 @@ def _csv_pandas(path: FilePath) -> dict[int, pd.Series]:
     return cast(dict[int, pd.Series], dataframe(df))
 
 
-def json(path: FilePath) -> dict[str, Any]:
+def json(path: FilePath) -> dict[Any, Any]:
     with open(path, "rb") as fp:
-        return orjson.loads(fp.read())
+        data = orjson.loads(fp.read())
+
+        if isinstance(data, list):
+            return dict(enumerate(data))
+        elif isinstance(data, dict):
+            return data
+        else:
+            raise TypeError(f"Invalid data type: {type(data)}")
 
 
 def toml(path: FilePath) -> dict[str, Any]:
@@ -108,12 +115,18 @@ def toml(path: FilePath) -> dict[str, Any]:
         return tomllib.load(fp)
 
 
-def yaml(path: FilePath) -> dict[str, Any]:
-    data: dict[str, Any] = {}
+def yaml(path: FilePath) -> dict[Any, Any]:
+    data: dict[Any, Any] = {}
 
     with open(path, "rb") as fp:
-        for doc in yamllib.safe_load_all(fp):
-            data |= doc
+        for doc_idx, doc in enumerate(yamllib.safe_load_all(fp)):
+            if isinstance(doc, list):
+                for idx, item in enumerate(doc):
+                    data[doc_idx + idx] = item
+            elif isinstance(doc, dict):
+                data |= doc
+            else:
+                raise TypeError(f"Invalid document type: {type(doc)}")
 
     return data
 
