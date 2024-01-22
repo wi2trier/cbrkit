@@ -76,6 +76,14 @@ class TaxonomyFunc(Protocol):
 
 
 def wu_palmer() -> TaxonomyFunc:
+    """Wu & Palmer similarity measure of two nodes in a taxonomy.
+    >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+    >>> sim = wu_palmer()
+    >>> sim(taxonomy, "audi", "porsche")
+    1.0
+    >>> sim(taxonomy, "audi", "bmw")
+    0.5
+    """
     def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
@@ -92,6 +100,13 @@ _taxonomy_func = wu_palmer()
 def load(
     path: FilePath, measure: TaxonomyFunc = _taxonomy_func
 ) -> SimPairFunc[str, float]:
+    """Load a taxonomy and return a function that measures the similarity.
+    >>> sim = load("./data/cars-taxonomy.yaml", measure=wu_palmer())
+    >>> sim("audi", "porsche")
+    1.0
+    >>> sim("audi", "bmw")
+    0.5
+    """
     taxonomy = Taxonomy(path)
 
     def wrapped_func(x: str, y: str) -> float:
