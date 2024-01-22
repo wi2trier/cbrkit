@@ -14,6 +14,12 @@ from cbrkit.typing import (
 
 
 def _cosine(u, v) -> float:
+    """Cosine similarity between two vectors
+    
+    Args:
+        u: First vector
+        v: Second vector
+    """
     import numpy as np
     import scipy.spatial.distance as scipy_dist
 
@@ -32,8 +38,10 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str, float]:
 
     Args:
         model_name: Name of the [spaCy model](https://spacy.io/usage/models) to use to generate word vectors. Defaults to "en_core_web_lg". 
-    >>> sim = spacy()
-    >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
+
+    Examples:
+        >>> sim = spacy()
+        >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
     """
     from spacy import load as spacy_load
 
@@ -57,8 +65,9 @@ def sentence_transformers(model_name: str) -> SimSeqFunc[str, float]:
 
     Args:
         model_name: Name of the [pretrained model](https://www.sbert.net/docs/pretrained_models.html) to use to generate word vectors. It calculates the cosine similarity between given text pairs.
-    >>> sim = sentence_transformers("all-mpnet-base-v2")
-    >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
+    Examples:
+        >>> sim = sentence_transformers("all-mpnet-base-v2")
+        >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
     """
     from sentence_transformers import SentenceTransformer
 
@@ -79,8 +88,9 @@ def openai(model_name: str) -> SimSeqFunc[str, float]:
 
     Args:
         model_name: Name of the [embedding model](https://platform.openai.com/docs/models/embeddings) to use to generate word vectors. 
-    >>> sim = openai("text-embedding-ada-002")
-    >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
+    Examples:
+        >>> sim = openai("text-embedding-ada-002")
+        >>> sim([("I like apples", "I like oranges"), ("I like apples", "I like bananas")])
     """
     import numpy as np
     from openai import Client
@@ -99,16 +109,17 @@ def openai(model_name: str) -> SimSeqFunc[str, float]:
 
 
 def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
-    """Calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
+    """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
 
     Args:
         score_cutoff: If the similarity is less than this value, the function will return 0.0.
-    >>> sim = levenshtein()
-    >>> sim("kitten", "sitting")
-    0.6153846153846154
-    >>> sim = levenshtein(score_cutoff=0.8)
-    >>> sim("kitten", "sitting")
-    0.0
+    Examples:
+        >>> sim = levenshtein()
+        >>> sim("kitten", "sitting")
+        0.6153846153846154
+        >>> sim = levenshtein(score_cutoff=0.8)
+        >>> sim("kitten", "sitting")
+        0.0
     """
     import Levenshtein
 
@@ -119,16 +130,17 @@ def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
 
 
 def jaro(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
-    """Calculates the Jaro similarity between two strings.
+    """Jaro similarity function to compute similarity between two strings.
     
     Args:
         score_cutoff: If the similarity is less than this value, the function will return 0.0.
-    >>> sim = levenshtein()
-    >>> sim("kitten", "sitting")
-    0.746031746031746
-    >>> sim = levenshtein(score_cutoff=0.8)
-    >>> sim("kitten", "sitting")
-    0.0    
+    Examples:
+        >>> sim = levenshtein()
+        >>> sim("kitten", "sitting")
+        0.746031746031746
+        >>> sim = levenshtein(score_cutoff=0.8)
+        >>> sim("kitten", "sitting")
+        0.0    
     """
     import Levenshtein
 
@@ -141,16 +153,17 @@ def jaro(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float | None = None
 ) -> SimPairFunc[str, float]:
-    """Calculates the Jaro-Winkler similarity (1-[Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance)) between two strings.
+    """Jaro-Winkler similarity (1-[Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance)) function to compute similarity between two strings.
     
     Args:
         score_cutoff: If the similarity is less than this value, the function will return 0.0.
-    >>> sim = levenshtein()
-    >>> sim("kitten", "sitting")
-    0.746031746031746
-    >>> sim = levenshtein(score_cutoff=0.8)
-    >>> sim("kitten", "sitting")
-    0.0    
+    Examples:
+        >>> sim = levenshtein()
+        >>> sim("kitten", "sitting")
+        0.746031746031746
+        >>> sim = levenshtein(score_cutoff=0.8)
+        >>> sim("kitten", "sitting")
+        0.0    
     """
     import Levenshtein
 
@@ -174,11 +187,12 @@ def table(
         symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
         default: Default similarity value for pairs not in the table
 
-    >>> sim = table([("a", "b", 0.5), ("b", "c", 0.7)], symmetric=True, default=0.0)
-    >>> sim("b", "a")
-    0.5
-    >>> sim("a", "c")
-    0.0
+    Examples:
+        >>> sim = table([("a", "b", 0.5), ("b", "c", 0.7)], symmetric=True, default=0.0)
+        >>> sim("b", "a")
+        0.5
+        >>> sim("a", "c")
+        0.0
     """
     if isinstance(entries, FilePath):
         if isinstance(entries, str):

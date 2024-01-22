@@ -40,11 +40,12 @@ def threshold(threshold: float) -> SimPairFunc[Number, float]:
         threshold: If the absolute difference between the two values is less than or equal to this value, the similarity is 1.0, otherwise it is 0.0
 
     ![threshold](../../assets/numeric/threshold.png)
-    >>> sim = threshold(10)
-    >>> sim(50, 60)
-    1.0
-    >>> sim(50, 61)
-    0.0
+    Examples:
+        >>> sim = threshold(10)
+        >>> sim(50, 60)
+        1.0
+        >>> sim(50, 61)
+        0.0
     """
 
     def wrapped_func(x: Number, y: Number) -> float:
@@ -60,9 +61,10 @@ def exponential(alpha: float = 1.0) -> SimPairFunc[Number, float]:
         alpha: Controls the growth of the exponential function for the similarity. The larger alpha is, the faster the function grows.
 
     ![exponential](../../assets/numeric/exponential.png)
-    >>> sim = exponential(0.1)
-    >>> sim(50, 60)
-    0.36787944117144233
+    Examples:
+        >>> sim = exponential(0.1)
+        >>> sim(50, 60)
+        0.36787944117144233
     """
 
     def wrapped_func(x: Number, y: Number) -> float:
@@ -79,11 +81,12 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimPairFunc[Number, float
         theta: Specifies the point at which the similarity value is 0.5.
 
     ![sigmoid](../../assets/numeric/sigmoid.png)
-    >>> sim = sigmoid(0.1, 10)
-    >>> sim(50, 60)
-    0.5
-    >>> sim(50, 58)
-    0.8807970779778823
+    Examples:
+        >>> sim = sigmoid(0.1, 10)
+        >>> sim(50, 60)
+        0.5
+        >>> sim(50, 58)
+        0.8807970779778823
     """
 
     def wrapped_func(x: Number, y: Number) -> float:
