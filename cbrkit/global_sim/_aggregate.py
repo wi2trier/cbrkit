@@ -55,7 +55,7 @@ def aggregator(
     Aggregates local similarities to a global similarity using the specified pooling function.
 
     Args:
-        pooling: The pooling function to use. It can be either a string representing the name of the pooling function or a custom pooling function.
+        pooling: The pooling function to use. It can be either a string representing the name of the pooling function or a custom pooling function (see `cbrkit.typing.PoolingFunc`).
         pooling_weights: The weights to apply to the similarities during pooling. It can be a sequence or a mapping. If None, every local similarity is weighted equally.
         default_pooling_weight: The default weight to use if a similarity key is not found in the pooling_weights mapping.
 
