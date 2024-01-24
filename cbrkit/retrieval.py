@@ -78,6 +78,22 @@ def apply(
     retrievers: RetrieveFunc[KeyType, ValueType, SimType]
     | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
 ) -> Result[KeyType, ValueType, SimType]:
+    """Applies a query to a Casebase using retriever functions.
+
+    Args:
+        casebase: The casebase for the query.
+        query: The query that will be applied to the casebase
+        retrievers: Retriever functions that will retrieve similar cases (compared to the query) from the casebase
+
+    Returns:
+        Returns an object of type Result.
+
+    Examples:
+        >>> casebase = cbrkit.loaders.dataframe(df)
+        >>> query = casebase[10]
+        >>> retriever = cbrkit.retrieval.build(...)
+        >>> result = cbrkit.retrieval.apply(casebase, query, retriever)
+    """
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
 
@@ -99,6 +115,28 @@ def build(
     similarity_func: AnySimFunc[KeyType, ValueType, SimType],
     limit: int | None = None,
 ) -> RetrieveFunc[KeyType, ValueType, SimType]:
+    """Based on the similarity function this function creates a retriever function.
+
+    Args:
+        similarity_func: Similarity function to compute the similarity between cases.
+        limit: Retriever function will return the top limit cases.
+
+    Returns:
+        Returns the retriever function.
+
+    Examples:
+        >>> retriever = cbrkit.retrieval.build(
+        >>>     cbrkit.global_sim.attribute_value(
+        >>>         attributes={
+        >>>             "price": cbrkit.sim.numeric.linear(max=100000),
+        >>>             "year": cbrkit.sim.numeric.linear(max=50),
+        >>>         },
+        >>>         types_fallback=cbrkit.sim.generic.equality(),
+        >>>         aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
+        >>>     ),
+        >>>     limit=5,
+        >>> )
+    """
     sim_func = sim2map(similarity_func)
 
     def wrapped_func(

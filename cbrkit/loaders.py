@@ -76,10 +76,34 @@ class DataFrameCasebase(abc.Mapping):
 
 
 def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
+    """Converts a pandas DataFrame into a Casebase.
+
+    Args:
+        df: pandas DataFrame.
+
+    Returns:
+        Returns a Casebase as a DataFrameCasebase.
+
+    Examples:
+        >>> df = pd.read_csv(casebase_file)
+        >>> casebase = cbrkit.loaders.dataframe(df)
+    """
     return DataFrameCasebase(df)
 
 
 def csv(path: FilePath) -> dict[int, dict[str, str]]:
+    """Reads a csv file and converts it into a dict representation
+
+    Args:
+        path: File path of the csv file
+
+    Returns:
+        Dict representation of the csv file.
+
+    Examples:
+        >>> filePath = "data/cars-1k.csv"
+        >>> cbrkit.loaders.csv(filePath)
+    """
     data: dict[int, dict[str, str]] = {}
 
     with open(path) as fp:
@@ -99,6 +123,18 @@ def _csv_pandas(path: FilePath) -> dict[int, pd.Series]:
 
 
 def json(path: FilePath) -> dict[Any, Any]:
+    """Reads a json file and converts it into a dict representation
+
+    Args:
+        path: File path of the json file
+
+    Returns:
+        Dict representation of the json file.
+
+    Examples:
+        >>> filePath = "data/cars-1k.json"
+        >>> cbrkit.loaders.json(filePath)
+    """
     with open(path, "rb") as fp:
         data = orjson.loads(fp.read())
 
@@ -111,11 +147,35 @@ def json(path: FilePath) -> dict[Any, Any]:
 
 
 def toml(path: FilePath) -> dict[str, Any]:
+    """Reads a toml file and parses it into a dict representation
+
+    Args:
+        path: File path of the toml file
+
+    Returns:
+        Dict representation of the toml file.
+
+    Examples:
+        >>> filePath = "data/file.toml"
+        >>> cbrkit.loaders.toml(filePath)
+    """
     with open(path, "rb") as fp:
         return tomllib.load(fp)
 
 
 def yaml(path: FilePath) -> dict[Any, Any]:
+    """Reads a yaml file and parses it into a dict representation
+
+    Args:
+        path: File path of the yaml file
+
+    Returns:
+        Dict representation of the yaml file.
+
+    Examples:
+        >>> filePath = "data/file.yaml"
+        >>> cbrkit.loaders.yaml(filePath)
+    """
     data: dict[Any, Any] = {}
 
     with open(path, "rb") as fp:
@@ -132,11 +192,35 @@ def yaml(path: FilePath) -> dict[Any, Any]:
 
 
 def txt(path: FilePath) -> str:
+    """Reads a text file and converts it into a string
+
+    Args:
+        path: File path of the text file
+
+    Returns:
+        String representation of the text file.
+
+    Examples:
+        >>> filePath = "data/file.txt"
+        >>> cbrkit.loaders.txt(filePath)
+    """
     with open(path) as fp:
         return fp.read()
 
 
 def xml(path: FilePath) -> dict[str, Any]:
+    """Reads a xml file and parses it into a dict representation
+
+    Args:
+        path: File path of the xml file
+
+    Returns:
+        Dict representation of the xml file.
+
+    Examples:
+        >>> filePath = "data/file.xml"
+        >>> cbrkit.loaders.xml(filePath)
+    """
     with open(path, "rb") as fp:
         data = xmltodict.parse(fp.read())
 
@@ -174,6 +258,20 @@ _single_loaders: dict[str, SingleLoader] = {
 
 
 def data(path: FilePath) -> dict[str, Any]:
+    """Reads files of types json, toml, yaml, and yml and parses it into a dict representation
+
+    Args:
+        path: Path of the file
+
+    Returns:
+        Dict representation of the file.
+
+    Examples:
+        >>> jsonFile = "data/file.json"
+        >>> yamlFile = "data/file.yaml"
+        >>> cbrkit.loaders.toml(jsonFile)
+        >>> cbrkit.loaders.toml(yamlFile)
+    """
     if isinstance(path, str):
         path = Path(path)
 
@@ -185,6 +283,19 @@ def data(path: FilePath) -> dict[str, Any]:
 
 
 def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
+    """Converts a file into a Casebase. The file can be of type
+
+    Args:
+        path: Path of the file.
+
+    Returns:
+        Returns a Casebase.
+
+    Examples:
+        >>> casebase_file = "file.csv"
+        >>> df = pd.read_csv(casebase_file)
+        >>> casebase = cbrkit.loaders.dataframe(df)
+    """
     if isinstance(path, str):
         path = Path(path)
 
@@ -204,6 +315,19 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
 
 
 def file(path: Path) -> Casebase[Any, Any] | None:
+    """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
+
+    Args:
+        path: Path of the file.
+
+    Returns:
+        Returns a Casebase.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> p = Path("file.csv")
+        >>> cbrkit.loaders.file(p)
+    """
     if path.suffix not in _batch_loaders:
         return None
 
@@ -214,6 +338,20 @@ def file(path: Path) -> Casebase[Any, Any] | None:
 
 
 def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
+    """Converts the files of a folder into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
+
+    Args:
+        path: Path of the folder.
+        pattern: Relative pattern for the files.
+
+    Returns:
+        Returns a Casebase.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> p = Path("foldername")
+        >>> cbrkit.loaders.folder(p)
+    """
     cb: Casebase[Any, Any] = {}
 
     for file in path.glob(pattern):
