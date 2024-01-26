@@ -47,7 +47,6 @@
             projectDir = ./.;
             preferWheels = true;
             checkPhase = "pytest";
-            extras = [];
           };
           cbrkit = self'.packages.default;
           docker = pkgs.dockerTools.buildLayeredImage {
@@ -69,7 +68,6 @@
               projectDir = ./.;
               preferWheels = true;
               checkPhase = "pytest";
-              extras = ["cli"];
               groups = ["docs"];
             };
             env = app.dependencyEnv;
