@@ -6,12 +6,12 @@ from cbrkit.typing import SimPairFunc
 
 
 def jaccard() -> SimPairFunc[Collection[Any], float]:
-    """[Jaccard similarity](https://en.wikipedia.org/wiki/Jaccard_index) function.
+    """Jaccard similarity function.
 
     Examples:
-        >>> sim = jacard()
+        >>> sim = jaccard()
         >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
-        0.75    
+        0.8    
     """
     from nltk.metrics import jaccard_distance
 

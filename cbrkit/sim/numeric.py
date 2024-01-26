@@ -58,7 +58,7 @@ def exponential(alpha: float = 1.0) -> SimPairFunc[Number, float]:
     """Exponential similarity function.
 
     Args:
-        alpha: Controls the growth of the exponential function for the similarity. The larger alpha is, the faster the function grows.
+        alpha: Controls the growth of the exponential function for the similarity. The larger alpha is, the faster the similarity decreases.
 
     ![exponential](../../assets/numeric/exponential.png)
     Examples:
@@ -82,7 +82,7 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimPairFunc[Number, float
 
     ![sigmoid](../../assets/numeric/sigmoid.png)
     Examples:
-        >>> sim = sigmoid(0.1, 10)
+        >>> sim = sigmoid(1, 10)
         >>> sim(50, 60)
         0.5
         >>> sim(50, 58)

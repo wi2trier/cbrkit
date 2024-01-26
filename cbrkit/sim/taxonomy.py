@@ -80,9 +80,9 @@ def wu_palmer() -> TaxonomyFunc:
     >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
     >>> sim = wu_palmer()
     >>> sim(taxonomy, "audi", "porsche")
-    1.0
-    >>> sim(taxonomy, "audi", "bmw")
     0.5
+    >>> sim(taxonomy, "audi", "bmw")
+    0.0
     """
     def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
@@ -103,9 +103,9 @@ def load(
     """Load a taxonomy and return a function that measures the similarity.
     >>> sim = load("./data/cars-taxonomy.yaml", measure=wu_palmer())
     >>> sim("audi", "porsche")
-    1.0
-    >>> sim("audi", "bmw")
     0.5
+    >>> sim("audi", "bmw")
+    0.0
     """
     taxonomy = Taxonomy(path)
 

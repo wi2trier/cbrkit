@@ -61,10 +61,10 @@ def attribute_value(
     key_getter: Callable[[Any], Iterator[str]] = _key_getter,
 ) -> SimMapFunc[Any, AttributeValueData, AttributeValueSim[SimType]]:
     """
-    Similarity function that computes the attribute value similarity two cases.
+    Similarity function that computes the attribute value similarity between two cases.
     
     Args:
-        attributes: A mapping of attribute names to the similarity functions to be used for those attributes.
+        attributes: A mapping of attribute names to the similarity functions to be used for those attributes. Takes precedence over types.
         types: A mapping of attribute types to the similarity functions to be used for those types.
         types_fallback: A similarity function to be used as a fallback when no specific similarity function
             is defined for an attribute type.

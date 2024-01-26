@@ -26,7 +26,7 @@ __all__ = [
 
 
 def dist2sim(distance: float) -> float:
-    """Convert a distance to a similarity
+    """Convert a distance to a similarity.
 
     Args:
         distance: The distance to convert
