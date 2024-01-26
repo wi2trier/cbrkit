@@ -3297,13 +3297,13 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "uvicorn"
-version = "0.24.0.post1"
+version = "0.27.0"
 description = "The lightning-fast ASGI server."
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "uvicorn-0.24.0.post1-py3-none-any.whl", hash = "sha256:7c84fea70c619d4a710153482c0d230929af7bcf76c7bfa6de151f0a3a80121e"},
-    {file = "uvicorn-0.24.0.post1.tar.gz", hash = "sha256:09c8e5a79dc466bdf28dead50093957db184de356fcdc48697bad3bde4c2588e"},
+    {file = "uvicorn-0.27.0-py3-none-any.whl", hash = "sha256:890b00f6c537d58695d3bb1f28e23db9d9e7a17cbcc76d7457c499935f933e24"},
+    {file = "uvicorn-0.27.0.tar.gz", hash = "sha256:c855578045d45625fd027367f7653d249f7c49f9361ba15cf9624186b26b8eb6"},
 ]
 
 [package.dependencies]
@@ -3589,4 +3589,4 @@ transformers = ["sentence-transformers", "torch", "transformers"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.13"
-content-hash = "96803d1d820df96267e80c5d0e89415e368ac5a5e47bab9dbcc4b7aa94980a0d"
+content-hash = "4b29429f881715b1031d34ae1c5adead8fef35236913f52030e0ad4b7c3b4735"
