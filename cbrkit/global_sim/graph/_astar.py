@@ -149,6 +149,18 @@ def astar(
     edge_sim_func: SimPairFunc[EdgeData, SimType],
     queue_limit: int,
 ) -> dict[KeyType, GraphSim[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]]:
+    """
+    Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
+
+    Args:
+        x_map: A casebase of graphs
+        y: Query graph
+        node_sim_func: A similarity function for graph nodes
+        edge_sim_func: A similarity function for graph edges
+        queue_limit: Limits the queue size which prunes the search space. This leads to a faster search and less memory usage but also introduces a similarity error.
+
+    """
+    
     results = {
         key: _astar_single(
             x,

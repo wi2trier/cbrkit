@@ -26,12 +26,35 @@ __all__ = [
 
 
 def dist2sim(distance: float) -> float:
+    """Convert a distance to a similarity.
+
+    Args:
+        distance: The distance to convert
+
+    Examples:
+        >>> dist2sim(1.)
+        0.5
+    """
     return 1 / (1 + distance)
 
 
 def sim2seq(
     func: SimPairFunc[ValueType, SimType] | SimSeqFunc[ValueType, SimType],
 ) -> SimSeqFunc[ValueType, SimType]:
+    """
+    Converts a similarity function that operates on pairs of values into a similarity function that operates on sequences of values.
+
+    Args:
+        func: The similarity function to be converted.
+
+    Examples:
+        >>> def sim_func(x: int, y: int) -> float:
+        ...     return abs(x - y) / max(x, y)
+        ...
+        >>> seq_func = sim2seq(sim_func)
+        >>> seq_func([(1, 2), (3, 4), (5, 6)])
+        [0.5, 0.25, 0.16666666666666666]
+    """
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2:
