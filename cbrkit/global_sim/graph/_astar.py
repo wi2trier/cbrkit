@@ -150,14 +150,14 @@ def astar(
     queue_limit: int,
 ) -> dict[KeyType, GraphSim[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]]:
     """
-    Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a target graph and the graphs in the casebase.
+    Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
     Args:
-        x_map: A casebase containing graphs to search from.
-        y: The target graph to search for the shortest path.
-        node_sim_func: A similarity function for comparing graph nodes.
-        edge_sim_func: A similarity function for comparing graph edges.
-        queue_limit: Limits the queue size which prunes the search space which leads to a faster search and less memory usage but also introduces a similarity error.
+        x_map: A casebase of graphs
+        y: Query graph
+        node_sim_func: A similarity function for graph nodes
+        edge_sim_func: A similarity function for graph edges
+        queue_limit: Limits the queue size which prunes the search space. This leads to a faster search and less memory usage but also introduces a similarity error.
 
     """
     

@@ -57,7 +57,7 @@ def spacy(model_name: str = "en_core_web_lg") -> SimSeqFunc[str, float]:
 
 
 def sentence_transformers(model_name: str) -> SimSeqFunc[str, float]:
-    """[Sentence-Transformers](https://www.sbert.net/) based semantic similarity using word vectors.
+    """[Sentence-Transformers](https://www.sbert.net/) based semantic similarity using word vectors. It calculates the similarity between given text pairs.
 
     Args:
         model_name: Name of the [pretrained model](https://www.sbert.net/docs/pretrained_models.html) to use to generate word vectors. It calculates the cosine similarity between given text pairs.
