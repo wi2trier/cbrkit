@@ -21,8 +21,7 @@ def test_retrieve_pandas():
                     "./data/cars-taxonomy.yaml",
                     measure=cbrkit.sim.taxonomy.wu_palmer(),
                 ),
-                # TODO: needs nlp extra to be available during tests
-                # "make": cbrkit.data_sim.strings.levenshtein(),
+                "make": cbrkit.sim.strings.levenshtein(),
                 "miles": cbrkit.sim.numeric.linear(max=1000000),
             },
             types_fallback=cbrkit.sim.generic.equality(),
@@ -53,7 +52,7 @@ def test_retrieve_nested():
                 "year": cbrkit.sim.numeric.linear(max=50),
                 "model": cbrkit.global_sim.attribute_value(
                     attributes={
-                        "make": cbrkit.sim.generic.equality(),
+                        "make": cbrkit.sim.strings.levenshtein(),
                         "manufacturer": cbrkit.sim.taxonomy.load(
                             "./data/cars-taxonomy.yaml",
                             measure=cbrkit.sim.taxonomy.wu_palmer(),
