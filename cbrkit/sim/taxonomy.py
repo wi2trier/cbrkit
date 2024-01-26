@@ -84,6 +84,7 @@ def wu_palmer() -> TaxonomyFunc:
     >>> sim(taxonomy, "audi", "bmw")
     0.0
     """
+
     def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]

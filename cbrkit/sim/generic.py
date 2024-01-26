@@ -13,7 +13,6 @@ def table(
     symmetric: bool = True,
     default: float = 0.0,
 ) -> SimPairFunc[ValueType, float]:
-    
     """Allows to import a similarity values from a table.
 
     Args:
@@ -28,7 +27,6 @@ def table(
         >>> sim("a", "c")
         0.0
     """
-
 
     table: defaultdict[ValueType, defaultdict[ValueType, float]] = defaultdict(
         lambda: defaultdict(lambda: default)
@@ -47,7 +45,6 @@ def table(
 
 
 def equality() -> SimPairFunc[Any, float]:
-
     """Equality similarity function. Returns 1.0 if the two values are equal, 0.0 otherwise.
 
     Examples:

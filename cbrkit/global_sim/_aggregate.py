@@ -64,7 +64,7 @@ def aggregator(
         >>> global_sim([0.5, 0.75, 1.0])
         0.75
     """
-    
+
     pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
 
     def wrapped_func(similarities: SimSeqOrMap[KeyType, AnyFloat]) -> float:

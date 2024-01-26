@@ -160,7 +160,7 @@ def astar(
         queue_limit: Limits the queue size which prunes the search space. This leads to a faster search and less memory usage but also introduces a similarity error.
 
     """
-    
+
     results = {
         key: _astar_single(
             x,

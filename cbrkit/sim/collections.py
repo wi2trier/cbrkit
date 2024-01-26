@@ -11,7 +11,7 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
     Examples:
         >>> sim = jaccard()
         >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
-        0.8    
+        0.8
     """
     from nltk.metrics import jaccard_distance
 

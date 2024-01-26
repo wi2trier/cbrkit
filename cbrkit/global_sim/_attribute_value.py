@@ -62,7 +62,7 @@ def attribute_value(
 ) -> SimMapFunc[Any, AttributeValueData, AttributeValueSim[SimType]]:
     """
     Similarity function that computes the attribute value similarity between two cases.
-    
+
     Args:
         attributes: A mapping of attribute names to the similarity functions to be used for those attributes. Takes precedence over types.
         types: A mapping of attribute types to the similarity functions to be used for those types.
@@ -72,7 +72,7 @@ def attribute_value(
         value_getter: A function that retrieves the value of an attribute from a case.
         key_getter: A function that retrieves the attribute names from a target case.
     """
-    
+
     attributes_map: Mapping[str, AnySimFunc[KeyType, Any, SimType]] = (
         {} if attributes is None else attributes
     )
