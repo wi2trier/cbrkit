@@ -143,7 +143,7 @@ def jaro(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
 def jaro_winkler(
     score_cutoff: float | None = None, prefix_weight: float = 0.1
 ) -> SimPairFunc[str, float]:
-    """Jaro-Winkler similarity (1-[Jaro-Winkler distance](https://en.wikipedia.org/wiki/Jaro%E2%80%93Winkler_distance)) function to compute similarity between two strings.
+    """Jaro-Winkler similarity function to compute similarity between two strings.
     
     Args:
         score_cutoff: If the similarity is less than this value, the function will return 0.0.
