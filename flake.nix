@@ -33,20 +33,24 @@
         python = pkgs.python311;
         poetry = pkgs.poetry;
         packages = [python poetry];
+        poetryAppArgs = {
+          inherit python;
+          projectDir = ./.;
+          preferWheels = true;
+          checkPhase = "pytest";
+          extras = ["cli" "nlp"];
+        };
       in {
         _module.args.pkgs = import nixpkgs {
           inherit system;
           overlays = [poetry2nix.overlays.default];
         };
+        checks = {
+          inherit (self'.packages) cbrkit;
+        };
         packages = {
-          default = pkgs.poetry2nix.mkPoetryApplication {
-            inherit python;
-            projectDir = ./.;
-            preferWheels = true;
-            checkPhase = "pytest";
-            extras = [];
-          };
-          cbrkit = self'.packages.default;
+          default = self'.packages.cbrkit;
+          cbrkit = pkgs.poetry2nix.mkPoetryApplication poetryAppArgs;
           docker = pkgs.dockerTools.buildLayeredImage {
             name = "cbrkit";
             tag = "latest";
@@ -60,16 +64,13 @@
             name = "release-env";
             paths = packages;
           };
-          ci = pkgs.nixci;
           docs = let
-            app = pkgs.poetry2nix.mkPoetryApplication {
-              inherit python;
-              projectDir = ./.;
-              preferWheels = true;
-              checkPhase = "pytest";
-              extras = ["cli"];
-              groups = ["docs"];
-            };
+            app = pkgs.poetry2nix.mkPoetryApplication (
+              poetryAppArgs
+              // {
+                groups = ["docs"];
+              }
+            );
             env = app.dependencyEnv;
           in
             pkgs.stdenv.mkDerivation {
