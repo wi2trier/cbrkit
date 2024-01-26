@@ -38,6 +38,9 @@
           inherit system;
           overlays = [poetry2nix.overlays.default];
         };
+        checks = {
+          inherit (self'.packages) cbrkit;
+        };
         packages = {
           default = pkgs.poetry2nix.mkPoetryApplication {
             inherit python;
@@ -60,7 +63,6 @@
             name = "release-env";
             paths = packages;
           };
-          ci = pkgs.nixci;
           docs = let
             app = pkgs.poetry2nix.mkPoetryApplication {
               inherit python;
