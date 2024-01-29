@@ -41,7 +41,7 @@ cbrkit = "cbrkit.cli:app"
 [tool.poetry.dependencies]
 python = ">=3.11, <3.13"
 fastapi = { version = ">=0.100, <1.0", optional = true, extras = ["all"] }
-levenshtein = { version = "^0.23", optional = true }
+levenshtein = { version = ">=0.23, <1.0", optional = true }
 nltk = { version = "^3.8", optional = true }
 openai = { version = "^1.5", optional = true }
 orjson = "^3.9"
