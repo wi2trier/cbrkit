@@ -2385,13 +2385,13 @@ test = ["asv", "gmpy2", "hypothesis", "mpmath", "pooch", "pytest", "pytest-cov",
 
 [[package]]
 name = "sentence-transformers"
-version = "2.3.0"
+version = "2.3.1"
 description = "Multilingual text embeddings"
 optional = true
 python-versions = ">=3.8.0"
 files = [
-    {file = "sentence-transformers-2.3.0.tar.gz", hash = "sha256:8cd90bedc73f2cb6b8fa81f9ebf2bb24fb15a3eed4dd39bf7865d211c3bb6253"},
-    {file = "sentence_transformers-2.3.0-py3-none-any.whl", hash = "sha256:d12607a2172c50e77ccd3cf160a5070c1d1e8f974d17f0dd7e05d015f76d6108"},
+    {file = "sentence-transformers-2.3.1.tar.gz", hash = "sha256:d589d85a464f45338cdbdf99ea715f8068e1fb01c582e0bcdbf60bcf3eade6d0"},
+    {file = "sentence_transformers-2.3.1-py3-none-any.whl", hash = "sha256:285d6637726c3b002186aa4b8bcace1101364b32671fb605297c4c2636b8190e"},
 ]
 
 [package.dependencies]
