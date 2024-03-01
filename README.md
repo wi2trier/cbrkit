@@ -16,11 +16,6 @@
 
 # CBRkit
 
-> [!caution]
-> The project is under active development and does not yet adhere to semantic versioning.
-> Breaking changes may occur at any time for versions `0.x.y`.
-> Once the project reaches version `1.0`, semantic versioning will be applied.
-
 ## Installation
 
 The library is available on [PyPI](https://pypi.org/project/cbrkit/), so you can install it with `pip`:
@@ -37,7 +32,8 @@ pip install cbrkit[EXTRA_NAME,...]
 
 where `EXTRA_NAME` is one of the following:
 
-- `nlp`: Natural Language Processing (NLP), including `spacy`, `openai`, and `sentence-transformers`
+- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
+- `transformers`: NLP tools based on `pytorch` and `transformers`
 - `cli`: Command Line Interface (CLI)
 - `api`: REST API Server
 - `all`: All of the above
