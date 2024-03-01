@@ -4,6 +4,8 @@ from typing import Any
 from cbrkit.sim._helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
+__all__ = ["jaccard"]
+
 
 def jaccard() -> SimPairFunc[Collection[Any], float]:
     """Jaccard similarity function.

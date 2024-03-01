@@ -7,6 +7,8 @@ from cbrkit.typing import (
     ValueType,
 )
 
+__all__ = ["table", "equality"]
+
 
 def table(
     entries: Sequence[tuple[ValueType, ValueType, float]],

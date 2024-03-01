@@ -4,6 +4,8 @@ from typing import Optional, Protocol, TypedDict, cast
 from cbrkit.loaders import data as load_data
 from cbrkit.typing import FilePath, SimPairFunc
 
+__all__ = ["Taxonomy", "TaxonomyNode", "TaxonomyFunc", "load", "wu_palmer"]
+
 
 class SerializedNode(TypedDict, total=False):
     key: str
