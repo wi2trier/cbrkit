@@ -1,5 +1,5 @@
 from abc import ABC
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from inspect import signature as inspect_signature
 from typing import Any, cast
 
@@ -22,7 +22,39 @@ __all__ = [
     "unpack_sim",
     "unpack_sims",
     "AbstractFloat",
+    "singleton",
 ]
+
+
+def singleton(x: Mapping[Any, ValueType] | Collection[ValueType]) -> ValueType:
+    """
+    Return the only element of the input, or raise an error if there are multiple elements.
+
+    Args:
+        x: The input collection or mapping.
+
+    Returns:
+        The only element of the input.
+
+    Examples:
+        >>> singleton([1])
+        1
+        >>> singleton({1: "a"})
+        'a'
+
+    Raises:
+        ValueError: If the input has more than one element.
+        TypeError: If the input is not a collection or mapping.
+    """
+    if len(x) != 1:
+        raise ValueError(f"Expected exactly one element, but got {len(x)}")
+
+    if isinstance(x, Mapping):
+        return next(iter(x.values()))
+    elif isinstance(x, Collection):
+        return next(iter(x))
+    else:
+        raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
 
 
 def dist2sim(distance: float) -> float:
