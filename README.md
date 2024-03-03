@@ -55,7 +55,7 @@ The following modules are part of CBRkit:
 CBRkit is fully typed, so IDEs like VSCode and PyCharm can provide autocompletion and type checking.
 We will explain all modules and their basic usage in the following sections.
 
-### Loading Cases
+### Loading Cases and Queries
 
 The first step is to load cases and queries.
 We provide predefined functions for the most common formats like CSV, JSON, and XML.
@@ -70,8 +70,35 @@ df = pd.read_csv("path/to/cases.csv")
 cases = cbrkit.loaders.dataframe(df)
 ```
 
-Queries can either be loaded using the same loader functions or constructed manually.
+When dealing with formats like JSON, the files can be loaded directly:
 
 ```python
-queries = cbrkit.loaders.dataframe(pd.read_csv("path/to/queries.csv"))
+cases = cbrkit.loaders.json("path/to/cases.json")
 ```
+
+Queries can either be loaded using the same loader functions.
+CBRkit expects the type of the queries to match the type of the cases.
+
+```python
+ # for pandas
+queries = cbrkit.loaders.dataframe(pd.read_csv("path/to/queries.csv"))
+# for json
+queries = cbrkit.loaders.json("path/to/queries.json")
+```
+
+In case your query collection only contains a single query, you can use the `singleton` function to extract it.
+
+```python
+query = cbrkit.singleton(queries)
+```
+
+Alternatively, you can also create a query directly in Python:
+
+```python
+# for pandas
+query = pd.Series({"name": "John", "age": 25})
+# for json
+query = {"name": "John", "age": 25}
+```
+
+### Similarity Measures and Aggregation
