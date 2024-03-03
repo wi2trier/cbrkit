@@ -2,7 +2,7 @@ import statistics
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from cbrkit.sim._helpers import unpack_sim
+from cbrkit.helpers import unpack_sim
 from cbrkit.typing import (
     AggregatorFunc,
     AnyFloat,

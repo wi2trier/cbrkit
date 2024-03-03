@@ -16,7 +16,7 @@ from cbrkit.global_sim.graph._model import (
     NodeData,
     NodeKey,
 )
-from cbrkit.sim._helpers import unpack_sims
+from cbrkit.helpers import unpack_sims
 from cbrkit.typing import Casebase, FloatProtocol, KeyType, SimPairFunc, SimType
 
 logger = logging.getLogger(__name__)

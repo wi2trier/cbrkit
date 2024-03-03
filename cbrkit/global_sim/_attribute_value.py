@@ -5,7 +5,7 @@ from typing import Any, Generic
 
 import pandas as pd
 
-from cbrkit.sim import sim2map
+from cbrkit.helpers import sim2map
 from cbrkit.typing import (
     AggregatorFunc,
     AnySimFunc,

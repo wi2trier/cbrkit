@@ -2,8 +2,8 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic
 
+from cbrkit.helpers import sim2map, unpack_sim
 from cbrkit.loaders import python as load_python
-from cbrkit.sim._helpers import sim2map, unpack_sim
 from cbrkit.typing import (
     AnySimFunc,
     Casebase,

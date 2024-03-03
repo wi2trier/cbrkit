@@ -5,12 +5,14 @@
 
 """
 
-from . import global_sim, loaders, retrieval, sim, typing
 
-__all__ = (
+from . import global_sim, helpers, loaders, retrieval, sim, typing
+
+__all__ = [
     "loaders",
     "sim",
     "global_sim",
     "typing",
     "retrieval",
-)
+    "helpers",
+]
