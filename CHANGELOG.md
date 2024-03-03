@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/wi2trier/cbrkit/compare/v0.3.1...v0.3.2) (2024-03-03)
+
+
+### Bug Fixes
+
+* add singleton helper function ([4625b6f](https://github.com/wi2trier/cbrkit/commit/4625b6f0104099b6c9045e812de727066fbe112f))
+
 ## [0.3.1](https://github.com/wi2trier/cbrkit/compare/v0.3.0...v0.3.1) (2024-03-01)
 
 
