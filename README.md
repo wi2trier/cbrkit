@@ -86,10 +86,10 @@ queries = cbrkit.loaders.dataframe(pd.read_csv("path/to/queries.csv"))
 queries = cbrkit.loaders.json("path/to/queries.json")
 ```
 
-In case your query collection only contains a single query, you can use the `singleton` function to extract it.
+In case your query collection only contains a single entry, you can use the `singleton` function to extract it.
 
 ```python
-query = cbrkit.singleton(queries)
+query = cbrkit.helpers.singleton(queries)
 ```
 
 Alternatively, you can also create a query directly in Python:
