@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/wi2trier/cbrkit/compare/v0.3.2...v0.4.0) (2024-03-04)
+
+
+### Features
+
+* add additional taxonomy measures ([26aee48](https://github.com/wi2trier/cbrkit/commit/26aee48bc5d8051055d43b82d4040ebd5ccd2e5c))
+
 ## [0.3.2](https://github.com/wi2trier/cbrkit/compare/v0.3.1...v0.3.2) (2024-03-03)
 
 
