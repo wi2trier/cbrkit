@@ -1,125 +1,126 @@
-key: Manufacturers
+name: Manufacturers
+weight: 0.0
 children:
-  - key: AwtoWAS
+  - name: AwtoWAS
     children:
       - lada
-  - key: BMW AG
+  - name: BMW AG
     children:
       - bmw
       - mini
-      - key: Rolls-Royce Motor Cars
+      - name: Rolls-Royce Motor Cars
         children:
           - rolls-royce
-  - key: Fiat Chrysler Automobiles
+  - name: Fiat Chrysler Automobiles
     children:
-      - key: alfa-romeo
-      - key: Chrysler Group
+      - name: alfa-romeo
+      - name: Chrysler Group
         children:
-          - key: chrysler
-          - key: ram
-      - key: dodge
-      - key: FCA Italy S.p.A.
+          - name: chrysler
+          - name: ram
+      - name: dodge
+      - name: FCA Italy S.p.A.
         children:
-          - key: fiat
-          - key: lancia
-      - key: ferrari
-      - key: jeep
-  - key: Daimler AG
+          - name: fiat
+          - name: lancia
+      - name: ferrari
+      - name: jeep
+  - name: Daimler AG
     children:
-      - key: mercedes-benz
-      - key: smart
-  - key: Daewoo Motor Company
+      - name: mercedes-benz
+      - name: smart
+  - name: Daewoo Motor Company
     children:
-      - key: daewoo
-  - key: Ford Motor Company
+      - name: daewoo
+  - name: Ford Motor Company
     children:
-      - key: aston-martin
-      - key: ford
-      - key: jaguar
-      - key: land-rover
-      - key: lincoln
-      - key: mazda
-      - key: mercury
-      - key: rover
-      - key: volvo
-  - key: General Motors
+      - name: aston-martin
+      - name: ford
+      - name: jaguar
+      - name: land-rover
+      - name: lincoln
+      - name: mazda
+      - name: mercury
+      - name: rover
+      - name: volvo
+  - name: General Motors
     children:
-      - key: buick
-      - key: cadillac
-      - key: chevrolet
-      - key: gmc
-      - key: hummer
-      - key: pontiac
-      - key: saturn
-      - key: Saab Automobile
+      - name: buick
+      - name: cadillac
+      - name: chevrolet
+      - name: gmc
+      - name: hummer
+      - name: pontiac
+      - name: saturn
+      - name: Saab Automobile
         children:
-          - key: saab
-  - key: Harley Davidson Inc
+          - name: saab
+  - name: Harley Davidson Inc
     children:
-      - key: harley-davidson
-  - key: Honda Group
+      - name: harley-davidson
+  - name: Honda Group
     children:
-      - key: acura
-      - key: honda
-  - key: Hyundai Motor Company
+      - name: acura
+      - name: honda
+  - name: Hyundai Motor Company
     children:
-      - key: hyundai
-  - key: Isuzu Motors Limited
+      - name: hyundai
+  - name: Isuzu Motors Limited
     children:
-      - key: isuzu
-      - key: statesman
-      - key: suzuki
-  - key: Kia Motors
+      - name: isuzu
+      - name: statesman
+      - name: suzuki
+  - name: Kia Motors
     children:
-      - key: asia
-      - key: kia
-  - key: Lotus Cars
+      - name: asia
+      - name: kia
+  - name: Lotus Cars
     children:
-      - key: lotus
-  - key: Maserati S.p.A.
+      - name: lotus
+  - name: Maserati S.p.A.
     children:
-      - key: maserati
-  - key: Peugeot Societe Anonyme
+      - name: maserati
+  - name: Peugeot Societe Anonyme
     children:
-      - key: citroen
-      - key: peugeot
-      - key: opel
-  - key: Renault-Nissan-Mitsubishi
+      - name: citroen
+      - name: peugeot
+      - name: opel
+  - name: Renault-Nissan-Mitsubishi
     children:
-      - key: Nissan Motor Company
+      - name: Nissan Motor Company
         children:
-          - key: datsun
-          - key: nissan
-          - key: infiniti
-      - key: Renault Group
+          - name: datsun
+          - name: nissan
+          - name: infiniti
+      - name: Renault Group
         children:
-          - key: dacia
-          - key: renault
-      - key: Mitsubishi Motors
+          - name: dacia
+          - name: renault
+      - name: Mitsubishi Motors
         children:
-          - key: mitsubishi
-  - key: Skoda Auto
+          - name: mitsubishi
+  - name: Skoda Auto
     children:
-      - key: skoda
-  - key: Subaru Corporation
+      - name: skoda
+  - name: Subaru Corporation
     children:
-      - key: subaru
-  - key: Tesla Inc.
+      - name: subaru
+  - name: Tesla Inc.
     children:
-      - key: tesla
-  - key: Toyota Motor Corporation
+      - name: tesla
+  - name: Toyota Motor Corporation
     children:
-      - key: lexus
-      - key: daihatsu
-      - key: toyota
-  - key: VEB Automobilwerk
+      - name: lexus
+      - name: daihatsu
+      - name: toyota
+  - name: VEB Automobilwerk
     children:
-      - key: trabant
-  - key: Volkswagen AG
+      - name: trabant
+  - name: Volkswagen AG
     children:
-      - key: audi
-      - key: bentley
-      - key: lamborghini
-      - key: porsche
-      - key: seat
-      - key: volkswagen
+      - name: audi
+      - name: bentley
+      - name: lamborghini
+      - name: porsche
+      - name: seat
+      - name: volkswagen
