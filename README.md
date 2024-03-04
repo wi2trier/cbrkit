@@ -102,3 +102,18 @@ query = {"name": "John", "age": 25}
 ```
 
 ### Similarity Measures and Aggregation
+
+In CBRkit, we differentiate between regular similarity measures and global similarity measures.
+The former are used to compare individual attributes of cases and queries, while the latter are used to aggregate the results of the former.
+If the cases are represented through elementary data types (e.g., each case is a plain-text document), no global similarity measure is needed.
+However, if the cases are represented through a combination of elementary data types (e.g., each case is a person with a name and an age), a global similarity measure is needed to aggregate the results of the elementary similarity measures.
+
+In CBRkit, a similarity measure is defined as a function that takes two arguments (a case and a query) and returns a similarity score: `sim = f(case, query)`.
+It also supports pipeline-based similarity measures that are popular in NLP where a list of tuples is passed to the similarity measure: `sims = f([(case1, query1), (case2, query2), ...])`.
+This generic approach allows you to define custom similarity measures for your specific use case.
+To make the process easier, CBRkit provides a set of predefined similarity measures for the most common data types.
+They are provided through generator functions that allow you to customize the behavior of the built-in measures.
+
+#### Elementary Similarity Measures
+
+The elementary measures are available in the module `cbrkit.sim`.
