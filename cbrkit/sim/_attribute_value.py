@@ -71,6 +71,26 @@ def attribute_value(
         aggregator: A function that aggregates the local similarity scores for each attribute into a single global similarity.
         value_getter: A function that retrieves the value of an attribute from a case.
         key_getter: A function that retrieves the attribute names from a target case.
+
+    Examples:
+        >>> equality = lambda x, y: 1.0 if x == y else 0.0
+        >>> sim = attribute_value(
+        ...     attributes={
+        ...         "name": equality,
+        ...         "age": equality,
+        ...     },
+        ... )
+        >>> scores = sim(
+        ...     {
+        ...         "a": {"name": "John", "age": 25},
+        ...         "b": {"name": "Jane", "age": 30},
+        ...     },
+        ...     {"name": "John", "age": 30},
+        ... )
+        >>> scores["a"]
+        AttributeValueSim(value=0.5, by_attribute={'age': 0.0, 'name': 1.0})
+        >>> scores["b"]
+        AttributeValueSim(value=0.5, by_attribute={'age': 1.0, 'name': 0.0})
     """
 
     attributes_map: Mapping[str, AnySimFunc[KeyType, Any, SimType]] = (
