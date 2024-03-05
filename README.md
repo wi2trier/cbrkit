@@ -38,12 +38,13 @@ where `EXTRA_NAME` is one of the following:
 - `api`: REST API Server
 - `all`: All of the above
 
-## Usage
+## Features and Structure
 
 CBRkit allows the definition of similarity metrics through _composition_.
 This means that you can easily build even complex similarities by mixing built-in and/or custom measures.
 CBRkit also includes predefined aggregation functions.
-To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-demo) that shows how to use the library in a real-world scenario.
+To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-demo) which contains a case base and a predefined retrieval pipeline.
+Further examples can be found in our [tests](./tests/test_retrieve.py) and [submodules documentation](https://wi2trier.github.io/cbrkit/).
 The following modules are part of CBRkit:
 
 - `loaders`: Functions for loading cases and queries.
@@ -66,13 +67,13 @@ import pandas as pd
 import cbrkit
 
 df = pd.read_csv("path/to/cases.csv")
-cases = cbrkit.loaders.dataframe(df)
+casebase = cbrkit.loaders.dataframe(df)
 ```
 
 When dealing with formats like JSON, the files can be loaded directly:
 
 ```python
-cases = cbrkit.loaders.json("path/to/cases.json")
+casebase = cbrkit.loaders.json("path/to/cases.json")
 ```
 
 Queries can either be loaded using the same loader functions.
@@ -141,7 +142,8 @@ An overview of all available similarity measures can be found in the [module doc
 ### Global Similarity and Aggregation
 
 When dealing with cases that are not represented through elementary data types like strings, we need to aggregate individual measures to obtain a global similarity score.
-When defining similarity measures from scratch, you may still use the built-in `aggregator` to combine the individual similarity scores:
+We provide a predefined `aggregator` that transforms a list of similarities into a single score.
+It can be used with custom and/or built-in measures.
 
 ```python
 similarities = [0.8, 0.6, 0.9]
@@ -164,3 +166,58 @@ cbrkit.sim.attribute_value(
 
 The `attribute_value` function lets you define measures for each attribute of the cases/queries as well as the aggregation function.
 It also allows to use custom measures like the `color_similarity` function defined above.
+
+_Please note:_ The custom measure is not called directly but passed as a reference to the `attribute_value` function since it is not a generator function.
+
+## Retrieval
+
+The final step is to retrieve cases based on the loaded queries.
+The `cbrkit.retrieval` module provides utility functions for this purpose.
+You first build a retrieval pipeline by specifying a global similarity function and optionally a limit for the number of retrieved cases.
+
+```python
+retriever = cbrkit.retrieval.build(
+    cbrkit.sim.attribute_value(...),
+    limit=10
+)
+```
+
+This retriever can then be applied on a casebase to retrieve cases for a given query.
+
+```python
+result = cbrkit.retrieval.apply(casebase, query, retriever)
+```
+
+Our result has the following attributes:
+
+- `similarities`: A dictionary containing the similarity scores for each case.
+- `ranking` A list of case indices sorted by their similarity score.
+- `casebase` The casebase containing only the retrieved cases (useful for downstream tasks).
+
+## Combining Multiple Retrieval Pipelines
+
+In some cases, it is useful to combine multiple retrieval pipelines, for example when applying the MAC/FAC pattern where a cheap pre-filter is applied to the whole casebase before a more expensive similarity measure is applied on the remaining cases.
+To use this pattern, first create the corresponding retrievers using the builder:
+
+```python
+retriever1 = cbrkit.retrieval.build(..., limit=10)
+retriever2 = cbrkit.retrieval.build(..., limit=None)
+```
+
+Then apply all of them sequentially by passing them as a list or tuple to the `apply` function:
+
+```python
+result = cbrkit.retrieval.apply(
+    casebase,
+    query,
+    (retriever1, retriever2)
+)
+```
+
+The result has the following two attributes:
+
+- `final`: Result of the last retriever in the list.
+- `intermediates`: A list of results for each retriever in the list.
+
+Both `final` and each entry in `intermediates` have the same attributes as discussed previously.
+The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
