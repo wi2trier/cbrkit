@@ -12,108 +12,117 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-  outputs = inputs @ {
-    self,
-    nixpkgs,
-    flake-parts,
-    systems,
-    flocken,
-    poetry2nix,
-    ...
-  }:
-    flake-parts.lib.mkFlake {inherit inputs;} {
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      flake-parts,
+      systems,
+      flocken,
+      poetry2nix,
+      ...
+    }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
       systems = import systems;
-      perSystem = {
-        pkgs,
-        system,
-        lib,
-        self',
-        ...
-      }: let
-        python = pkgs.python311;
-        poetry = pkgs.poetry;
-        packages = [python poetry];
-        poetryAppArgs = {
-          inherit python;
-          projectDir = ./.;
-          preferWheels = true;
-          checkPhase = "pytest";
-          extras = ["cli" "nlp"];
-        };
-      in {
-        _module.args.pkgs = import nixpkgs {
-          inherit system;
-          overlays = [poetry2nix.overlays.default];
-        };
-        checks = {
-          inherit (self'.packages) cbrkit;
-        };
-        packages = {
-          default = self'.packages.cbrkit;
-          cbrkit = pkgs.poetry2nix.mkPoetryApplication poetryAppArgs;
-          docker = pkgs.dockerTools.buildLayeredImage {
-            name = "cbrkit";
-            tag = "latest";
-            created = "now";
-            config = {
-              entrypoint = [(lib.getExe self'.packages.default)];
-              cmd = [];
+      perSystem =
+        {
+          pkgs,
+          system,
+          lib,
+          self',
+          ...
+        }:
+        let
+          python = pkgs.python311;
+          poetry = pkgs.poetry;
+          packages = [
+            python
+            poetry
+          ];
+          poetryAppArgs = {
+            inherit python;
+            projectDir = ./.;
+            preferWheels = true;
+            checkPhase = "pytest";
+            extras = [
+              "cli"
+              "nlp"
+            ];
+          };
+        in
+        {
+          _module.args.pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ poetry2nix.overlays.default ];
+          };
+          checks = {
+            inherit (self'.packages) cbrkit;
+          };
+          packages = {
+            default = self'.packages.cbrkit;
+            cbrkit = pkgs.poetry2nix.mkPoetryApplication poetryAppArgs;
+            docker = pkgs.dockerTools.buildLayeredImage {
+              name = "cbrkit";
+              tag = "latest";
+              created = "now";
+              config = {
+                entrypoint = [ (lib.getExe self'.packages.default) ];
+                cmd = [ ];
+              };
             };
-          };
-          releaseEnv = pkgs.buildEnv {
-            name = "release-env";
-            paths = packages;
-          };
-          docs = let
-            app = pkgs.poetry2nix.mkPoetryApplication (
-              poetryAppArgs
-              // {
-                groups = ["docs"];
-              }
-            );
-            env = app.dependencyEnv;
-          in
-            pkgs.stdenv.mkDerivation {
-              name = "docs";
-              src = ./.;
-              buildPhase = ''
-                mkdir -p "$out"
-
-                {
-                  echo '```txt'
-                  COLUMNS=120 ${lib.getExe app} --help
-                  echo '```'
-                } > ./cli.md
-
-                # remove everyting before the first header
-                ${lib.getExe pkgs.gnused} -i '1,/^# /d' ./README.md
-
-                ${lib.getExe' env "pdoc"} -d google -t pdoc-template --math \
-                  --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
-                  -o "$out" ./cbrkit
-
-                mkdir "$out/assets"
-                cp -rf ./assets/**/{*.png,*.gif} "$out/assets/"
-              '';
-              dontInstall = true;
+            releaseEnv = pkgs.buildEnv {
+              name = "release-env";
+              paths = packages;
             };
-        };
-        legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
-          github = {
-            enable = true;
-            token = builtins.getEnv "GH_TOKEN";
+            docs =
+              let
+                app = pkgs.poetry2nix.mkPoetryApplication (poetryAppArgs // { groups = [ "docs" ]; });
+                env = app.dependencyEnv;
+              in
+              pkgs.stdenv.mkDerivation {
+                name = "docs";
+                src = ./.;
+                buildPhase = ''
+                  mkdir -p "$out"
+
+                  {
+                    echo '```txt'
+                    COLUMNS=120 ${lib.getExe app} --help
+                    echo '```'
+                  } > ./cli.md
+
+                  # remove everyting before the first header
+                  ${lib.getExe pkgs.gnused} -i '1,/^# /d' ./README.md
+
+                  ${lib.getExe' env "pdoc"} -d google -t pdoc-template --math \
+                    --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
+                    -o "$out" ./cbrkit
+
+                  mkdir "$out/assets"
+                  cp -rf ./assets/**/{*.png,*.gif} "$out/assets/"
+                '';
+                dontInstall = true;
+              };
           };
-          version = builtins.getEnv "VERSION";
-          images = with self.packages; [x86_64-linux.docker aarch64-linux.docker];
+          legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
+            github = {
+              enable = true;
+              token = builtins.getEnv "GH_TOKEN";
+            };
+            version = builtins.getEnv "VERSION";
+            images = with self.packages; [
+              x86_64-linux.docker
+              aarch64-linux.docker
+            ];
+          };
+          devShells.default = pkgs.mkShell {
+            inherit packages;
+            POETRY_VIRTUALENVS_IN_PROJECT = true;
+            shellHook = ''
+              ${lib.getExe poetry} env use ${lib.getExe python}
+              ${lib.getExe poetry} install --all-extras --no-root --sync
+            '';
+          };
         };
-        devShells.default = pkgs.mkShell {
-          inherit packages;
-          POETRY_VIRTUALENVS_IN_PROJECT = true;
-          shellHook = ''
-            ${lib.getExe poetry} env use ${lib.getExe python}
-            ${lib.getExe poetry} install --all-extras --no-root --sync
-          '';
-        };
-      };
     };
 }
