@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/wi2trier/cbrkit/compare/v0.4.0...v0.5.0) (2024-03-05)
+
+
+### Features
+
+* move `global_sim` functions to `sim` ([bce823e](https://github.com/wi2trier/cbrkit/commit/bce823ef9fdf03a5b52fb075b801bfb209af7480))
+
+
+### Bug Fixes
+
+* **api:** update retriever configuration ([24c5726](https://github.com/wi2trier/cbrkit/commit/24c5726c66822a40a15823406d360afe3734f846))
+
 ## [0.4.0](https://github.com/wi2trier/cbrkit/compare/v0.3.2...v0.4.0) (2024-03-04)
 
 
