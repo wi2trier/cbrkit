@@ -16,6 +16,22 @@
 
 # CBRkit
 
+CBRkit is a customizable and modular toolkit for Case-Based Reasoning (CBR) in Python.
+It provides a set of tools for loading cases and queries, defining similarity measures, and retrieving cases based on a query.
+The toolkit is designed to be flexible and extensible, allowing you to define custom similarity measures or use built-in ones.
+Retrieval pipelines are declared by composing these metrics, and the toolkit provides utility functions for applying them on a casebase.
+Additionally, it offers ready-to-use API and CLI interfaces for easy integration into your projects.
+The library is fully typed, enabling autocompletion and type checking in modern IDEs like VSCode and PyCharm.
+
+To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-demo) which contains a casebase and a predefined retriever.
+Further examples can be found in our [tests](./tests/test_retrieve.py) and [documentation](https://wi2trier.github.io/cbrkit/).
+The following modules are part of CBRkit:
+
+- `cbrkit.loaders`: Functions for loading cases and queries.
+- `cbrkit.sim`: Similarity generator functions for common data types like strings and numbers.
+- `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines.
+- `cbrkit.typing`: Generic type definitions for defining custom functions.
+
 ## Installation
 
 The library is available on [PyPI](https://pypi.org/project/cbrkit/), so you can install it with `pip`:
@@ -33,27 +49,10 @@ pip install cbrkit[EXTRA_NAME,...]
 where `EXTRA_NAME` is one of the following:
 
 - `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
-- `transformers`: NLP tools based on `pytorch` and `transformers`
+- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
 - `cli`: Command Line Interface (CLI)
 - `api`: REST API Server
 - `all`: All of the above
-
-## Features and Structure
-
-CBRkit allows the definition of similarity metrics through _composition_.
-This means that you can easily build even complex similarities by mixing built-in and/or custom measures.
-CBRkit also includes predefined aggregation functions.
-To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-demo) which contains a case base and a predefined retrieval pipeline.
-Further examples can be found in our [tests](./tests/test_retrieve.py) and [submodules documentation](https://wi2trier.github.io/cbrkit/).
-The following modules are part of CBRkit:
-
-- `loaders`: Functions for loading cases and queries.
-- `sim`: Similarity generator functions for various data types (e.g., strings, numbers).
-- `retrieval`: Functions for retrieving cases based on a query.
-- `typing`: Generic type definitions for defining custom functions.
-
-CBRkit is fully typed, so IDEs like VSCode and PyCharm can provide autocompletion and type checking.
-We will explain all modules and their basic usage in the following sections.
 
 ## Loading Cases and Queries
 
