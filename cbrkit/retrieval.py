@@ -20,6 +20,7 @@ __all__ = [
     "load",
     "load_map",
     "Result",
+    "SingleResult",
 ]
 
 
@@ -30,7 +31,7 @@ def _similarities2ranking(
 
 
 @dataclass(slots=True)
-class _Result(Generic[KeyType, ValueType, SimType]):
+class SingleResult(Generic[KeyType, ValueType, SimType]):
     similarities: SimMap[KeyType, SimType]
     ranking: list[KeyType]
     casebase: Casebase[KeyType, ValueType]
@@ -40,7 +41,7 @@ class _Result(Generic[KeyType, ValueType, SimType]):
         cls,
         similarities: SimMap[KeyType, SimType],
         full_casebase: Casebase[KeyType, ValueType],
-    ) -> "_Result[KeyType, ValueType, SimType]":
+    ) -> "SingleResult[KeyType, ValueType, SimType]":
         ranking = _similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
@@ -49,15 +50,15 @@ class _Result(Generic[KeyType, ValueType, SimType]):
 
 @dataclass(slots=True)
 class Result(Generic[KeyType, ValueType, SimType]):
-    final: _Result[KeyType, ValueType, SimType]
-    intermediate: list[_Result[KeyType, ValueType, SimType]]
+    final: SingleResult[KeyType, ValueType, SimType]
+    intermediates: list[SingleResult[KeyType, ValueType, SimType]]
 
     def __init__(
         self,
-        results: list[_Result[KeyType, ValueType, SimType]],
+        results: list[SingleResult[KeyType, ValueType, SimType]],
     ) -> None:
         self.final = results[-1]
-        self.intermediate = results
+        self.intermediates = results
 
     @property
     def similarities(self) -> SimMap[KeyType, SimType]:
@@ -116,12 +117,12 @@ def apply(
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[_Result[KeyType, ValueType, SimType]] = []
+    results: list[SingleResult[KeyType, ValueType, SimType]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
         sim_map = retriever_func(current_casebase, query)
-        result = _Result.build(sim_map, current_casebase)
+        result = SingleResult.build(sim_map, current_casebase)
 
         results.append(result)
         current_casebase = result.casebase
