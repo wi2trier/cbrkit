@@ -127,14 +127,14 @@ In addition to checking for strict equality, our function also checks for partia
 ### Built-in Similarity Measures
 
 CBRkit also contains a selection of built-in similarity measures for the most common data types in the module `cbrkit.sim`.
-They are provided through _generator functions_ that allow you to customize the behavior of the built-in measures.
+They are provided through **generator functions** that allow you to customize the behavior of the built-in measures.
 For example, an spacy-based embedding similarity measure can be obtained as follows:
 
 ```python
 semantic_similarity = cbrkit.sim.strings.spacy(model_name="en_core_web_lg")
 ```
 
-_Please note:_ Calling the function `cbrkit.sim.strings.spacy` returns a similarity function itself that has the same signature as the `color_similarity` function defined above.
+**Please note:** Calling the function `cbrkit.sim.strings.spacy` returns a similarity function itself that has the same signature as the `color_similarity` function defined above.
 
 An overview of all available similarity measures can be found in the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim.html).
 
@@ -160,13 +160,31 @@ cbrkit.sim.attribute_value(
         ...
     },
     aggregator=cbrkit.sim.aggregator(pooling="mean"),
-),
+)
 ```
 
 The `attribute_value` function lets you define measures for each attribute of the cases/queries as well as the aggregation function.
 It also allows to use custom measures like the `color_similarity` function defined above.
+**Please note:** The custom measure is not called directly but passed as a reference to the `attribute_value` function since it is not a generator function.
 
-_Please note:_ The custom measure is not called directly but passed as a reference to the `attribute_value` function since it is not a generator function.
+You may even nest similarity functions to create measures for object-oriented cases:
+
+```python
+cbrkit.sim.attribute_value(
+    attributes={
+        "manufacturer": cbrkit.sim.attribute_value(
+            attributes={
+                "name": cbrkit.sim.strings.spacy(model_name="en_core_web_lg"),
+                "country": cbrkit.sim.strings.levenshtein(),
+            },
+            aggregator=cbrkit.sim.aggregator(pooling="mean"),
+        ),
+        "color": color_similarity
+        ...
+    },
+    aggregator=cbrkit.sim.aggregator(pooling="mean"),
+)
+```
 
 ## Retrieval
 
