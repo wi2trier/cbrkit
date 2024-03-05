@@ -238,3 +238,54 @@ The result has the following two attributes:
 
 Both `final` and each entry in `intermediates` have the same attributes as discussed previously.
 The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
+
+## REST API and CLI
+
+In order to use the built-in API and CLI, you need to define a retriever in a Python module using the function `cbrkit.retrieval.build()`.
+For example, the file `./retriever_module.py` could contain the following code:
+
+```python
+import cbrkit
+
+custom_retriever = cbrkit.retrieval.build(
+    cbrkit.sim.attribute_value(...),
+    limit=10
+)
+```
+
+Our custom retriever can then be specified for the API/CLI using standard Python module syntax: `retriever_module:custom_retriever`.
+
+### CLI
+
+When installing with the `cli` extra, CBRkit provides a command line interface that can be started with the following command:
+
+```shell
+cbrkit retrieve PATH_TO_CASEBASE PATH_TO_QUERY retriever_module:custom_retriever
+```
+
+It will then print the retrieval results to the console, so you could pipe the output to a file or another command.
+
+### API
+
+When installing with the `api` extra, CBRkit provides a REST API server that can be started with the following command:
+
+```shell
+CBRKIT_RETRIEVER=retriever_module.module:name uvicorn cbrkit.api:app --reload
+```
+
+It offers a single endpoint `/retrieve` that accepts POST requests with a JSON body with the following structure:
+
+```json
+{
+  "casebase": {
+    "case1": ...,
+    "case2": ...
+  },
+  "queries": {
+    "query1": ...,
+    "query2": ...
+  }
+}
+```
+
+The server will return a JSON object containing the retrieval results for each query.
