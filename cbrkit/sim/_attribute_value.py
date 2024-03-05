@@ -18,7 +18,7 @@ from cbrkit.typing import (
     ValueType,
 )
 
-from ._aggregate import aggregator
+from ._aggregator import aggregator
 
 __all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
 

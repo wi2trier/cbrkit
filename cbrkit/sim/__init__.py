@@ -1,9 +1,15 @@
-from . import collections, generic, numeric, strings, taxonomy
+from . import collections, generic, numbers, strings
+from ._aggregator import PoolingName, aggregator
+from ._attribute_value import AttributeValueData, AttributeValueSim, attribute_value
 
 __all__ = [
     "collections",
     "generic",
-    "numeric",
+    "numbers",
     "strings",
-    "taxonomy",
+    "aggregator",
+    "PoolingName",
+    "AttributeValueData",
+    "AttributeValueSim",
+    "attribute_value",
 ]

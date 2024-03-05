@@ -48,7 +48,6 @@ The following modules are part of CBRkit:
 
 - `loaders`: Functions for loading cases and queries.
 - `sim`: Similarity generator functions for various data types (e.g., strings, numbers).
-- `global_sim`: Similarity generator functions for aggregating the above ones.
 - `retrieval`: Functions for retrieving cases based on a query.
 - `typing`: Generic type definitions for defining custom functions.
 
@@ -103,10 +102,8 @@ query = {"name": "John", "age": 25}
 
 ### Similarity Measures and Aggregation
 
-In CBRkit, we differentiate between regular similarity measures and global similarity measures.
-The former are used to compare individual attributes of cases and queries, while the latter are used to aggregate the results of the former.
-If the cases are represented through elementary data types (e.g., each case is a plain-text document), no global similarity measure is needed.
-However, if the cases are represented through a combination of elementary data types (e.g., each case is a person with a name and an age), a global similarity measure is needed to aggregate the results of the elementary similarity measures.
+The next step is to define similarity measures for the cases and queries.
+It is possible to define custom measures, use built-in ones, or combine both.
 
 In CBRkit, a similarity measure is defined as a function that takes two arguments (a case and a query) and returns a similarity score: `sim = f(case, query)`.
 It also supports pipeline-based similarity measures that are popular in NLP where a list of tuples is passed to the similarity measure: `sims = f([(case1, query1), (case2, query2), ...])`.

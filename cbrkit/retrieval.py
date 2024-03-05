@@ -95,18 +95,18 @@ def apply(
         >>> casebase = cbrkit.loaders.dataframe(df)
         >>> query = casebase[42]
         >>> retriever = cbrkit.retrieval.build(
-        ...     cbrkit.global_sim.attribute_value(
+        ...     cbrkit.sim.attribute_value(
         ...         attributes={
-        ...             "price": cbrkit.sim.numeric.linear(max=100000),
-        ...             "year": cbrkit.sim.numeric.linear(max=50),
-        ...             "manufacturer": cbrkit.sim.taxonomy.load(
+        ...             "price": cbrkit.sim.numbers.linear(max=100000),
+        ...             "year": cbrkit.sim.numbers.linear(max=50),
+        ...             "manufacturer": cbrkit.sim.strings.taxonomy.load(
         ...                 "./data/cars-taxonomy.yaml",
-        ...                 measure=cbrkit.sim.taxonomy.wu_palmer(),
+        ...                 measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
         ...             ),
-        ...             "miles": cbrkit.sim.numeric.linear(max=1000000),
+        ...             "miles": cbrkit.sim.numbers.linear(max=1000000),
         ...         },
         ...         types_fallback=cbrkit.sim.generic.equality(),
-        ...         aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
+        ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ...     ),
         ...     limit=5,
         ... )
@@ -145,21 +145,21 @@ def build(
     Examples:
         >>> import cbrkit
         >>> retriever = cbrkit.retrieval.build(
-        ...     cbrkit.global_sim.attribute_value(
+        ...     cbrkit.sim.attribute_value(
         ...         attributes={
-        ...             "price": cbrkit.sim.numeric.linear(max=100000),
-        ...             "year": cbrkit.sim.numeric.linear(max=50),
-        ...             "model": cbrkit.global_sim.attribute_value(
+        ...             "price": cbrkit.sim.numbers.linear(max=100000),
+        ...             "year": cbrkit.sim.numbers.linear(max=50),
+        ...             "model": cbrkit.sim.attribute_value(
         ...                 attributes={
         ...                     "make": cbrkit.sim.generic.equality(),
-        ...                     "manufacturer": cbrkit.sim.taxonomy.load(
+        ...                     "manufacturer": cbrkit.sim.strings.taxonomy.load(
         ...                         "./data/cars-taxonomy.yaml",
-        ...                         measure=cbrkit.sim.taxonomy.wu_palmer(),
+        ...                         measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
         ...                     ),
         ...                 }
         ...             ),
         ...         },
-        ...         aggregator=cbrkit.global_sim.aggregator(pooling="mean"),
+        ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ...     ),
         ...     limit=5,
         ... )

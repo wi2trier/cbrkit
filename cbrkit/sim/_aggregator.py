@@ -60,8 +60,8 @@ def aggregator(
         default_pooling_weight: The default weight to use if a similarity key is not found in the pooling_weights mapping.
 
     Examples:
-        >>> global_sim = aggregator("mean")
-        >>> global_sim([0.5, 0.75, 1.0])
+        >>> agg = aggregator("mean")
+        >>> agg([0.5, 0.75, 1.0])
         0.75
     """
 

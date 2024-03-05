@@ -8,7 +8,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Generic, cast
 
-from cbrkit.global_sim.graph._model import (
+from cbrkit.helpers import unpack_sims
+from cbrkit.sim.graph._model import (
     EdgeData,
     EdgeKey,
     Graph,
@@ -16,7 +17,6 @@ from cbrkit.global_sim.graph._model import (
     NodeData,
     NodeKey,
 )
-from cbrkit.helpers import unpack_sims
 from cbrkit.typing import Casebase, FloatProtocol, KeyType, SimPairFunc, SimType
 
 logger = logging.getLogger(__name__)
