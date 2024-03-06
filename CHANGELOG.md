@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/wi2trier/cbrkit/compare/v0.5.0...v0.5.1) (2024-03-06)
+
+
+### Bug Fixes
+
+* only compare attributes from the query ([6196c98](https://github.com/wi2trier/cbrkit/commit/6196c98916609d0f87dd38f348c0af921c4ade1c))
+
 ## [0.5.0](https://github.com/wi2trier/cbrkit/compare/v0.4.0...v0.5.0) (2024-03-05)
 
 
