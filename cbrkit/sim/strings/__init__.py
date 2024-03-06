@@ -110,7 +110,9 @@ def openai(model_name: str) -> SimSeqFunc[str, float]:
     return wrapped_func
 
 
-def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
+def levenshtein(
+    score_cutoff: float | None = None, case_sensitive: bool = True
+) -> SimPairFunc[str, float]:
     """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
 
     Args:
@@ -126,6 +128,9 @@ def levenshtein(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
     import Levenshtein
 
     def wrapped_func(x: str, y: str) -> float:
+        if not case_sensitive:
+            x, y = x.lower(), y.lower()
+
         return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
 
     return wrapped_func
