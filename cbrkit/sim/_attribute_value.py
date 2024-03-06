@@ -35,9 +35,7 @@ def _key_getter(obj: AttributeValueData) -> Iterator[str]:
 
 
 def _value_getter(obj: AttributeValueData, key: Any) -> Any:
-    if isinstance(obj, Mapping):
-        return obj[key]
-    elif isinstance(obj, pd.Series):
+    if isinstance(obj, Mapping | pd.Series):
         return obj[key]
     else:
         return getattr(obj, key)
@@ -106,11 +104,11 @@ def attribute_value(
         local_sims: defaultdict[KeyType, dict[str, SimType]] = defaultdict(dict)
 
         attribute_names = (
-            set(attributes_map)
+            set(attributes_map).intersection(key_getter(y))
             if len(attributes_map) > 0
             and len(types_map) == 0
             and types_fallback is None
-            else set(attributes_map).union(key_getter(y))
+            else set(key_getter(y))
         )
 
         for attr_name in attribute_names:
