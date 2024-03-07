@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2](https://github.com/wi2trier/cbrkit/compare/v0.5.1...v0.5.2) (2024-03-07)
+
+
+### Bug Fixes
+
+* make taxonomy module publicly visible ([ca5a56e](https://github.com/wi2trier/cbrkit/commit/ca5a56e9a442817eaa6181965e95ddcd89d297c0))
+* **sim:** add case_sensitive param to levenshtein ([3e45b5a](https://github.com/wi2trier/cbrkit/commit/3e45b5a925bdbf1bcc80444581a802398f154c67))
+
 ## [0.5.1](https://github.com/wi2trier/cbrkit/compare/v0.5.0...v0.5.1) (2024-03-06)
 
 
