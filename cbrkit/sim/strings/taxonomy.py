@@ -1,3 +1,13 @@
+"""
+A taxonomy is a hierarchical structure of categories, where each category is a node in the taxonomy.
+The nodes are connected by parent-child relationships, and the root node is the top-level category.
+Each node may have the attributes `name`, `weight`, and `children` (see `cbrkit.sim.strings.taxonomy.SerializedTaxonomyNode`).
+To simplify the creation of a taxonomy, the `cbrkit.sim.strings.taxonomy.load` function can be used to load a taxonomy from a file (toml, json, or yaml).
+For nodes without a `weight` or `children`, it is also possible to pass its name as a string instead of a dictionary.
+
+**Important:** If loading the taxonomy from a file, changes like adding children or weights need to be made there, not in the code.
+"""
+
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Protocol, TypedDict, cast
 

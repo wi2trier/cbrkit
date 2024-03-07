@@ -1,3 +1,7 @@
+"""
+**Please note:** Taxonomy-based similarities are available in the `cbrkit.sim.strings.taxonomy` module.
+"""
+
 import csv
 import itertools
 from collections.abc import Sequence

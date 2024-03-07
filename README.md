@@ -218,6 +218,7 @@ To use this pattern, first create the corresponding retrievers using the builder
 
 ```python
 retriever1 = cbrkit.retrieval.build(..., limit=10)
+# since retriever2 only receives the cases from retriever1, we do not need a limit
 retriever2 = cbrkit.retrieval.build(..., limit=None)
 ```
 
