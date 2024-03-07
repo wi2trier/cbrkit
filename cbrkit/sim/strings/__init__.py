@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from cbrkit.sim.generic import table as generic_table
-from cbrkit.sim.strings import _taxonomy as taxonomy
+from cbrkit.sim.strings import taxonomy
 from cbrkit.typing import (
     FilePath,
     SimPairFunc,

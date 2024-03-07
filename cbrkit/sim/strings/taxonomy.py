@@ -5,23 +5,24 @@ from cbrkit.loaders import data as load_data
 from cbrkit.typing import FilePath, SimPairFunc
 
 __all__ = [
-    "Taxonomy",
-    "TaxonomyNode",
-    "TaxonomyFunc",
-    "TaxonomyStrategy",
     "load",
     "wu_palmer",
     "user_weights",
     "auto_weights",
     "node_levels",
     "path_steps",
+    "Taxonomy",
+    "TaxonomyNode",
+    "SerializedTaxonomyNode",
+    "TaxonomyFunc",
+    "TaxonomyStrategy",
 ]
 
 
-class SerializedNode(TypedDict, total=False):
+class SerializedTaxonomyNode(TypedDict, total=False):
     name: str
     weight: float
-    children: list["SerializedNode | str"]
+    children: list["SerializedTaxonomyNode | str"]
 
 
 @dataclass(slots=True)
@@ -44,7 +45,7 @@ class Taxonomy:
     nodes: dict[str, TaxonomyNode]
 
     def __init__(self, path: FilePath) -> None:
-        root_data = cast(SerializedNode, load_data(path))
+        root_data = cast(SerializedTaxonomyNode, load_data(path))
         self.nodes = {}
         self.root = self._load(root_data)
 
@@ -58,7 +59,7 @@ class Taxonomy:
 
     def _load(
         self,
-        data: SerializedNode | str,
+        data: SerializedTaxonomyNode | str,
         parent: TaxonomyNode | None = None,
         depth: int = 0,
     ) -> TaxonomyNode:
@@ -96,8 +97,7 @@ class Taxonomy:
 
 
 class TaxonomyFunc(Protocol):
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        ...
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float: ...
 
 
 TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
