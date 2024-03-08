@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/wi2trier/cbrkit/compare/v0.5.2...v0.6.0) (2024-03-08)
+
+
+### Features
+
+* add min/max similarity to retrieval ([4a0c31f](https://github.com/wi2trier/cbrkit/commit/4a0c31f9c0424aec1440c1235fcc04af4c2cb086))
+
 ## [0.5.2](https://github.com/wi2trier/cbrkit/compare/v0.5.1...v0.5.2) (2024-03-07)
 
 
