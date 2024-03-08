@@ -54,7 +54,7 @@ where `EXTRA_NAME` is one of the following:
 - `api`: REST API Server
 - `all`: All of the above
 
-## Loading Cases and Queries
+## Loading Cases
 
 The first step is to load cases and queries.
 We provide predefined functions for the most common formats like CSV, JSON, and XML.
@@ -75,8 +75,19 @@ When dealing with formats like JSON, the files can be loaded directly:
 casebase = cbrkit.loaders.json("path/to/cases.json")
 ```
 
-Queries can either be loaded using the same loader functions.
+## Defining Queries
+
 CBRkit expects the type of the queries to match the type of the cases.
+You may define a single query directly in Python as follows
+
+```python
+# for pandas
+query = pd.Series({"name": "John", "age": 25})
+# for json
+query = {"name": "John", "age": 25}
+```
+
+If you have a collection of queries, you can load them using the same loader functions as for the cases.
 
 ```python
  # for pandas
@@ -89,15 +100,6 @@ In case your query collection only contains a single entry, you can use the `sin
 
 ```python
 query = cbrkit.helpers.singleton(queries)
-```
-
-Alternatively, you can also create a query directly in Python:
-
-```python
-# for pandas
-query = pd.Series({"name": "John", "age": 25})
-# for json
-query = {"name": "John", "age": 25}
 ```
 
 ## Similarity Measures and Aggregation
