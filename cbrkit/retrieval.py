@@ -133,12 +133,18 @@ def apply(
 def build(
     similarity_func: AnySimFunc[KeyType, ValueType, SimType],
     limit: int | None = None,
+    min_similarity: float | None = None,
+    max_similarity: float | None = None,
 ) -> RetrieveFunc[KeyType, ValueType, SimType]:
     """Based on the similarity function this function creates a retriever function.
+
+    The given limit will be applied after filtering for min/max similarity.
 
     Args:
         similarity_func: Similarity function to compute the similarity between cases.
         limit: Retriever function will return the top limit cases.
+        min_similarity: Return only cases with a similarity greater or equal than this.
+        max_similarity: Return only cases with a similarity less or equal than this.
 
     Returns:
         Returns the retriever function.
@@ -173,6 +179,19 @@ def build(
     ) -> SimMap[KeyType, SimType]:
         similarities = sim_func(casebase, query)
         ranking = _similarities2ranking(similarities)
+
+        if min_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) >= min_similarity
+            ]
+        if max_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) <= max_similarity
+            ]
 
         return {key: similarities[key] for key in ranking[:limit]}
 

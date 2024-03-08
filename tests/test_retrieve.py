@@ -96,7 +96,7 @@ def test_retrieve_nested():
             },
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
-        limit=5,
+        min_similarity=0.5,
     )
     result = cbrkit.retrieval.apply(casebase, query, retriever)
 
