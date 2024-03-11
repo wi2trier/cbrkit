@@ -112,7 +112,7 @@ It is possible to define custom measures, use built-in ones, or combine both.
 In CBRkit, a similarity measure is defined as a function that takes two arguments (a case and a query) and returns a similarity score: `sim = f(x, y)`.
 It also supports pipeline-based similarity measures that are popular in NLP where a list of tuples is passed to the similarity measure: `sims = f([(x1, y1), (x2, y2), ...])`.
 This generic approach allows you to define custom similarity measures for your specific use case.
-For instance, you may define the following function for comparing colors:
+For instance, the following function not only checks for strict equality, but also for partial matches (e.g., `x = "blue"` and `y = "light blue"`):
 
 ```python
 def color_similarity(x: str, y: str) -> float:
@@ -124,7 +124,8 @@ def color_similarity(x: str, y: str) -> float:
     return 0.0
 ```
 
-In addition to checking for strict equality, our function also checks for partial matches (e.g., `x = "blue"` and `y = "light blue"`).
+**Please note:** CBRkit inspects the signature of custom similarity functions to perform some checks.
+You need to make sure that the two parameters are named `x` and `y`, otherwise CBRkit will throw an error.
 
 ### Built-in Similarity Measures
 
@@ -158,7 +159,7 @@ For the common use case of attribute-value based data, CBRkit provides a predefi
 cbrkit.sim.attribute_value(
     attributes={
         "price": cbrkit.sim.numbers.linear(),
-        "color": color_similarity
+        "color": color_similarity # custom measure
         ...
     },
     aggregator=cbrkit.sim.aggregator(pooling="mean"),
@@ -167,7 +168,8 @@ cbrkit.sim.attribute_value(
 
 The `attribute_value` function lets you define measures for each attribute of the cases/queries as well as the aggregation function.
 It also allows to use custom measures like the `color_similarity` function defined above.
-**Please note:** The custom measure is not called directly but passed as a reference to the `attribute_value` function since it is not a generator function.
+
+**Please note:** The custom measure is not executed (i.e., there are **no** parenthesis at the end), but instead passed as a reference to the `attribute_value` function.
 
 You may even nest similarity functions to create measures for object-oriented cases:
 
@@ -181,7 +183,7 @@ cbrkit.sim.attribute_value(
             },
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
-        "color": color_similarity
+        "color": color_similarity # custom measure
         ...
     },
     aggregator=cbrkit.sim.aggregator(pooling="mean"),
@@ -219,19 +221,14 @@ In some cases, it is useful to combine multiple retrieval pipelines, for example
 To use this pattern, first create the corresponding retrievers using the builder:
 
 ```python
-retriever1 = cbrkit.retrieval.build(..., limit=10)
-# since retriever2 only receives the cases from retriever1, we do not need a limit
-retriever2 = cbrkit.retrieval.build(..., limit=None)
+retriever1 = cbrkit.retrieval.build(..., min_similarity=0.5, limit=20)
+retriever2 = cbrkit.retrieval.build(..., limit=10)
 ```
 
 Then apply all of them sequentially by passing them as a list or tuple to the `apply` function:
 
 ```python
-result = cbrkit.retrieval.apply(
-    casebase,
-    query,
-    (retriever1, retriever2)
-)
+result = cbrkit.retrieval.apply(casebase, query, (retriever1, retriever2))
 ```
 
 The result has the following two attributes:
