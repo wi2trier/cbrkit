@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/wi2trier/cbrkit/compare/v0.6.0...v0.6.1) (2024-03-11)
+
+
+### Bug Fixes
+
+* update usage instructions ([ca0a2d5](https://github.com/wi2trier/cbrkit/commit/ca0a2d5504ce709e6b783fdb4b92a23d500cda0a))
+
 ## [0.6.0](https://github.com/wi2trier/cbrkit/compare/v0.5.2...v0.6.0) (2024-03-08)
 
 
