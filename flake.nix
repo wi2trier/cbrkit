@@ -107,7 +107,7 @@
           legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
             github = {
               enable = true;
-              token = builtins.getEnv "GH_TOKEN";
+              token = "$GH_TOKEN";
             };
             version = builtins.getEnv "VERSION";
             images = with self.packages; [
