@@ -217,8 +217,6 @@ def ngram(n: int, case_sensitive: bool = False, level: Literal["char"] | Literal
 def regex() -> SimPairFunc[str, float]:
     """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
     
-    Args:
-        regex: Regular expression to be used for comparison
     Examples:
         >>> sim = regex()
         >>> sim("Test1", "T.st[0-9]")
@@ -236,7 +234,7 @@ def glob_patterns(case_sensitive:bool = False) -> SimPairFunc[str, float]:
     """Compares a case x to a query y, written as a glob pattern, which can contain wildcards. If the case matches the query, the similarity is 1.0, otherwise 0.0.
     
     Args:
-        glob_pattern: Glob pattern to be used for comparison
+        case_sensitive: If True, the comparison is case-sensitive
     Examples:
         >>> sim = glob_patterns()
         >>> sim("Test1", "Test?")
