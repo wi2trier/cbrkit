@@ -28,9 +28,10 @@ SimSeq = Sequence[SimType]
 SimSeqOrMap = SimMap[KeyType, SimType] | SimSeq[SimType]
 
 
+# Parameter names must match so that the signature can be inspected, do not add `/` here!
 class SimMapFunc(Protocol[KeyType, ValueType_contra, SimType_cov]):
     def __call__(
-        self, x_map: Mapping[KeyType, ValueType_contra], y: ValueType_contra, /
+        self, x_map: Mapping[KeyType, ValueType_contra], y: ValueType_contra
     ) -> SimMap[KeyType, SimType_cov]:
         ...
 
@@ -42,9 +43,8 @@ class SimSeqFunc(Protocol[ValueType_contra, SimType_cov]):
         ...
 
 
-# Parameter names must match so that the signature can be inspected, do not add `/` here!
 class SimPairFunc(Protocol[ValueType_contra, SimType_cov]):
-    def __call__(self, x: ValueType_contra, y: ValueType_contra) -> SimType_cov:
+    def __call__(self, x: ValueType_contra, y: ValueType_contra, /) -> SimType_cov:
         ...
 
 
@@ -53,8 +53,6 @@ AnySimFunc = (
     | SimSeqFunc[ValueType, SimType]
     | SimPairFunc[ValueType, SimType]
 )
-
-RetrieveFunc = SimMapFunc[KeyType, ValueType, SimType]
 
 
 class AggregatorFunc(Protocol[KeyType, SimType_contra]):
