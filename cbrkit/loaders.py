@@ -104,7 +104,9 @@ class DataFrameCasebase(abc.Mapping):
         return len(self.df)
 
 
-def dataframe(df: DataFrame, validation_model: BaseModel | None = None) -> Casebase[Any, pd.Series]:
+def dataframe(
+    df: DataFrame, validation_model: BaseModel | None = None
+) -> Casebase[Any, pd.Series]:
     """Converts a pandas DataFrame into a Casebase.
 
     Args:
@@ -360,7 +362,9 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     return cb
 
 
-def file(path: Path, validation_model: BaseModel | None = None) -> Casebase[Any, Any] | None:
+def file(
+    path: Path, validation_model: BaseModel | None = None
+) -> Casebase[Any, Any] | None:
     """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
 
     Args:
@@ -406,7 +410,9 @@ def file(path: Path, validation_model: BaseModel | None = None) -> Casebase[Any,
     return cb
 
 
-def folder(path: Path, pattern: str, validation_model: BaseModel | None = None) -> Casebase[Any, Any] | None:
+def folder(
+    path: Path, pattern: str, validation_model: BaseModel | None = None
+) -> Casebase[Any, Any] | None:
     """Converts the files of a folder into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
 
     Args:
