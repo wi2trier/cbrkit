@@ -55,6 +55,8 @@ transformers = { version = "^4.35", optional = true }
 typer = { version = "^0.9", extras = ["all"], optional = true }
 uvicorn = { version = ">=0.24, <1.0", optional = true, extras = ["standard"] }
 xmltodict = "^0.13"
+minineedle = "^3.1.5"
+dtaidistance = "^2.3.11"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
