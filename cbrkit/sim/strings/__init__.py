@@ -248,7 +248,7 @@ def glob(case_sensitive: bool = False) -> SimPairFunc[str, float]:
     Args:
         case_sensitive: If True, the comparison is case-sensitive
     Examples:
-        >>> sim = glob_patterns()
+        >>> sim = glob()
         >>> sim("Test1", "Test?")
         1.0
         >>> sim("Test2", "Test[3-9]")
