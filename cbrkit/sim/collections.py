@@ -1,6 +1,7 @@
 from collections.abc import Collection, Set
 from typing import Any
 
+import cbrkit.helpers
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
@@ -66,11 +67,9 @@ def dtw_similarity() -> SimPairFunc:
     """
     from dtaidistance import dtw
     import numpy as np
-    def dist2sim(distance: float) -> float:
-        return 1 / (1 + distance) if distance != 0 else 1.0
 
     def wrapped_func(x: List[float], y: List[float]) -> float:
         distance = dtw.distance(np.array(x), np.array(y))
-        return dist2sim(distance)
+        return float(cbrkit.helpers.dist2sim(distance))
 
     return wrapped_func
