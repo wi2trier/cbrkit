@@ -78,11 +78,14 @@ all = [
     "transformers",
     "typer",
     "uvicorn",
+    "minineedle",
+    "dtaidistance",
 ]
 cli = ["typer"]
 api = ["fastapi", "uvicorn"]
 nlp = ["levenshtein", "nltk", "openai", "spacy"]
 transformers = ["sentence-transformers", "torch", "transformers"]
+timeseries = ["minineedle", "dtaidistance"]
 
 [tool.pytest.ini_options]
 addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore cbrkit/cli.py --ignore cbrkit/api.py --ignore result"
