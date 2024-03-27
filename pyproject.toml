@@ -74,7 +74,6 @@ all = [
     "openai",
     "sentence-transformers",
     "spacy",
-    "spacy",
     "torch",
     "transformers",
     "typer",
