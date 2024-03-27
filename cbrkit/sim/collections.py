@@ -2,7 +2,6 @@ from collections.abc import Collection, Set
 from typing import Any
 
 import cbrkit.helpers
-from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
 __all__ = ["jaccard"]
