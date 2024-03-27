@@ -28,6 +28,7 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
 
     return wrapped_func
 
+
 def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1) -> SimPairFunc:
     """
     Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
@@ -57,6 +58,8 @@ def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty
             return 0.0
 
     return wrapped_func
+
+
 def dtw_similarity() -> SimPairFunc:
     """Dynamic Time Warping similarity function.
 
@@ -67,6 +70,7 @@ def dtw_similarity() -> SimPairFunc:
     """
     from dtaidistance import dtw
     import numpy as np
+    from typing import List
 
     def wrapped_func(x: List[float], y: List[float]) -> float:
         distance = dtw.distance(np.array(x), np.array(y))
