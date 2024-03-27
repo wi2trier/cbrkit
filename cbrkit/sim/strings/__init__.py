@@ -3,8 +3,10 @@
 """
 
 import csv
+import fnmatch
 import itertools
-from collections.abc import Sequence
+import re
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -183,6 +185,80 @@ def jaro_winkler(
         return Levenshtein.jaro_winkler(
             x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight
         )
+
+    return wrapped_func
+
+
+def ngram(
+    n: int,
+    case_sensitive: bool = False,
+    tokenizer: Callable[[str], Sequence[str]] | None = None,
+) -> SimPairFunc[str, float]:
+    """N-gram similarity function to compute [similarity](https://procake.pages.gitlab.rlp.net/procake-wiki/sim/strings/#n-gram) between two strings.
+
+    Args:
+        n: Length of the n-gram
+        case_sensitive: If True, the comparison is case-sensitive
+        tokenizer: Tokenizer function to split the input strings into tokens. If None, the input strings are split into characters.
+    Examples:
+        >>> sim = ngram(3, case_sensitive=False)
+        >>> sim("kitten", "sitting")
+        0.125
+
+    """
+    from nltk.util import ngrams
+
+    def wrapped_func(x: str, y: str) -> float:
+        if not case_sensitive:
+            x = x.lower()
+            y = y.lower()
+
+        x_items = tokenizer(x) if tokenizer is not None else list(x)
+        y_items = tokenizer(y) if tokenizer is not None else list(y)
+
+        x_ngrams = set(ngrams(x_items, n))
+        y_ngrams = set(ngrams(y_items, n))
+
+        return len(x_ngrams.intersection(y_ngrams)) / len(x_ngrams.union(y_ngrams))
+
+    return wrapped_func
+
+
+def regex() -> SimPairFunc[str, float]:
+    """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
+
+    Examples:
+        >>> sim = regex()
+        >>> sim("Test1", "T.st[0-9]")
+        1.0
+        >>> sim("Test2", "T.st[3-6]")
+        0.0
+    """
+
+    def wrapped_func(x: str, y: str) -> float:
+        regex = re.compile(y)
+        return 1.0 if regex.match(x) else 0.0
+
+    return wrapped_func
+
+
+def glob(case_sensitive: bool = False) -> SimPairFunc[str, float]:
+    """Compares a case x to a query y, written as a glob pattern, which can contain wildcards. If the case matches the query, the similarity is 1.0, otherwise 0.0.
+
+    Args:
+        case_sensitive: If True, the comparison is case-sensitive
+    Examples:
+        >>> sim = glob()
+        >>> sim("Test1", "Test?")
+        1.0
+        >>> sim("Test2", "Test[3-9]")
+        0.0
+    """
+
+    comparison_func = fnmatch.fnmatchcase if case_sensitive else fnmatch.fnmatch
+
+    def wrapped_func(x: str, y: str) -> float:
+        return 1.0 if comparison_func(x, y) else 0.0
 
     return wrapped_func
 

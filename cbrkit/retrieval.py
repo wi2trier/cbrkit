@@ -8,8 +8,8 @@ from cbrkit.typing import (
     AnySimFunc,
     Casebase,
     KeyType,
-    RetrieveFunc,
     SimMap,
+    SimMapFunc,
     SimType,
     ValueType,
 )
@@ -76,8 +76,8 @@ class Result(Generic[KeyType, ValueType, SimType]):
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
-    retrievers: RetrieveFunc[KeyType, ValueType, SimType]
-    | Sequence[RetrieveFunc[KeyType, ValueType, SimType]],
+    retrievers: SimMapFunc[KeyType, ValueType, SimType]
+    | Sequence[SimMapFunc[KeyType, ValueType, SimType]],
 ) -> Result[KeyType, ValueType, SimType]:
     """Applies a query to a Casebase using retriever functions.
 
@@ -135,7 +135,7 @@ def build(
     limit: int | None = None,
     min_similarity: float | None = None,
     max_similarity: float | None = None,
-) -> RetrieveFunc[KeyType, ValueType, SimType]:
+) -> SimMapFunc[KeyType, ValueType, SimType]:
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -174,10 +174,10 @@ def build(
     sim_func = sim2map(similarity_func)
 
     def wrapped_func(
-        casebase: Casebase[KeyType, ValueType],
-        query: ValueType,
+        x_map: Casebase[KeyType, ValueType],
+        y: ValueType,
     ) -> SimMap[KeyType, SimType]:
-        similarities = sim_func(casebase, query)
+        similarities = sim_func(x_map, y)
         ranking = _similarities2ranking(similarities)
 
         if min_similarity is not None:
@@ -200,11 +200,11 @@ def build(
 
 def load(
     import_names: Sequence[str] | str,
-) -> list[RetrieveFunc[Any, Any, Any]]:
+) -> list[SimMapFunc[Any, Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]
 
-    retrievers: list[RetrieveFunc] = []
+    retrievers: list[SimMapFunc] = []
 
     for import_path in import_names:
         obj = load_python(import_path)
@@ -220,11 +220,11 @@ def load(
 
 def load_map(
     import_names: Collection[str] | str,
-) -> dict[str, RetrieveFunc[Any, Any, Any]]:
+) -> dict[str, SimMapFunc[Any, Any, Any]]:
     if isinstance(import_names, str):
         import_names = [import_names]
 
-    retrievers: dict[str, RetrieveFunc] = {}
+    retrievers: dict[str, SimMapFunc] = {}
 
     for import_path in import_names:
         obj = load_python(import_path)

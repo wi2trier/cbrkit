@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/wi2trier/cbrkit/compare/v0.6.2...v0.7.0) (2024-03-26)
+
+
+### Features
+
+* add additional string similarity measures ([#72](https://github.com/wi2trier/cbrkit/issues/72)) ([b687bc4](https://github.com/wi2trier/cbrkit/commit/b687bc40e7b1e43d2478a801776ba4ec5e8b260c))
+
+## [0.6.2](https://github.com/wi2trier/cbrkit/compare/v0.6.1...v0.6.2) (2024-03-26)
+
+
+### Bug Fixes
+
+* update similarity types ([fa4f201](https://github.com/wi2trier/cbrkit/commit/fa4f20128ee26585ad24de50204fda8665b0ce52))
+
 ## [0.6.1](https://github.com/wi2trier/cbrkit/compare/v0.6.0...v0.6.1) (2024-03-11)
 
 

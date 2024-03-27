@@ -97,7 +97,12 @@ def sim2seq(
 
         return wrapped_func
 
-    return cast(SimSeqFunc[ValueType, SimType], func)
+    elif len(signature.parameters) == 1:
+        return cast(SimSeqFunc[ValueType, SimType], func)
+
+    raise TypeError(
+        f"Invalid signature for similarity function: {signature.parameters}"
+    )
 
 
 def sim2map(
@@ -107,7 +112,13 @@ def sim2map(
 ) -> SimMapFunc[KeyType, ValueType, SimType]:
     signature = inspect_signature(func)
 
-    if len(signature.parameters) == 2 and signature.parameters.keys() == {"x", "y"}:
+    if len(signature.parameters) == 2 and signature.parameters.keys() in (
+        {"x_map", "y"},
+        {"casebase", "query"},
+    ):
+        return cast(SimMapFunc[KeyType, ValueType, SimType], func)
+
+    elif len(signature.parameters) == 2:
         sim_pair_func = cast(SimPairFunc[ValueType, SimType], func)
 
         def wrapped_sim_pair_func(
@@ -131,7 +142,9 @@ def sim2map(
 
         return wrapped_sim_seq_func
 
-    return cast(SimMapFunc[KeyType, ValueType, SimType], func)
+    raise TypeError(
+        f"Invalid signature for similarity function: {signature.parameters}"
+    )
 
 
 def unpack_sim(sim: AnyFloat) -> float:

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cbrkit"
-version = "0.6.1"
+version = "0.7.0"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI."
 authors = ["Mirko Lenz <mirko@mirkolenz.com>"]
 license = "MIT"
@@ -52,15 +52,16 @@ sentence-transformers = { version = "^2.2", optional = true }
 spacy = { version = "^3.7", optional = true }
 torch = { version = "^2.1.1", optional = true }
 transformers = { version = "^4.35", optional = true }
-typer = { version = "^0.9", extras = ["all"], optional = true }
+typer = { version = ">=0.9, <1.0", extras = ["all"], optional = true }
 uvicorn = { version = ">=0.24, <1.0", optional = true, extras = ["standard"] }
-xmltodict = "^0.13"
-dtaidistance = "^2.3.11"
-minineedle = "^3.1.5"
+dtaidistance = { version = "^2.3.11", optional = true }
+minineedle ={ version = "^3.1.5", optional = true }
+xmltodict = ">=0.13, <1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
-pytest-cov = "^4.1"
+pytest-cov = "^5.0.0"
+ruff = "^0.3.4"
 
 [tool.poetry.group.docs.dependencies]
 pdoc = "^14.4"
@@ -78,11 +79,14 @@ all = [
     "transformers",
     "typer",
     "uvicorn",
+    "minineedle",
+    "dtaidistance",
 ]
 cli = ["typer"]
 api = ["fastapi", "uvicorn"]
 nlp = ["levenshtein", "nltk", "openai", "spacy"]
 transformers = ["sentence-transformers", "torch", "transformers"]
+timeseries = ["minineedle", "dtaidistance"]
 
 [tool.pytest.ini_options]
 addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore cbrkit/cli.py --ignore cbrkit/api.py --ignore result"
