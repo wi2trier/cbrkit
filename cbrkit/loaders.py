@@ -104,10 +104,6 @@ def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
         >>> file_path = "./data/cars-1k.csv"
         >>> df = pd.read_csv(file_path)
         >>> result = dataframe(df)
-
-        >>> file_path = "./data/cars-1k.csv"
-        >>> df = pd.read_csv(file_path)
-        >>> result = dataframe(df)
     """
     return DataFrameCasebase(df)
 
