@@ -7,23 +7,10 @@ to validate the Casebase entries.
 
 Example:
     >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-    >>> from typing import Literal
+    >>> from data.cars_validation_model import Car
     >>> data = csv("data/cars-1k.csv")
-
-    >>> class Car(BaseModel):
-    >>>     price: NonNegativeInt
-    >>>     year: NonNegativeInt
-    >>>     manufacturer: str
-    >>>     make: str
-    >>>     fuel: Literal["gas", "diesel"]
-    >>>     miles: NonNegativeInt
-    >>>     title_status: Literal["clean", "rebuilt"]
-    >>>     transmission: Literal["automatic", "manual"]
-    >>>     drive: Literal["fwd", "rwd", "4wd"]
-    >>>     type: str
-    >>>     paint_color: str
-    >>> for item in data.values():
-    >>>     Car.model_validate(item)
+    >>> for row in data.values():
+    ...     assert isinstance(Car.model_validate(row), Car)
 """
 
 import csv as csvlib
@@ -55,6 +42,7 @@ __all__ = [
     "python",
     "txt",
     "xml",
+    "validate",
 ]
 
 
@@ -104,14 +92,11 @@ class DataFrameCasebase(abc.Mapping):
         return len(self.df)
 
 
-def dataframe(
-    df: DataFrame, validation_model: BaseModel | None = None
-) -> Casebase[Any, pd.Series]:
+def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
     """Converts a pandas DataFrame into a Casebase.
 
     Args:
         df: pandas DataFrame.
-        validation_model: optional Pydantic model to validate the DataFrame. Throws a Pydantic ValidationError if the DataFrame does not match the model.
     Returns:
         Returns a Casebase as a DataFrameCasebase.
 
@@ -120,25 +105,10 @@ def dataframe(
         >>> df = pd.read_csv(file_path)
         >>> result = dataframe(df)
 
-        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-        >>> class Car(BaseModel):
-        >>>     price: NonNegativeInt
-        >>>     year: NonNegativeInt
-        >>>     manufacturer: str
-        >>>     make: str
-        >>>     fuel: Literal["gas", "diesel"]
-        >>>     miles: NonNegativeInt
-        >>>     title_status: Literal["clean", "rebuilt"]
-        >>>     transmission: Literal["automatic", "manual"]
-        >>>     drive: Literal["fwd", "rwd", "4wd"]
-        >>>     type: str
-        >>>     paint_color: str
         >>> file_path = "./data/cars-1k.csv"
         >>> df = pd.read_csv(file_path)
-        >>> result = dataframe(df, validation_model=Car)
+        >>> result = dataframe(df)
     """
-    if validation_model:
-        validation_model.model_validate(df.to_dict(orient="records"))
     return DataFrameCasebase(df)
 
 
@@ -362,14 +332,11 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     return cb
 
 
-def file(
-    path: Path, validation_model: BaseModel | None = None
-) -> Casebase[Any, Any] | None:
+def file(path: Path) -> Casebase[Any, Any] | None:
     """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
 
     Args:
         path: Path of the file.
-        validation_model: optional Pydantic model to validate the entries of the Casebase. Throws a Pydantic ValidationError if the file does not match the model.
     Returns:
         Returns a Casebase.
 
@@ -379,22 +346,9 @@ def file(
         >>> result = file(file_path)
 
         >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-
-        >>> class Car(BaseModel):
-            >>>     price: NonNegativeInt
-            >>>     year: NonNegativeInt
-            >>>     manufacturer: str
-            >>>     make: str
-            >>>     fuel: Literal["gas", "diesel"]
-            >>>     miles: NonNegativeInt
-            >>>     title_status: Literal["clean", "rebuilt"]
-            >>>     transmission: Literal["automatic", "manual"]
-            >>>     drive: Literal["fwd", "rwd", "4wd"]
-            >>>     type: str
-            >>>     paint_color: str
-            >>> from pathlib import Path
-            >>> file_path = Path("./data/cars-1k.csv")
-            >>> result = file(file_path, validation_model=Car)
+        >>> from pathlib import Path
+        >>> file_path = Path("./data/cars-1k.csv")
+        >>> result = file(file_path)
 
     """
     if path.suffix not in _batch_loaders:
@@ -403,27 +357,21 @@ def file(
     loader = _batch_loaders[path.suffix]
     cb = loader(path)
 
-    if validation_model:
-        for item in cb.values():
-            validation_model.model_validate(item)
-
     return cb
 
 
-def folder(
-    path: Path, pattern: str, validation_model: BaseModel | None = None
-) -> Casebase[Any, Any] | None:
+def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     """Converts the files of a folder into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
 
     Args:
         path: Path of the folder.
         pattern: Relative pattern for the files.
-        validation_model: optional Pydantic model to validate the entries of the Casebase. Throws a Pydantic ValidationError if the files do not match the model.
     Returns:
         Returns a Casebase.
 
     Examples:
         >>> from pathlib import Path
+        >>> from data.cars_validation_model import Car
         >>> folder_path = Path("./data")
         >>> result = folder(folder_path, ".csv")
     """
@@ -431,12 +379,45 @@ def folder(
 
     for file in path.glob(pattern):
         if file.is_file() and file.suffix in _single_loaders:
-            loader = _single_loaders[path.suffix]
+            loader = _single_loaders.get(
+                file.suffix
+            )  # prevents a KeyError which can arise for empty key
             cb[file.name] = loader(file)
-            if validation_model:
-                validation_model.model_validate(cb[file.name])
 
     if len(cb) == 0:
         return None
 
     return cb
+
+
+def validate(data: dict[str, Any] | object, validation_model: BaseModel):
+    """Validates the data against a Pydantic model. Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+
+    Args:
+        data: Data to validate. Can be an entire case base or a single case.
+        validation_model: Pydantic model to validate the data.
+
+    Examples:
+        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+        >>> from data.cars_validation_model import Car
+        >>> from pathlib import Path
+        >>> data = path(Path("data/cars-1k.csv"))
+        >>> validate(data, Car)
+        # no error is raised if the data is valid
+        >>> import pandas as pd
+        >>> df = pd.read_csv("data/cars-1k.csv")
+        >>> data = dataframe(df)
+        >>> validate(data, Car)
+        # no error is raised if the data is valid
+    """
+    if data is None:
+        raise ValueError("Data is None")
+    if isinstance(data, DataFrameCasebase):
+        data = data.df.to_dict("index")
+    if isinstance(data, dict):
+        for item in data.values():
+            model = validation_model.model_validate(item)
+            assert isinstance(model, validation_model)
+    else:
+        validation_model.model_validate(data)
+        assert isinstance(data, validation_model)
