@@ -373,15 +373,14 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
         >>> from pathlib import Path
         >>> from data.cars_validation_model import Car
         >>> folder_path = Path("./data")
-        >>> result = folder(folder_path, ".csv")
+        >>> result = folder(folder_path, "*.csv")
+        >>> assert result is not None
     """
     cb: Casebase[Any, Any] = {}
 
     for file in path.glob(pattern):
         if file.is_file() and file.suffix in _single_loaders:
-            loader = _single_loaders.get(
-                file.suffix
-            )  # prevents a KeyError which can arise for empty key
+            loader = _single_loaders[file.suffix]
             cb[file.name] = loader(file)
 
     if len(cb) == 0:
@@ -403,12 +402,10 @@ def validate(data: dict[str, Any] | object, validation_model: BaseModel):
         >>> from pathlib import Path
         >>> data = path(Path("data/cars-1k.csv"))
         >>> validate(data, Car)
-        # no error is raised if the data is valid
         >>> import pandas as pd
         >>> df = pd.read_csv("data/cars-1k.csv")
         >>> data = dataframe(df)
         >>> validate(data, Car)
-        # no error is raised if the data is valid
     """
     if data is None:
         raise ValueError("Data is None")
