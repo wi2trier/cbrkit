@@ -59,15 +59,13 @@ def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty
     return wrapped_func
 
 
-def dtw_similarity(return_distance: bool = false) -> SimPairFunc:
+def dtw_similarity() -> SimPairFunc:
     """Dynamic Time Warping similarity function.
 
     Examples:
         >>> sim = dtw_similarity()
         >>> sim([1, 2, 3], [1, 2, 3, 4])
-
-        This function often gives back a distance instead of a similarity
-        return_distance allows to use the distance for a custom similarity conversion, e.g. Gaussian
+        >>> 0.5
     """
     from dtaidistance import dtw
     import numpy as np
@@ -75,9 +73,6 @@ def dtw_similarity(return_distance: bool = false) -> SimPairFunc:
 
     def wrapped_func(x: List[float], y: List[float]) -> float:
         distance = dtw.distance(np.array(x), np.array(y))
-        if return_distance:
-            return distance
-        else:
-            return float(cbrkit.helpers.dist2sim(distance))
+        return float(cbrkit.helpers.dist2sim(distance))
 
     return wrapped_func
