@@ -1,7 +1,7 @@
 from collections.abc import Collection, Set
 from typing import Any
 
-import cbrkit.helpers
+from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
 __all__ = ["jaccard"]
@@ -43,7 +43,7 @@ def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty
     Example:
         >>> sim = smith_waterman()
         >>> sim("abcde", "fghe")
-        2.0
+        2
     """
     from minineedle import smith, core
 
@@ -65,7 +65,7 @@ def dtw_similarity() -> SimPairFunc:
     Examples:
         >>> sim = dtw_similarity()
         >>> sim([1, 2, 3], [1, 2, 3, 4])
-        >>> 0.5
+        0.5
     """
     from dtaidistance import dtw
     import numpy as np
@@ -73,6 +73,6 @@ def dtw_similarity() -> SimPairFunc:
 
     def wrapped_func(x: List[float], y: List[float]) -> float:
         distance = dtw.distance(np.array(x), np.array(y))
-        return float(cbrkit.helpers.dist2sim(distance))
+        return float(dist2sim(distance))
 
     return wrapped_func
