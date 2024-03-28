@@ -65,6 +65,7 @@ def dtw_similarity() -> SimPairFunc:
     Examples:
         >>> sim = dtw_similarity()
         >>> sim([1, 2, 3], [1, 2, 3, 4])
+        >>> 0.5
     """
     from dtaidistance import dtw
     import numpy as np
