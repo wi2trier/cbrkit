@@ -97,6 +97,7 @@ def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
 
     Args:
         df: pandas DataFrame.
+
     Returns:
         Returns a Casebase as a DataFrameCasebase.
 
@@ -333,6 +334,7 @@ def file(path: Path) -> Casebase[Any, Any] | None:
 
     Args:
         path: Path of the file.
+
     Returns:
         Returns a Casebase.
 
@@ -362,6 +364,7 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     Args:
         path: Path of the folder.
         pattern: Relative pattern for the files.
+        
     Returns:
         Returns a Casebase.
 
