@@ -1,3 +1,18 @@
+"""
+To manually use Pydantic with CBRkit to validate your case base, you can use an appropriate 
+Pydantic model instead of the CBRkit loaders (see example below). 
+Alternatively, the dataframe, path, file and folder accept an optional validation_model argument
+to validate the Casebase entries.
+
+
+Example:
+    >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+    >>> from data.cars_validation_model import Car
+    >>> data = csv("data/cars-1k.csv")
+    >>> for row in data.values():
+    ...     assert isinstance(Car.model_validate(row), Car)
+"""
+
 import csv as csvlib
 import tomllib
 from collections import abc
@@ -13,6 +28,7 @@ import yaml as yamllib
 from pandas import DataFrame, Series
 
 from cbrkit.typing import Casebase, FilePath
+from pydantic import BaseModel
 
 __all__ = [
     "csv",
@@ -26,6 +42,7 @@ __all__ = [
     "python",
     "txt",
     "xml",
+    "validate",
 ]
 
 
@@ -325,6 +342,12 @@ def file(path: Path) -> Casebase[Any, Any] | None:
         >>> from pathlib import Path
         >>> file_path = Path("./data/cars-1k.csv")
         >>> result = file(file_path)
+
+        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+        >>> from pathlib import Path
+        >>> file_path = Path("./data/cars-1k.csv")
+        >>> result = file(file_path)
+
     """
     if path.suffix not in _batch_loaders:
         return None
@@ -341,23 +364,54 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     Args:
         path: Path of the folder.
         pattern: Relative pattern for the files.
-
+        
     Returns:
         Returns a Casebase.
 
     Examples:
         >>> from pathlib import Path
+        >>> from data.cars_validation_model import Car
         >>> folder_path = Path("./data")
-        >>> result = folder(folder_path, ".csv")
+        >>> result = folder(folder_path, "*.csv")
+        >>> assert result is not None
     """
     cb: Casebase[Any, Any] = {}
 
     for file in path.glob(pattern):
         if file.is_file() and file.suffix in _single_loaders:
-            loader = _single_loaders[path.suffix]
+            loader = _single_loaders[file.suffix]
             cb[file.name] = loader(file)
 
     if len(cb) == 0:
         return None
 
     return cb
+
+
+def validate(data: dict[str, Any] | object, validation_model: BaseModel):
+    """Validates the data against a Pydantic model. Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+
+    Args:
+        data: Data to validate. Can be an entire case base or a single case.
+        validation_model: Pydantic model to validate the data.
+
+    Examples:
+        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+        >>> from data.cars_validation_model import Car
+        >>> from pathlib import Path
+        >>> data = path(Path("data/cars-1k.csv"))
+        >>> validate(data, Car)
+        >>> import pandas as pd
+        >>> df = pd.read_csv("data/cars-1k.csv")
+        >>> data = dataframe(df)
+        >>> validate(data, Car)
+    """
+    if data is None:
+        raise ValueError("Data is None")
+    if isinstance(data, DataFrameCasebase):
+        data = data.df.to_dict("index")
+    if isinstance(data, dict):
+        for item in data.values():
+            validation_model.model_validate(item)
+    else:
+        validation_model.model_validate(data)
