@@ -409,8 +409,6 @@ def validate(data: dict[str, Any] | object, validation_model: BaseModel):
         data = data.df.to_dict("index")
     if isinstance(data, dict):
         for item in data.values():
-            model = validation_model.model_validate(item)
-            assert isinstance(model, validation_model)
+            validation_model.model_validate(item)
     else:
         validation_model.model_validate(data)
-        assert isinstance(data, validation_model)
