@@ -3,6 +3,7 @@ from typing import Any
 
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
+from typing import List
 
 __all__ = ["jaccard"]
 
@@ -28,7 +29,7 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
     return wrapped_func
 
 
-def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1) -> SimPairFunc:
+def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1) -> SimPairFunc[str, float]:
     """
     Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
@@ -59,7 +60,7 @@ def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty
     return wrapped_func
 
 
-def dtw_similarity() -> SimPairFunc:
+def dtw_similarity() -> SimPairFunc[List[int], float]:
     """Dynamic Time Warping similarity function.
 
     Examples:
@@ -69,7 +70,6 @@ def dtw_similarity() -> SimPairFunc:
     """
     from dtaidistance import dtw
     import numpy as np
-    from typing import List
 
     def wrapped_func(x: List[float], y: List[float]) -> float:
         distance = dtw.distance(np.array(x), np.array(y))
