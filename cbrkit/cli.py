@@ -2,7 +2,6 @@
 .. include:: ../cli.md
 """
 
-
 from pathlib import Path
 
 try:
