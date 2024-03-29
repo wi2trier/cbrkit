@@ -29,7 +29,9 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
     return wrapped_func
 
 
-def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1) -> SimPairFunc[str, float]:
+def smith_waterman(
+    match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1
+) -> SimPairFunc[str, float]:
     """
     Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
@@ -51,7 +53,11 @@ def smith_waterman(match_score: int = 2, mismatch_penalty: int = -1, gap_penalty
     def wrapped_func(x: str, y: str) -> float:
         try:
             alignment = smith.SmithWaterman(x, y)
-            alignment.change_matrix(core.ScoreMatrix(match=match_score, miss=mismatch_penalty, gap=gap_penalty))
+            alignment.change_matrix(
+                core.ScoreMatrix(
+                    match=match_score, miss=mismatch_penalty, gap=gap_penalty
+                )
+            )
             alignment.align()
             return alignment.get_score()
         except ZeroDivisionError:
