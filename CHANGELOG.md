@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/wi2trier/cbrkit/compare/v0.7.0...v0.8.0) (2024-04-01)
+
+
+### Features
+
+* add similarity measures for time-series data ([#80](https://github.com/wi2trier/cbrkit/issues/80)) ([53bb481](https://github.com/wi2trier/cbrkit/commit/53bb48186970c8f9e6e10df0ab3e62ee2216d7a1))
+
 ## [0.7.0](https://github.com/wi2trier/cbrkit/compare/v0.6.2...v0.7.0) (2024-03-26)
 
 
