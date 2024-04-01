@@ -107,8 +107,7 @@ class Taxonomy:
 
 
 class TaxonomyFunc(Protocol):
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        ...
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float: ...
 
 
 TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
