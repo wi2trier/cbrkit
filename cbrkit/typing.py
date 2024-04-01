@@ -32,17 +32,20 @@ SimSeqOrMap = SimMap[KeyType, SimType] | SimSeq[SimType]
 class SimMapFunc(Protocol[KeyType, ValueType_contra, SimType_cov]):
     def __call__(
         self, x_map: Mapping[KeyType, ValueType_contra], y: ValueType_contra
-    ) -> SimMap[KeyType, SimType_cov]: ...
+    ) -> SimMap[KeyType, SimType_cov]:
+        ...
 
 
 class SimSeqFunc(Protocol[ValueType_contra, SimType_cov]):
     def __call__(
         self, pairs: Sequence[tuple[ValueType_contra, ValueType_contra]], /
-    ) -> SimSeq[SimType_cov]: ...
+    ) -> SimSeq[SimType_cov]:
+        ...
 
 
 class SimPairFunc(Protocol[ValueType_contra, SimType_cov]):
-    def __call__(self, x: ValueType_contra, y: ValueType_contra, /) -> SimType_cov: ...
+    def __call__(self, x: ValueType_contra, y: ValueType_contra, /) -> SimType_cov:
+        ...
 
 
 AnySimFunc = (
@@ -57,7 +60,8 @@ class AggregatorFunc(Protocol[KeyType, SimType_contra]):
         self,
         similarities: SimSeqOrMap[KeyType, SimType_contra],
         /,
-    ) -> float: ...
+    ) -> float:
+        ...
 
 
 class PoolingFunc(Protocol):
@@ -65,4 +69,5 @@ class PoolingFunc(Protocol):
         self,
         similarities: SimSeq[float],
         /,
-    ) -> float: ...
+    ) -> float:
+        ...
