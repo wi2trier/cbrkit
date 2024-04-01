@@ -47,6 +47,7 @@
             extras = [
               "cli"
               "nlp"
+              "timeseries"
             ];
           };
         in
