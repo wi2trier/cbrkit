@@ -1,11 +1,12 @@
-from collections.abc import Collection, Set
+from collections.abc import Collection, Sequence, Set
 from typing import Any
 
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
-from typing import List
 
-__all__ = ["jaccard"]
+Number = float | int
+
+__all__ = ["jaccard", "smith_waterman", "dtw"]
 
 
 def jaccard() -> SimPairFunc[Collection[Any], float]:
@@ -31,26 +32,23 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
 
 def smith_waterman(
     match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1
-) -> SimPairFunc[str, float]:
+) -> SimPairFunc[Sequence[Any], float]:
     """
     Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
     Args:
-        match_score (int, optional): Score for matching characters. Defaults to 2.
-        mismatch_penalty (int, optional): Penalty for mismatching characters. Defaults to -1.
-        gap_penalty (int, optional): Penalty for gaps. Defaults to -1.
-
-    Returns:
-        float: Alignment score for the two sequences.
+        match_score: Score for matching characters. Defaults to 2.
+        mismatch_penalty: Penalty for mismatching characters. Defaults to -1.
+        gap_penalty: Penalty for gaps. Defaults to -1.
 
     Example:
         >>> sim = smith_waterman()
         >>> sim("abcde", "fghe")
         2
     """
-    from minineedle import smith, core
+    from minineedle import core, smith
 
-    def wrapped_func(x: str, y: str) -> float:
+    def wrapped_func(x: Sequence[Any], y: Sequence[Any]) -> float:
         try:
             alignment = smith.SmithWaterman(x, y)
             alignment.change_matrix(
@@ -59,6 +57,7 @@ def smith_waterman(
                 )
             )
             alignment.align()
+
             return alignment.get_score()
         except ZeroDivisionError:
             return 0.0
@@ -66,19 +65,27 @@ def smith_waterman(
     return wrapped_func
 
 
-def dtw_similarity() -> SimPairFunc[List[int], float]:
+def dtw() -> SimPairFunc[Collection[int], float]:
     """Dynamic Time Warping similarity function.
 
     Examples:
-        >>> sim = dtw_similarity()
+        >>> sim = dtw()
         >>> sim([1, 2, 3], [1, 2, 3, 4])
         0.5
     """
-    from dtaidistance import dtw
     import numpy as np
+    from dtaidistance import dtw
 
-    def wrapped_func(x: List[float], y: List[float]) -> float:
-        distance = dtw.distance(np.array(x), np.array(y))
-        return float(dist2sim(distance))
+    def wrapped_func(
+        x: Collection[Number] | np.ndarray, y: Collection[Number] | np.ndarray
+    ) -> float:
+        if not isinstance(x, np.ndarray):
+            x = np.array(x)
+        if not isinstance(y, np.ndarray):
+            y = np.array(y)
+
+        distance = dtw.distance(x, y)
+
+        return dist2sim(distance)
 
     return wrapped_func
