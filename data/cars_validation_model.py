@@ -1,6 +1,8 @@
 """This module contains the Pydantic model for validating the car data."""
+
 from pydantic import BaseModel, PositiveInt, NonNegativeInt
 from typing import Literal
+
 
 class Car(BaseModel):
     price: NonNegativeInt
