@@ -58,6 +58,7 @@ transformers = { version = "^4.35", optional = true }
 typer = { version = ">=0.9, <1.0", extras = ["all"], optional = true }
 uvicorn = { version = ">=0.24, <1.0", optional = true, extras = ["standard"] }
 xmltodict = ">=0.13, <1.0"
+pydantic = "^2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
