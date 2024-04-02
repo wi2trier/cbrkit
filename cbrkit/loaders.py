@@ -389,10 +389,11 @@ def validate(data: Casebase[Any, Any] | Any, validation_model: BaseModel):
         >>> data = dataframe(df)
         >>> validate(data, Car)
     """
-    if data is None:
-        raise ValueError("Data is None")
-    elif isinstance(data, DataFrameCasebase):
+    assert data is not None
+
+    if isinstance(data, DataFrameCasebase):
         data = data.df.to_dict("index")
+
     if isinstance(data, Mapping):
         for item in data.values():
             validation_model.model_validate(item)
