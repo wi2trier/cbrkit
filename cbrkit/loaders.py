@@ -1,16 +1,5 @@
 """
-To manually use Pydantic with CBRkit to validate your case base, you can use an appropriate 
-Pydantic model instead of the CBRkit loaders (see example below). 
-Alternatively, the dataframe, path, file and folder accept an optional validation_model argument
-to validate the Casebase entries.
-
-
-Example:
-    >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-    >>> from data.cars_validation_model import Car
-    >>> data = csv("data/cars-1k.csv")
-    >>> for row in data.values():
-    ...     assert isinstance(Car.model_validate(row), Car)
+This module provides several loaders to read data from different file formats and convert it into a Casebase. To validate the data against a Pydantic model, a `validate` function is also provided.
 """
 
 import csv as csvlib
@@ -19,7 +8,7 @@ from collections import abc
 from collections.abc import Callable, Iterator
 from importlib import import_module
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, Mapping
 
 import orjson
 import pandas as pd
@@ -343,11 +332,6 @@ def file(path: Path) -> Casebase[Any, Any] | None:
         >>> file_path = Path("./data/cars-1k.csv")
         >>> result = file(file_path)
 
-        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-        >>> from pathlib import Path
-        >>> file_path = Path("./data/cars-1k.csv")
-        >>> result = file(file_path)
-
     """
     if path.suffix not in _batch_loaders:
         return None
@@ -364,13 +348,12 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     Args:
         path: Path of the folder.
         pattern: Relative pattern for the files.
-        
+
     Returns:
         Returns a Casebase.
 
     Examples:
         >>> from pathlib import Path
-        >>> from data.cars_validation_model import Car
         >>> folder_path = Path("./data")
         >>> result = folder(folder_path, "*.csv")
         >>> assert result is not None
@@ -388,7 +371,7 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     return cb
 
 
-def validate(data: dict[str, Any] | object, validation_model: BaseModel):
+def validate(data: Casebase[Any, Any] | Any, validation_model: BaseModel):
     """Validates the data against a Pydantic model. Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
 
     Args:
@@ -408,9 +391,9 @@ def validate(data: dict[str, Any] | object, validation_model: BaseModel):
     """
     if data is None:
         raise ValueError("Data is None")
-    if isinstance(data, DataFrameCasebase):
+    elif isinstance(data, DataFrameCasebase):
         data = data.df.to_dict("index")
-    if isinstance(data, dict):
+    if isinstance(data, Mapping):
         for item in data.values():
             validation_model.model_validate(item)
     else:
