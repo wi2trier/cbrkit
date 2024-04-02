@@ -5,19 +5,19 @@ This module provides several loaders to read data from different file formats an
 import csv as csvlib
 import tomllib
 from collections import abc
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from importlib import import_module
 from pathlib import Path
-from typing import Any, cast, Mapping
+from typing import Any, cast
 
 import orjson
 import pandas as pd
 import xmltodict
 import yaml as yamllib
 from pandas import DataFrame, Series
+from pydantic import BaseModel
 
 from cbrkit.typing import Casebase, FilePath
-from pydantic import BaseModel
 
 __all__ = [
     "csv",
