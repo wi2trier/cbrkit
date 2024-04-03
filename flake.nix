@@ -111,10 +111,7 @@
               token = "$GH_TOKEN";
             };
             version = builtins.getEnv "VERSION";
-            images = with self.packages; [
-              x86_64-linux.docker
-              aarch64-linux.docker
-            ];
+            images = with self.packages; [ x86_64-linux.docker ];
           };
           devShells.default = pkgs.mkShell {
             inherit packages;
