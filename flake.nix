@@ -35,21 +35,22 @@
         let
           python = pkgs.python311;
           poetry = pkgs.poetry;
-          packages = [
-            python
-            poetry
-          ];
-          poetryAppArgs = {
-            inherit python;
-            projectDir = ./.;
-            preferWheels = true;
-            checkPhase = "pytest";
-            extras = [
-              "cli"
-              "nlp"
-              "timeseries"
-            ];
-          };
+          mkPoetryApp =
+            args:
+            pkgs.poetry2nix.mkPoetryApplication (
+              {
+                inherit python;
+                projectDir = ./.;
+                preferWheels = true;
+                checkPhase = "pytest";
+                extras = [
+                  "cli"
+                  "nlp"
+                  "timeseries"
+                ];
+              }
+              // args
+            );
         in
         {
           _module.args.pkgs = import nixpkgs {
@@ -61,7 +62,7 @@
           };
           packages = {
             default = self'.packages.cbrkit;
-            cbrkit = pkgs.poetry2nix.mkPoetryApplication poetryAppArgs;
+            cbrkit = mkPoetryApp { };
             docker = pkgs.dockerTools.buildLayeredImage {
               name = "cbrkit";
               tag = "latest";
@@ -73,11 +74,14 @@
             };
             releaseEnv = pkgs.buildEnv {
               name = "release-env";
-              paths = packages;
+              paths = [
+                python
+                poetry
+              ];
             };
             docs =
               let
-                app = pkgs.poetry2nix.mkPoetryApplication (poetryAppArgs // { groups = [ "docs" ]; });
+                app = mkPoetryApp { groups = [ "docs" ]; };
                 env = app.dependencyEnv;
               in
               pkgs.stdenv.mkDerivation {
@@ -114,7 +118,10 @@
             images = with self.packages; [ x86_64-linux.docker ];
           };
           devShells.default = pkgs.mkShell {
-            inherit packages;
+            packages = [
+              python
+              poetry
+            ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
             shellHook = ''
               ${lib.getExe poetry} env use ${lib.getExe python}
