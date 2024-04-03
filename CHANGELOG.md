@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/wi2trier/cbrkit/compare/v0.9.0...v0.9.1) (2024-04-03)
+
+
+### Bug Fixes
+
+* **docker:** remove aarch64 images ([fccc4f7](https://github.com/wi2trier/cbrkit/commit/fccc4f7427a54daabedfcad905c73f252706a688))
+
 ## [0.9.0](https://github.com/wi2trier/cbrkit/compare/v0.8.0...v0.9.0) (2024-04-02)
 
 
