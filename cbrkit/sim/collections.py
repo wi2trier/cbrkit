@@ -117,3 +117,54 @@ def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc
 
     return wrapped_func
 
+from typing import Callable, List, Any
+import heapq
+
+def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[Any, Any], float]) -> float:
+    """
+    Implements an A* algorithm to find the best matching between query items and case items
+    based on the provided similarity function, maximizing the overall similarity score.
+
+    Args:
+        query: A list representing the query set.
+        case: A list representing the case set.
+        similarity_function: A function that calculates the similarity between two elements.
+
+    Returns:
+        The normalized similarity score for the best mapping between query and case items.
+
+    Examples:
+        >>> def example_similarity_function(x: Any, y: Any) -> float:
+        ...     return 1.0 if x == y else 0.0
+        >>> query = ["Monday", "Tuesday", "Wednesday"]
+        >>> case = ["Monday", "Tuesday", "Sunday"]
+        >>> result = mapping(query, case, example_similarity_function)
+        >>> print(f"Normalized Similarity Score: {result}")
+        Normalized Similarity Score: 0.6666666666666666
+    """
+    # Priority queue to store potential solutions with their scores
+    pq = []
+    initial_solution = (0.0, set(), frozenset(query), frozenset(case))
+    heapq.heappush(pq, initial_solution)
+
+    best_score = 0.0
+    while pq:
+        current_score, current_mapping, remaining_query, remaining_case = heapq.heappop(pq)
+
+        if not remaining_query:  # All query items are mapped
+            best_score = max(best_score, current_score / len(query))
+            continue  # Continue to process remaining potential mappings
+
+        for query_item in remaining_query:
+            for case_item in remaining_case:
+                sim_score = similarity_function(query_item, case_item)
+                new_mapping = current_mapping | {(query_item, case_item)}
+                new_score = current_score + sim_score  # Accumulate score correctly
+                new_remaining_query = remaining_query - {query_item}
+                new_remaining_case = remaining_case - {case_item}
+                heapq.heappush(pq, (new_score, new_mapping, new_remaining_query, new_remaining_case))
+                if len(pq) > 1000:  # Limit the queue size to 1000
+                    heapq.heappop(pq)
+
+    return best_score
+
