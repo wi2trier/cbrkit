@@ -1,6 +1,6 @@
 from collections.abc import Collection, Sequence, Set
-from typing import Any
-
+from typing import Any, Callable, List
+import heapq
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc
 
@@ -117,8 +117,7 @@ def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc
 
     return wrapped_func
 
-from typing import Callable, List, Any
-import heapq
+
 
 def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[Any, Any], float]) -> float:
     """
