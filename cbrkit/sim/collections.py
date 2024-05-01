@@ -89,3 +89,31 @@ def dtw() -> SimPairFunc[Collection[int], float]:
         return dist2sim(distance)
 
     return wrapped_func
+
+def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc[Sequence[Any], float]:
+    """
+    Isolated Mapping similarity function that compares each element in 'x'
+    with all elements in 'y'
+    and takes the maximum similarity for each element in 'x', then averages
+    these maximums.
+
+    Args:
+        element_similarity: A function that takes two elements and returns
+        a similarity score between them.
+
+    Examples:
+        >>> from cbrkit.sim.strings import levenshtein
+        >>> sim = isolated_mapping(levenshtein())
+        >>> sim(["kitten", "sitting"], ["sitting", "fitted"])
+        0.8333333333333334
+    """
+    def wrapped_func(x: Sequence[Any], y: Sequence[Any]) -> float:
+        total_similarity = 0.0
+        for xi in x:
+            max_similarity = max(element_similarity(xi, yi) for yi in y)
+            total_similarity += max_similarity
+        average_similarity = total_similarity / len(x)
+        return average_similarity
+
+    return wrapped_func
+
