@@ -176,42 +176,46 @@ def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[An
 
     return wrapped_func(query, case, similarity_function)
 
-def list_weight(weight: float, lower_bound: float, upper_bound: float,
-                lower_bound_inclusive: bool = True, upper_bound_inclusive: bool = True) -> Callable:
+def list_weight() -> Callable:
     """
-    Creates a function that manages weight properties and checks bounds.
-
-    Args:
-        weight: The weight value.
-        lower_bound: The minimum bound of the weight.
-        upper_bound: The maximum bound of the weight.
-        lower_bound_inclusive: Indicates if the lower bound is inclusive.
-        upper_bound_inclusive: Indicates if the upper bound is inclusive.
+    Factory function that creates a function to manage multiple weight intervals
+    and to calculate the weighted similarity based on these intervals.
 
     Returns:
-        A callable that can check if another set of weight properties matches.
-
-    Raises:
-        ValueError: If lower_bound or upper_bound are out of the [0.0, 1.0] range.
+        A callable that can check if a given similarity score falls within the defined weight intervals
+        and returns the weighted value.
 
     Examples:
-        >>> weight_func = list_weight(0.5, 0.1, 0.9)
-        >>> print(weight_func(0.5, 0.1, 0.9, True, True))
-        True
-        >>> print(weight_func(0.5, 0.1, 0.8, True, True))
-        False
+        >>> weight_func = list_weight()
+        >>> weight_func.add_weight(2.0, 0.8, 0.9, False, True)
+        >>> weight_func.add_weight(1.0, 0.7, 0.8, False, False)
+        >>> print(weight_func(0.85))  # Should use the 2.0 weight
+        2.0
+        >>> print(weight_func(0.75))  # Should use the 1.0 weight
+        1.0
     """
-    if not (0.0 <= lower_bound <= 1.0):
-        raise ValueError(f"Lower bound {lower_bound} is out of bounds [0.0, 1.0].")
-    if not (0.0 <= upper_bound <= 1.0):
-        raise ValueError(f"Upper bound {upper_bound} is out of bounds [0.0, 1.0].")
+    weights = []
 
-    def wrapped_func(other_weight: float, other_lower_bound: float, other_upper_bound: float,
-                        other_lower_bound_inclusive: bool, other_upper_bound_inclusive: bool) -> bool:
-        return (weight == other_weight and
-                lower_bound == other_lower_bound and
-                upper_bound == other_upper_bound and
-                lower_bound_inclusive == other_lower_bound_inclusive and
-                upper_bound_inclusive == other_upper_bound_inclusive)
+    def add_weight(weight: float, lower_bound: float, upper_bound: float,
+                   lower_bound_inclusive: bool = True, upper_bound_inclusive: bool = True):
+        if not (0.0 <= lower_bound <= 1.0):
+            raise ValueError(f"Lower bound {lower_bound} is out of bounds [0.0, 1.0].")
+        if not (0.0 <= upper_bound <= 1.0):
+            raise ValueError(f"Upper bound {upper_bound} is out of bounds [0.0, 1.0].")
+        for w, lb, ub, lbi, ubi in weights:
+            if not ((upper_bound < lb) or (lower_bound > ub) or
+                    (upper_bound == lb and not (upper_bound_inclusive and lbi)) or
+                    (lower_bound == ub and not (lower_bound_inclusive and ubi))):
+                raise ValueError("Overlapping intervals are not allowed.")
+        weights.append((weight, lower_bound, upper_bound, lower_bound_inclusive, upper_bound_inclusive))
 
+    def wrapped_func(value: float) -> float:
+        for weight, lower_bound, upper_bound, lower_bound_inclusive, upper_bound_inclusive in weights:
+            if (lower_bound < value < upper_bound) or \
+               (lower_bound_inclusive and lower_bound == value) or \
+               (upper_bound_inclusive and upper_bound == value):
+                return weight
+        return 0.0
+
+    wrapped_func.add_weight = add_weight
     return wrapped_func
