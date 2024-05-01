@@ -185,6 +185,7 @@ def mapping(
 
     return wrapped_func(query, case, similarity_function)
 
+
 def list_weight() -> Callable:
     """
     Factory function that creates a function to manage multiple weight intervals
@@ -205,24 +206,48 @@ def list_weight() -> Callable:
     """
     weights = []
 
-    def add_weight(weight: float, lower_bound: float, upper_bound: float,
-                   lower_bound_inclusive: bool = True, upper_bound_inclusive: bool = True):
+    def add_weight(
+        weight: float,
+        lower_bound: float,
+        upper_bound: float,
+        lower_bound_inclusive: bool = True,
+        upper_bound_inclusive: bool = True,
+    ):
         if not (0.0 <= lower_bound <= 1.0):
             raise ValueError(f"Lower bound {lower_bound} is out of bounds [0.0, 1.0].")
         if not (0.0 <= upper_bound <= 1.0):
             raise ValueError(f"Upper bound {upper_bound} is out of bounds [0.0, 1.0].")
         for w, lb, ub, lbi, ubi in weights:
-            if not ((upper_bound < lb) or (lower_bound > ub) or
-                    (upper_bound == lb and not (upper_bound_inclusive and lbi)) or
-                    (lower_bound == ub and not (lower_bound_inclusive and ubi))):
+            if not (
+                (upper_bound < lb)
+                or (lower_bound > ub)
+                or (upper_bound == lb and not (upper_bound_inclusive and lbi))
+                or (lower_bound == ub and not (lower_bound_inclusive and ubi))
+            ):
                 raise ValueError("Overlapping intervals are not allowed.")
-        weights.append((weight, lower_bound, upper_bound, lower_bound_inclusive, upper_bound_inclusive))
+        weights.append(
+            (
+                weight,
+                lower_bound,
+                upper_bound,
+                lower_bound_inclusive,
+                upper_bound_inclusive,
+            )
+        )
 
     def wrapped_func(value: float) -> float:
-        for weight, lower_bound, upper_bound, lower_bound_inclusive, upper_bound_inclusive in weights:
-            if (lower_bound < value < upper_bound) or \
-               (lower_bound_inclusive and lower_bound == value) or \
-               (upper_bound_inclusive and upper_bound == value):
+        for (
+            weight,
+            lower_bound,
+            upper_bound,
+            lower_bound_inclusive,
+            upper_bound_inclusive,
+        ) in weights:
+            if (
+                (lower_bound < value < upper_bound)
+                or (lower_bound_inclusive and lower_bound == value)
+                or (upper_bound_inclusive and upper_bound == value)
+            ):
                 return weight
         return 0.0
 
