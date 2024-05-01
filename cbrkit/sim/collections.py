@@ -90,7 +90,10 @@ def dtw() -> SimPairFunc[Collection[int], float]:
 
     return wrapped_func
 
-def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc[Sequence[Any], float]:
+
+def isolated_mapping(
+    element_similarity: SimPairFunc[Any, float],
+) -> SimPairFunc[Sequence[Any], float]:
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -107,6 +110,7 @@ def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc
         >>> sim(["kitten", "sitting"], ["sitting", "fitted"])
         0.8333333333333334
     """
+
     def wrapped_func(x: Sequence[Any], y: Sequence[Any]) -> float:
         total_similarity = 0.0
         for xi in x:
@@ -117,10 +121,14 @@ def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc
 
     return wrapped_func
 
+
 from typing import Callable, List, Any
 import heapq
 
-def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[Any, Any], float]) -> float:
+
+def mapping(
+    query: List[Any], case: List[Any], similarity_function: Callable[[Any, Any], float]
+) -> float:
     """
     Implements an A* algorithm to find the best matching between query items and case items
     based on the provided similarity function, maximizing the overall similarity score.
@@ -149,7 +157,9 @@ def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[An
 
     best_score = 0.0
     while pq:
-        current_score, current_mapping, remaining_query, remaining_case = heapq.heappop(pq)
+        current_score, current_mapping, remaining_query, remaining_case = heapq.heappop(
+            pq
+        )
 
         if not remaining_query:  # All query items are mapped
             best_score = max(best_score, current_score / len(query))
@@ -162,9 +172,11 @@ def mapping(query: List[Any], case: List[Any], similarity_function: Callable[[An
                 new_score = current_score + sim_score  # Accumulate score correctly
                 new_remaining_query = remaining_query - {query_item}
                 new_remaining_case = remaining_case - {case_item}
-                heapq.heappush(pq, (new_score, new_mapping, new_remaining_query, new_remaining_case))
+                heapq.heappush(
+                    pq,
+                    (new_score, new_mapping, new_remaining_query, new_remaining_case),
+                )
                 if len(pq) > 1000:  # Limit the queue size to 1000
                     heapq.heappop(pq)
 
     return best_score
-
