@@ -90,7 +90,10 @@ def dtw() -> SimPairFunc[Collection[int], float]:
 
     return wrapped_func
 
-def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc[Sequence[Any], float]:
+
+def isolated_mapping(
+    element_similarity: SimPairFunc[Any, float],
+) -> SimPairFunc[Sequence[Any], float]:
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -117,8 +120,6 @@ def isolated_mapping(element_similarity: SimPairFunc[Any, float]) -> SimPairFunc
         return average_similarity
 
     return wrapped_func
-
-
 
 
 def mapping(
