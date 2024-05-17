@@ -7,6 +7,7 @@ Number = float | int
 
 __all__ = ["jaccard", "smith_waterman", "dtw"]
 
+
 def jaccard() -> SimPairFunc[Collection[Any], float]:
     """Jaccard similarity function.
 
@@ -26,6 +27,7 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
         return dist2sim(jaccard_distance(x, y))
 
     return wrapped_func
+
 
 def smith_waterman(
     match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1
@@ -61,6 +63,7 @@ def smith_waterman(
 
     return wrapped_func
 
+
 def dtw() -> SimPairFunc[Collection[int], float]:
     """Dynamic Time Warping similarity function.
 
@@ -85,6 +88,7 @@ def dtw() -> SimPairFunc[Collection[int], float]:
         return dist2sim(distance)
 
     return wrapped_func
+
 
 def isolated_mapping(
     element_similarity: SimPairFunc[ValueType, float],
@@ -116,9 +120,9 @@ def isolated_mapping(
 
     return wrapped_func
 
+
 def mapping(
-    similarity_function: Callable[[Any, Any], float],
-    max_queue_size: int = 1000
+    similarity_function: Callable[[Any, Any], float], max_queue_size: int = 1000
 ) -> SimPairFunc[Sequence[Any], float]:
     """
     Implements an A* algorithm to find the best matching between query items and case items
@@ -179,6 +183,7 @@ def mapping(
         return best_score
 
     return wrapped_func
+
 
 def list_weight() -> SimPairFunc[float, float]:
     """
