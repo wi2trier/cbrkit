@@ -1,13 +1,11 @@
 from collections.abc import Collection, Sequence, Set
-from typing import Any, Callable, List
-import heapq
+from typing import Any, Callable
 from cbrkit.helpers import dist2sim
-from cbrkit.typing import SimPairFunc
+from cbrkit.typing import SimPairFunc, ValueType
 
 Number = float | int
 
 __all__ = ["jaccard", "smith_waterman", "dtw"]
-
 
 def jaccard() -> SimPairFunc[Collection[Any], float]:
     """Jaccard similarity function.
@@ -28,7 +26,6 @@ def jaccard() -> SimPairFunc[Collection[Any], float]:
         return dist2sim(jaccard_distance(x, y))
 
     return wrapped_func
-
 
 def smith_waterman(
     match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1
@@ -64,7 +61,6 @@ def smith_waterman(
 
     return wrapped_func
 
-
 def dtw() -> SimPairFunc[Collection[int], float]:
     """Dynamic Time Warping similarity function.
 
@@ -90,10 +86,9 @@ def dtw() -> SimPairFunc[Collection[int], float]:
 
     return wrapped_func
 
-
 def isolated_mapping(
-    element_similarity: SimPairFunc[Any, float],
-) -> SimPairFunc[Sequence[Any], float]:
+    element_similarity: SimPairFunc[ValueType, float],
+) -> SimPairFunc[Sequence[ValueType], float]:
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -121,33 +116,33 @@ def isolated_mapping(
 
     return wrapped_func
 
-
 def mapping(
-    query: List[Any], case: List[Any], similarity_function: Callable[[Any, Any], float]
-) -> float:
+    similarity_function: Callable[[Any, Any], float],
+    max_queue_size: int = 1000
+) -> SimPairFunc[Sequence[Any], float]:
     """
     Implements an A* algorithm to find the best matching between query items and case items
     based on the provided similarity function, maximizing the overall similarity score.
 
     Args:
-        query: A list representing the query set.
-        case: A list representing the case set.
         similarity_function: A function that calculates the similarity between two elements.
+        max_queue_size: Maximum size of the priority queue. Defaults to 1000.
 
     Returns:
-        The normalized similarity score for the best mapping between query and case items.
+        A similarity function for sequences.
 
     Examples:
         >>> def example_similarity_function(x: Any, y: Any) -> float:
         ...     return 1.0 if x == y else 0.0
-        >>> query = ["Monday", "Tuesday", "Wednesday"]
-        >>> case = ["Monday", "Tuesday", "Sunday"]
-        >>> result = mapping(query, case, example_similarity_function)
+        >>> sim_func = mapping(example_similarity_function)
+        >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
         >>> print(f"Normalized Similarity Score: {result}")
         Normalized Similarity Score: 0.6666666666666666
     """
+    from typing import List
+    import heapq
 
-    def wrapped_func(query, case, similarity_function):
+    def wrapped_func(query: List[ValueType], case: List[ValueType]) -> float:
         # Priority queue to store potential solutions with their scores
         pq = []
         initial_solution = (0.0, set(), frozenset(query), frozenset(case))
@@ -179,20 +174,19 @@ def mapping(
                             new_remaining_case,
                         ),
                     )
-                    if len(pq) > 1000:  # Limit the queue size to 1000
+                    if len(pq) > max_queue_size:
                         heapq.heappop(pq)
         return best_score
 
-    return wrapped_func(query, case, similarity_function)
+    return wrapped_func
 
-
-def list_weight() -> Callable:
+def list_weight() -> SimPairFunc[float, float]:
     """
-    Factory function that creates a function to manage multiple weight intervals
+    Factory function that creates a similarity function to manage multiple weight intervals
     and to calculate the weighted similarity based on these intervals.
 
     Returns:
-        A callable that can check if a given similarity score falls within the defined weight intervals
+        A similarity function that can check if a given similarity score falls within the defined weight intervals
         and returns the weighted value.
 
     Examples:
