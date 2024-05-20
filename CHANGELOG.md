@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/wi2trier/cbrkit/compare/v0.9.1...v0.10.0) (2024-05-20)
+
+
+### Features
+
+* **sim:** add mapping-based collection metrics ([#118](https://github.com/wi2trier/cbrkit/issues/118)) ([0857b84](https://github.com/wi2trier/cbrkit/commit/0857b84b08a6b0fcb0292fb4f717061fadfff4dd))
+
 ## [0.9.1](https://github.com/wi2trier/cbrkit/compare/v0.9.0...v0.9.1) (2024-04-03)
 
 
