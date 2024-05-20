@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/wi2trier/cbrkit/compare/v0.10.0...v0.10.1) (2024-05-20)
+
+
+### Bug Fixes
+
+* add missing rich dependency ([e376fc8](https://github.com/wi2trier/cbrkit/commit/e376fc8ac83fb7d37c03371871ed574ac2f0243e))
+
 ## [0.10.0](https://github.com/wi2trier/cbrkit/compare/v0.9.1...v0.10.0) (2024-05-20)
 
 
