@@ -53,7 +53,7 @@ pydantic = "^2.0"
 pyyaml = "^6.0"
 rich = { version = "^13.7", optional = true }
 sentence-transformers = { version = "^2.2", optional = true }
-setuptools = "^69"
+setuptools = "^70.0.0"
 spacy = { version = "^3.7", optional = true }
 torch = { version = "^2.1.1", optional = true }
 transformers = { version = "^4.35", optional = true }
