@@ -1,5 +1,5 @@
 from collections.abc import Collection, Sequence, Set
-from typing import Any
+from typing import Any, Callable
 
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc, ValueType
@@ -188,5 +188,73 @@ def mapping(
                         heapq.heappop(pq)
 
         return best_score
+
+    return wrapped_func
+
+
+def list_mapping(
+        similarity_to_use: Callable[[Any, Any], float] = None,
+        contains: str = 'inexact',
+        return_local_similarities: bool = False
+) -> SimPairFunc[Collection[Any], float]:
+    """List Mapping similarity function.
+
+    Parameters:
+    similarity_to_use (callable): The similarity function to use for comparing elements.
+    contains (str): The comparison type, either 'exact' or 'inexact'. Default is 'inexact'.
+    return_local_similarities (bool): Whether to return local similarities. Default is True.
+
+    Examples:
+        >>> sim = list_mapping(lambda x, y: 1.0 if x == y else 0.0, 'exact', True)
+        >>> sim(["a", "b", "c"], ["a", "b", "c"])
+        (1.0, [1.0, 1.0, 1.0])
+    """
+
+    def compute_contains_exact(list1: Collection[Any], list2: Collection[Any]) -> float | tuple[float, list[float]]:
+        if len(list1) != len(list2):
+            return 0.0
+
+        sim_sum = 0.0
+        local_similarities = []
+
+        for elem1, elem2 in zip(list1, list2):
+            sim = similarity_to_use(elem1, elem2)
+            sim_sum += sim
+            local_similarities.append(sim)
+
+        if return_local_similarities:
+            return sim_sum / len(list1), local_similarities
+        else:
+            return sim_sum / len(list1)
+
+    def compute_contains_inexact(larger_list: Collection[Any], smaller_list: Collection[Any]) -> tuple[
+                                                                                                     float | Any, list[
+                                                                                                         Any] | Any] | float | Any:
+        max_similarity = -1.0
+        best_local_similarities = []
+
+        for i in range(len(larger_list) - len(smaller_list) + 1):
+            sublist = larger_list[i:i + len(smaller_list)]
+            sim, local_similarities = compute_contains_exact(sublist, smaller_list)
+
+            if sim > max_similarity:
+                max_similarity = sim
+                best_local_similarities = local_similarities
+
+        if return_local_similarities:
+            return max_similarity, best_local_similarities
+        else:
+            return max_similarity
+
+    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:
+        if contains == 'exact':
+            return compute_contains_exact(x, y)
+        elif contains == 'inexact':
+            if len(x) >= len(y):
+                return compute_contains_inexact(x, y)
+            else:
+                return compute_contains_inexact(y, x)
+        else:
+            raise ValueError("Invalid 'contains' parameter. Use 'exact' or 'inexact'.")
 
     return wrapped_func
