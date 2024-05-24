@@ -328,3 +328,48 @@ def list_mapping_weighted(
             return final_similarity
 
     return wrapped_func
+
+def list_correctness(discordant_parameter: float = 1.0) -> SimPairFunc[Collection[Any], float]:
+    """List Correctness similarity function.
+
+    Parameters:
+    discordant_parameter (float): The maximum possible similarity if all pairs are discordant. Default is 1.0.
+
+    Examples:
+        >>> sim = list_correctness(0.5)
+        >>> sim(["Monday", "Tuesday", "Wednesday"], ["Monday", "Wednesday", "Tuesday"])
+        0.3333333333333333
+    """
+
+    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:
+        if len(x) != len(y):
+            return 0.0
+
+        count_concordant = 0
+        count_discordant = 0
+
+        for i in range(len(x) - 1):
+            for j in range(i + 1, len(x)):
+                index_x1 = x.index(x[i])
+                index_x2 = x.index(x[j])
+                index_y1 = y.index(x[i])
+                index_y2 = y.index(x[j])
+
+                if index_y1 == -1 or index_y2 == -1:
+                    continue
+                elif (index_x1 < index_x2 and index_y1 < index_y2) or (index_x1 > index_x2 and index_y1 > index_y2):
+                    count_concordant += 1
+                else:
+                    count_discordant += 1
+
+        if len(x) > count_concordant + count_discordant:
+            return 0.0
+
+        correctness = (count_concordant - count_discordant) / (count_concordant + count_discordant)
+
+        if correctness >= 0:
+            return correctness
+        else:
+            return abs(correctness) * discordant_parameter
+
+    return wrapped_func
