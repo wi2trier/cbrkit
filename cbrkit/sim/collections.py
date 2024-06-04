@@ -1,5 +1,7 @@
-from collections.abc import Collection, Sequence, Set
-from typing import Any, Callable, List, Dict
+from collections.abc import Sequence, Set
+from dataclasses import dataclass
+from itertools import product
+from typing import Callable, Any, Collection, List
 
 from cbrkit.helpers import dist2sim
 from cbrkit.typing import SimPairFunc, ValueType
@@ -191,141 +193,152 @@ def mapping(
 
     return wrapped_func
 
+@dataclass
+class ListMappingSim:
+    value: float
+    local_similarities: List[float] = None
 
 def list_mapping(
-        similarity_to_use: Callable[[Any, Any], float] = None,
-        contains: str = 'inexact',
+        element_similarity: Callable[[Any, Any], float] = None,
+        exact: bool = False,
         return_local_similarities: bool = False
-) -> SimPairFunc[Collection[Any], float]:
+) -> Callable[[Collection[Any], Collection[Any]], ListMappingSim]:
     """List Mapping similarity function.
 
     Parameters:
-    similarity_to_use (callable): The similarity function to use for comparing elements.
-    contains (str): The comparison type, either 'exact' or 'inexact'. Default is 'inexact'.
-    return_local_similarities (bool): Whether to return local similarities. Default is True.
+    element_similarity: The similarity function to use for comparing elements.
+    exact: Whether to use exact or inexact comparison. Default is False (inexact).
+    return_local_similarities: Whether to return local similarities. Default is False.
 
     Examples:
-        >>> sim = list_mapping(lambda x, y: 1.0 if x == y else 0.0, 'exact', True)
-        >>> sim(["a", "b", "c"], ["a", "b", "c"])
-        (1.0, [1.0, 1.0, 1.0])
+        >>> sim = list_mapping(lambda x, y: 1.0 if x == y else 0.0, True, True)
+        >>> result = sim(["a", "b", "c"], ["a", "b", "c"])
+        >>> result.value
+        1.0
+        >>> result.local_similarities
+        [1.0, 1.0, 1.0]
     """
 
-    def compute_contains_exact(list1: Collection[Any], list2: Collection[Any]) -> float | tuple[float, list[float]]:
+    def compute_contains_exact(list1: Collection[Any], list2: Collection[Any]) -> ListMappingSim:
         if len(list1) != len(list2):
-            return 0.0
+            return ListMappingSim(value=0.0)
 
         sim_sum = 0.0
         local_similarities = []
 
         for elem1, elem2 in zip(list1, list2):
-            sim = similarity_to_use(elem1, elem2)
+            sim = element_similarity(elem1, elem2)
             sim_sum += sim
             local_similarities.append(sim)
 
         if return_local_similarities:
-            return sim_sum / len(list1), local_similarities
+            return ListMappingSim(value=sim_sum / len(list1), local_similarities=local_similarities)
         else:
-            return sim_sum / len(list1)
+            return ListMappingSim(value=sim_sum / len(list1))
 
-    def compute_contains_inexact(larger_list: Collection[Any], smaller_list: Collection[Any]) -> tuple[
-                                                                                                     float | Any, list[
-                                                                                                         Any] | Any] | float | Any:
+    def compute_contains_inexact(larger_list: Collection[Any], smaller_list: Collection[Any]) -> ListMappingSim:
         max_similarity = -1.0
         best_local_similarities = []
 
         for i in range(len(larger_list) - len(smaller_list) + 1):
             sublist = larger_list[i:i + len(smaller_list)]
-            sim, local_similarities = compute_contains_exact(sublist, smaller_list)
+            sim_result = compute_contains_exact(sublist, smaller_list)
 
-            if sim > max_similarity:
-                max_similarity = sim
-                best_local_similarities = local_similarities
+            if sim_result.value > max_similarity:
+                max_similarity = sim_result.value
+                best_local_similarities = sim_result.local_similarities
 
         if return_local_similarities:
-            return max_similarity, best_local_similarities
+            return ListMappingSim(value=max_similarity, local_similarities=best_local_similarities)
         else:
-            return max_similarity
+            return ListMappingSim(value=max_similarity)
 
-    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> float:
-        if contains == 'exact':
+    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> ListMappingSim:
+        if exact:
             return compute_contains_exact(x, y)
-        elif contains == 'inexact':
+        else:
             if len(x) >= len(y):
                 return compute_contains_inexact(x, y)
             else:
                 return compute_contains_inexact(y, x)
-        else:
-            raise ValueError("Invalid 'contains' parameter. Use 'exact' or 'inexact'.")
 
     return wrapped_func
 
-
+@dataclass
+class Weight:
+    weight: float
+    lower_bound: float
+    upper_bound: float
+    inclusive_lower: bool
+    inclusive_upper: bool
+    normalized_weight: float = None  # Will be set later
 def list_mapping_weighted(
-    similarity_to_use: Callable[[Any, Any], float] = None,
-    list_weights: List[Dict[str, Any]] = None,
-    contains: str = 'inexact',
+    element_similarity: Callable[[Any, Any], float] = None,
+    list_weights: List[Weight] = None,
+    exact: bool = False,
     return_local_similarities: bool = True
-) -> SimPairFunc[Collection[Any], float]:
+) -> Callable[[Collection[Any], Collection[Any]], ListMappingSim]:
     """List Mapping Weighted similarity function.
 
     Parameters:
-    similarity_to_use (callable): The similarity function to use for comparing elements.
-    default_weight (float): The default weight to use. Default is 1.0.
+    element_similarity (callable): The similarity function to use for comparing elements.
     list_weights (list): The list of weights to use for different similarity intervals.
-    contains (str): The comparison type, either 'exact' or 'inexact'. Default is 'inexact'.
+    exact (bool): The comparison type, either exact or inexact. Default is False (inexact).
     return_local_similarities (bool): Whether to return local similarities. Default is True.
 
     Examples:
-        >>> sim = list_mapping_weighted(lambda x, y: 1.0 if x == y else 0.0, [{'weight': 1.0, 'lower_bound': 0.0, 'upper_bound': 0.1, 'inclusive_lower': True, 'inclusive_upper': True}])
-        >>> sim(["a", "b", "cd"], ["a", "b", "c"])
-        (0.0, [1.0, 1.0, 0.0])
+        >>> weights = [Weight(weight=1.0, lower_bound=0.0, upper_bound=0.1, inclusive_lower=True, inclusive_upper=True)]
+        >>> sim = list_mapping_weighted(lambda x, y: 1.0 if x == y else 0.0, weights)
+        >>> result = sim(["a", "b", "cd"], ["a", "b", "c"])
+        >>> result.value
+        0.0
+        >>> result.local_similarities
+        [1.0, 1.0, 0.0]
     """
 
     if list_weights is None:
         list_weights = []
 
-    list_mapping_func = list_mapping(similarity_to_use, contains, return_local_similarities)
+    list_mapping_func = list_mapping(element_similarity, exact, return_local_similarities)
 
-    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> tuple[float | Any, list[Any] | Any] | float | Any:
+    def wrapped_func(x: Collection[Any], y: Collection[Any]) -> ListMappingSim:
         result = list_mapping_func(x, y)
 
         if return_local_similarities:
-            similarity, local_similarities = result
+            similarity = result.value
+            local_similarities = result.local_similarities
         else:
-            similarity = result
+            similarity = result.value
             local_similarities = []
 
-        #final_similarity = 0.0
         total_weighted_sim = 0.0
         total_weight = 0.0
 
         # Arrange and normalize weights
         for weight in list_weights:
-            weight_range = weight.get('upper_bound', 1.0) - weight.get('lower_bound', 0.0)
-            weight['normalized_weight'] = weight['weight'] / weight_range
+            weight_range = weight.upper_bound - weight.lower_bound
+            weight.normalized_weight = weight.weight / weight_range
 
         for sim in local_similarities:
             for weight in list_weights:
-                lower_bound = weight.get('lower_bound', 0.0)
-                upper_bound = weight.get('upper_bound', 1.0)
-                inclusive_lower = weight.get('inclusive_lower', True)
-                #inclusive_upper = weight.get('inclusive_upper', True)
+                lower_bound = weight.lower_bound
+                upper_bound = weight.upper_bound
+                inclusive_lower = weight.inclusive_lower
+                inclusive_upper = weight.inclusive_upper
 
                 if ((inclusive_lower and lower_bound <= sim <= upper_bound) or
-                    (not inclusive_lower and lower_bound < sim <= upper_bound)):
-                    weighted_sim = weight['normalized_weight'] * sim
+                    (not inclusive_lower and lower_bound < sim <= upper_bound)) and \
+                   (inclusive_upper or sim < upper_bound):
+                    weighted_sim = weight.normalized_weight * sim
                     total_weighted_sim += weighted_sim
-                    total_weight += weight['normalized_weight']
+                    total_weight += weight.normalized_weight
 
         if total_weight > 0:
             final_similarity = total_weighted_sim / total_weight
         else:
             final_similarity = similarity
 
-        if return_local_similarities:
-            return final_similarity, local_similarities
-        else:
-            return final_similarity
+        return ListMappingSim(value=final_similarity, local_similarities=local_similarities if return_local_similarities else None)
 
     return wrapped_func
 
@@ -348,21 +361,23 @@ def list_correctness(discordant_parameter: float = 1.0) -> SimPairFunc[Collectio
         count_concordant = 0
         count_discordant = 0
 
-        for i in range(len(x) - 1):
-            for j in range(i + 1, len(x)):
-                index_x1 = x.index(x[i])
-                index_x2 = x.index(x[j])
-                index_y1 = y.index(x[i])
-                index_y2 = y.index(x[j])
+        for (i, j) in product(range(len(x)), repeat=2):
+            if i >= j:
+                continue
 
-                if index_y1 == -1 or index_y2 == -1:
-                    continue
-                elif (index_x1 < index_x2 and index_y1 < index_y2) or (index_x1 > index_x2 and index_y1 > index_y2):
-                    count_concordant += 1
-                else:
-                    count_discordant += 1
+            index_x1 = x.index(x[i])
+            index_x2 = x.index(x[j])
+            index_y1 = y.index(x[i])
+            index_y2 = y.index(x[j])
 
-        if len(x) > count_concordant + count_discordant:
+            if index_y1 == -1 or index_y2 == -1:
+                continue
+            elif (index_x1 < index_x2 and index_y1 < index_y2) or (index_x1 > index_x2 and index_y1 > index_y2):
+                count_concordant += 1
+            else:
+                count_discordant += 1
+
+        if count_concordant + count_discordant == 0:
             return 0.0
 
         correctness = (count_concordant - count_discordant) / (count_concordant + count_discordant)
@@ -373,3 +388,4 @@ def list_correctness(discordant_parameter: float = 1.0) -> SimPairFunc[Collectio
             return abs(correctness) * discordant_parameter
 
     return wrapped_func
+
