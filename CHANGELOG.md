@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/wi2trier/cbrkit/compare/v0.10.1...v0.11.0) (2024-06-17)
+
+
+### Features
+
+* add two sequence similarity functions ([#127](https://github.com/wi2trier/cbrkit/issues/127)) ([9860408](https://github.com/wi2trier/cbrkit/commit/986040850ae882c2058865a6c7592b99ee6fced0))
+
 ## [0.10.1](https://github.com/wi2trier/cbrkit/compare/v0.10.0...v0.10.1) (2024-05-20)
 
 
