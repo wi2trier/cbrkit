@@ -1,8 +1,10 @@
-from collections.abc import Collection, Sequence, Set
-from typing import Any
+from collections.abc import Callable, Collection, Sequence, Set
+from dataclasses import dataclass, field
+from itertools import product
+from typing import Any, Generic
 
-from cbrkit.helpers import dist2sim
-from cbrkit.typing import SimPairFunc, ValueType
+from cbrkit.helpers import dist2sim, unpack_sim
+from cbrkit.typing import FloatProtocol, SimPairFunc, SimType, ValueType
 
 Number = float | int
 
@@ -188,5 +190,184 @@ def mapping(
                         heapq.heappop(pq)
 
         return best_score
+
+    return wrapped_func
+
+
+@dataclass(slots=True, frozen=True)
+class SequenceSim(FloatProtocol, Generic[SimType]):
+    value: float
+    local_similarities: list[SimType] = field(default_factory=list)
+
+
+@dataclass
+class Weight:
+    weight: float
+    lower_bound: float
+    upper_bound: float
+    inclusive_lower: bool
+    inclusive_upper: bool
+    normalized_weight: float | None = None
+
+
+def sequence_mapping(
+    element_similarity: Callable[[ValueType, ValueType], SimType],
+    exact: bool = False,
+    weights: list[Weight] | None = None,
+) -> SimPairFunc[Sequence[ValueType], SequenceSim[SimType]]:
+    """List Mapping similarity function.
+
+    Parameters:
+    element_similarity: The similarity function to use for comparing elements.
+    exact: Whether to use exact or inexact comparison. Default is False (inexact).
+    weights: Optional list of weights for weighted similarity calculation.
+
+    Examples:
+        >>> sim = sequence_mapping(lambda x, y: 1.0 if x == y else 0.0, True)
+        >>> result = sim(["a", "b", "c"], ["a", "b", "c"])
+        >>> result.value
+        1.0
+        >>> result.local_similarities
+        [1.0, 1.0, 1.0]
+    """
+
+    def compute_contains_exact(
+        list1: Sequence[ValueType], list2: Sequence[ValueType]
+    ) -> SequenceSim[SimType]:
+        if len(list1) != len(list2):
+            return SequenceSim(value=0.0)
+
+        sim_sum = 0.0
+        local_similarities: list[SimType] = []
+
+        for elem1, elem2 in zip(list1, list2, strict=False):
+            sim = element_similarity(elem1, elem2)
+            sim_sum += unpack_sim(sim)
+            local_similarities.append(sim)
+
+        return SequenceSim(
+            value=sim_sum / len(list1), local_similarities=local_similarities
+        )
+
+    def compute_contains_inexact(
+        larger_list: Sequence[ValueType], smaller_list: Sequence[ValueType]
+    ) -> SequenceSim[SimType]:
+        max_similarity = -1.0
+        best_local_similarities = []
+
+        for i in range(len(larger_list) - len(smaller_list) + 1):
+            sublist = larger_list[i : i + len(smaller_list)]
+            sim_result = compute_contains_exact(sublist, smaller_list)
+
+            if sim_result.value > max_similarity:
+                max_similarity = sim_result.value
+                best_local_similarities = sim_result.local_similarities
+
+        return SequenceSim(
+            value=max_similarity, local_similarities=best_local_similarities
+        )
+
+    def wrapped_func(
+        x: Sequence[ValueType], y: Sequence[ValueType]
+    ) -> SequenceSim[SimType]:
+        if exact:
+            result = compute_contains_exact(x, y)
+        else:
+            if len(x) >= len(y):
+                result = compute_contains_inexact(x, y)
+            else:
+                result = compute_contains_inexact(y, x)
+
+        if weights:
+            total_weighted_sim = 0.0
+            total_weight = 0.0
+
+            # Arrange and normalize weights
+            for weight in weights:
+                weight_range = weight.upper_bound - weight.lower_bound
+                weight.normalized_weight = weight.weight / weight_range
+
+            for sim in result.local_similarities:
+                sim = unpack_sim(sim)
+
+                for weight in weights:
+                    lower_bound = weight.lower_bound
+                    upper_bound = weight.upper_bound
+                    inclusive_lower = weight.inclusive_lower
+                    inclusive_upper = weight.inclusive_upper
+
+                    if (
+                        (inclusive_lower and lower_bound <= sim <= upper_bound)
+                        or (not inclusive_lower and lower_bound < sim <= upper_bound)
+                    ) and (inclusive_upper or sim < upper_bound):
+                        assert weight.normalized_weight is not None
+                        weighted_sim = weight.normalized_weight * sim
+                        total_weighted_sim += weighted_sim
+                        total_weight += weight.normalized_weight
+
+            if total_weight > 0:
+                final_similarity = total_weighted_sim / total_weight
+            else:
+                final_similarity = result.value
+
+            return SequenceSim(
+                value=final_similarity, local_similarities=result.local_similarities
+            )
+        else:
+            return result
+
+    return wrapped_func
+
+
+def sequence_correctness(
+    worst_case_sim: float = 0.0,
+) -> SimPairFunc[Sequence[Any], float]:
+    """List Correctness similarity function.
+
+    Parameters:
+    worst_case_sim (float): The similarity value to use when all pairs are discordant. Default is 0.0.
+
+    Examples:
+        >>> sim = sequence_correctness(0.5)
+        >>> sim(["Monday", "Tuesday", "Wednesday"], ["Monday", "Wednesday", "Tuesday"])
+        0.3333333333333333
+    """
+
+    def wrapped_func(x: Sequence[ValueType], y: Sequence[ValueType]) -> float:
+        if len(x) != len(y):
+            return 0.0
+
+        count_concordant = 0
+        count_discordant = 0
+
+        for i, j in product(range(len(x)), repeat=2):
+            if i >= j:
+                continue
+
+            index_x1 = x.index(x[i])
+            index_x2 = x.index(x[j])
+            index_y1 = y.index(x[i])
+            index_y2 = y.index(x[j])
+
+            if index_y1 == -1 or index_y2 == -1:
+                continue
+            elif (index_x1 < index_x2 and index_y1 < index_y2) or (
+                index_x1 > index_x2 and index_y1 > index_y2
+            ):
+                count_concordant += 1
+            else:
+                count_discordant += 1
+
+        if count_concordant + count_discordant == 0:
+            return 0.0
+
+        correctness = (count_concordant - count_discordant) / (
+            count_concordant + count_discordant
+        )
+
+        if correctness >= 0:
+            return correctness
+        else:
+            return abs(correctness) * worst_case_sim
 
     return wrapped_func
