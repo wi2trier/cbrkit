@@ -319,7 +319,7 @@ def sequence_mapping(
     return wrapped_func
 
 
-def list_correctness(
+def sequence_correctness(
     worst_case_sim: float = 0.0,
 ) -> SimPairFunc[Sequence[Any], float]:
     """List Correctness similarity function.
@@ -328,7 +328,7 @@ def list_correctness(
     worst_case_sim (float): The similarity value to use when all pairs are discordant. Default is 0.0.
 
     Examples:
-        >>> sim = list_correctness(0.5)
+        >>> sim = sequence_correctness(0.5)
         >>> sim(["Monday", "Tuesday", "Wednesday"], ["Monday", "Wednesday", "Tuesday"])
         0.3333333333333333
     """
