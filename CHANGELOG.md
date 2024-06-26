@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/wi2trier/cbrkit/compare/v0.11.0...v0.11.1) (2024-06-26)
+
+
+### Bug Fixes
+
+* **deps:** bump pdoc due to security issue ([219e7dd](https://github.com/wi2trier/cbrkit/commit/219e7dd4a162b1006ba389195431bf549b6dfa49))
+
 ## [0.11.0](https://github.com/wi2trier/cbrkit/compare/v0.10.1...v0.11.0) (2024-06-17)
 
 
