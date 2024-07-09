@@ -11,6 +11,16 @@
 <p align="center">
   Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.
 </p>
+<!-- <p align="center">
+  <a href="https://youtu.be/27dG4MagDhE">
+    <img width="256px" alt="cbrkit presentation" src="https://img.youtube.com/vi/27dG4MagDhE/0.jpg" />
+  </a>
+</p> -->
+<p align="center">
+  <a href="https://youtu.be/27dG4MagDhE">CBRkit Presentation</a>
+  <br/>
+  <i>ICCBR 2024 Best Student Paper</i>
+</p>
 
 ---
 
