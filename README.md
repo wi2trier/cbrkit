@@ -280,7 +280,7 @@ It will then print the retrieval results to the console, so you could pipe the o
 When installing with the `api` extra, CBRkit provides a REST API server that can be started with the following command:
 
 ```shell
-CBRKIT_RETRIEVER=retriever_module.module:name uvicorn cbrkit.api:app --reload
+cbrkit serve retriever_module:custom_retriever
 ```
 
 It offers a single endpoint `/retrieve` that accepts POST requests with a JSON body with the following structure:

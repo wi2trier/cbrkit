@@ -93,7 +93,7 @@ all = [
     "uvicorn",
 ]
 cli = ["rich", "typer"]
-api = ["fastapi", "uvicorn"]
+api = ["rich", "typer", "fastapi", "uvicorn"]
 nlp = ["levenshtein", "nltk", "openai", "spacy"]
 transformers = ["sentence-transformers", "torch", "transformers"]
 timeseries = ["minineedle", "dtaidistance"]

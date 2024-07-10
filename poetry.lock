@@ -3735,7 +3735,7 @@ files = [
 
 [extras]
 all = ["dtaidistance", "fastapi", "levenshtein", "minineedle", "nltk", "openai", "rich", "sentence-transformers", "spacy", "torch", "transformers", "typer", "uvicorn"]
-api = ["fastapi", "uvicorn"]
+api = ["fastapi", "rich", "typer", "uvicorn"]
 cli = ["rich", "typer"]
 nlp = ["levenshtein", "nltk", "openai", "spacy"]
 timeseries = ["dtaidistance", "minineedle"]
@@ -3744,4 +3744,4 @@ transformers = ["sentence-transformers", "torch", "transformers"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.13"
-content-hash = "e79957d5b00c29344548d747d2aaea2da8ac9d4d631710b1360512ec3743901a"
+content-hash = "971e78184d9b559fd7414aaa1579bb980ac2b84cd300054a4286322a4fbf6877"

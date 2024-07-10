@@ -2,6 +2,7 @@
 .. include:: ../cli.md
 """
 
+import os
 from pathlib import Path
 
 try:
@@ -34,6 +35,18 @@ def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
         print(f"Query: {query_name}")
         print(result.ranking)
         print()
+
+
+@app.command()
+def serve(retriever: str, reload: bool = False) -> None:
+    import uvicorn
+
+    os.environ["CBRKIT_RETRIEVER"] = retriever
+
+    uvicorn.run(
+        "cbrkit.api:app",
+        reload=reload,
+    )
 
 
 if __name__ == "__main__":
