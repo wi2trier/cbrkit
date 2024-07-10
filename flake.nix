@@ -43,11 +43,6 @@
                 projectDir = ./.;
                 preferWheels = true;
                 checkPhase = "pytest";
-                extras = [
-                  "cli"
-                  "nlp"
-                  "timeseries"
-                ];
               }
               // args
             );
