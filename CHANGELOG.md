@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.0](https://github.com/wi2trier/cbrkit/compare/v0.11.1...v0.12.0) (2024-07-12)
+
+
+### Features
+
+* **cli:** add serve command ([e397c2a](https://github.com/wi2trier/cbrkit/commit/e397c2a4d8248b9227ca9772e2effad1566518be))
+
+
+### Bug Fixes
+
+* **api:** remove invalid response model ([159772d](https://github.com/wi2trier/cbrkit/commit/159772d1d045561b53cb9a58d7996e60bc8bf89e))
+* **deps:** pin torch to v2.2 to prevent issues on macos ([855ef87](https://github.com/wi2trier/cbrkit/commit/855ef87fd57e68ed442a395e1594090fcf14dcda))
+* **nix:** install all extras ([ea54034](https://github.com/wi2trier/cbrkit/commit/ea5403431f70a9b1d52f0e548652fc192fc24b03))
+
 ## [0.11.1](https://github.com/wi2trier/cbrkit/compare/v0.11.0...v0.11.1) (2024-06-26)
 
 
