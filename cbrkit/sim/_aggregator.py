@@ -68,7 +68,7 @@ def aggregator(
     pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
 
     def wrapped_func(similarities: SimSeqOrMap[KeyType, AnyFloat]) -> float:
-        assert pooling_weights is None or type(similarities) == type(pooling_weights)
+        assert pooling_weights is None or type(similarities) is type(pooling_weights)
 
         sims: Sequence[float]  # noqa: F821
 

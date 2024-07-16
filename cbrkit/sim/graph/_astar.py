@@ -72,7 +72,7 @@ class GraphMapping(Generic[GraphData, NodeKey, NodeData, EdgeKey, EdgeData]):
     def is_legal_node_mapping(self, x: NodeKey, y: NodeKey) -> bool:
         """Check if mapping is legal"""
 
-        return not (self._is_node_mapped(x) or type(x) != type(y))
+        return not (self._is_node_mapped(x) or type(x) is not type(y))
 
     def is_legal_edge_mapping(self, x: EdgeKey, y: EdgeKey) -> bool:
         """Check if mapping is legal"""
