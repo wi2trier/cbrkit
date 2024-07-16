@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.1](https://github.com/wi2trier/cbrkit/compare/v0.12.0...v0.12.1) (2024-07-16)
+
+
+### Bug Fixes
+
+* use "is" for type comparisons ([2a9580a](https://github.com/wi2trier/cbrkit/commit/2a9580a1aa55f1c05ca60b9afdff2618f36fc890))
+* use casting for certain argument types ([5b3ebf3](https://github.com/wi2trier/cbrkit/commit/5b3ebf378a536c769b91ae5b1294ae47db06f63d))
+
 ## [0.12.0](https://github.com/wi2trier/cbrkit/compare/v0.11.1...v0.12.0) (2024-07-12)
 
 
