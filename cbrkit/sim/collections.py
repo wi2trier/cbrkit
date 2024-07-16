@@ -1,7 +1,7 @@
 from collections.abc import Callable, Collection, Sequence, Set
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Any, Generic
+from typing import Any, Generic, cast
 
 from cbrkit.helpers import dist2sim, unpack_sim
 from cbrkit.typing import FloatProtocol, SimPairFunc, SimType, ValueType
@@ -52,7 +52,7 @@ def smith_waterman(
 
     def wrapped_func(x: Sequence[ValueType], y: Sequence[ValueType]) -> float:
         try:
-            alignment = smith.SmithWaterman(x, y)
+            alignment = smith.SmithWaterman(cast(Sequence, x), cast(Sequence, y))
             alignment.change_matrix(
                 core.ScoreMatrix(
                     match=match_score, miss=mismatch_penalty, gap=gap_penalty

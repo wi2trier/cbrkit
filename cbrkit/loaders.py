@@ -70,7 +70,7 @@ class DataFrameCasebase(abc.Mapping):
         if isinstance(key, int):
             return self.df.iloc[key]
         elif isinstance(key, str):
-            return self.df.loc[key]
+            return cast(Series, self.df.loc[key])
 
         raise TypeError(f"Invalid key type: {type(key)}")
 
