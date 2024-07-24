@@ -23,13 +23,13 @@ retriever = []
 retriever_map = {}
 
 if settings.retriever is not None and settings.retriever_map is not None:
-    retriever = cbrkit.retrieval.load(settings.retriever)
-    retriever_map = cbrkit.retrieval.load_map(settings.retriever_map)
+    retriever = cbrkit.retrieval.load(settings.retriever.split(","))
+    retriever_map = cbrkit.retrieval.load_map(settings.retriever_map.split(","))
 elif settings.retriever is not None:
-    retriever = cbrkit.retrieval.load(settings.retriever)
+    retriever = cbrkit.retrieval.load(settings.retriever.split(","))
     retriever_map = {str(idx): retriever for idx, retriever in enumerate(retriever)}
 elif settings.retriever_map is not None:
-    retriever_map = cbrkit.retrieval.load_map(settings.retriever_map)
+    retriever_map = cbrkit.retrieval.load_map(settings.retriever_map.split(","))
     retriever = list(retriever_map.values())
 
 

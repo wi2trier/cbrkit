@@ -38,10 +38,13 @@ def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
 
 
 @app.command()
-def serve(retriever: str, reload: bool = False) -> None:
+def serve(
+    retriever: list[str],
+    reload: bool = False,
+) -> None:
     import uvicorn
 
-    os.environ["CBRKIT_RETRIEVER"] = retriever
+    os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
 
     uvicorn.run(
         "cbrkit.api:app",
