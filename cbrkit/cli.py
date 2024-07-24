@@ -27,16 +27,23 @@ def app_callback():
 
 
 @app.command()
-def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
+def retrieve(
+    casebase_path: Path,
+    queries_path: Path,
+    retriever: str,
+    print_ranking: bool = True,
+) -> None:
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
     retrievers = cbrkit.retrieval.load(retriever)
 
     for query_name, query in queries.items():
         result = cbrkit.retrieval.apply(casebase, query, retrievers)
-        print(f"Query: {query_name}")
-        print(result.ranking)
-        print()
+
+        if print_ranking:
+            print(f"Query: {query_name}")
+            print(result.ranking)
+            print()
 
 
 @app.command()
