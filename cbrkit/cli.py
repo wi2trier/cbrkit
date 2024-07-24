@@ -43,7 +43,10 @@ def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
 def serve(
     retriever: list[str],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    host: str = "0.0.0.0",
+    port: int = 8080,
     reload: bool = False,
+    root_path: str = "",
 ) -> None:
     import uvicorn
 
@@ -52,7 +55,10 @@ def serve(
 
     uvicorn.run(
         "cbrkit.api:app",
+        host=host,
+        port=port,
         reload=reload,
+        root_path=root_path,
     )
 
 
