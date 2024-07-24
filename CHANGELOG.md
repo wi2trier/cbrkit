@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.2](https://github.com/wi2trier/cbrkit/compare/v0.12.1...v0.12.2) (2024-07-24)
+
+
+### Bug Fixes
+
+* **api:** allow overriding more params ([443afab](https://github.com/wi2trier/cbrkit/commit/443afabaef54ddf809a6d27527238ca044bd422c))
+* **api:** allow passing multiple retrievers ([2328763](https://github.com/wi2trier/cbrkit/commit/2328763002f2beaace616c9e75c9ffb6e0c1b78a))
+* **api:** allow specifying the search path ([ab0802e](https://github.com/wi2trier/cbrkit/commit/ab0802e337f18bcda6d2a277ff8b66dc33fe7d17))
+* **cli:** allow silent retrieval ([02d0b3a](https://github.com/wi2trier/cbrkit/commit/02d0b3a57490b43898957668580bb606828ddb38))
+
 ## [0.12.1](https://github.com/wi2trier/cbrkit/compare/v0.12.0...v0.12.1) (2024-07-16)
 
 
