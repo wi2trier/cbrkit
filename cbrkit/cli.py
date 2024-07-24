@@ -3,7 +3,9 @@
 """
 
 import os
+import sys
 from pathlib import Path
+from typing import Annotated
 
 try:
     import typer
@@ -40,10 +42,12 @@ def retrieve(casebase_path: Path, queries_path: Path, retriever: str):
 @app.command()
 def serve(
     retriever: list[str],
+    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     reload: bool = False,
 ) -> None:
     import uvicorn
 
+    sys.path.extend(str(x) for x in search_path)
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
 
     uvicorn.run(
