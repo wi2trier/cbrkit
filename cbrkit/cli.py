@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 
 try:
+    import typer
     from rich import print
-    from typer import Typer
 except ModuleNotFoundError:
     print(
         "Please install cbrkit with the [cli] extra to use the command line interface."
@@ -16,7 +16,7 @@ except ModuleNotFoundError:
 
 import cbrkit
 
-app = Typer()
+app = typer.Typer()
 
 
 @app.callback()
