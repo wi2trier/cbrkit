@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3](https://github.com/wi2trier/cbrkit/compare/v0.12.2...v0.12.3) (2024-08-09)
+
+
+### Bug Fixes
+
+* **api:** add support for response models ([6377c48](https://github.com/wi2trier/cbrkit/commit/6377c481b587200ae7b539af40bf0877eb85e474))
+
 ## [0.12.2](https://github.com/wi2trier/cbrkit/compare/v0.12.1...v0.12.2) (2024-07-24)
 
 
