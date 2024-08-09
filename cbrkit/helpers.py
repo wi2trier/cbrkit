@@ -1,4 +1,3 @@
-from abc import ABC
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from inspect import signature as inspect_signature
 from typing import Any, cast
@@ -21,7 +20,6 @@ __all__ = [
     "sim2map",
     "unpack_sim",
     "unpack_sims",
-    "AbstractFloat",
     "singleton",
 ]
 
@@ -156,8 +154,3 @@ def unpack_sim(sim: AnyFloat) -> float:
 
 def unpack_sims(sims: Iterable[AnyFloat]) -> list[float]:
     return [unpack_sim(sim) for sim in sims]
-
-
-class AbstractFloat(ABC, float):
-    def __new__(cls, *args, **kwargs):
-        return float.__new__(cls, args[0])
