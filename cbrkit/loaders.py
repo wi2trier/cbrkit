@@ -4,7 +4,6 @@ This module provides several loaders to read data from different file formats an
 
 import csv as csvlib
 import tomllib
-from collections import abc
 from collections.abc import Callable, Iterator, Mapping
 from importlib import import_module
 from pathlib import Path
@@ -58,7 +57,7 @@ def python(import_name: str) -> Any:
     return getattr(module, obj_name)
 
 
-class DataFrameCasebase(abc.Mapping):
+class DataFrameCasebase(Mapping):
     __slots__ = ("df",)
 
     df: DataFrame
