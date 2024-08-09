@@ -1,5 +1,8 @@
 from typing import Any
 
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass
+
 try:
     from fastapi import FastAPI
     from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,6 +11,10 @@ except ModuleNotFoundError:
     raise
 
 import cbrkit
+
+ApiResult = dataclass(
+    cbrkit.retrieval.Result, config=ConfigDict(arbitrary_types_allowed=True)
+)
 
 
 class Settings(BaseSettings):
@@ -33,7 +40,7 @@ elif settings.retriever_map is not None:
     retriever = list(retriever_map.values())
 
 
-@app.post("/retrieve", response_model=None)
+@app.post("/retrieve", response_model=dict[str, ApiResult])
 def all_retrievers(
     casebase: dict[str, Any], queries: dict[str, Any]
 ) -> dict[str, cbrkit.retrieval.Result]:
@@ -43,7 +50,7 @@ def all_retrievers(
     }
 
 
-@app.post("/retrieve/{retriever_name}", response_model=None)
+@app.post("/retrieve/{retriever_name}", response_model=dict[str, ApiResult])
 def named_retriever(
     retriever_name: str, casebase: dict[str, Any], queries: dict[str, Any]
 ) -> dict[str, cbrkit.retrieval.Result]:

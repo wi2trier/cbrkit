@@ -1,11 +1,9 @@
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import (
-    Protocol,
-    TypeVar,
-)
+from typing import Protocol, TypeVar, runtime_checkable
 
 
+@runtime_checkable
 class FloatProtocol(Protocol):
     value: float
 
