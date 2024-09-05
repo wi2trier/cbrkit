@@ -8,7 +8,17 @@ from cbrkit.typing import FloatProtocol, SimPairFunc, SimType, ValueType
 
 Number = float | int
 
-__all__ = ["jaccard", "smith_waterman", "dtw"]
+__all__ = [
+    "jaccard",
+    "smith_waterman",
+    "dtw",
+    "isolated_mapping",
+    "mapping",
+    "sequence_mapping",
+    "sequence_correctness",
+    "SequenceSim",
+    "Weight",
+]
 
 
 def jaccard() -> SimPairFunc[Collection[Any], float]:
