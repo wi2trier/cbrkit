@@ -1,6 +1,7 @@
+import multiprocessing as mp
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic
+from typing import Any, Generic, overload
 
 from cbrkit.helpers import sim2map, unpack_sim
 from cbrkit.loaders import python as load_python
@@ -16,6 +17,7 @@ from cbrkit.typing import (
 
 __all__ = [
     "build",
+    "mapply",
     "apply",
     "load",
     "load_map",
@@ -73,13 +75,88 @@ class Result(Generic[KeyType, ValueType, SimType]):
         return self.final.casebase
 
 
+@overload
+def mapply(
+    casebase: Casebase[KeyType, ValueType],
+    queries: Sequence[ValueType],
+    retrievers: SimMapFunc[KeyType, ValueType, SimType]
+    | Sequence[SimMapFunc[KeyType, ValueType, SimType]],
+    max_processes: int = 1,
+) -> Sequence[Result[KeyType, ValueType, SimType]]: ...
+
+
+@overload
+def mapply(
+    casebase: Casebase[KeyType, ValueType],
+    queries: Mapping[KeyType, ValueType],
+    retrievers: SimMapFunc[KeyType, ValueType, SimType]
+    | Sequence[SimMapFunc[KeyType, ValueType, SimType]],
+    max_processes: int = 1,
+) -> Mapping[KeyType, Result[KeyType, ValueType, SimType]]: ...
+
+
+def mapply(
+    casebase: Casebase[KeyType, ValueType],
+    queries: Sequence[ValueType] | Mapping[KeyType, ValueType],
+    retrievers: SimMapFunc[KeyType, ValueType, SimType]
+    | Sequence[SimMapFunc[KeyType, ValueType, SimType]],
+    max_processes: int = 1,
+) -> (
+    Sequence[Result[KeyType, ValueType, SimType]]
+    | Mapping[KeyType, Result[KeyType, ValueType, SimType]]
+):
+    """Applies multiple queries to a Casebase using retriever functions.
+
+    Args:
+        casebase: The casebase for the query.
+        queries: The queries that will be applied to the casebase
+        retrievers: Retriever functions that will retrieve similar cases (compared to the query) from the casebase
+        max_processes: Number of CPUs that will be used for multiprocessing.
+            If 1, a regular loop will be used.
+            If 0, the number of processes will be equal to the number of CPUs.
+            Negative values will be treated as 0.
+
+    Returns:
+        Returns an object of type Result.
+    """
+
+    pool_limit = None if max_processes <= 0 else max_processes
+
+    if isinstance(queries, Mapping) and max_processes != 1:
+        with mp.Pool(pool_limit) as pool:
+            return {
+                key: pool.apply(
+                    apply,
+                    args=(casebase, value, retrievers),
+                )
+                for key, value in queries.items()
+            }
+    elif isinstance(queries, Mapping):
+        return {
+            key: apply(casebase, value, retrievers) for key, value in queries.items()
+        }
+    elif isinstance(queries, Sequence) and max_processes != 1:
+        with mp.Pool(pool_limit) as pool:
+            return [
+                pool.apply(
+                    apply,
+                    args=(casebase, value, retrievers),
+                )
+                for value in queries
+            ]
+    elif isinstance(queries, Sequence):
+        return [apply(casebase, value, retrievers) for value in queries]
+
+    raise ValueError("Invalid input type")
+
+
 def apply(
     casebase: Casebase[KeyType, ValueType],
     query: ValueType,
     retrievers: SimMapFunc[KeyType, ValueType, SimType]
     | Sequence[SimMapFunc[KeyType, ValueType, SimType]],
 ) -> Result[KeyType, ValueType, SimType]:
-    """Applies a query to a Casebase using retriever functions.
+    """Applies a single query to a Casebase using retriever functions.
 
     Args:
         casebase: The casebase for the query.
