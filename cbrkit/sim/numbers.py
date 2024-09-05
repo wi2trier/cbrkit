@@ -4,15 +4,37 @@ from cbrkit.typing import SimPairFunc
 
 Number = float | int
 
-__all__ = ["linear", "threshold", "exponential", "sigmoid"]
+__all__ = ["linear_interval", "linear", "threshold", "exponential", "sigmoid"]
+
+
+def linear_interval(min: float, max: float) -> SimPairFunc[Number, float]:
+    """Linear similarity function based on the distance between two values within a range.
+
+    Args:
+        min: Lower bound of the interval. Should be the minimal value of the entire case base.
+        max: Upper bound of the interval. Should be the maximal value of the entire case base.
+
+    Examples:
+        >>> sim = linear_interval(1950, 2000)
+        >>> sim(1950, 1975)
+        0.5
+    """
+
+    def wrapped_func(x: Number, y: Number) -> float:
+        if x < min or x > max or y < min or y > max:
+            return 0.0
+
+        return 1.0 - abs(x - y) / (max - min)
+
+    return wrapped_func
 
 
 def linear(max: float, min: float = 0.0) -> SimPairFunc[Number, float]:
-    """Linear similarity function.
+    """Linear similarity function based on the distance between two values.
 
     Args:
-        max: Maximum bound of the interval
-        min: Minimum bound of the interval
+        max: Maximum bound of the distance (i.e., the point where the similarity is 0.0)
+        min: Minimum bound of the distance (i.e., the point where the similarity is 1.0)
 
     ![linear](../../assets/numeric/linear.png)
 
