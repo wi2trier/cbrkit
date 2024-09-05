@@ -244,9 +244,9 @@ result = cbrkit.retrieval.apply(casebase, query, (retriever1, retriever2))
 The result has the following two attributes:
 
 - `final`: Result of the last retriever in the list.
-- `intermediates`: A list of results for each retriever in the list.
+- `steps`: A list of results for each retriever in the list.
 
-Both `final` and each entry in `intermediates` have the same attributes as discussed previously.
+Both `final` and each entry in `steps` have the same attributes as discussed previously.
 The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
 
 ## REST API and CLI
