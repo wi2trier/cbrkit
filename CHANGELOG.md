@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0](https://github.com/wi2trier/cbrkit/compare/v0.12.3...v0.13.0) (2024-09-05)
+
+
+### Features
+
+* **cli:** add json serialization option ([4ec0446](https://github.com/wi2trier/cbrkit/commit/4ec0446d5ad27a1e8b11ccbd8f13b246f629becf))
+* introduce `mapply` to run multiple queries ([0c1b1da](https://github.com/wi2trier/cbrkit/commit/0c1b1dac23e93831125d2252a107fab6bd387eff))
+* **retrieval:** add `mapply` function for multiple queries ([1619d5c](https://github.com/wi2trier/cbrkit/commit/1619d5c1cda9b1c8bffb0843099b6c66352bde69))
+* **sim:** add linear interval function for numbers ([ef5e1fd](https://github.com/wi2trier/cbrkit/commit/ef5e1fde2b7b003a9a3ac27cafc7756ca37b6af2))
+
+
+### Bug Fixes
+
+* **aggregator:** apply pooling factor for custom weights ([aee427c](https://github.com/wi2trier/cbrkit/commit/aee427cbd32d88fcc79d414f773f3768a0355b6d))
+* rename single/intermediate results ([3796133](https://github.com/wi2trier/cbrkit/commit/37961336071eed9218045e2835667d52cef5cc07))
+* **sim:** add missing collection functions to __all__ ([a6f6ee7](https://github.com/wi2trier/cbrkit/commit/a6f6ee7fe4cc75d7e4c643ce1e0386b3899fe43a))
+
 ## [0.12.3](https://github.com/wi2trier/cbrkit/compare/v0.12.2...v0.12.3) (2024-08-09)
 
 
