@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from collections.abc import Callable, Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Generic
 
 from cbrkit.helpers import sim2map, unpack_sim
@@ -49,6 +49,12 @@ class ResultStep(Generic[KeyType, ValueType, SimType]):
 
         return cls(similarities=similarities, ranking=ranking, casebase=casebase)
 
+    def as_dict(self) -> dict[str, Any]:
+        x = asdict(self)
+        del x["casebase"]
+
+        return x
+
 
 @dataclass(slots=True)
 class Result(Generic[KeyType, ValueType, SimType]):
@@ -75,6 +81,14 @@ class Result(Generic[KeyType, ValueType, SimType]):
     @property
     def casebase(self) -> Casebase[KeyType, ValueType]:
         return self.final.casebase
+
+    def as_dict(self) -> dict[str, Any]:
+        x = asdict(self)
+
+        for entry in x["steps"]:
+            del entry["casebase"]
+
+        return x
 
 
 def mapply(
