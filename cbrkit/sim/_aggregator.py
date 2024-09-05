@@ -63,6 +63,12 @@ def aggregator(
         >>> agg = aggregator("mean")
         >>> agg([0.5, 0.75, 1.0])
         0.75
+        >>> agg = aggregator("mean", {1: 1, 2: 1, 3: 0})
+        >>> agg({1: 1, 2: 1, 3: 1})
+        1.0
+        >>> agg = aggregator("mean", {1: 1, 2: 1, 3: 2})
+        >>> agg({1: 1, 2: 1, 3: 1})
+        1.0
     """
 
     pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
@@ -70,6 +76,7 @@ def aggregator(
     def wrapped_func(similarities: SimSeqOrMap[KeyType, AnyFloat]) -> float:
         assert pooling_weights is None or type(similarities) is type(pooling_weights)
 
+        pooling_factor = 1.0
         sims: Sequence[float]  # noqa: F821
 
         if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
@@ -77,6 +84,10 @@ def aggregator(
                 unpack_sim(sim) * pooling_weights.get(key, default_pooling_weight)
                 for key, sim in similarities.items()
             ]
+            pooling_factor = len(similarities) / sum(
+                pooling_weights.get(key, default_pooling_weight)
+                for key in similarities.keys()
+            )
         elif isinstance(similarities, Sequence) and isinstance(
             pooling_weights, Sequence
         ):
@@ -84,6 +95,7 @@ def aggregator(
                 unpack_sim(s) * w
                 for s, w in zip(similarities, pooling_weights, strict=True)
             ]
+            pooling_factor = len(similarities) / sum(pooling_weights)
         elif isinstance(similarities, Sequence) and pooling_weights is None:
             sims = [unpack_sim(s) for s in similarities]
         elif isinstance(similarities, Mapping) and pooling_weights is None:
@@ -91,6 +103,6 @@ def aggregator(
         else:
             raise NotImplementedError()
 
-        return pooling_func(sims)
+        return pooling_func(sims) * pooling_factor
 
     return wrapped_func
