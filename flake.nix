@@ -139,6 +139,7 @@
             ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
             shellHook = ''
+              ${config.pre-commit.installationScript}
               ${lib.getExe poetry} env use ${lib.getExe python}
               ${lib.getExe poetry} install --all-extras --no-root --sync
             '';
