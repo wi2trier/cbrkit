@@ -3,18 +3,39 @@ on:
   push:
     branches: [main]
 jobs:
-  test:
+  format:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    outputs:
+      git-head: ${{ steps.git-push.outputs.git-head }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v14
+      - uses: DeterminateSystems/magic-nix-cache-action@v8
+      - run: nix fmt
+      - uses: cihelper/action-git-push@v1
+        id: git-push
+        with:
+          commit-message: "refactor: format code"
+  check:
+    runs-on: ubuntu-latest
+    needs: format
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.format.outputs.git-head }}
       - uses: DeterminateSystems/nix-installer-action@v14
       - uses: DeterminateSystems/magic-nix-cache-action@v8
       - run: nix flake check --show-trace
   release:
     runs-on: ubuntu-latest
-    needs: test
+    needs:
+      - check
+      - format
     if: ${{ github.repository_owner == 'wi2trier' && github.event_name == 'push' }}
     environment:
       name: release
@@ -27,6 +48,8 @@ jobs:
       git-head: ${{ steps.semanticrelease.outputs.git-head }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.format.outputs }}
       - uses: DeterminateSystems/nix-installer-action@v14
       - uses: DeterminateSystems/magic-nix-cache-action@v8
       - run: nix profile install .#releaseEnv
