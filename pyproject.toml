@@ -42,7 +42,8 @@ cbrkit = "cbrkit.cli:app"
 python = ">=3.11, <3.13"
 dtaidistance = { version = "^2.3", optional = true }
 fastapi = { version = ">=0.100, <1.0", optional = true, extras = ["all"] }
-levenshtein = { version = ">=0.23, <1.0", optional = true }
+# levenshtein >= v0.26 does not contain wheels for x86_64-darwin
+levenshtein = { version = ">=0.23, <0.26", optional = true }
 minineedle = { version = "^3.1", optional = true }
 nltk = { version = "^3.8", optional = true }
 openai = { version = "^1.5", optional = true }
