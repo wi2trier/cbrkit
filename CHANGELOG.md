@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/wi2trier/cbrkit/compare/v0.13.0...v0.13.1) (2024-10-01)
+
+
+### Reverts
+
+* replace treefmt with git-hooks ([97d6a3e](https://github.com/wi2trier/cbrkit/commit/97d6a3e8e0f86f8e47965eab9cb0c1dbbee66aba))
+
 ## [0.13.0](https://github.com/wi2trier/cbrkit/compare/v0.12.3...v0.13.0) (2024-09-05)
 
 
