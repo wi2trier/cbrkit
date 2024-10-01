@@ -11,6 +11,10 @@
       url = "github:nix-community/poetry2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   outputs =
     inputs@{
@@ -19,17 +23,19 @@
       flake-parts,
       systems,
       flocken,
-      poetry2nix,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        inputs.treefmt-nix.flakeModule
+      ];
       systems = import systems;
       perSystem =
         {
           pkgs,
           system,
           lib,
-          self',
+          config,
           ...
         }:
         let
@@ -43,6 +49,14 @@
                 projectDir = ./.;
                 preferWheels = true;
                 checkPhase = "pytest";
+                meta = {
+                  description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
+                  license = lib.licenses.mit;
+                  maintainers = with lib.maintainers; [ mirkolenz ];
+                  platforms = with lib.platforms; darwin ++ linux;
+                  homepage = "https://github.com/wi2trier/cbrkit";
+                  mainProgram = "cbrkit";
+                };
               }
               // args
             );
@@ -50,20 +64,28 @@
         {
           _module.args.pkgs = import nixpkgs {
             inherit system;
-            overlays = [ poetry2nix.overlays.default ];
+            overlays = [ inputs.poetry2nix.overlays.default ];
           };
           checks = {
-            inherit (self'.packages) cbrkit;
+            inherit (config.packages) cbrkit;
+          };
+          treefmt = {
+            projectRootFile = "flake.nix";
+            programs = {
+              ruff-check.enable = true;
+              ruff-format.enable = true;
+              nixfmt.enable = true;
+            };
           };
           packages = {
-            default = self'.packages.cbrkit;
+            default = config.packages.cbrkit;
             cbrkit = mkPoetryApp { };
             docker = pkgs.dockerTools.buildLayeredImage {
               name = "cbrkit";
               tag = "latest";
               created = "now";
               config = {
-                entrypoint = [ (lib.getExe self'.packages.default) ];
+                entrypoint = [ (lib.getExe config.packages.default) ];
                 cmd = [ ];
               };
             };
@@ -116,6 +138,7 @@
             packages = [
               python
               poetry
+              config.treefmt.build.wrapper
             ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
             shellHook = ''
