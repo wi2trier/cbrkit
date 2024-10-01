@@ -11,8 +11,8 @@
       url = "github:nix-community/poetry2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -27,7 +27,7 @@
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
-        inputs.treefmt-nix.flakeModule
+        inputs.git-hooks.flakeModule
       ];
       systems = import systems;
       perSystem =
@@ -69,13 +69,11 @@
           checks = {
             inherit (config.packages) cbrkit;
           };
-          treefmt = {
-            projectRootFile = "flake.nix";
-            programs = {
-              ruff-check.enable = true;
-              ruff-format.enable = true;
-              nixfmt.enable = true;
-            };
+          pre-commit.settings.hooks = {
+            ruff.enable = true;
+            ruff-format.enable = true;
+            nixfmt-rfc-style.enable = true;
+            poetry-check.enable = true;
           };
           packages = {
             default = config.packages.cbrkit;
@@ -138,7 +136,6 @@
             packages = [
               python
               poetry
-              config.treefmt.build.wrapper
             ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
             shellHook = ''
