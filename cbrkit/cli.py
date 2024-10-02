@@ -5,8 +5,9 @@
 import json
 import os
 import sys
+from enum import Enum
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 try:
     import typer
@@ -27,6 +28,11 @@ def app_callback():
     pass
 
 
+class ParallelStrategy(str, Enum):
+    queries = "queries"
+    casebase = "casebase"
+
+
 # py -m cbrkit retrieve data/cars-1k.csv data/cars-queries.csv examples.cars_retriever:retriever --output-path data/output.json
 @app.command()
 def retrieve(
@@ -37,7 +43,7 @@ def retrieve(
     print_ranking: bool = True,
     output_path: Path | None = None,
     processes: int = 1,
-    parallel: Literal["queries", "casebase"] = "queries",
+    parallel: ParallelStrategy = ParallelStrategy.queries,
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
@@ -45,7 +51,7 @@ def retrieve(
     retrievers = cbrkit.retrieval.load(retriever)
 
     results = cbrkit.retrieval.mapply(
-        casebase, queries, retrievers, processes, parallel
+        casebase, queries, retrievers, processes, parallel.value
     )
 
     if output_path:
