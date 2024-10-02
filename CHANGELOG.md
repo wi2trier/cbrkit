@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/wi2trier/cbrkit/compare/v0.13.1...v0.14.0) (2024-10-02)
+
+
+### Features
+
+* add parallelization to api and cli ([f46f1f4](https://github.com/wi2trier/cbrkit/commit/f46f1f46729921c0c38581d62a27ee20a46fe1a3))
+* allow multiple processes for single queries ([45acf0e](https://github.com/wi2trier/cbrkit/commit/45acf0e3bc6f333959ecd7abdad511a752b0fb6b))
+
+
+### Bug Fixes
+
+* use multiprocess from pathos for mapply ([2cf11f6](https://github.com/wi2trier/cbrkit/commit/2cf11f67acde8075bd7e39f6697917b27ed0c855))
+
 ## [0.13.1](https://github.com/wi2trier/cbrkit/compare/v0.13.0...v0.13.1) (2024-10-01)
 
 
