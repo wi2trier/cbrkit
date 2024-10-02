@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2](https://github.com/wi2trier/cbrkit/compare/v0.14.1...v0.14.2) (2024-10-02)
+
+
+### Bug Fixes
+
+* **retrieval:** use starmap for parallel execution ([257d941](https://github.com/wi2trier/cbrkit/commit/257d941b2cd071d1b6f31b94a54b1755f4e55291))
+
 ## [0.14.1](https://github.com/wi2trier/cbrkit/compare/v0.14.0...v0.14.1) (2024-10-02)
 
 
