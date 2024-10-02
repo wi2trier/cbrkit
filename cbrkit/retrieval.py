@@ -121,15 +121,15 @@ def mapply(
 
     if processes != 1 and parallel == "queries":
         pool_processes = None if processes <= 0 else processes
+        keys = list(queries.keys())
 
         with Pool(pool_processes) as pool:
-            return {
-                key: pool.apply(
-                    apply,
-                    args=(casebase, value, retrievers),
-                )
-                for key, value in queries.items()
-            }
+            results = pool.starmap(
+                apply,
+                ((casebase, queries[key], retrievers) for key in keys),
+            )
+
+        return dict(zip(keys, results, strict=True))
 
     return {
         key: apply(casebase, value, retrievers, processes)
@@ -280,12 +280,13 @@ def build(
             ]
 
             with Pool(pool_processes) as pool:
-                sim_chunks: list[SimMap[KeyType, SimType]] = [
-                    pool.apply(sim_func, args=(x_chunk, y)) for x_chunk in x_chunks
-                ]
+                sim_chunks: list[SimMap[KeyType, SimType]] = pool.starmap(
+                    sim_func,
+                    ((x_chunk, y) for x_chunk in x_chunks),
+                )
 
-                for sim_chunk in sim_chunks:
-                    similarities.update(sim_chunk)
+            for sim_chunk in sim_chunks:
+                similarities.update(sim_chunk)
         else:
             similarities = sim_func(x_map, y)
 
