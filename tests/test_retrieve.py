@@ -5,6 +5,40 @@ import pandas as pd
 import cbrkit
 
 
+def test_retrieve_multiprocessing():
+    query_name = 42
+    casebase_file = "data/cars-1k.csv"
+
+    df = pd.read_csv(casebase_file)
+    casebase = cbrkit.loaders.dataframe(df)
+    retriever = cbrkit.retrieval.build(
+        cbrkit.sim.attribute_value(
+            attributes={
+                "price": cbrkit.sim.numbers.linear(max=100000),
+                "year": cbrkit.sim.numbers.linear(max=50),
+                "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                    "./data/cars-taxonomy.yaml",
+                    measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                ),
+                "make": cbrkit.sim.strings.levenshtein(),
+                "miles": cbrkit.sim.numbers.linear(max=1000000),
+            },
+            types_fallback=cbrkit.sim.generic.equality(),
+            aggregator=cbrkit.sim.aggregator(pooling="mean"),
+        ),
+        limit=5,
+    )
+    result = cbrkit.retrieval.mapply(
+        casebase,
+        {"default": casebase[query_name]},
+        retriever,
+        processes=2,
+    )
+
+    assert len(casebase) == 999  # csv contains header
+    assert len(result) == 1
+
+
 def test_retrieve_pandas():
     query_name = 42
     casebase_file = "data/cars-1k.csv"

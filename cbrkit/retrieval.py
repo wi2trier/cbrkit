@@ -1,7 +1,8 @@
-import multiprocessing as mp
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Generic
+
+from multiprocess.pool import Pool
 
 from cbrkit.helpers import sim2map, unpack_sim
 from cbrkit.loaders import python as load_python
@@ -116,7 +117,7 @@ def mapply(
     if processes != 1:
         pool_processes = None if processes <= 0 else processes
 
-        with mp.Pool(pool_processes) as pool:
+        with Pool(pool_processes) as pool:
             return {
                 key: pool.apply(
                     apply,
