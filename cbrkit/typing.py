@@ -50,6 +50,15 @@ AnySimFunc = (
 )
 
 
+class RetrieverFunc(Protocol[KeyType, ValueType_contra, SimType_cov]):
+    def __call__(
+        self,
+        x_map: Mapping[KeyType, ValueType_contra],
+        y: ValueType_contra,
+        processes: int,
+    ) -> SimMap[KeyType, SimType_cov]: ...
+
+
 class AggregatorFunc(Protocol[KeyType, SimType_contra]):
     def __call__(
         self,

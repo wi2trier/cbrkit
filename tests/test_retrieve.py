@@ -28,15 +28,24 @@ def test_retrieve_multiprocessing():
         ),
         limit=5,
     )
-    result = cbrkit.retrieval.mapply(
+    results = cbrkit.retrieval.mapply(
         casebase,
         {"default": casebase[query_name]},
         retriever,
         processes=2,
     )
 
-    assert len(casebase) == 999  # csv contains header
-    assert len(result) == 1
+    assert len(results) == 1
+    assert len(results["default"].ranking) == 5
+
+    result = cbrkit.retrieval.apply(
+        casebase,
+        casebase[query_name],
+        retriever,
+        processes=2,
+    )
+
+    assert len(result.ranking) == 5
 
 
 def test_retrieve_pandas():
