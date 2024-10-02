@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/wi2trier/cbrkit/compare/v0.14.0...v0.14.1) (2024-10-02)
+
+
+### Bug Fixes
+
+* **cli:** add parallel strategy enum for typer ([8647097](https://github.com/wi2trier/cbrkit/commit/8647097f189714d0a7a4dbd4d7aa46d61d7b9887))
+
 ## [0.14.0](https://github.com/wi2trier/cbrkit/compare/v0.13.1...v0.14.0) (2024-10-02)
 
 
