@@ -67,7 +67,7 @@
             overlays = [ inputs.poetry2nix.overlays.default ];
           };
           checks = {
-            inherit (config.packages) cbrkit;
+            inherit (config.packages) cbrkit docs;
           };
           treefmt = {
             projectRootFile = "flake.nix";
@@ -89,7 +89,7 @@
                 cmd = [ ];
               };
             };
-            releaseEnv = pkgs.buildEnv {
+            release-env = pkgs.buildEnv {
               name = "release-env";
               paths = [
                 python
@@ -126,7 +126,7 @@
                 dontInstall = true;
               };
           };
-          legacyPackages.dockerManifest = flocken.legacyPackages.${system}.mkDockerManifest {
+          apps.docker-manifest.program = flocken.legacyPackages.${system}.mkDockerManifest {
             github = {
               enable = true;
               token = "$GH_TOKEN";

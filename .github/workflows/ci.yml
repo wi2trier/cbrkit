@@ -53,7 +53,7 @@ jobs:
           ref: ${{ needs.format.outputs.git-head }}
       - uses: DeterminateSystems/nix-installer-action@v14
       - uses: DeterminateSystems/magic-nix-cache-action@v8
-      - run: nix profile install .#releaseEnv
+      - run: nix profile install .#release-env
       - uses: cihelper/action-semanticrelease-poetry@v1
         id: semanticrelease
       - uses: actions/upload-artifact@v4
@@ -83,7 +83,7 @@ jobs:
           extra-conf: |
             extra-platforms = aarch64-linux
       - uses: DeterminateSystems/magic-nix-cache-action@v8
-      - run: nix run .#dockerManifest --impure
+      - run: nix run .#docker-manifest --impure
         env:
           VERSION: ${{ needs.release.outputs.version }}
           GH_TOKEN: ${{ github.token }}
