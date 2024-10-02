@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 try:
     import typer
@@ -37,13 +37,16 @@ def retrieve(
     print_ranking: bool = True,
     output_path: Path | None = None,
     processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
     retrievers = cbrkit.retrieval.load(retriever)
 
-    results = cbrkit.retrieval.mapply(casebase, queries, retrievers, processes)
+    results = cbrkit.retrieval.mapply(
+        casebase, queries, retrievers, processes, parallel
+    )
 
     if output_path:
         results_dict = {

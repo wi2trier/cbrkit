@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
@@ -40,23 +41,34 @@ elif settings.retriever_map is not None:
     retriever = list(retriever_map.values())
 
 
-@app.post("/retrieve", response_model=dict[str, ApiResult])
+@app.post("/retrieve", response_model=Mapping[str, ApiResult])
 def all_retrievers(
-    casebase: dict[str, Any], queries: dict[str, Any]
-) -> dict[str, cbrkit.retrieval.Result]:
-    return {
-        query_name: cbrkit.retrieval.apply(casebase, query, retriever)
-        for query_name, query in queries.items()
-    }
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+    processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
+) -> Mapping[str, cbrkit.retrieval.Result]:
+    return cbrkit.retrieval.mapply(
+        casebase,
+        queries,
+        retriever,
+        processes,
+        parallel,
+    )
 
 
-@app.post("/retrieve/{retriever_name}", response_model=dict[str, ApiResult])
+@app.post("/retrieve/{retriever_name}", response_model=Mapping[str, ApiResult])
 def named_retriever(
-    retriever_name: str, casebase: dict[str, Any], queries: dict[str, Any]
-) -> dict[str, cbrkit.retrieval.Result]:
-    return {
-        query_name: cbrkit.retrieval.apply(
-            casebase, query, retriever_map[retriever_name]
-        )
-        for query_name, query in queries.items()
-    }
+    retriever_name: str,
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+    processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
+) -> Mapping[str, cbrkit.retrieval.Result]:
+    return cbrkit.retrieval.mapply(
+        casebase,
+        queries,
+        retriever_map[retriever_name],
+        processes,
+        parallel,
+    )
