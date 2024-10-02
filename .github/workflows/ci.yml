@@ -6,10 +6,9 @@ jobs:
   format:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
       contents: write
     outputs:
-      git-head: ${{ steps.git-push.outputs.git-head }}
+      git-head: ${{ steps.git-push.outputs.head-sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,7 +19,7 @@ jobs:
       - uses: cihelper/action-git-push@v1
         id: git-push
         with:
-          commit-message: "refactor: format code"
+          commit-message: "chore: reformat code"
   check:
     runs-on: ubuntu-latest
     needs: format
