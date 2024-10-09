@@ -1,21 +1,14 @@
+name: release
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [main, beta]
 jobs:
   check:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v14
-      - uses: DeterminateSystems/magic-nix-cache-action@v8
-      - run: nix flake check --show-trace
+    uses: ./.github/workflows/check.yml
   release:
+    if: ${{ github.repository_owner == 'wi2trier' }}
     runs-on: ubuntu-latest
     needs: check
-    if: ${{ github.repository_owner == 'wi2trier' && github.event_name == 'push' }}
     environment:
       name: release
       url: https://github.com/wi2trier/cbrkit/releases/tag/${{ steps.semanticrelease.outputs.git-tag }}
