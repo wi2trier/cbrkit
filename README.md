@@ -144,7 +144,7 @@ They are provided through **generator functions** that allow you to customize th
 For example, an spacy-based embedding similarity measure can be obtained as follows:
 
 ```python
-semantic_similarity = cbrkit.sim.strings.spacy(model_name="en_core_web_lg")
+semantic_similarity = cbrkit.sim.strings.spacy(model="en_core_web_lg")
 ```
 
 **Please note:** Calling the function `cbrkit.sim.strings.spacy` returns a similarity function itself that has the same signature as the `color_similarity` function defined above.
@@ -188,7 +188,7 @@ cbrkit.sim.attribute_value(
     attributes={
         "manufacturer": cbrkit.sim.attribute_value(
             attributes={
-                "name": cbrkit.sim.strings.spacy(model_name="en_core_web_lg"),
+                "name": cbrkit.sim.strings.spacy(model="en_core_web_lg"),
                 "country": cbrkit.sim.strings.levenshtein(),
             },
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
