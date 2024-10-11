@@ -39,7 +39,7 @@
           ...
         }:
         let
-          python = pkgs.python311;
+          python = pkgs.python312;
           poetry = pkgs.poetry;
           mkPoetryApp =
             args:

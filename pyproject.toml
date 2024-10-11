@@ -38,16 +38,23 @@ classifiers = [
 [tool.poetry.scripts]
 cbrkit = "cbrkit.cli:app"
 
+# torch>=2.3, levenshtein>=0.26 do not contain wheels for x86_64-darwin
+# alternative definition to support different versions per platform
+# torch = [
+#     { markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'", version = "~2.2", optional = true },
+#     { markers = "sys_platform == 'darwin' and platform_machine == 'arm64'", version = "^2.2", optional = true },
+#     { markers = "sys_platform == 'linux'", version = "^2.2", optional = true },
+# ]
 [tool.poetry.dependencies]
-python = ">=3.11, <3.13"
+python = "^3.11"
 dtaidistance = { version = "^2.3", optional = true }
 fastapi = { version = ">=0.100, <1.0", optional = true, extras = ["all"] }
-# levenshtein >= v0.26 does not contain wheels for x86_64-darwin
+immutables = ">=0.21, <1.0"
 levenshtein = { version = ">=0.23, <0.26", optional = true }
 minineedle = { version = "^3.1", optional = true }
 multiprocess = ">=0.70, <1.0"
 nltk = { version = "^3.8", optional = true }
-openai = { version = "^1.5", optional = true }
+openai = { version = "^1.50", optional = true }
 orjson = "^3.9"
 pandas = "^2.1"
 pyarrow = ">=13.0"
@@ -62,13 +69,6 @@ transformers = { version = "^4.35", optional = true }
 typer = { version = ">=0.9, <1.0", optional = true }
 uvicorn = { version = ">=0.24, <1.0", optional = true, extras = ["standard"] }
 xmltodict = ">=0.13, <1.0"
-# torch >= v2.3 does not contain wheels for x86_64-darwin
-# alternative definition to support different versions per platform
-# torch = [
-#     { markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'", version = "~2.2", optional = true },
-#     { markers = "sys_platform == 'darwin' and platform_machine == 'arm64'", version = "^2.2", optional = true },
-#     { markers = "sys_platform == 'linux'", version = "^2.2", optional = true },
-# ]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
