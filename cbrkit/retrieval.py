@@ -34,7 +34,7 @@ def _similarities2ranking(
     return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class ResultStep(Generic[KeyType, ValueType, SimType]):
     similarities: SimMap[KeyType, SimType]
     ranking: list[KeyType]
@@ -58,15 +58,9 @@ class ResultStep(Generic[KeyType, ValueType, SimType]):
         return x
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Result(Generic[KeyType, ValueType, SimType]):
     steps: list[ResultStep[KeyType, ValueType, SimType]]
-
-    def __init__(
-        self,
-        steps: list[ResultStep[KeyType, ValueType, SimType]],
-    ) -> None:
-        self.steps = steps
 
     @property
     def final(self) -> ResultStep[KeyType, ValueType, SimType]:
