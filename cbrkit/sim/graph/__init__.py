@@ -1,25 +1,30 @@
-from ._astar import GraphMapping, GraphSim, astar
+from ._astar import GraphMapping, GraphSim, astar, g, h1, h2
 from ._model import (
+    Edge,
     EdgeData,
-    EdgeKey,
-    EdgeProtocol,
     Graph,
     GraphData,
+    Node,
     NodeData,
-    NodeKey,
-    NodeProtocol,
+    SerializedEdge,
+    SerializedGraph,
+    SerializedNode,
 )
 
 __all__ = [
-    "NodeKey",
+    "Node",
+    "Edge",
+    "Graph",
     "NodeData",
-    "EdgeKey",
     "EdgeData",
     "GraphData",
-    "EdgeProtocol",
-    "NodeProtocol",
-    "Graph",
+    "SerializedNode",
+    "SerializedEdge",
+    "SerializedGraph",
     "GraphMapping",
     "GraphSim",
     "astar",
+    "g",
+    "h1",
+    "h2",
 ]
