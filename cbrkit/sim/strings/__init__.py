@@ -36,6 +36,9 @@ __all__ = [
     "jaro_winkler",
     "table",
     "taxonomy",
+    "ngram",
+    "regex",
+    "glob",
 ]
 
 
