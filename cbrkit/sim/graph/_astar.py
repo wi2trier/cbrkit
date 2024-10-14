@@ -3,11 +3,11 @@ from __future__ import annotations
 import bisect
 import itertools
 import random
-from collections.abc import Callable, Iterable
-from dataclasses import InitVar, dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, override
 
-from cbrkit.helpers import get_metadata, get_name, unpack_sims
+from cbrkit.helpers import get_metadata, unpack_sim, unpack_sims
 from cbrkit.sim.graph._model import (
     Edge,
     Graph,
@@ -23,11 +23,28 @@ from cbrkit.typing import (
     SupportsMetadata,
 )
 
+type ElementKind = Literal["node", "edge"]
+
 
 @dataclass(slots=True, frozen=True)
 class GraphSim[K, N, E, G](AnnotatedFloat):
     value: float
     mapping: GraphMapping[K, N, E, G]
+
+
+@dataclass(slots=True, frozen=True)
+class SelectionResult[K]:
+    query_element: K
+    case_candidates: Iterable[K]
+    kind: ElementKind
+
+
+class SelectionFunc[K, N, E, G](Protocol):
+    def __call__(
+        self,
+        s: SearchNode[K, N, E, G],
+        /,
+    ) -> SelectionResult[K]: ...
 
 
 class HeuristicFunc[K, N, E, G](Protocol):
@@ -75,12 +92,12 @@ class GraphMapping[K, N, E, G]:
 
         return x in self.node_mappings and self.node_mappings[x] == y
 
-    def is_legal_mapping(self, x: K, y: K) -> bool:
+    def is_legal_mapping(self, x: K, y: K, kind: ElementKind) -> bool:
         """Check if mapping is legal"""
 
-        if (y in self.y.nodes) and (x in self.x.nodes):
+        if kind == "node":
             return self.is_legal_node_mapping(x, y)
-        elif (y in self.y.edges) and (x in self.x.edges):
+        elif kind == "edge":
             return self.is_legal_edge_mapping(x, y)
 
         return False
@@ -103,13 +120,13 @@ class GraphMapping[K, N, E, G]:
             )
         )
 
-    def map(self, x: K, y: K) -> None:
+    def map(self, x: K, y: K, kind: ElementKind) -> None:
         """Create a new mapping"""
 
-        if (y in self.y.nodes) and (x in self.x.nodes):
+        if kind == "node":
             self.map_nodes(x, y)
 
-        elif (y in self.y.edges) and (x in self.x.edges):
+        elif kind == "edge":
             self.map_edges(x, y)
 
     def map_nodes(self, x: K, y: K) -> None:
@@ -145,21 +162,17 @@ class SearchNode[K, N, E, G]:
     def y(self) -> Graph[K, N, E, G]:
         return self.mapping.y
 
-    def remove_unmapped_element(self, q: K) -> None:
-        if q in self.unmapped_nodes:
+    def remove_unmapped_element(self, q: K, kind: ElementKind) -> None:
+        if kind == "node":
             self.unmapped_nodes.remove(q)
 
-        elif q in self.unmapped_edges:
+        elif kind == "edge":
             self.unmapped_edges.remove(q)
 
 
 @dataclass(slots=True)
-class astar[K, N, E, G, S: Float](
-    SimMapFunc[
-        Any,
-        Graph[K, N, E, G],
-        GraphSim[K, N, E, G],
-    ],
+class astar[K, N, E, G](
+    SimMapFunc[Any, Graph[K, N, E, G], GraphSim[K, N, E, G]],
     SupportsMetadata,
 ):
     """
@@ -173,27 +186,41 @@ class astar[K, N, E, G, S: Float](
 
     """
 
-    node_sim_func: SimPairFunc[Node[K, N], S]
-    edge_sim_func: SimPairFunc[Edge[K, N, E], S]
-    queue_limit: int = 10000
-    future_cost_func_name: InitVar[Literal["h1", "h2"]] = "h2"
-    past_cost_func_name: InitVar[Literal["g1"]] = "g1"
-    select_func_name: InitVar[Literal["select1"]] = "select1"
-    future_cost_func: HeuristicFunc[K, N, E, G] = field(init=False)
-    past_cost_func: HeuristicFunc[K, N, E, G] = field(init=False)
-    select_func: Callable[[SearchNode[K, N, E, G]], None | tuple[K, Iterable[K]]] = (
-        field(init=False)
-    )
+    node_sim_func: SimPairFunc[Node[K, N], Float]
+    edge_sim_func: SimPairFunc[Edge[K, N, E], Float]
+    queue_limit: int
+    future_cost_func: HeuristicFunc[K, N, E, G]
+    past_cost_func: HeuristicFunc[K, N, E, G]
+    select_func: SelectionFunc[K, N, E, G]
 
-    def __post_init__(
+    def __init__(
         self,
-        future_cost_func_name: str,
-        past_cost_func_name: str,
-        select_func_name: str,
+        node_sim_func: SimPairFunc[Node[K, N], Float],
+        edge_sim_func: SimPairFunc[Edge[K, N, E], Float]
+        | Literal["default"] = "default",
+        queue_limit: int = 10000,
+        future_cost_func: HeuristicFunc[K, N, E, G] | Literal["h1", "h2"] = "h2",
+        past_cost_func: HeuristicFunc[K, N, E, G] | Literal["g1"] = "g1",
+        select_func: SelectionFunc[K, N, E, G] | Literal["select1"] = "select1",
     ) -> None:
-        self.future_cost_func = getattr(self, future_cost_func_name)
-        self.past_cost_func = getattr(self, past_cost_func_name)
-        self.select_func = getattr(self, select_func_name)
+        self.node_sim_func = node_sim_func
+        self.edge_sim_func = (
+            self.default_edge_sim if edge_sim_func == "default" else edge_sim_func
+        )
+        self.queue_limit = queue_limit
+        self.future_cost_func = (
+            getattr(self, future_cost_func)
+            if isinstance(future_cost_func, str)
+            else future_cost_func
+        )
+        self.past_cost_func = (
+            getattr(self, past_cost_func)
+            if isinstance(past_cost_func, str)
+            else past_cost_func
+        )
+        self.select_func = (
+            getattr(self, select_func) if isinstance(select_func, str) else select_func
+        )
 
     @property
     @override
@@ -202,32 +229,33 @@ class astar[K, N, E, G, S: Float](
             "node_sim_func": get_metadata(self.node_sim_func),
             "edge_sim_func": get_metadata(self.edge_sim_func),
             "queue_limit": self.queue_limit,
-            "future_cost_func": get_name(self.future_cost_func),
-            "past_cost_func": get_name(self.past_cost_func),
-            "select_func": get_name(self.select_func),
+            "future_cost_func": get_metadata(self.future_cost_func),
+            "past_cost_func": get_metadata(self.past_cost_func),
+            "select_func": get_metadata(self.select_func),
         }
+
+    def default_edge_sim(self, x: Edge[K, N, E], y: Edge[K, N, E]) -> float:
+        return 0.5 * (
+            unpack_sim(self.node_sim_func(x.source, y.source))
+            + unpack_sim(self.node_sim_func(x.target, y.target))
+        )
 
     def select1(
         self,
         s: SearchNode[K, N, E, G],
-    ) -> (
-        None
-        | tuple[
-            K,
-            Iterable[K],
-        ]
-    ):
-        query_obj = None
-        candidates = None
-
+    ) -> None | SelectionResult[K]:
         if s.unmapped_nodes:
-            query_obj = random.choice(tuple(s.unmapped_nodes))
-            candidates = s.x.nodes.keys()
+            return SelectionResult(
+                query_element=random.choice(tuple(s.unmapped_nodes)),
+                case_candidates=s.x.nodes.keys(),
+                kind="node",
+            )
         elif s.unmapped_edges:
-            query_obj = random.choice(tuple(s.unmapped_edges))
-            candidates = s.x.edges.keys()
-
-        return (query_obj, candidates) if query_obj and candidates else None
+            return SelectionResult(
+                query_element=random.choice(tuple(s.unmapped_edges)),
+                case_candidates=s.x.edges.keys(),
+                kind="edge",
+            )
 
     def h1(
         self,
@@ -297,18 +325,20 @@ class astar[K, N, E, G, S: Float](
 
         s = q[-1]
         mapped = False
-        selected_objs = self.select_func(s)
+        selection = self.select_func(s)
 
-        if selected_objs:
-            query_obj, case_objs = selected_objs
-
-            for case_obj in case_objs:
-                if s.mapping.is_legal_mapping(query_obj, case_obj):
-                    s_new = SearchNode(
-                        s.mapping,
+        if selection:
+            for case_element in selection.case_candidates:
+                if s.mapping.is_legal_mapping(
+                    selection.query_element, case_element, selection.kind
+                ):
+                    s_new = SearchNode(s.mapping)
+                    s_new.mapping.map(
+                        selection.query_element, case_element, selection.kind
                     )
-                    s_new.mapping.map(query_obj, case_obj)
-                    s_new.remove_unmapped_element(query_obj)
+                    s_new.remove_unmapped_element(
+                        selection.query_element, selection.kind
+                    )
                     s_new.f = self.past_cost_func(s_new) + self.future_cost_func(s_new)
                     bisect.insort(q, s_new, key=lambda x: x.f)
                     mapped = True
@@ -316,7 +346,7 @@ class astar[K, N, E, G, S: Float](
             if mapped:
                 q.remove(s)
             else:
-                s.remove_unmapped_element(query_obj)
+                s.remove_unmapped_element(selection.query_element, selection.kind)
 
         return q[len(q) - self.queue_limit :] if self.queue_limit > 0 else q
 
