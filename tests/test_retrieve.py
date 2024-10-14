@@ -5,6 +5,10 @@ import pandas as pd
 import cbrkit
 
 
+def _custom_numeric_sim(x: float, y: float) -> float:
+    return 1 - abs(x - y) / 100000
+
+
 def test_retrieve_multiprocessing():
     query_name = 42
     casebase_file = "data/cars-1k.csv"
@@ -21,7 +25,7 @@ def test_retrieve_multiprocessing():
                     measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
                 ),
                 "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=1000000),
+                "miles": _custom_numeric_sim,
             },
             types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
@@ -102,7 +106,7 @@ def test_retrieve_pandas_custom_query():
                     measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
                 ),
                 "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=1000000),
+                "miles": _custom_numeric_sim,
             },
             types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
