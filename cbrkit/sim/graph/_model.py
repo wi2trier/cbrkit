@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import immutables
 
@@ -83,13 +83,63 @@ class Graph[K, N, E, G]:
     @classmethod
     def from_dict(
         cls,
-        data: SerializedGraph[K, N, E, G],
+        g: SerializedGraph[K, N, E, G],
     ) -> "Graph[K, N, E, G]":
         nodes = immutables.Map(
-            (key, Node.from_dict(key, value)) for key, value in data["nodes"].items()
+            (key, Node.from_dict(key, value)) for key, value in g["nodes"].items()
         )
         edges = immutables.Map(
             (key, Edge.from_dict(key, value, nodes))
-            for key, value in data["edges"].items()
+            for key, value in g["edges"].items()
         )
-        return cls(nodes, edges, data["data"])
+        return cls(nodes, edges, g["data"])
+
+
+def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> SerializedGraph[K, N, E, G]:
+    return g.to_dict()
+
+
+def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
+    return Graph.from_dict(g)
+
+
+try:
+    import rustworkx
+
+    def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> rustworkx.PyDiGraph[N, E]:
+        ng = rustworkx.PyDiGraph(attrs=g.data)
+        new_ids = ng.add_nodes_from(list(g.nodes.values()))
+        id_map = {
+            old_id: new_id
+            for old_id, new_id in zip(g.nodes.keys(), new_ids, strict=True)
+        }
+        ng.add_edges_from(
+            [
+                (
+                    id_map[edge.source.key],
+                    id_map[edge.target.key],
+                    edge.data,
+                )
+                for edge in g.edges.values()
+            ]
+        )
+
+        return ng
+
+    def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
+        nodes = immutables.Map(
+            (idx, Node(idx, g.get_node_data(idx))) for idx in g.node_indices()
+        )
+        edges = immutables.Map(
+            (edge_id, Edge(edge_id, nodes[source_id], nodes[target_id], edge_data))
+            for edge_id, (
+                source_id,
+                target_id,
+                edge_data,
+            ) in g.edge_index_map().items()
+        )
+
+        return Graph(nodes, edges, g.attrs)
+
+except ImportError:
+    pass
