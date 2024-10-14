@@ -1,13 +1,16 @@
 import math
+from dataclasses import dataclass
+from typing import override
 
-from cbrkit.typing import SimPairFunc
+from cbrkit.typing import SimPairFunc, SupportsMetadata
 
 Number = float | int
 
 __all__ = ["linear_interval", "linear", "threshold", "exponential", "sigmoid"]
 
 
-def linear_interval(min: float, max: float) -> SimPairFunc[Number, float]:
+@dataclass(slots=True, frozen=True)
+class linear_interval(SimPairFunc[Number, float], SupportsMetadata):
     """Linear similarity function based on the distance between two values within a range.
 
     Args:
@@ -20,16 +23,19 @@ def linear_interval(min: float, max: float) -> SimPairFunc[Number, float]:
         0.5
     """
 
-    def wrapped_func(x: Number, y: Number) -> float:
-        if x < min or x > max or y < min or y > max:
+    min: float
+    max: float
+
+    @override
+    def __call__(self, x: Number, y: Number) -> float:
+        if x < self.min or x > self.max or y < self.min or y > self.max:
             return 0.0
 
-        return 1.0 - abs(x - y) / (max - min)
-
-    return wrapped_func
+        return 1.0 - abs(x - y) / (self.max - self.min)
 
 
-def linear(max: float, min: float = 0.0) -> SimPairFunc[Number, float]:
+@dataclass(slots=True, frozen=True)
+class linear(SimPairFunc[Number, float], SupportsMetadata):
     """Linear similarity function based on the distance between two values.
 
     Args:
@@ -44,24 +50,27 @@ def linear(max: float, min: float = 0.0) -> SimPairFunc[Number, float]:
         0.9
     """
 
-    def wrapped_func(x: Number, y: Number) -> float:
+    max: float
+    min: float = 0.0
+
+    @override
+    def __call__(self, x: Number, y: Number) -> float:
         dist = abs(x - y)
 
-        if dist < min:
+        if dist < self.min:
             return 1.0
-        elif dist > max:
+        elif dist > self.max:
             return 0.0
 
-        return (max - dist) / (max - min)
-
-    return wrapped_func
+        return (self.max - dist) / (self.max - self.min)
 
 
-def threshold(threshold: float) -> SimPairFunc[Number, float]:
+@dataclass(slots=True, frozen=True)
+class threshold(SimPairFunc[Number, float], SupportsMetadata):
     """Threshold similarity function.
 
     Args:
-        threshold: If the absolute difference between the two values is less than or equal to this value, the similarity is 1.0, otherwise it is 0.0
+        value: If the absolute difference between the two values is less than or equal to this value, the similarity is 1.0, otherwise it is 0.0
 
     ![threshold](../../assets/numeric/threshold.png)
 
@@ -73,13 +82,15 @@ def threshold(threshold: float) -> SimPairFunc[Number, float]:
         0.0
     """
 
-    def wrapped_func(x: Number, y: Number) -> float:
-        return 1.0 if abs(x - y) <= threshold else 0.0
+    value: float
 
-    return wrapped_func
+    @override
+    def __call__(self, x: Number, y: Number) -> float:
+        return 1.0 if abs(x - y) <= self.value else 0.0
 
 
-def exponential(alpha: float = 1.0) -> SimPairFunc[Number, float]:
+@dataclass(slots=True, frozen=True)
+class exponential(SimPairFunc[Number, float], SupportsMetadata):
     """Exponential similarity function.
 
     Args:
@@ -93,13 +104,15 @@ def exponential(alpha: float = 1.0) -> SimPairFunc[Number, float]:
         0.36787944117144233
     """
 
-    def wrapped_func(x: Number, y: Number) -> float:
-        return math.exp(-alpha * abs(x - y))
+    alpha: float = 1.0
 
-    return wrapped_func
+    @override
+    def __call__(self, x: Number, y: Number) -> float:
+        return math.exp(-self.alpha * abs(x - y))
 
 
-def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimPairFunc[Number, float]:
+@dataclass(slots=True, frozen=True)
+class sigmoid(SimPairFunc[Number, float], SupportsMetadata):
     """Sigmoid similarity function.
 
     Args:
@@ -116,7 +129,9 @@ def sigmoid(alpha: float = 1.0, theta: float = 1.0) -> SimPairFunc[Number, float
         0.8807970779778823
     """
 
-    def wrapped_func(x: Number, y: Number) -> float:
-        return 1.0 / (1.0 + math.exp((abs(x - y) - theta) / alpha))
+    alpha: float = 1.0
+    theta: float = 1.0
 
-    return wrapped_func
+    @override
+    def __call__(self, x: Number, y: Number) -> float:
+        return 1.0 / (1.0 + math.exp((abs(x - y) - self.theta) / self.alpha))

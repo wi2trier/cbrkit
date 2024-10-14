@@ -1,68 +1,67 @@
+import dataclasses
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
-class FloatProtocol(Protocol):
+class AnnotatedFloat(Protocol):
     value: float
 
 
-AnyFloat = float | FloatProtocol
+type JsonEntry = (
+    Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
+)
+type JsonDict = dict[str, JsonEntry]
+type Float = float | AnnotatedFloat
+type FilePath = str | Path
+type Casebase[K, V] = Mapping[K, V]
+type SimMap[K, S: Float] = Mapping[K, S]
+type SimSeq[S: Float] = Sequence[S]
+type SimSeqOrMap[K, S: Float] = SimMap[K, S] | SimSeq[S]
 
-FilePath = str | Path
-KeyType = TypeVar("KeyType")
-ValueType = TypeVar("ValueType")
-ValueType_contra = TypeVar("ValueType_contra", contravariant=True)
-ValueType_cov = TypeVar("ValueType_cov", covariant=True)
-Casebase = Mapping[KeyType, ValueType]
 
-SimType = TypeVar("SimType", bound=AnyFloat)
-SimType_cov = TypeVar("SimType_cov", bound=AnyFloat, covariant=True)
-SimType_contra = TypeVar("SimType_contra", bound=AnyFloat, contravariant=True)
+@runtime_checkable
+class SupportsMetadata(Protocol):
+    @property
+    def metadata(self) -> JsonDict:
+        if dataclasses.is_dataclass(self):
+            return dataclasses.asdict(self)
 
-SimMap = Mapping[KeyType, SimType]
-SimSeq = Sequence[SimType]
-SimSeqOrMap = SimMap[KeyType, SimType] | SimSeq[SimType]
+        return {}
 
 
 # Parameter names must match so that the signature can be inspected, do not add `/` here!
-class SimMapFunc(Protocol[KeyType, ValueType_contra, SimType_cov]):
-    def __call__(
-        self, x_map: Mapping[KeyType, ValueType_contra], y: ValueType_contra
-    ) -> SimMap[KeyType, SimType_cov]: ...
+class SimMapFunc[K, V, S: Float](Protocol):
+    def __call__(self, x_map: Mapping[K, V], y: V) -> SimMap[K, S]: ...
 
 
-class SimSeqFunc(Protocol[ValueType_contra, SimType_cov]):
-    def __call__(
-        self, pairs: Sequence[tuple[ValueType_contra, ValueType_contra]], /
-    ) -> SimSeq[SimType_cov]: ...
+class SimSeqFunc[V, S: Float](Protocol):
+    def __call__(self, pairs: Sequence[tuple[V, V]], /) -> SimSeq[S]: ...
 
 
-class SimPairFunc(Protocol[ValueType_contra, SimType_cov]):
-    def __call__(self, x: ValueType_contra, y: ValueType_contra, /) -> SimType_cov: ...
+class SimPairFunc[V, S: Float](Protocol):
+    def __call__(self, x: V, y: V, /) -> S: ...
 
 
-AnySimFunc = (
-    SimMapFunc[KeyType, ValueType, SimType]
-    | SimSeqFunc[ValueType, SimType]
-    | SimPairFunc[ValueType, SimType]
+type AnySimFunc[K, V, S: Float] = (
+    SimMapFunc[K, V, S] | SimSeqFunc[V, S] | SimPairFunc[V, S]
 )
 
 
-class RetrieverFunc(Protocol[KeyType, ValueType_contra, SimType_cov]):
+class RetrieverFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        x_map: Mapping[KeyType, ValueType_contra],
-        y: ValueType_contra,
+        x_map: Mapping[K, V],
+        y: V,
         processes: int,
-    ) -> SimMap[KeyType, SimType_cov]: ...
+    ) -> SimMap[K, S]: ...
 
 
-class AggregatorFunc(Protocol[KeyType, SimType_contra]):
+class AggregatorFunc[K, S: Float](Protocol):
     def __call__(
         self,
-        similarities: SimSeqOrMap[KeyType, SimType_contra],
+        similarities: SimSeqOrMap[K, S],
         /,
     ) -> float: ...
 
@@ -73,3 +72,12 @@ class PoolingFunc(Protocol):
         similarities: SimSeq[float],
         /,
     ) -> float: ...
+
+
+class AdaptationFunc[K, V, S: Float](Protocol):
+    def __call__(
+        self,
+        x_map: Casebase[K, V],
+        y: V,
+        sim_func: AnySimFunc[K, V, S],
+    ) -> V: ...

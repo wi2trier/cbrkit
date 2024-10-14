@@ -1,57 +1,51 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Generic, TypedDict, TypeVar
+from typing import TypedDict
 
 import immutables
 
-from cbrkit.typing import KeyType
 
-NodeData = TypeVar("NodeData")
-EdgeData = TypeVar("EdgeData")
-GraphData = TypeVar("GraphData")
+class SerializedNode[N](TypedDict):
+    data: N
 
 
-class SerializedNode(TypedDict, Generic[NodeData]):
-    data: NodeData
+class SerializedEdge[K, E](TypedDict):
+    source: K
+    target: K
+    data: E
 
 
-class SerializedEdge(TypedDict, Generic[KeyType, EdgeData]):
-    source: KeyType
-    target: KeyType
-    data: EdgeData
-
-
-class SerializedGraph(TypedDict, Generic[KeyType, NodeData, EdgeData, GraphData]):
-    nodes: Mapping[KeyType, SerializedNode[NodeData]]
-    edges: Mapping[KeyType, SerializedEdge[KeyType, EdgeData]]
-    data: GraphData
+class SerializedGraph[K, N, E, G](TypedDict):
+    nodes: Mapping[K, SerializedNode[N]]
+    edges: Mapping[K, SerializedEdge[K, E]]
+    data: G
 
 
 @dataclass(slots=True, frozen=True)
-class Node(Generic[KeyType, NodeData]):
-    key: KeyType
-    data: NodeData
+class Node[K, N]:
+    key: K
+    data: N
 
-    def to_dict(self) -> SerializedNode[NodeData]:
+    def to_dict(self) -> SerializedNode[N]:
         return {"data": self.data}
 
     @classmethod
     def from_dict(
         cls,
-        key: KeyType,
-        data: SerializedNode[NodeData],
-    ) -> "Node[KeyType, NodeData]":
+        key: K,
+        data: SerializedNode[N],
+    ) -> "Node[K, N]":
         return cls(key, data["data"])
 
 
 @dataclass(slots=True, frozen=True)
-class Edge(Generic[KeyType, NodeData, EdgeData]):
-    key: KeyType
-    source: Node[KeyType, NodeData]
-    target: Node[KeyType, NodeData]
-    data: EdgeData
+class Edge[K, N, E]:
+    key: K
+    source: Node[K, N]
+    target: Node[K, N]
+    data: E
 
-    def to_dict(self) -> SerializedEdge[KeyType, EdgeData]:
+    def to_dict(self) -> SerializedEdge[K, E]:
         return {
             "source": self.source.key,
             "target": self.target.key,
@@ -61,10 +55,10 @@ class Edge(Generic[KeyType, NodeData, EdgeData]):
     @classmethod
     def from_dict(
         cls,
-        key: KeyType,
-        data: SerializedEdge[KeyType, EdgeData],
-        nodes: Mapping[KeyType, Node[KeyType, NodeData]],
-    ) -> "Edge[KeyType, NodeData, EdgeData]":
+        key: K,
+        data: SerializedEdge[K, E],
+        nodes: Mapping[K, Node[K, N]],
+    ) -> "Edge[K, N, E]":
         return cls(
             key,
             nodes[data["source"]],
@@ -73,13 +67,13 @@ class Edge(Generic[KeyType, NodeData, EdgeData]):
         )
 
 
-@dataclass(slots=True)
-class Graph(Generic[KeyType, NodeData, EdgeData, GraphData]):
-    nodes: immutables.Map[KeyType, Node[KeyType, NodeData]]
-    edges: immutables.Map[KeyType, Edge[KeyType, NodeData, EdgeData]]
-    data: GraphData
+@dataclass(slots=True, frozen=True)
+class Graph[K, N, E, G]:
+    nodes: immutables.Map[K, Node[K, N]]
+    edges: immutables.Map[K, Edge[K, N, E]]
+    data: G
 
-    def to_dict(self) -> SerializedGraph[KeyType, NodeData, EdgeData, GraphData]:
+    def to_dict(self) -> SerializedGraph[K, N, E, G]:
         return {
             "nodes": {key: node.to_dict() for key, node in self.nodes.items()},
             "edges": {key: edge.to_dict() for key, edge in self.edges.items()},
@@ -89,8 +83,8 @@ class Graph(Generic[KeyType, NodeData, EdgeData, GraphData]):
     @classmethod
     def from_dict(
         cls,
-        data: SerializedGraph[KeyType, NodeData, EdgeData, GraphData],
-    ) -> "Graph[KeyType, NodeData, EdgeData, GraphData]":
+        data: SerializedGraph[K, N, E, G],
+    ) -> "Graph[K, N, E, G]":
         nodes = immutables.Map(
             (key, Node.from_dict(key, value)) for key, value in data["nodes"].items()
         )

@@ -1,111 +1,128 @@
-from collections.abc import Callable, Collection, Sequence, Set
-from dataclasses import dataclass, field
+from collections.abc import Collection, Sequence, Set
+from dataclasses import asdict, dataclass, field
 from itertools import product
-from typing import Any, Generic, cast
+from typing import Any, cast, override
 
-from cbrkit.helpers import dist2sim, unpack_sim
-from cbrkit.typing import FloatProtocol, SimPairFunc, SimType, ValueType
+from cbrkit.helpers import dist2sim, get_metadata, unpack_sim
+from cbrkit.typing import AnnotatedFloat, Float, JsonDict, SimPairFunc, SupportsMetadata
 
 Number = float | int
 
 __all__ = [
-    "jaccard",
-    "smith_waterman",
-    "dtw",
     "isolated_mapping",
-    "mapping",
     "sequence_mapping",
     "sequence_correctness",
     "SequenceSim",
     "Weight",
 ]
 
-
-def jaccard() -> SimPairFunc[Collection[Any], float]:
-    """Jaccard similarity function.
-
-    Examples:
-        >>> sim = jaccard()
-        >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
-        0.8
-    """
+try:
     from nltk.metrics import jaccard_distance
 
-    def wrapped_func(x: Collection[ValueType], y: Collection[ValueType]) -> float:
-        if not isinstance(x, Set):
-            x = set(x)
-        if not isinstance(y, Set):
-            y = set(y)
+    @dataclass(slots=True, frozen=True)
+    class jaccard[V](SimPairFunc[Collection[Any], float], SupportsMetadata):
+        """Jaccard similarity function.
 
-        return dist2sim(jaccard_distance(x, y))
+        Examples:
+            >>> sim = jaccard()
+            >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
+            0.8
+        """
 
-    return wrapped_func
+        @override
+        def __call__(self, x: Collection[V], y: Collection[V]) -> float:
+            if not isinstance(x, Set):
+                x = set(x)
+            if not isinstance(y, Set):
+                y = set(y)
+
+            return dist2sim(jaccard_distance(x, y))
+
+    __all__ += ["jaccard"]
+
+except ImportError:
+    pass
 
 
-def smith_waterman(
-    match_score: int = 2, mismatch_penalty: int = -1, gap_penalty: int = -1
-) -> SimPairFunc[Sequence[Any], float]:
-    """
-    Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
-
-    Args:
-        match_score: Score for matching characters. Defaults to 2.
-        mismatch_penalty: Penalty for mismatching characters. Defaults to -1.
-        gap_penalty: Penalty for gaps. Defaults to -1.
-
-    Example:
-        >>> sim = smith_waterman()
-        >>> sim("abcde", "fghe")
-        2
-    """
+try:
     from minineedle import core, smith
 
-    def wrapped_func(x: Sequence[ValueType], y: Sequence[ValueType]) -> float:
-        try:
-            alignment = smith.SmithWaterman(cast(Sequence, x), cast(Sequence, y))
-            alignment.change_matrix(
-                core.ScoreMatrix(
-                    match=match_score, miss=mismatch_penalty, gap=gap_penalty
+    @dataclass(slots=True, frozen=True)
+    class smith_waterman[V](SimPairFunc[Sequence[Any], float], SupportsMetadata):
+        """
+        Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
+
+        Args:
+            match_score: Score for matching characters. Defaults to 2.
+            mismatch_penalty: Penalty for mismatching characters. Defaults to -1.
+            gap_penalty: Penalty for gaps. Defaults to -1.
+
+        Example:
+            >>> sim = smith_waterman()
+            >>> sim("abcde", "fghe")
+            2
+        """
+
+        match_score: int = 2
+        mismatch_penalty: int = -1
+        gap_penalty: int = -1
+
+        @override
+        def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
+            try:
+                alignment = smith.SmithWaterman(cast(Sequence, x), cast(Sequence, y))
+                alignment.change_matrix(
+                    core.ScoreMatrix(
+                        match=self.match_score,
+                        miss=self.mismatch_penalty,
+                        gap=self.gap_penalty,
+                    )
                 )
-            )
-            alignment.align()
+                alignment.align()
 
-            return alignment.get_score()
-        except ZeroDivisionError:
-            return 0.0
+                return alignment.get_score()
+            except ZeroDivisionError:
+                return 0.0
 
-    return wrapped_func
+    __all__ += ["smith_waterman"]
+
+except ImportError:
+    pass
 
 
-def dtw() -> SimPairFunc[Collection[Number], float]:
-    """Dynamic Time Warping similarity function.
-
-    Examples:
-        >>> sim = dtw()
-        >>> sim([1, 2, 3], [1, 2, 3, 4])
-        0.5
-    """
+try:
     import numpy as np
-    from dtaidistance import dtw
+    from dtaidistance.dtw import distance
 
-    def wrapped_func(
-        x: Collection[Number] | np.ndarray, y: Collection[Number] | np.ndarray
-    ) -> float:
-        if not isinstance(x, np.ndarray):
-            x = np.array(x)
-        if not isinstance(y, np.ndarray):
-            y = np.array(y)
+    @dataclass(slots=True, frozen=True)
+    class dtw(SimPairFunc[Collection[Number], float], SupportsMetadata):
+        """Dynamic Time Warping similarity function.
 
-        distance = dtw.distance(x, y)
+        Examples:
+            >>> sim = dtw()
+            >>> sim([1, 2, 3], [1, 2, 3, 4])
+            0.5
+        """
 
-        return dist2sim(distance)
+        @override
+        def __call__(
+            self, x: Collection[Number] | np.ndarray, y: Collection[Number] | np.ndarray
+        ) -> float:
+            if not isinstance(x, np.ndarray):
+                x = np.array(x)
+            if not isinstance(y, np.ndarray):
+                y = np.array(y)
 
-    return wrapped_func
+            return dist2sim(distance(x, y))
+
+    __all__ += ["dtw"]
+
+except ImportError:
+    pass
 
 
-def isolated_mapping(
-    element_similarity: SimPairFunc[ValueType, float],
-) -> SimPairFunc[Sequence[ValueType], float]:
+@dataclass(slots=True, frozen=True)
+class isolated_mapping[V](SimPairFunc[Sequence[V], float], SupportsMetadata):
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -123,91 +140,115 @@ def isolated_mapping(
         0.8333333333333334
     """
 
-    def wrapped_func(x: Sequence[ValueType], y: Sequence[ValueType]) -> float:
+    element_similarity: SimPairFunc[V, float]
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {"element_similarity": get_metadata(self.element_similarity)}
+
+    @override
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         total_similarity = 0.0
 
         for xi in x:
-            max_similarity = max(element_similarity(xi, yi) for yi in y)
+            max_similarity = max(self.element_similarity(xi, yi) for yi in y)
             total_similarity += max_similarity
 
         average_similarity = total_similarity / len(x)
 
         return average_similarity
 
-    return wrapped_func
 
-
-def mapping(
-    element_similarity: SimPairFunc[ValueType, float], max_queue_size: int = 1000
-) -> SimPairFunc[Sequence[ValueType], float]:
-    """
-    Implements an A* algorithm to find the best matching between query items and case items
-    based on the provided similarity function, maximizing the overall similarity score.
-
-    Args:
-        similarity_function: A function that calculates the similarity between two elements.
-        max_queue_size: Maximum size of the priority queue. Defaults to 1000.
-
-    Returns:
-        A similarity function for sequences.
-
-    Examples:
-        >>> def example_similarity_function(x: Any, y: Any) -> float:
-        ...     return 1.0 if x == y else 0.0
-        >>> sim_func = mapping(example_similarity_function)
-        >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
-        >>> print(f"Normalized Similarity Score: {result}")
-        Normalized Similarity Score: 0.6666666666666666
-    """
+try:
     import heapq
 
-    def wrapped_func(query: Sequence[ValueType], case: Sequence[ValueType]) -> float:
-        # Priority queue to store potential solutions with their scores
-        pq = []
-        initial_solution = (0.0, set(), frozenset(query), frozenset(case))
-        heapq.heappush(pq, initial_solution)
+    @dataclass(slots=True, frozen=True)
+    class mapping[V](SimPairFunc[Sequence[V], float], SupportsMetadata):
+        """
+        Implements an A* algorithm to find the best matching between query items and case items
+        based on the provided similarity function, maximizing the overall similarity score.
 
-        best_score = 0.0
+        Args:
+            similarity_function: A function that calculates the similarity between two elements.
+            max_queue_size: Maximum size of the priority queue. Defaults to 1000.
 
-        while pq:
-            current_score, current_mapping, remaining_query, remaining_case = (
-                heapq.heappop(pq)
-            )
+        Returns:
+            A similarity function for sequences.
 
-            if not remaining_query:  # All query items are mapped
-                best_score = max(best_score, current_score / len(query))
-                continue  # Continue to process remaining potential mappings
+        Examples:
+            >>> def example_similarity_function(x: Any, y: Any) -> float:
+            ...     return 1.0 if x == y else 0.0
+            >>> sim_func = mapping(example_similarity_function)
+            >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
+            >>> print(f"Normalized Similarity Score: {result}")
+            Normalized Similarity Score: 0.6666666666666666
+        """
 
-            for query_item in remaining_query:
-                for case_item in remaining_case:
-                    sim_score = element_similarity(query_item, case_item)
-                    new_mapping = current_mapping | {(query_item, case_item)}
-                    new_score = current_score + sim_score  # Accumulate score correctly
-                    new_remaining_query = remaining_query - {query_item}
-                    new_remaining_case = remaining_case - {case_item}
+        element_similarity: SimPairFunc[V, float]
+        max_queue_size: int = 1000
 
-                    heapq.heappush(
-                        pq,
-                        (
-                            new_score,
-                            new_mapping,
-                            new_remaining_query,
-                            new_remaining_case,
-                        ),
-                    )
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                "element_similarity": get_metadata(self.element_similarity),
+                "max_queue_size": self.max_queue_size,
+            }
 
-                    if len(pq) > max_queue_size:
-                        heapq.heappop(pq)
+        @override
+        def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
+            # Priority queue to store potential solutions with their scores
+            pq = []
+            initial_solution = (0.0, set(), frozenset(query), frozenset(case))
+            heapq.heappush(pq, initial_solution)
 
-        return best_score
+            best_score = 0.0
 
-    return wrapped_func
+            while pq:
+                current_score, current_mapping, remaining_query, remaining_case = (
+                    heapq.heappop(pq)
+                )
+
+                if not remaining_query:  # All query items are mapped
+                    best_score = max(best_score, current_score / len(query))
+                    continue  # Continue to process remaining potential mappings
+
+                for query_item in remaining_query:
+                    for case_item in remaining_case:
+                        sim_score = self.element_similarity(query_item, case_item)
+                        new_mapping = current_mapping | {(query_item, case_item)}
+                        new_score = (
+                            current_score + sim_score
+                        )  # Accumulate score correctly
+                        new_remaining_query = remaining_query - {query_item}
+                        new_remaining_case = remaining_case - {case_item}
+
+                        heapq.heappush(
+                            pq,
+                            (
+                                new_score,
+                                new_mapping,
+                                new_remaining_query,
+                                new_remaining_case,
+                            ),
+                        )
+
+                        if len(pq) > self.max_queue_size:
+                            heapq.heappop(pq)
+
+            return best_score
+
+    __all__ += ["mapping"]
+
+except ImportError:
+    pass
 
 
 @dataclass(slots=True, frozen=True)
-class SequenceSim(FloatProtocol, Generic[SimType]):
+class SequenceSim[S: Float](AnnotatedFloat):
     value: float
-    local_similarities: list[SimType] = field(default_factory=list)
+    local_similarities: list[S] = field(default_factory=list)
 
 
 @dataclass
@@ -220,11 +261,10 @@ class Weight:
     normalized_weight: float | None = None
 
 
-def sequence_mapping(
-    element_similarity: Callable[[ValueType, ValueType], SimType],
-    exact: bool = False,
-    weights: list[Weight] | None = None,
-) -> SimPairFunc[Sequence[ValueType], SequenceSim[SimType]]:
+@dataclass(slots=True, frozen=True)
+class sequence_mapping[V, S: Float](
+    SimPairFunc[Sequence[V], SequenceSim[S]], SupportsMetadata
+):
     """List Mapping similarity function.
 
     Parameters:
@@ -241,17 +281,32 @@ def sequence_mapping(
         [1.0, 1.0, 1.0]
     """
 
+    element_similarity: SimPairFunc[V, S]
+    exact: bool = False
+    weights: list[Weight] | None = None
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "element_similarity": get_metadata(self.element_similarity),
+            "exact": self.exact,
+            "weights": [asdict(weight) for weight in self.weights]
+            if self.weights
+            else None,
+        }
+
     def compute_contains_exact(
-        list1: Sequence[ValueType], list2: Sequence[ValueType]
-    ) -> SequenceSim[SimType]:
+        self, list1: Sequence[V], list2: Sequence[V]
+    ) -> SequenceSim[S]:
         if len(list1) != len(list2):
             return SequenceSim(value=0.0)
 
         sim_sum = 0.0
-        local_similarities: list[SimType] = []
+        local_similarities: list[S] = []
 
         for elem1, elem2 in zip(list1, list2, strict=False):
-            sim = element_similarity(elem1, elem2)
+            sim = self.element_similarity(elem1, elem2)
             sim_sum += unpack_sim(sim)
             local_similarities.append(sim)
 
@@ -260,14 +315,14 @@ def sequence_mapping(
         )
 
     def compute_contains_inexact(
-        larger_list: Sequence[ValueType], smaller_list: Sequence[ValueType]
-    ) -> SequenceSim[SimType]:
+        self, larger_list: Sequence[V], smaller_list: Sequence[V]
+    ) -> SequenceSim[S]:
         max_similarity = -1.0
         best_local_similarities = []
 
         for i in range(len(larger_list) - len(smaller_list) + 1):
             sublist = larger_list[i : i + len(smaller_list)]
-            sim_result = compute_contains_exact(sublist, smaller_list)
+            sim_result = self.compute_contains_exact(sublist, smaller_list)
 
             if sim_result.value > max_similarity:
                 max_similarity = sim_result.value
@@ -277,30 +332,29 @@ def sequence_mapping(
             value=max_similarity, local_similarities=best_local_similarities
         )
 
-    def wrapped_func(
-        x: Sequence[ValueType], y: Sequence[ValueType]
-    ) -> SequenceSim[SimType]:
-        if exact:
-            result = compute_contains_exact(x, y)
+    @override
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[S]:
+        if self.exact:
+            result = self.compute_contains_exact(x, y)
         else:
             if len(x) >= len(y):
-                result = compute_contains_inexact(x, y)
+                result = self.compute_contains_inexact(x, y)
             else:
-                result = compute_contains_inexact(y, x)
+                result = self.compute_contains_inexact(y, x)
 
-        if weights:
+        if self.weights:
             total_weighted_sim = 0.0
             total_weight = 0.0
 
             # Arrange and normalize weights
-            for weight in weights:
+            for weight in self.weights:
                 weight_range = weight.upper_bound - weight.lower_bound
                 weight.normalized_weight = weight.weight / weight_range
 
             for sim in result.local_similarities:
                 sim = unpack_sim(sim)
 
-                for weight in weights:
+                for weight in self.weights:
                     lower_bound = weight.lower_bound
                     upper_bound = weight.upper_bound
                     inclusive_lower = weight.inclusive_lower
@@ -326,12 +380,9 @@ def sequence_mapping(
         else:
             return result
 
-    return wrapped_func
 
-
-def sequence_correctness(
-    worst_case_sim: float = 0.0,
-) -> SimPairFunc[Sequence[Any], float]:
+@dataclass(slots=True, frozen=True)
+class sequence_correctness[V](SimPairFunc[Sequence[Any], float], SupportsMetadata):
     """List Correctness similarity function.
 
     Parameters:
@@ -343,7 +394,10 @@ def sequence_correctness(
         0.3333333333333333
     """
 
-    def wrapped_func(x: Sequence[ValueType], y: Sequence[ValueType]) -> float:
+    worst_case_sim: float = 0.0
+
+    @override
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         if len(x) != len(y):
             return 0.0
 
@@ -378,6 +432,4 @@ def sequence_correctness(
         if correctness >= 0:
             return correctness
         else:
-            return abs(correctness) * worst_case_sim
-
-    return wrapped_func
+            return abs(correctness) * self.worst_case_sim

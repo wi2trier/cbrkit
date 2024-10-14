@@ -5,6 +5,7 @@ This module provides several loaders to read data from different file formats an
 import csv as csvlib
 import tomllib
 from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
@@ -13,7 +14,6 @@ import orjson
 import pandas as pd
 import xmltodict
 import yaml as yamllib
-from pandas import DataFrame, Series
 from pydantic import BaseModel
 
 from cbrkit.typing import Casebase, FilePath
@@ -21,6 +21,7 @@ from cbrkit.typing import Casebase, FilePath
 __all__ = [
     "csv",
     "dataframe",
+    "pandas",
     "file",
     "folder",
     "json",
@@ -57,19 +58,15 @@ def python(import_name: str) -> Any:
     return getattr(module, obj_name)
 
 
-class DataFrameCasebase(Mapping):
-    __slots__ = ("df",)
+@dataclass(slots=True, frozen=True)
+class pandas(Mapping[str | int, pd.Series]):
+    df: pd.DataFrame
 
-    df: DataFrame
-
-    def __init__(self, df: DataFrame) -> None:
-        self.df = df
-
-    def __getitem__(self, key: str | int) -> Series:
+    def __getitem__(self, key: str | int) -> pd.Series:
         if isinstance(key, int):
             return self.df.iloc[key]
         elif isinstance(key, str):
-            return cast(Series, self.df.loc[key])
+            return cast(pd.Series, self.df.loc[key])
 
         raise TypeError(f"Invalid key type: {type(key)}")
 
@@ -80,21 +77,28 @@ class DataFrameCasebase(Mapping):
         return len(self.df)
 
 
-def dataframe(df: DataFrame) -> Casebase[Any, pd.Series]:
-    """Converts a pandas DataFrame into a Casebase.
+dataframe = pandas
 
-    Args:
-        df: pandas DataFrame.
+try:
+    import polars as pl
 
-    Returns:
-        Returns a Casebase as a DataFrameCasebase.
+    @dataclass(slots=True, frozen=True)
+    class polars(Mapping[int, pl.DataFrame]):
+        df: pl.DataFrame
 
-    Examples:
-        >>> file_path = "./data/cars-1k.csv"
-        >>> df = pd.read_csv(file_path)
-        >>> result = dataframe(df)
-    """
-    return DataFrameCasebase(df)
+        def __getitem__(self, key: int) -> pl.DataFrame:
+            return self.df.slice(key, 1)
+
+        def __iter__(self) -> Iterator[int]:
+            return iter(range(len(self.df)))
+
+        def __len__(self) -> int:
+            return len(self.df)
+
+        __all__ += ["polars"]
+
+except ImportError:
+    pass
 
 
 def csv(path: FilePath) -> dict[int, dict[str, str]]:
@@ -390,7 +394,7 @@ def validate(data: Casebase[Any, Any] | Any, validation_model: BaseModel):
     """
     assert data is not None
 
-    if isinstance(data, DataFrameCasebase):
+    if isinstance(data, pandas):
         data = data.df.to_dict("index")
 
     if isinstance(data, Mapping):

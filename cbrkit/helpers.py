@@ -3,15 +3,14 @@ from inspect import signature as inspect_signature
 from typing import Any, cast
 
 from cbrkit.typing import (
-    AnyFloat,
-    KeyType,
+    Float,
+    JsonDict,
     SimMap,
     SimMapFunc,
     SimPairFunc,
     SimSeq,
     SimSeqFunc,
-    SimType,
-    ValueType,
+    SupportsMetadata,
 )
 
 __all__ = [
@@ -25,7 +24,27 @@ __all__ = [
 ]
 
 
-def singleton(x: Mapping[Any, ValueType] | Collection[ValueType]) -> ValueType:
+def get_name(obj: Any | None) -> str | None:
+    if obj is None:
+        return None
+    elif isinstance(obj, type):
+        return obj.__name__
+
+    return type(obj).__name__
+
+
+def get_metadata(obj: Any) -> JsonDict:
+    metadata = {}
+
+    if isinstance(obj, SupportsMetadata):
+        metadata = obj.metadata
+
+    metadata["name"] = get_name(obj)
+
+    return metadata
+
+
+def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
     """
     Return the only element of the input, or raise an error if there are multiple elements.
 
@@ -69,9 +88,9 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
-def sim2seq(
-    func: SimPairFunc[ValueType, SimType] | SimSeqFunc[ValueType, SimType],
-) -> SimSeqFunc[ValueType, SimType]:
+def sim2seq[V, S: Float](
+    func: SimPairFunc[V, S] | SimSeqFunc[V, S],
+) -> SimSeqFunc[V, S]:
     """
     Converts a similarity function that operates on pairs of values into a similarity function that operates on sequences of values.
 
@@ -89,51 +108,47 @@ def sim2seq(
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2:
-        casted_func = cast(SimPairFunc[ValueType, SimType], func)
+        casted_func = cast(SimPairFunc[V, S], func)
 
-        def wrapped_func(pairs: Sequence[tuple[ValueType, ValueType]]) -> SimSeq:
+        def wrapped_sim_pair_func(pairs: Sequence[tuple[V, V]]) -> SimSeq:
             return [casted_func(x, y) for (x, y) in pairs]
 
-        return wrapped_func
+        return wrapped_sim_pair_func
 
     elif len(signature.parameters) == 1:
-        return cast(SimSeqFunc[ValueType, SimType], func)
+        return cast(SimSeqFunc[V, S], func)
 
     raise TypeError(
         f"Invalid signature for similarity function: {signature.parameters}"
     )
 
 
-def sim2map(
-    func: SimPairFunc[ValueType, SimType]
-    | SimSeqFunc[ValueType, SimType]
-    | SimMapFunc[KeyType, ValueType, SimType],
-) -> SimMapFunc[KeyType, ValueType, SimType]:
+def sim2map[K, V, S: Float](
+    func: SimPairFunc[V, S] | SimSeqFunc[V, S] | SimMapFunc[K, V, S],
+) -> SimMapFunc[K, V, S]:
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2 and signature.parameters.keys() in (
         {"x_map", "y"},
         {"casebase", "query"},
     ):
-        return cast(SimMapFunc[KeyType, ValueType, SimType], func)
+        return cast(SimMapFunc[K, V, S], func)
 
     elif len(signature.parameters) == 2:
-        sim_pair_func = cast(SimPairFunc[ValueType, SimType], func)
+        sim_pair_func = cast(SimPairFunc[V, S], func)
 
         def wrapped_sim_pair_func(
-            x_map: Mapping[KeyType, ValueType],
-            y: ValueType,
-        ) -> SimMap[KeyType, SimType]:
+            x_map: Mapping[K, V],
+            y: V,
+        ) -> SimMap[K, S]:
             return {key: sim_pair_func(x, y) for key, x in x_map.items()}
 
         return wrapped_sim_pair_func
 
     elif len(signature.parameters) == 1:
-        sim_seq_func = cast(SimSeqFunc[ValueType, SimType], func)
+        sim_seq_func = cast(SimSeqFunc[V, S], func)
 
-        def wrapped_sim_seq_func(
-            x_map: Mapping[Any, ValueType], y: ValueType
-        ) -> SimMap[KeyType, SimType]:
+        def wrapped_sim_seq_func(x_map: Mapping[Any, V], y: V) -> SimMap[K, S]:
             pairs = [(x, y) for x in x_map.values()]
             sims = sim_seq_func(pairs)
 
@@ -146,34 +161,32 @@ def sim2map(
     )
 
 
-def sim2pair(
-    func: SimPairFunc[ValueType, SimType]
-    | SimSeqFunc[ValueType, SimType]
-    | SimMapFunc[Any, ValueType, SimType],
-) -> SimPairFunc[ValueType, SimType]:
+def sim2pair[V, S: Float](
+    func: SimPairFunc[V, S] | SimSeqFunc[V, S] | SimMapFunc[Any, V, S],
+) -> SimPairFunc[V, S]:
     signature = inspect_signature(func)
 
     if len(signature.parameters) == 2 and signature.parameters.keys() in (
         {"x_map", "y"},
         {"casebase", "query"},
     ):
-        sim_map_func = cast(SimMapFunc[KeyType, ValueType, SimType], func)
+        sim_map_func = cast(SimMapFunc[Any, V, S], func)
 
         def wrapped_sim_map_func(
-            x: ValueType,
-            y: ValueType,
-        ) -> SimType:
+            x: V,
+            y: V,
+        ) -> S:
             return sim_map_func({"x": x}, y)["x"]
 
         return wrapped_sim_map_func
 
     elif len(signature.parameters) == 2:
-        return cast(SimPairFunc[ValueType, SimType], func)
+        return cast(SimPairFunc[V, S], func)
 
     elif len(signature.parameters) == 1:
-        sim_seq_func = cast(SimSeqFunc[ValueType, SimType], func)
+        sim_seq_func = cast(SimSeqFunc[V, S], func)
 
-        def wrapped_sim_seq_func(x: ValueType, y: ValueType) -> SimType:
+        def wrapped_sim_seq_func(x: V, y: V) -> S:
             return sim_seq_func([(x, y)])[0]
 
         return wrapped_sim_seq_func
@@ -183,12 +196,12 @@ def sim2pair(
     )
 
 
-def unpack_sim(sim: AnyFloat) -> float:
+def unpack_sim(sim: Float) -> float:
     if isinstance(sim, float | int | bool):
         return sim
     else:
         return sim.value
 
 
-def unpack_sims(sims: Iterable[AnyFloat]) -> list[float]:
+def unpack_sims(sims: Iterable[Float]) -> list[float]:
     return [unpack_sim(sim) for sim in sims]

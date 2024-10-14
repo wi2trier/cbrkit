@@ -7,30 +7,22 @@ import fnmatch
 import itertools
 import re
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast, override
 
 from cbrkit.sim.generic import table as generic_table
 from cbrkit.sim.strings import taxonomy
 from cbrkit.typing import (
     FilePath,
+    JsonDict,
     SimPairFunc,
     SimSeq,
     SimSeqFunc,
+    SupportsMetadata,
 )
 
-if TYPE_CHECKING:
-    try:
-        from openai import OpenAI
-        from sentence_transformers import SentenceTransformer
-        from spacy.language import Language as SpacyLanguage
-    except ImportError:
-        pass
-
 __all__ = [
-    "spacy",
-    "sentence_transformers",
-    "openai",
     "levenshtein",
     "jaro",
     "jaro_winkler",
@@ -62,185 +54,259 @@ def _unique_items(pairs: Sequence[tuple[str, str]]) -> list[str]:
     return [*{*itertools.chain.from_iterable(pairs)}]
 
 
-def spacy(model: str | SpacyLanguage) -> SimSeqFunc[str, float]:
-    """Semantic similarity using [spaCy](https://spacy.io/)
-
-    Args:
-        model: Either the name of a [spaCy model](https://spacy.io/usage/models)
-            or a `spacy.Language` model instance.
-    """
+try:
     from spacy import load as spacy_load
+    from spacy.language import Language
 
-    if isinstance(model, str):
-        model = spacy_load(model)
+    @dataclass(slots=True)
+    class spacy(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using [spaCy](https://spacy.io/)
 
-    def wrapped_func(pairs: Sequence[tuple[str, str]]) -> SimSeq:
-        texts = _unique_items(pairs)
+        Args:
+            model: Either the name of a [spaCy model](https://spacy.io/usage/models)
+                or a `spacy.Language` model instance.
+        """
 
-        with model.select_pipes(enable=[]):
-            _docs = model.pipe(texts)
+        model: Language
 
-        docs = dict(zip(texts, _docs, strict=True))
+        def __init__(self, model: str | Language):
+            if isinstance(model, str):
+                self.model = spacy_load(model)
+            else:
+                self.model = model
 
-        return [docs[x].similarity(docs[y]) for x, y in pairs]
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {"model": self.model.meta}
 
-    return wrapped_func
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
+            texts = _unique_items(pairs)
+
+            with self.model.select_pipes(enable=[]):
+                _docs = self.model.pipe(texts)
+
+            docs = dict(zip(texts, _docs, strict=True))
+
+            return [docs[x].similarity(docs[y]) for x, y in pairs]
+
+    __all__ += ["spacy"]
+
+except ImportError:
+    pass
 
 
-def sentence_transformers(model: str | SentenceTransformer) -> SimSeqFunc[str, float]:
-    """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
-
-    Args:
-        model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
-            or a `SentenceTransformer` model instance.
-    """
+try:
     from sentence_transformers import SentenceTransformer
 
-    if isinstance(model, str):
-        model = SentenceTransformer(model)
+    @dataclass(slots=True)
+    class sentence_transformers(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
 
-    def wrapped_func(pairs: Sequence[tuple[str, str]]) -> SimSeq:
-        texts = _unique_items(pairs)
-        encoded_texts = model.encode(texts, convert_to_numpy=True)
-        vecs = dict(zip(texts, encoded_texts, strict=True))
+        Args:
+            model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
+                or a `SentenceTransformer` model instance.
+        """
 
-        return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+        model: SentenceTransformer
+        _metadata: JsonDict = field(default_factory=dict, init=False)
 
-    return wrapped_func
+        def __init__(self, model: str | SentenceTransformer):
+            if isinstance(model, str):
+                self.model = SentenceTransformer(model)
+                self._metadata["model"] = model
+            else:
+                self.model = model
+                self._metadata["model"] = "custom"
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return self._metadata
+
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
+            texts = _unique_items(pairs)
+            encoded_texts = self.model.encode(texts, convert_to_numpy=True)
+            vecs = dict(zip(texts, encoded_texts, strict=True))
+
+            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+
+    __all__ += ["sentence_transformers"]
+
+except ImportError:
+    pass
 
 
-def openai(model: str, client: None | OpenAI) -> SimSeqFunc[str, float]:
-    """Semantic similarity using OpenAI's embedding models
-
-    Args:
-        model: Name of the [embedding model](https://platform.openai.com/docs/models/embeddings).
-    """
+try:
     import numpy as np
     from openai import OpenAI
 
-    if client is None:
-        client = OpenAI()
+    @dataclass(slots=True, frozen=True)
+    class openai(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using OpenAI's embedding models
 
-    def wrapped_func(pairs: Sequence[tuple[str, str]]) -> SimSeq:
-        texts = _unique_items(pairs)
-        res = client.embeddings.create(input=texts, model=model)
-        _vecs = [np.array(x.embedding) for x in res.data]
-        vecs = dict(zip(texts, _vecs, strict=True))
+        Args:
+            model: Name of the [embedding model](https://platform.openai.com/docs/models/embeddings).
+        """
 
-        return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+        model: str
+        client: OpenAI = field(default_factory=OpenAI)
 
-    return wrapped_func
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {"model": self.model}
+
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
+            texts = _unique_items(pairs)
+            res = self.client.embeddings.create(input=texts, model=self.model)
+            _vecs = [np.array(x.embedding) for x in res.data]
+            vecs = dict(zip(texts, _vecs, strict=True))
+
+            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+
+    __all__ += ["openai"]
+
+except ImportError:
+    pass
 
 
-def levenshtein(
-    score_cutoff: float | None = None, case_sensitive: bool = True
-) -> SimPairFunc[str, float]:
-    """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
-
-    Args:
-        score_cutoff: If the similarity is less than this value, the function will return 0.0.
-    Examples:
-        >>> sim = levenshtein()
-        >>> sim("kitten", "sitting")
-        0.6153846153846154
-        >>> sim = levenshtein(score_cutoff=0.8)
-        >>> sim("kitten", "sitting")
-        0.0
-    """
+try:
     import Levenshtein
 
-    def wrapped_func(x: str, y: str) -> float:
-        if not case_sensitive:
-            x, y = x.lower(), y.lower()
+    @dataclass(slots=True, frozen=True)
+    class levenshtein(SimPairFunc[str, float], SupportsMetadata):
+        """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
 
-        return Levenshtein.ratio(x, y, score_cutoff=score_cutoff)
+        Args:
+            score_cutoff: If the similarity is less than this value, the function will return 0.0.
+        Examples:
+            >>> sim = levenshtein()
+            >>> sim("kitten", "sitting")
+            0.6153846153846154
+            >>> sim = levenshtein(score_cutoff=0.8)
+            >>> sim("kitten", "sitting")
+            0.0
+        """
 
-    return wrapped_func
+        score_cutoff: float | None = None
+        case_sensitive: bool = True
 
+        @override
+        def __call__(self, x: str, y: str) -> float:
+            if not self.case_sensitive:
+                x, y = x.lower(), y.lower()
 
-def jaro(score_cutoff: float | None = None) -> SimPairFunc[str, float]:
-    """Jaro similarity function to compute similarity between two strings.
+            return Levenshtein.ratio(x, y, score_cutoff=self.score_cutoff)
 
-    Args:
-        score_cutoff: If the similarity is less than this value, the function will return 0.0.
-    Examples:
-        >>> sim = jaro()
-        >>> sim("kitten", "sitting")
-        0.746031746031746
-        >>> sim = jaro(score_cutoff=0.8)
-        >>> sim("kitten", "sitting")
-        0.0
-    """
-    import Levenshtein
+    @dataclass(slots=True, frozen=True)
+    class jaro(SimPairFunc[str, float], SupportsMetadata):
+        """Jaro similarity function to compute similarity between two strings.
 
-    def wrapped_func(x: str, y: str) -> float:
-        return Levenshtein.jaro(x, y, score_cutoff=score_cutoff)
+        Args:
+            score_cutoff: If the similarity is less than this value, the function will return 0.0.
+        Examples:
+            >>> sim = jaro()
+            >>> sim("kitten", "sitting")
+            0.746031746031746
+            >>> sim = jaro(score_cutoff=0.8)
+            >>> sim("kitten", "sitting")
+            0.0
+        """
 
-    return wrapped_func
+        score_cutoff: float | None = None
 
+        @override
+        def __call__(self, x: str, y: str) -> float:
+            return Levenshtein.jaro(x, y, score_cutoff=self.score_cutoff)
 
-def jaro_winkler(
-    score_cutoff: float | None = None, prefix_weight: float = 0.1
-) -> SimPairFunc[str, float]:
-    """Jaro-Winkler similarity function to compute similarity between two strings.
+    @dataclass(slots=True, frozen=True)
+    class jaro_winkler(SimPairFunc[str, float], SupportsMetadata):
+        """Jaro-Winkler similarity function to compute similarity between two strings.
 
-    Args:
-        score_cutoff: If the similarity is less than this value, the function will return 0.0.
-        prefix_weight: Weight used for the common prefix of the two strings. Has to be between 0 and 0.25. Default is 0.1.
-    Examples:
-        >>> sim = jaro_winkler()
-        >>> sim("kitten", "sitting")
-        0.746031746031746
-        >>> sim = jaro_winkler(score_cutoff=0.8)
-        >>> sim("kitten", "sitting")
-        0.0
-    """
-    import Levenshtein
+        Args:
+            score_cutoff: If the similarity is less than this value, the function will return 0.0.
+            prefix_weight: Weight used for the common prefix of the two strings. Has to be between 0 and 0.25. Default is 0.1.
+        Examples:
+            >>> sim = jaro_winkler()
+            >>> sim("kitten", "sitting")
+            0.746031746031746
+            >>> sim = jaro_winkler(score_cutoff=0.8)
+            >>> sim("kitten", "sitting")
+            0.0
+        """
 
-    def wrapped_func(x: str, y: str) -> float:
-        return Levenshtein.jaro_winkler(
-            x, y, score_cutoff=score_cutoff, prefix_weight=prefix_weight
-        )
+        score_cutoff: float | None = None
+        prefix_weight: float = 0.1
 
-    return wrapped_func
+        @override
+        def __call__(self, x: str, y: str) -> float:
+            return Levenshtein.jaro_winkler(
+                x, y, score_cutoff=self.score_cutoff, prefix_weight=self.prefix_weight
+            )
 
+    __all__ += ["levenshtein", "jaro", "jaro_winkler"]
 
-def ngram(
-    n: int,
-    case_sensitive: bool = False,
-    tokenizer: Callable[[str], Sequence[str]] | None = None,
-) -> SimPairFunc[str, float]:
-    """N-gram similarity function to compute [similarity](https://procake.pages.gitlab.rlp.net/procake-wiki/sim/strings/#n-gram) between two strings.
-
-    Args:
-        n: Length of the n-gram
-        case_sensitive: If True, the comparison is case-sensitive
-        tokenizer: Tokenizer function to split the input strings into tokens. If None, the input strings are split into characters.
-    Examples:
-        >>> sim = ngram(3, case_sensitive=False)
-        >>> sim("kitten", "sitting")
-        0.125
-
-    """
-    from nltk.util import ngrams
-
-    def wrapped_func(x: str, y: str) -> float:
-        if not case_sensitive:
-            x = x.lower()
-            y = y.lower()
-
-        x_items = tokenizer(x) if tokenizer is not None else list(x)
-        y_items = tokenizer(y) if tokenizer is not None else list(y)
-
-        x_ngrams = set(ngrams(x_items, n))
-        y_ngrams = set(ngrams(y_items, n))
-
-        return len(x_ngrams.intersection(y_ngrams)) / len(x_ngrams.union(y_ngrams))
-
-    return wrapped_func
+except ImportError:
+    pass
 
 
-def regex() -> SimPairFunc[str, float]:
+try:
+    from nltk.util import ngrams as nltk_ngrams
+
+    @dataclass(slots=True, frozen=True)
+    class ngram(SimPairFunc[str, float], SupportsMetadata):
+        """N-gram similarity function to compute [similarity](https://procake.pages.gitlab.rlp.net/procake-wiki/sim/strings/#n-gram) between two strings.
+
+        Args:
+            n: Length of the n-gram
+            case_sensitive: If True, the comparison is case-sensitive
+            tokenizer: Tokenizer function to split the input strings into tokens. If None, the input strings are split into characters.
+        Examples:
+            >>> sim = ngram(3, case_sensitive=False)
+            >>> sim("kitten", "sitting")
+            0.125
+
+        """
+
+        n: int
+        case_sensitive: bool = False
+        tokenizer: Callable[[str], Sequence[str]] | None = None
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                "n": self.n,
+                "case_sensitive": self.case_sensitive,
+                "tokenizer": self.tokenizer is not None,
+            }
+
+        @override
+        def __call__(self, x: str, y: str) -> float:
+            if not self.case_sensitive:
+                x = x.lower()
+                y = y.lower()
+
+            x_items = self.tokenizer(x) if self.tokenizer is not None else list(x)
+            y_items = self.tokenizer(y) if self.tokenizer is not None else list(y)
+
+            x_ngrams = set(nltk_ngrams(x_items, self.n))
+            y_ngrams = set(nltk_ngrams(y_items, self.n))
+
+            return len(x_ngrams.intersection(y_ngrams)) / len(x_ngrams.union(y_ngrams))
+
+    __all__ += ["ngram"]
+
+except ImportError:
+    pass
+
+
+@dataclass(slots=True, frozen=True)
+class regex(SimPairFunc[str, float], SupportsMetadata):
     """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Examples:
@@ -251,14 +317,14 @@ def regex() -> SimPairFunc[str, float]:
         0.0
     """
 
-    def wrapped_func(x: str, y: str) -> float:
+    @override
+    def __call__(self, x: str, y: str) -> float:
         regex = re.compile(y)
         return 1.0 if regex.match(x) else 0.0
 
-    return wrapped_func
 
-
-def glob(case_sensitive: bool = False) -> SimPairFunc[str, float]:
+@dataclass(slots=True, frozen=True)
+class glob(SimPairFunc[str, float], SupportsMetadata):
     """Compares a case x to a query y, written as a glob pattern, which can contain wildcards. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Args:
@@ -271,12 +337,14 @@ def glob(case_sensitive: bool = False) -> SimPairFunc[str, float]:
         0.0
     """
 
-    comparison_func = fnmatch.fnmatchcase if case_sensitive else fnmatch.fnmatch
+    case_sensitive: bool = False
 
-    def wrapped_func(x: str, y: str) -> float:
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        comparison_func = (
+            fnmatch.fnmatchcase if self.case_sensitive else fnmatch.fnmatch
+        )
         return 1.0 if comparison_func(x, y) else 0.0
-
-    return wrapped_func
 
 
 def table(
@@ -298,7 +366,7 @@ def table(
         >>> sim("a", "c")
         0.0
     """
-    if isinstance(entries, FilePath):
+    if isinstance(entries, str | Path):
         if isinstance(entries, str):
             entries = Path(entries)
 

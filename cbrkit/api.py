@@ -13,7 +13,7 @@ except ModuleNotFoundError:
 
 import cbrkit
 
-ApiResult = dataclass(
+RetrievalResult = dataclass(
     cbrkit.retrieval.Result, config=ConfigDict(arbitrary_types_allowed=True)
 )
 
@@ -41,7 +41,7 @@ elif settings.retriever_map is not None:
     retriever = list(retriever_map.values())
 
 
-@app.post("/retrieve", response_model=Mapping[str, ApiResult])
+@app.post("/retrieve", response_model=Mapping[str, RetrievalResult])
 def all_retrievers(
     casebase: dict[str, Any],
     queries: dict[str, Any],
@@ -57,7 +57,7 @@ def all_retrievers(
     )
 
 
-@app.post("/retrieve/{retriever_name}", response_model=Mapping[str, ApiResult])
+@app.post("/retrieve/{retriever_name}", response_model=Mapping[str, RetrievalResult])
 def named_retriever(
     retriever_name: str,
     casebase: dict[str, Any],

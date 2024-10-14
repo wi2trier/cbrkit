@@ -1,20 +1,19 @@
 import os
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from typing import Any, Generic, Literal
+from multiprocessing import Pool
+from typing import Any, Literal, cast, override
 
-from multiprocess.pool import Pool
-
-from cbrkit.helpers import sim2map, unpack_sim
+from cbrkit.helpers import get_metadata, sim2map, unpack_sim
 from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
     Casebase,
-    KeyType,
+    Float,
+    JsonDict,
     RetrieverFunc,
     SimMap,
-    SimType,
-    ValueType,
+    SupportsMetadata,
 )
 
 __all__ = [
@@ -28,28 +27,30 @@ __all__ = [
 ]
 
 
-def _similarities2ranking(
-    sim_map: SimMap[KeyType, SimType],
-) -> list[KeyType]:
+def _similarities2ranking[K](
+    sim_map: SimMap[K, Any],
+) -> list[K]:
     return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
 
 
 @dataclass(slots=True, frozen=True)
-class ResultStep(Generic[KeyType, ValueType, SimType]):
-    similarities: SimMap[KeyType, SimType]
-    ranking: list[KeyType]
-    casebase: Casebase[KeyType, ValueType]
+class ResultStep[K, V, S: Float]:
+    similarities: SimMap[K, S]
+    ranking: Sequence[K]
+    casebase: Casebase[K, V]
+    metadata: JsonDict
 
     @classmethod
     def build(
         cls,
-        similarities: SimMap[KeyType, SimType],
-        full_casebase: Casebase[KeyType, ValueType],
-    ) -> "ResultStep[KeyType, ValueType, SimType]":
+        similarities: SimMap[K, S],
+        full_casebase: Casebase[K, V],
+        metadata: JsonDict,
+    ) -> "ResultStep[K, V, S]":
         ranking = _similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
-        return cls(similarities=similarities, ranking=ranking, casebase=casebase)
+        return cls(similarities, tuple(ranking), casebase, metadata)
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
@@ -59,24 +60,28 @@ class ResultStep(Generic[KeyType, ValueType, SimType]):
 
 
 @dataclass(slots=True, frozen=True)
-class Result(Generic[KeyType, ValueType, SimType]):
-    steps: list[ResultStep[KeyType, ValueType, SimType]]
+class Result[K, V, S: Float]:
+    steps: list[ResultStep[K, V, S]]
 
     @property
-    def final(self) -> ResultStep[KeyType, ValueType, SimType]:
+    def final(self) -> ResultStep[K, V, S]:
         return self.steps[-1]
 
     @property
-    def similarities(self) -> SimMap[KeyType, SimType]:
+    def similarities(self) -> SimMap[K, S]:
         return self.final.similarities
 
     @property
-    def ranking(self) -> list[KeyType]:
+    def ranking(self) -> Sequence[K]:
         return self.final.ranking
 
     @property
-    def casebase(self) -> Casebase[KeyType, ValueType]:
+    def casebase(self) -> Casebase[K, V]:
         return self.final.casebase
+
+    @property
+    def metadata(self) -> JsonDict:
+        return self.final.metadata
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
@@ -87,14 +92,13 @@ class Result(Generic[KeyType, ValueType, SimType]):
         return x
 
 
-def mapply(
-    casebase: Casebase[KeyType, ValueType],
-    queries: Mapping[KeyType, ValueType],
-    retrievers: RetrieverFunc[KeyType, ValueType, SimType]
-    | Sequence[RetrieverFunc[KeyType, ValueType, SimType]],
+def mapply[K, V, S: Float](
+    casebase: Casebase[K, V],
+    queries: Mapping[K, V],
+    retrievers: RetrieverFunc[K, V, S] | Sequence[RetrieverFunc[K, V, S]],
     processes: int = 1,
     parallel: Literal["queries", "casebase"] = "queries",
-) -> Mapping[KeyType, Result[KeyType, ValueType, SimType]]:
+) -> Mapping[K, Result[K, V, S]]:
     """Applies multiple queries to a Casebase using retriever functions.
 
     Args:
@@ -131,13 +135,12 @@ def mapply(
     }
 
 
-def apply(
-    casebase: Casebase[KeyType, ValueType],
-    query: ValueType,
-    retrievers: RetrieverFunc[KeyType, ValueType, SimType]
-    | Sequence[RetrieverFunc[KeyType, ValueType, SimType]],
+def apply[K, V, S: Float](
+    casebase: Casebase[K, V],
+    query: V,
+    retrievers: RetrieverFunc[K, V, S] | Sequence[RetrieverFunc[K, V, S]],
     processes: int = 1,
-) -> Result[KeyType, ValueType, SimType]:
+) -> Result[K, V, S]:
     """Applies a single query to a Casebase using retriever functions.
 
     Args:
@@ -180,12 +183,14 @@ def apply(
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[ResultStep[KeyType, ValueType, SimType]] = []
+    results: list[ResultStep[K, V, S]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
         sim_map = retriever_func(current_casebase, query, processes)
-        result = ResultStep.build(sim_map, current_casebase)
+        result = ResultStep.build(
+            sim_map, current_casebase, get_metadata(retriever_func)
+        )
 
         results.append(result)
         current_casebase = result.casebase
@@ -193,7 +198,7 @@ def apply(
     return Result(results)
 
 
-def _chunkify(val: Sequence[ValueType], n: int) -> Iterator[Sequence[ValueType]]:
+def _chunkify[V](val: Sequence[V], n: int) -> Iterator[Sequence[V]]:
     """Yield successive n-sized chunks from val.
 
     Args:
@@ -214,12 +219,8 @@ def _chunkify(val: Sequence[ValueType], n: int) -> Iterator[Sequence[ValueType]]
         yield val[i : i + k]
 
 
-def build(
-    similarity_func: AnySimFunc[KeyType, ValueType, SimType],
-    limit: int | None = None,
-    min_similarity: float | None = None,
-    max_similarity: float | None = None,
-) -> RetrieverFunc[KeyType, ValueType, SimType]:
+@dataclass(slots=True, frozen=True)
+class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -255,26 +256,43 @@ def build(
         ...     limit=5,
         ... )
     """
-    sim_func = sim2map(similarity_func)
 
-    def wrapped_func(
-        x_map: Casebase[KeyType, ValueType],
-        y: ValueType,
+    similarity_func: AnySimFunc[K, V, S]
+    limit: int | None = None
+    min_similarity: float | None = None
+    max_similarity: float | None = None
+
+    @property
+    @override
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "similarity_func": get_metadata(self.similarity_func),
+            "limit": self.limit,
+            "min_similarity": self.min_similarity,
+            "max_similarity": self.max_similarity,
+        }
+
+    @override
+    def __call__(
+        self,
+        x_map: Mapping[K, V],
+        y: V,
         processes: int = 1,
-    ) -> SimMap[KeyType, SimType]:
-        similarities: SimMap[KeyType, SimType] = {}
+    ) -> SimMap[K, S]:
+        sim_func = sim2map(self.similarity_func)
+        similarities: SimMap[K, S] = {}
 
         if processes != 1:
             pool_processes = None if processes <= 0 else processes
             chunks_num = os.cpu_count() if not pool_processes else pool_processes
             assert chunks_num is not None
 
-            x_chunks: list[Casebase[KeyType, ValueType]] = [
+            x_chunks: list[Casebase[K, V]] = [
                 dict(chunk) for chunk in _chunkify(list(x_map.items()), chunks_num)
             ]
 
             with Pool(pool_processes) as pool:
-                sim_chunks: list[SimMap[KeyType, SimType]] = pool.starmap(
+                sim_chunks: list[SimMap[K, S]] = pool.starmap(
                     sim_func,
                     ((x_chunk, y) for x_chunk in x_chunks),
                 )
@@ -286,22 +304,20 @@ def build(
 
         ranking = _similarities2ranking(similarities)
 
-        if min_similarity is not None:
+        if self.min_similarity is not None:
             ranking = [
                 key
                 for key in ranking
-                if unpack_sim(similarities[key]) >= min_similarity
+                if unpack_sim(similarities[key]) >= self.min_similarity
             ]
-        if max_similarity is not None:
+        if self.max_similarity is not None:
             ranking = [
                 key
                 for key in ranking
-                if unpack_sim(similarities[key]) <= max_similarity
+                if unpack_sim(similarities[key]) <= self.max_similarity
             ]
 
-        return {key: similarities[key] for key in ranking[:limit]}
-
-    return wrapped_func
+        return {key: similarities[key] for key in ranking[: self.limit]}
 
 
 def load(
@@ -310,7 +326,7 @@ def load(
     if isinstance(import_names, str):
         import_names = [import_names]
 
-    retrievers: list[RetrieverFunc] = []
+    retrievers: list[RetrieverFunc[Any, Any, Any]] = []
 
     for import_path in import_names:
         obj = load_python(import_path)
@@ -319,7 +335,7 @@ def load(
             assert all(isinstance(func, Callable) for func in retrievers)
             retrievers.extend(obj)
         elif isinstance(obj, Callable):
-            retrievers.append(obj)
+            retrievers.append(cast(RetrieverFunc[Any, Any, Any], obj))
 
     return retrievers
 

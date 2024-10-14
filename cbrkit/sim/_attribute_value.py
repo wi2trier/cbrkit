@@ -1,28 +1,27 @@
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
-from typing import Any, Generic
+from dataclasses import dataclass, field
+from typing import Any, override
 
 import pandas as pd
 
-from cbrkit.helpers import sim2map
+from cbrkit.helpers import get_metadata, get_name, sim2map
 from cbrkit.typing import (
     AggregatorFunc,
+    AnnotatedFloat,
     AnySimFunc,
-    Casebase,
-    FloatProtocol,
-    KeyType,
+    Float,
+    JsonDict,
     SimMap,
     SimMapFunc,
-    SimType,
-    ValueType,
+    SupportsMetadata,
 )
 
 from ._aggregator import aggregator
 
 __all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
 
-AttributeValueData = Mapping[Any, Any] | pd.Series
+type AttributeValueData = Mapping[Any, Any] | pd.Series[Any]
 
 
 def _key_getter(obj: AttributeValueData) -> Iterator[str]:
@@ -42,22 +41,18 @@ def _value_getter(obj: AttributeValueData, key: Any) -> Any:
 
 
 @dataclass(slots=True, frozen=True)
-class AttributeValueSim(FloatProtocol, Generic[SimType]):
+class AttributeValueSim[S: Float](AnnotatedFloat):
     value: float
-    by_attribute: Mapping[str, SimType]
+    by_attribute: Mapping[str, S]
 
 
 _aggregator = aggregator()
 
 
-def attribute_value(
-    attributes: Mapping[str, AnySimFunc[KeyType, Any, SimType]] | None = None,
-    types: Mapping[type[Any], AnySimFunc[KeyType, Any, SimType]] | None = None,
-    types_fallback: AnySimFunc[KeyType, Any, SimType] | None = None,
-    aggregator: AggregatorFunc[str, SimType] = _aggregator,
-    value_getter: Callable[[Any, str], Any] = _value_getter,
-    key_getter: Callable[[Any], Iterator[str]] = _key_getter,
-) -> SimMapFunc[Any, AttributeValueData, AttributeValueSim[SimType]]:
+@dataclass(slots=True, frozen=True)
+class attribute_value[K, V, S: Float](
+    SimMapFunc[K, V, AttributeValueSim[S]], SupportsMetadata
+):
     """
     Similarity function that computes the attribute value similarity between two cases.
 
@@ -91,37 +86,52 @@ def attribute_value(
         AttributeValueSim(value=0.5, by_attribute={'age': 1.0, 'name': 0.0})
     """
 
-    attributes_map: Mapping[str, AnySimFunc[KeyType, Any, SimType]] = (
-        {} if attributes is None else attributes
-    )
-    types_map: Mapping[type[Any], AnySimFunc[KeyType, Any, SimType]] = (
-        {} if types is None else types
-    )
+    attributes: Mapping[str, AnySimFunc[K, Any, S]] = field(default_factory=dict)
+    types: Mapping[type[Any], AnySimFunc[K, Any, S]] = field(default_factory=dict)
+    types_fallback: AnySimFunc[K, Any, S] | None = None
+    aggregator: AggregatorFunc[str, S] = _aggregator
+    value_getter: Callable[[Any, str], Any] = _value_getter
+    key_getter: Callable[[Any], Iterator[str]] = _key_getter
 
-    def wrapped_func(
-        x_map: Casebase[KeyType, ValueType], y: ValueType
-    ) -> SimMap[KeyType, AttributeValueSim[SimType]]:
-        local_sims: defaultdict[KeyType, dict[str, SimType]] = defaultdict(dict)
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "attributes": {
+                key: get_metadata(value) for key, value in self.attributes.items()
+            },
+            "types": {
+                key.__name__: get_metadata(value) for key, value in self.types.items()
+            },
+            "types_fallback": get_metadata(self.types_fallback),
+            "aggregator": get_metadata(self.aggregator),
+            "value_getter": get_name(self.value_getter),
+            "key_getter": get_name(self.key_getter),
+        }
+
+    @override
+    def __call__(self, x_map: Mapping[K, V], y: V) -> SimMap[K, AttributeValueSim[S]]:
+        local_sims: defaultdict[K, dict[str, S]] = defaultdict(dict)
 
         attribute_names = (
-            set(attributes_map).intersection(key_getter(y))
-            if len(attributes_map) > 0
-            and len(types_map) == 0
-            and types_fallback is None
-            else set(key_getter(y))
+            set(self.attributes).intersection(self.key_getter(y))
+            if len(self.attributes) > 0
+            and len(self.types) == 0
+            and self.types_fallback is None
+            else set(self.key_getter(y))
         )
 
         for attr_name in attribute_names:
             x_attributes = {
-                key: value_getter(value, attr_name) for key, value in x_map.items()
+                key: self.value_getter(value, attr_name) for key, value in x_map.items()
             }
-            y_attribute = value_getter(y, attr_name)
+            y_attribute = self.value_getter(y, attr_name)
             attr_type = type(y_attribute)
 
             sim_func = (
-                attributes_map[attr_name]
-                if attr_name in attributes_map
-                else types_map.get(attr_type, types_fallback)
+                self.attributes[attr_name]
+                if attr_name in self.attributes
+                else self.types.get(attr_type, self.types_fallback)
             )
 
             assert (
@@ -135,8 +145,6 @@ def attribute_value(
                 local_sims[key][attr_name] = sim
 
         return {
-            key: AttributeValueSim(aggregator(sims), sims)
+            key: AttributeValueSim(self.aggregator(sims), sims)
             for key, sims in local_sims.items()
         }
-
-    return wrapped_func

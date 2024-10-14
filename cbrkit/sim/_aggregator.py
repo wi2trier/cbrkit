@@ -1,14 +1,16 @@
 import statistics
 from collections.abc import Mapping, Sequence
-from typing import Literal
+from dataclasses import dataclass
+from typing import Literal, override
 
-from cbrkit.helpers import unpack_sim
+from cbrkit.helpers import get_name, unpack_sim
 from cbrkit.typing import (
     AggregatorFunc,
-    AnyFloat,
-    KeyType,
+    Float,
+    JsonDict,
     PoolingFunc,
     SimSeqOrMap,
+    SupportsMetadata,
 )
 
 __all__ = [
@@ -46,11 +48,8 @@ _pooling_funcs: dict[PoolingName, PoolingFunc] = {
 }
 
 
-def aggregator(
-    pooling: PoolingName | PoolingFunc = "mean",
-    pooling_weights: SimSeqOrMap[KeyType, float] | None = None,
-    default_pooling_weight: float = 1.0,
-) -> AggregatorFunc[KeyType, AnyFloat]:
+@dataclass(slots=True, frozen=True)
+class aggregator[K](AggregatorFunc[K, Float], SupportsMetadata):
     """
     Aggregates local similarities to a global similarity using the specified pooling function.
 
@@ -71,38 +70,62 @@ def aggregator(
         1.0
     """
 
-    pooling_func = _pooling_funcs[pooling] if isinstance(pooling, str) else pooling
+    pooling: PoolingName | PoolingFunc = "mean"
+    pooling_weights: SimSeqOrMap[K, float] | None = None
+    default_pooling_weight: float = 1.0
 
-    def wrapped_func(similarities: SimSeqOrMap[KeyType, AnyFloat]) -> float:
-        assert pooling_weights is None or type(similarities) is type(pooling_weights)
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "pooling": self.pooling
+            if isinstance(self.pooling, str)
+            else get_name(self.pooling),
+            "pooling_weights": {str(k): v for k, v in self.pooling_weights.items()}
+            if isinstance(self.pooling_weights, Mapping)
+            else self.pooling_weights,
+            "default_pooling_weight": self.default_pooling_weight,
+        }
+
+    @override
+    def __call__(self, similarities: SimSeqOrMap[K, Float]) -> float:
+        pooling_func = (
+            _pooling_funcs[self.pooling]
+            if isinstance(self.pooling, str)
+            else self.pooling
+        )
+        assert (self.pooling_weights is None) or (
+            type(similarities) is type(self.pooling_weights)  # noqa: E721
+        )
 
         pooling_factor = 1.0
         sims: Sequence[float]  # noqa: F821
 
-        if isinstance(similarities, Mapping) and isinstance(pooling_weights, Mapping):
+        if isinstance(similarities, Mapping) and isinstance(
+            self.pooling_weights, Mapping
+        ):
             sims = [
-                unpack_sim(sim) * pooling_weights.get(key, default_pooling_weight)
+                unpack_sim(sim)
+                * self.pooling_weights.get(key, self.default_pooling_weight)
                 for key, sim in similarities.items()
             ]
             pooling_factor = len(similarities) / sum(
-                pooling_weights.get(key, default_pooling_weight)
+                self.pooling_weights.get(key, self.default_pooling_weight)
                 for key in similarities.keys()
             )
         elif isinstance(similarities, Sequence) and isinstance(
-            pooling_weights, Sequence
+            self.pooling_weights, Sequence
         ):
             sims = [
                 unpack_sim(s) * w
-                for s, w in zip(similarities, pooling_weights, strict=True)
+                for s, w in zip(similarities, self.pooling_weights, strict=True)
             ]
-            pooling_factor = len(similarities) / sum(pooling_weights)
-        elif isinstance(similarities, Sequence) and pooling_weights is None:
+            pooling_factor = len(similarities) / sum(self.pooling_weights)
+        elif isinstance(similarities, Sequence) and self.pooling_weights is None:
             sims = [unpack_sim(s) for s in similarities]
-        elif isinstance(similarities, Mapping) and pooling_weights is None:
+        elif isinstance(similarities, Mapping) and self.pooling_weights is None:
             sims = [unpack_sim(s) for s in similarities.values()]
         else:
             raise NotImplementedError()
 
         return pooling_func(sims) * pooling_factor
-
-    return wrapped_func

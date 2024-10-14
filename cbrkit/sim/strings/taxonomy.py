@@ -9,10 +9,11 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 """
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional, Protocol, TypedDict, cast
+from typing import Literal, Optional, Protocol, TypedDict, cast, override
 
+from cbrkit.helpers import get_metadata
 from cbrkit.loaders import data as load_data
-from cbrkit.typing import FilePath, SimPairFunc
+from cbrkit.typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
 
 __all__ = [
     "load",
@@ -112,8 +113,8 @@ class TaxonomyFunc(Protocol):
 
 TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
 
-
-def wu_palmer() -> TaxonomyFunc:
+@dataclass(slots=True, frozen=True)
+class wu_palmer(TaxonomyFunc, SupportsMetadata):
     """Wu & Palmer similarity measure of two nodes in a taxonomy.
 
     Examples:
@@ -125,17 +126,16 @@ def wu_palmer() -> TaxonomyFunc:
         0.0
     """
 
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
+    @override
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
 
         return (2 * lca.depth) / (node1.depth + node2.depth)
 
-    return wrapped_func
-
-
-def user_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
+@dataclass(slots=True, frozen=True)
+class user_weights(TaxonomyFunc, SupportsMetadata):
     """User-defined weights similarity measure of two nodes in a taxonomy.
 
     The weights are defined by the user in the taxonomy file.
@@ -155,7 +155,10 @@ def user_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
         0.0
     """
 
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
@@ -163,17 +166,15 @@ def user_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
 
         if lca == node1 or lca == node2:
             # pessimistic not needed: weight of lca already used
-            if strategy == "optimistic":
+            if self.strategy == "optimistic":
                 weight = 1.0
-            elif strategy == "average":
+            elif self.strategy == "average":
                 weight = (node1.weight + node2.weight) / 2
 
         return weight
 
-    return wrapped_func
-
-
-def auto_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
+@dataclass(slots=True, frozen=True)
+class auto_weights(TaxonomyFunc, SupportsMetadata):
     """Automatic weights similarity measure of two nodes in a taxonomy.
 
     The weights are automatically calculated based on the depth of the nodes.
@@ -193,7 +194,10 @@ def auto_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
         0.0
     """
 
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
@@ -203,19 +207,17 @@ def auto_weights(strategy: TaxonomyStrategy) -> TaxonomyFunc:
 
         if lca == node1 or lca == node2:
             # pessimistic not needed: weight of lca already used
-            if strategy == "optimistic":
+            if self.strategy == "optimistic":
                 weight = 1.0
-            elif strategy == "average":
+            elif self.strategy == "average":
                 weight1 = node1.depth / max_depth
                 weight2 = node2.depth / max_depth
                 weight = (weight1 + weight2) / 2
 
         return weight
 
-    return wrapped_func
-
-
-def node_levels(strategy: TaxonomyStrategy) -> TaxonomyFunc:
+@dataclass(slots=True, frozen=True)
+class node_levels(TaxonomyFunc, SupportsMetadata):
     """Node levels similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the levels of the nodes.
@@ -235,31 +237,32 @@ def node_levels(strategy: TaxonomyStrategy) -> TaxonomyFunc:
         0.3333333333333333
     """
 
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
 
-        if strategy == "optimistic":
+        if self.strategy == "optimistic":
             return lca.level / min(node1.level, node2.level)
-        elif strategy == "pessimistic":
+        elif self.strategy == "pessimistic":
             return lca.level / max(node1.level, node2.level)
-        elif strategy == "average":
+        elif self.strategy == "average":
             return lca.level / ((node1.level + node2.level) / 2)
         else:
             return 0.0
 
-    return wrapped_func
-
-
-def path_steps(weightUp: float = 1.0, weightDown: float = 1.0) -> TaxonomyFunc:
+@dataclass(slots=True, frozen=True)
+class path_steps(TaxonomyFunc, SupportsMetadata):
     """Path steps similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the steps up and down from the lowest common ancestor (lca).
 
     Args:
-        weightUp: The weight to use for the steps up.
-        weightDown: The weight to use for the steps down.
+        weight_up: The weight to use for the steps up.
+        weight_down: The weight to use for the steps down.
 
     ![path steps](../../assets/taxonomy/path-steps.png)
 
@@ -272,30 +275,31 @@ def path_steps(weightUp: float = 1.0, weightDown: float = 1.0) -> TaxonomyFunc:
         0.3333333333333333
     """
 
-    def wrapped_func(taxonomy: Taxonomy, x: str, y: str) -> float:
+    weight_up: float = 1.0
+    weight_down: float = 1.0
+
+    @override
+    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
         node1 = taxonomy.nodes[x]
         node2 = taxonomy.nodes[y]
         lca = taxonomy.lca(node1, node2)
 
-        stepsUp = node1.depth - lca.depth
-        stepsDown = node2.depth - lca.depth
+        steps_up = node1.depth - lca.depth
+        steps_down = node2.depth - lca.depth
 
-        weightedSteps = (stepsUp * weightUp) + (stepsDown * weightDown)
-        maxWeightedSteps = (taxonomy.max_depth * weightUp) + (
-            taxonomy.max_depth * weightDown
+        weighted_steps = (steps_up * self.weight_up) + (steps_down * self.weight_down)
+        max_weighted_steps = (taxonomy.max_depth * self.weight_up) + (
+            taxonomy.max_depth * self.weight_down
         )
 
-        return (maxWeightedSteps - weightedSteps) / maxWeightedSteps
-
-    return wrapped_func
+        return (max_weighted_steps - weighted_steps) / max_weighted_steps
 
 
 _taxonomy_func = wu_palmer()
 
 
-def load(
-    path: FilePath, measure: TaxonomyFunc = _taxonomy_func
-) -> SimPairFunc[str, float]:
+@dataclass(slots=True)
+class load(SimPairFunc[str, float], SupportsMetadata):
     """Load a taxonomy and return a function that measures the similarity.
 
     The taxonomy is loaded from the given path and expected to conform to the following structure:
@@ -330,9 +334,22 @@ def load(
         >>> sim("audi", "bmw")
         0.0
     """
-    taxonomy = Taxonomy(path)
 
-    def wrapped_func(x: str, y: str) -> float:
-        return measure(taxonomy, x, y)
+    path: FilePath
+    measure: TaxonomyFunc = _taxonomy_func
+    taxonomy: Taxonomy = field(init=False)
 
-    return wrapped_func
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "path": str(self.path),
+            "measure": get_metadata(self.measure),
+        }
+
+    def __post_init__(self) -> None:
+        self.taxonomy = Taxonomy(self.path)
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        return self.measure(self.taxonomy, x, y)

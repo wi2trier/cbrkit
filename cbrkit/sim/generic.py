@@ -1,20 +1,17 @@
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, override
 
-from cbrkit.typing import (
-    SimPairFunc,
-    ValueType,
-)
+from cbrkit.typing import JsonDict, SimPairFunc, SupportsMetadata
 
 __all__ = ["table", "equality"]
 
 
-def table(
-    entries: Sequence[tuple[ValueType, ValueType, float]],
-    symmetric: bool = True,
-    default: float = 0.0,
-) -> SimPairFunc[ValueType, float]:
+@dataclass(
+    slots=True,
+)
+class table[V](SimPairFunc[V, float], SupportsMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -30,23 +27,35 @@ def table(
         0.0
     """
 
-    table: defaultdict[ValueType, defaultdict[ValueType, float]] = defaultdict(
-        lambda: defaultdict(lambda: default)
-    )
+    entries: Sequence[tuple[V, V, float]]
+    symmetric: bool = True
+    default: float = 0.0
+    table: defaultdict[V, defaultdict[V, float]] = field(init=False)
 
-    for x in entries:
-        table[x[0]][x[1]] = x[2]
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "symmetric": self.symmetric,
+            "default": self.default,
+        }
 
-        if symmetric:
-            table[x[1]][x[0]] = x[2]
+    def __post_init__(self):
+        self.table = defaultdict(lambda: defaultdict(lambda: self.default))
 
-    def wrapped_func(x: ValueType, y: ValueType) -> float:
-        return table[x][y]
+        for x in self.entries:
+            self.table[x[0]][x[1]] = x[2]
 
-    return wrapped_func
+            if self.symmetric:
+                self.table[x[1]][x[0]] = x[2]
+
+    @override
+    def __call__(self, x: V, y: V) -> float:
+        return self.table[x][y]
 
 
-def equality() -> SimPairFunc[Any, float]:
+@dataclass(slots=True, frozen=True)
+class equality(SimPairFunc[Any, float], SupportsMetadata):
     """Equality similarity function. Returns 1.0 if the two values are equal, 0.0 otherwise.
 
     Examples:
@@ -57,7 +66,6 @@ def equality() -> SimPairFunc[Any, float]:
         1.0
     """
 
-    def wrapped_func(x: Any, y: Any) -> float:
+    @override
+    def __call__(self, x: Any, y: Any) -> float:
         return 1.0 if x == y else 0.0
-
-    return wrapped_func
