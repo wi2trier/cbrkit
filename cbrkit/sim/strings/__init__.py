@@ -6,11 +6,12 @@ import csv
 import fnmatch
 import itertools
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast, override
 
+from cbrkit.sim.generic import TableSim
 from cbrkit.sim.generic import table as generic_table
 from cbrkit.sim.strings import taxonomy
 from cbrkit.typing import (
@@ -348,10 +349,12 @@ class glob(SimPairFunc[str, float], SupportsMetadata):
 
 
 def table(
-    entries: Sequence[tuple[str, str, float]] | FilePath,
+    entries: Sequence[tuple[str, str, float]]
+    | Mapping[tuple[str, str], float]
+    | FilePath,
     symmetric: bool = True,
     default: float = 0.0,
-) -> SimPairFunc[str, float]:
+) -> SimSeqFunc[str, TableSim[float]]:
     """Allows to import a similarity values from a table.
 
     Args:
@@ -361,10 +364,8 @@ def table(
 
     Examples:
         >>> sim = table([("a", "b", 0.5), ("b", "c", 0.7)], symmetric=True, default=0.0)
-        >>> sim("b", "a")
-        0.5
-        >>> sim("a", "c")
-        0.0
+        >>> sim([("b", "a"), ("a", "c")])
+        [TableSim(value=0.5), TableSim(value=0.0)]
     """
     if isinstance(entries, str | Path):
         if isinstance(entries, str):
