@@ -92,13 +92,13 @@ class Result[K, V, S: Float]:
         return x
 
 
-def mapply[K, V, S: Float](
-    casebase: Casebase[K, V],
-    queries: Mapping[K, V],
-    retrievers: RetrieverFunc[K, V, S] | Sequence[RetrieverFunc[K, V, S]],
+def mapply[QK, CK, V, S: Float](
+    casebase: Casebase[CK, V],
+    queries: Mapping[QK, V],
+    retrievers: RetrieverFunc[CK, V, S] | Sequence[RetrieverFunc[CK, V, S]],
     processes: int = 1,
     parallel: Literal["queries", "casebase"] = "queries",
-) -> Mapping[K, Result[K, V, S]]:
+) -> Mapping[QK, Result[CK, V, S]]:
     """Applies multiple queries to a Casebase using retriever functions.
 
     Args:
