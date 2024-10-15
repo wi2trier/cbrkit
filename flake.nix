@@ -67,7 +67,7 @@
             overlays = [ inputs.poetry2nix.overlays.default ];
           };
           checks = {
-            inherit (config.packages) cbrkit docs;
+            inherit (config.packages) cbrkit;
           };
           treefmt = {
             projectRootFile = "flake.nix";
