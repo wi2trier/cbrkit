@@ -36,6 +36,9 @@ def get_name(obj: Any | None) -> str | None:
 
 
 def get_metadata(obj: Any) -> JsonDict:
+    if isinstance(obj, SimWrapper):
+        obj = obj.func
+
     metadata = {}
 
     if isinstance(obj, SupportsMetadata):
@@ -102,11 +105,6 @@ class SimWrapper[V, S: Float](SupportsMetadata):
             self.kind = "pair"
         else:
             self.kind = "seq"
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return get_metadata(self.func)
 
 
 class SimSeqWrapper[V, S: Float](SimWrapper, SimSeqFunc[V, S]):
