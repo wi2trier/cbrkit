@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
 import immutables
 
@@ -14,6 +14,10 @@ __all__ = [
     "to_dict",
     "from_dict",
 ]
+
+
+class HasData[T](Protocol):
+    data: T
 
 
 class SerializedNode[N](TypedDict):
@@ -33,7 +37,7 @@ class SerializedGraph[K, N, E, G](TypedDict):
 
 
 @dataclass(slots=True, frozen=True)
-class Node[K, N]:
+class Node[K, N](HasData[N]):
     key: K
     data: N
 
@@ -50,7 +54,7 @@ class Node[K, N]:
 
 
 @dataclass(slots=True, frozen=True)
-class Edge[K, N, E]:
+class Edge[K, N, E](HasData[E]):
     key: K
     source: Node[K, N]
     target: Node[K, N]
@@ -79,7 +83,7 @@ class Edge[K, N, E]:
 
 
 @dataclass(slots=True, frozen=True)
-class Graph[K, N, E, G]:
+class Graph[K, N, E, G](HasData[G]):
     nodes: immutables.Map[K, Node[K, N]]
     edges: immutables.Map[K, Edge[K, N, E]]
     data: G

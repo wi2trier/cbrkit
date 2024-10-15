@@ -5,12 +5,19 @@ import itertools
 import random
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Protocol, override
+from typing import Any, Literal, Protocol, cast, override
 
-from cbrkit.helpers import SimSeqWrapper, get_metadata, unpack_sim, unpack_sims
+from cbrkit.helpers import (
+    SimSeqWrapper,
+    SimWrapper,
+    get_metadata,
+    unpack_sim,
+    unpack_sims,
+)
 from cbrkit.sim.graph._model import (
     Edge,
     Graph,
+    HasData,
     Node,
 )
 from cbrkit.typing import (
@@ -188,6 +195,17 @@ class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
         ]
 
 
+class DataSimWrapper[V: HasData[Any], S: Float](SimWrapper, SimSeqFunc[V, S]):
+    @override
+    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
+        if self.kind == "pair":
+            func = cast(SimPairFunc[V, S], self.func)
+            return [func(x.data, y.data) for (x, y) in pairs]
+
+        func = cast(SimSeqFunc[V, S], self.func)
+        return func([(x.data, y.data) for x, y in pairs])
+
+
 @dataclass(slots=True)
 class astar[K, N, E, G](
     SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
@@ -197,11 +215,18 @@ class astar[K, N, E, G](
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
     Args:
-        node_sim_func: A similarity function for graph nodes
-        edge_sim_func: A similarity function for graph edges
+        node_obj_sim: A similarity function for graph nodes that receives two node objects.
+        node_obj_sim: A similarity function for graph edges that receives two edge objects.
+        node_data_sim: A similarity function for graph nodes that receives two data objects.
+        edge_data_sim: A similarity function for graph edges that receives two data objects.
         queue_limit: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
+        future_cost_func: A heuristic function to compute the future costs.
+        past_cost_func: A heuristic function to compute the costs of all previous steps.
+        select_func: A function to select the next element to map.
 
+    Returns:
+        The similarity between the query graph and the most similar graph in the casebase.
     """
 
     node_sim_func: SimSeqFunc[Node[K, N], Float]
@@ -213,20 +238,35 @@ class astar[K, N, E, G](
 
     def __init__(
         self,
-        node_sim_func: AnySimFunc[Node[K, N], Float],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float]
-        | Literal["default"] = "default",
+        node_obj_sim: AnySimFunc[Node[K, N], Float] | None = None,
+        edge_obj_sim: AnySimFunc[Edge[K, N, E], Float] | None = None,
+        node_data_sim: AnySimFunc[N, Float] | None = None,
+        edge_data_sim: AnySimFunc[E, Float] | None = None,
         queue_limit: int = 10000,
         future_cost_func: HeuristicFunc[K, N, E, G] | Literal["h1", "h2"] = "h2",
         past_cost_func: HeuristicFunc[K, N, E, G] | Literal["g1"] = "g1",
         select_func: SelectionFunc[K, N, E, G] | Literal["select1"] = "select1",
     ) -> None:
-        self.node_sim_func = SimSeqWrapper(node_sim_func)
-        self.edge_sim_func = (
-            default_edge_sim(self.node_sim_func)
-            if edge_sim_func == "default"
-            else SimSeqWrapper(edge_sim_func)
-        )
+        # verify that only one of the object or data similarity functions is provided
+        if (node_obj_sim and node_data_sim) or (edge_obj_sim and edge_data_sim):
+            raise ValueError(
+                "Only one of the object or data similarity functions can be provided for nodes and edges"
+            )
+
+        if node_data_sim:
+            self.node_sim_func = DataSimWrapper(node_data_sim)
+        elif node_obj_sim:
+            self.node_sim_func = SimSeqWrapper(node_obj_sim)
+        else:
+            raise ValueError("Either node_obj_sim or node_data_sim must be provided")
+
+        if edge_data_sim:
+            self.edge_sim_func = DataSimWrapper(edge_data_sim)
+        elif edge_obj_sim:
+            self.edge_sim_func = SimSeqWrapper(edge_obj_sim)
+        else:
+            self.edge_sim_func = default_edge_sim(self.node_sim_func)
+
         self.queue_limit = queue_limit
         self.future_cost_func = (
             getattr(self, future_cost_func)
