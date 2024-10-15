@@ -4,6 +4,17 @@ from typing import Any, TypedDict
 
 import immutables
 
+__all__ = [
+    "Node",
+    "Edge",
+    "Graph",
+    "SerializedNode",
+    "SerializedEdge",
+    "SerializedGraph",
+    "to_dict",
+    "from_dict",
+]
+
 
 class SerializedNode[N](TypedDict):
     data: N
@@ -106,7 +117,7 @@ def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
 try:
     import rustworkx
 
-    def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> rustworkx.PyDiGraph[N, E]:
+    def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> "rustworkx.PyDiGraph[N, E]":
         ng = rustworkx.PyDiGraph(attrs=g.data)
         new_ids = ng.add_nodes_from(list(g.nodes.values()))
         id_map = {
@@ -126,7 +137,7 @@ try:
 
         return ng
 
-    def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
+    def from_rustworkx[N, E](g: "rustworkx.PyDiGraph[N, E]") -> Graph[int, N, E, Any]:
         nodes = immutables.Map(
             (idx, Node(idx, g.get_node_data(idx))) for idx in g.node_indices()
         )
@@ -140,6 +151,8 @@ try:
         )
 
         return Graph(nodes, edges, g.attrs)
+
+    __all__ += ["to_rustworkx", "from_rustworkx"]
 
 except ImportError:
     pass
