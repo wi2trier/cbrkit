@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.0](https://github.com/wi2trier/cbrkit/compare/v0.15.0...v0.16.0) (2024-10-15)
+
+
+### Features
+
+* **sim/graph:** add support for data-based similarity ([803dc1c](https://github.com/wi2trier/cbrkit/commit/803dc1c95de701f321faa271172f3e6e8d495308))
+* **sim/table:** allow function as values and arbitrary key transformations ([a918931](https://github.com/wi2trier/cbrkit/commit/a91893112fe496368e61dc247510d3b5914af4a4))
+* **sim/table:** convert to SimSeqFunc for faster computation ([14ab90f](https://github.com/wi2trier/cbrkit/commit/14ab90f2980251741cf466380bd8a16072896999))
+* **sim/table:** separate static and dynamic table func ([7cdf24f](https://github.com/wi2trier/cbrkit/commit/7cdf24fd5b168fb9464dca94f11c716b3aaf9c58))
+* **sim:** add static function ([effcb87](https://github.com/wi2trier/cbrkit/commit/effcb87a5241037d4a087049187385ce876ff512))
+
+
+### Bug Fixes
+
+* **sim:** improve metadata for sim wrappers ([fa30d8b](https://github.com/wi2trier/cbrkit/commit/fa30d8b138e6e8d9822e73936021a41ce4e47cd0))
+* **sim:** update pandas series type ([01096fe](https://github.com/wi2trier/cbrkit/commit/01096febe09c2ef3baca30aa13a053913460019b))
+* update AttributeValueData type ([f30cc4d](https://github.com/wi2trier/cbrkit/commit/f30cc4d2519ac012b67556f33603013c96035f40))
+
 ## [0.15.0](https://github.com/wi2trier/cbrkit/compare/v0.14.2...v0.15.0) (2024-10-15)
 
 
