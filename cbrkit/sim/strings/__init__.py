@@ -11,8 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast, override
 
-from cbrkit.sim.generic import TableSim
-from cbrkit.sim.generic import table as generic_table
+from cbrkit.sim.generic import static_table
 from cbrkit.sim.strings import taxonomy
 from cbrkit.typing import (
     FilePath,
@@ -354,7 +353,7 @@ def table(
     | FilePath,
     symmetric: bool = True,
     default: float = 0.0,
-) -> SimSeqFunc[str, TableSim[float]]:
+) -> SimPairFunc[str, float]:
     """Allows to import a similarity values from a table.
 
     Args:
@@ -363,9 +362,15 @@ def table(
         default: Default similarity value for pairs not in the table
 
     Examples:
-        >>> sim = table([("a", "b", 0.5), ("b", "c", 0.7)], symmetric=True, default=0.0)
-        >>> sim([("b", "a"), ("a", "c")])
-        [TableSim(value=0.5), TableSim(value=0.0)]
+        >>> sim = table(
+        ...     [("a", "b", 0.5), ("b", "c", 0.7)],
+        ...     symmetric=True,
+        ...     default=0.0
+        ... )
+        >>> sim("b", "a")
+        0.5
+        >>> sim("a", "c")
+        0.0
     """
     if isinstance(entries, str | Path):
         if isinstance(entries, str):
@@ -381,4 +386,4 @@ def table(
     else:
         parsed_entries = entries
 
-    return generic_table(parsed_entries, symmetric=symmetric, default=default)
+    return static_table(parsed_entries, symmetric=symmetric, default=default)
