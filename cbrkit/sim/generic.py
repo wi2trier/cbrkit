@@ -5,12 +5,10 @@ from typing import Any, override
 
 from cbrkit.typing import JsonDict, SimPairFunc, SupportsMetadata
 
-__all__ = ["table", "equality"]
+__all__ = ["table", "equality", "static"]
 
 
-@dataclass(
-    slots=True,
-)
+@dataclass(slots=True)
 class table[V](SimPairFunc[V, float], SupportsMetadata):
     """Allows to import a similarity values from a table.
 
@@ -69,3 +67,25 @@ class equality(SimPairFunc[Any, float], SupportsMetadata):
     @override
     def __call__(self, x: Any, y: Any) -> float:
         return 1.0 if x == y else 0.0
+
+
+@dataclass(slots=True, frozen=True)
+class static(SimPairFunc[Any, float], SupportsMetadata):
+    """Static similarity function. Returns a constant value for all pairs.
+
+    Args:
+        value: The constant similarity value
+
+    Examples:
+        >>> sim = static(0.5)
+        >>> sim("b", "a")
+        0.5
+        >>> sim("a", "a")
+        0.5
+    """
+
+    value: float
+
+    @override
+    def __call__(self, x: Any, y: Any) -> float:
+        return self.value
