@@ -139,8 +139,13 @@
               python
               poetry
               config.treefmt.build.wrapper
+              pkgs.zlib
             ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
+            LD_LIBRARY_PATH = lib.makeLibraryPath [
+              pkgs.stdenv.cc.cc
+              pkgs.zlib
+            ];
             shellHook = ''
               ${lib.getExe poetry} env use ${lib.getExe python}
               ${lib.getExe poetry} install --all-extras --no-root --sync

@@ -6,6 +6,7 @@
 """
 
 from . import (
+    eval,
     helpers,
     loaders,
     retrieval,
@@ -16,7 +17,8 @@ from . import (
 __all__ = [
     "loaders",
     "sim",
-    "typing",
     "retrieval",
+    "eval",
+    "typing",
     "helpers",
 ]

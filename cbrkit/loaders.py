@@ -59,25 +59,37 @@ def python(import_name: str) -> Any:
 
 
 @dataclass(slots=True, frozen=True)
-class pandas(Mapping[str | int, pd.Series]):
+class pandas(Mapping[int, pd.Series]):
     df: pd.DataFrame
 
-    def __getitem__(self, key: str | int) -> pd.Series:
-        if isinstance(key, int):
-            return self.df.iloc[key]
-        elif isinstance(key, str):
-            return cast(pd.Series, self.df.loc[key])
+    def __getitem__(self, key: int) -> pd.Series:
+        return self.df.iloc[key]
 
-        raise TypeError(f"Invalid key type: {type(key)}")
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.df.index)
+    def __iter__(self) -> Iterator[int]:
+        return iter(range(len(self.df)))
 
     def __len__(self) -> int:
         return len(self.df)
 
 
 dataframe = pandas
+
+# @dataclass(slots=True)
+# class dataframe(Mapping[int, tuple[Any, ...]]):
+#     df: DataFrame
+
+#     def __init__(self, df: IntoDataFrame):
+#         self.df = nw.from_native(df, eager_only=True)
+
+#     def __getitem__(self, key: int) -> tuple[Any, ...]:
+#         return self.df.row(key)
+
+#     def __iter__(self) -> Iterator[int]:
+#         return iter(range(len(self.df)))
+
+#     def __len__(self) -> int:
+#         return len(self.df)
+
 
 try:
     import polars as pl
