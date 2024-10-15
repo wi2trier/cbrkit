@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.15.0](https://github.com/wi2trier/cbrkit/compare/v0.14.2...v0.15.0) (2024-10-15)
+
+
+### Features
+
+* **helpers:** add sim2pair function ([76f8595](https://github.com/wi2trier/cbrkit/commit/76f8595b461543cb69ab4f54219441d6998cc4a7))
+* **sim/graph:** add support for rustworkx ([c30bc01](https://github.com/wi2trier/cbrkit/commit/c30bc0170b832fe33dd95100cbf94fe7a427ff70))
+* **sim/graph:** rewrite interface completely ([7d6b965](https://github.com/wi2trier/cbrkit/commit/7d6b965bd8140db3213fd45b257b44e941240a97))
+* **sim/strings:** add support for custom model instances ([c185504](https://github.com/wi2trier/cbrkit/commit/c18550439356626c8d18a138c7c4e932361e13ea))
+* **sim:** convert SimMapFuncs to SimSeqFuncs for better compat ([17cd6b3](https://github.com/wi2trier/cbrkit/commit/17cd6b3ceeefd3120a915b84caea542615f8cfaf))
+* switch to new 3.12 generics and add support for retrieval metadata ([30912a8](https://github.com/wi2trier/cbrkit/commit/30912a8f093773c8c29bf6d55b61ded6dd2d91db))
+
+
+### Bug Fixes
+
+* **retrieval:** freeze result dataclass ([00cc0fd](https://github.com/wi2trier/cbrkit/commit/00cc0fd59b09bb5a6d2f9f5e48515c6a19c4d033))
+* **sim/graph:** improve algorithms ([3072670](https://github.com/wi2trier/cbrkit/commit/3072670748e868febd73ebff3afd0900a17e4878))
+* **sim/graph:** improve model and trim down exports ([ce61b9d](https://github.com/wi2trier/cbrkit/commit/ce61b9daeadf852a679db515ed1c92e2513b9b0b))
+* **sim/strings:** add missing exported functions ([7a409aa](https://github.com/wi2trier/cbrkit/commit/7a409aaad19d6176e1033fa54519fe2d97ae2781))
+
 ## [0.14.2](https://github.com/wi2trier/cbrkit/compare/v0.14.1...v0.14.2) (2024-10-02)
 
 
