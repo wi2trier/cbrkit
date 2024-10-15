@@ -14,7 +14,7 @@ from cbrkit.helpers import (
     unpack_sim,
     unpack_sims,
 )
-from cbrkit.sim.graph._model import (
+from cbrkit.sim.graphs._model import (
     Edge,
     Graph,
     HasData,
