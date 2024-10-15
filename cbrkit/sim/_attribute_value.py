@@ -21,7 +21,7 @@ from ._aggregator import aggregator
 __all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
 
 # TODO: Add Polars
-type AttributeValueData = Mapping[Any, Any] | pd.Series[Any]
+type AttributeValueData = Mapping[Any, Any] | "pd.Series[Any]"
 
 
 def default_value_getter(obj: AttributeValueData, key: Any) -> Any:
