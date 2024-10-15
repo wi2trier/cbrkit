@@ -113,6 +113,7 @@ class TaxonomyFunc(Protocol):
 
 TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
 
+
 @dataclass(slots=True, frozen=True)
 class wu_palmer(TaxonomyFunc, SupportsMetadata):
     """Wu & Palmer similarity measure of two nodes in a taxonomy.
@@ -133,6 +134,7 @@ class wu_palmer(TaxonomyFunc, SupportsMetadata):
         lca = taxonomy.lca(node1, node2)
 
         return (2 * lca.depth) / (node1.depth + node2.depth)
+
 
 @dataclass(slots=True, frozen=True)
 class user_weights(TaxonomyFunc, SupportsMetadata):
@@ -172,6 +174,7 @@ class user_weights(TaxonomyFunc, SupportsMetadata):
                 weight = (node1.weight + node2.weight) / 2
 
         return weight
+
 
 @dataclass(slots=True, frozen=True)
 class auto_weights(TaxonomyFunc, SupportsMetadata):
@@ -216,6 +219,7 @@ class auto_weights(TaxonomyFunc, SupportsMetadata):
 
         return weight
 
+
 @dataclass(slots=True, frozen=True)
 class node_levels(TaxonomyFunc, SupportsMetadata):
     """Node levels similarity measure of two nodes in a taxonomy.
@@ -253,6 +257,7 @@ class node_levels(TaxonomyFunc, SupportsMetadata):
             return lca.level / ((node1.level + node2.level) / 2)
         else:
             return 0.0
+
 
 @dataclass(slots=True, frozen=True)
 class path_steps(TaxonomyFunc, SupportsMetadata):
