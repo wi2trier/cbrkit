@@ -1,19 +1,18 @@
-from collections import defaultdict
-from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, override
 
 import pandas as pd
 
-from cbrkit.helpers import get_metadata, get_name, sim2map
+from cbrkit.helpers import SimSeqWrapper, get_metadata
 from cbrkit.typing import (
     AggregatorFunc,
     AnnotatedFloat,
     AnySimFunc,
     Float,
     JsonDict,
-    SimMap,
-    SimMapFunc,
+    SimSeq,
+    SimSeqFunc,
     SupportsMetadata,
 )
 
@@ -21,19 +20,11 @@ from ._aggregator import aggregator
 
 __all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
 
+# TODO: Add Polars
 type AttributeValueData = Mapping[Any, Any] | pd.Series[Any]
 
 
-def _key_getter(obj: AttributeValueData) -> Iterator[str]:
-    if isinstance(obj, Mapping):
-        yield from obj.keys()
-    elif isinstance(obj, pd.Series):
-        yield from obj.index
-    else:
-        raise NotImplementedError()
-
-
-def _value_getter(obj: AttributeValueData, key: Any) -> Any:
+def default_value_getter(obj: AttributeValueData, key: Any) -> Any:
     if isinstance(obj, Mapping | pd.Series):
         return obj[key]
     else:
@@ -43,27 +34,23 @@ def _value_getter(obj: AttributeValueData, key: Any) -> Any:
 @dataclass(slots=True, frozen=True)
 class AttributeValueSim[S: Float](AnnotatedFloat):
     value: float
-    by_attribute: Mapping[str, S]
+    attributes: Mapping[str, S]
 
 
-_aggregator = aggregator()
+default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
 class attribute_value[K, V, S: Float](
-    SimMapFunc[K, V, AttributeValueSim[S]], SupportsMetadata
+    SimSeqFunc[V, AttributeValueSim[S]], SupportsMetadata
 ):
     """
     Similarity function that computes the attribute value similarity between two cases.
 
     Args:
-        attributes: A mapping of attribute names to the similarity functions to be used for those attributes. Takes precedence over types.
-        types: A mapping of attribute types to the similarity functions to be used for those types.
-        types_fallback: A similarity function to be used as a fallback when no specific similarity function
-            is defined for an attribute type.
+        attributes: A mapping of attribute names to the similarity functions to be used for those attributes.
         aggregator: A function that aggregates the local similarity scores for each attribute into a single global similarity.
         value_getter: A function that retrieves the value of an attribute from a case.
-        key_getter: A function that retrieves the attribute names from a target case.
 
     Examples:
         >>> equality = lambda x, y: 1.0 if x == y else 0.0
@@ -74,24 +61,20 @@ class attribute_value[K, V, S: Float](
         ...     },
         ... )
         >>> scores = sim(
-        ...     {
-        ...         "a": {"name": "John", "age": 25},
-        ...         "b": {"name": "Jane", "age": 30},
-        ...     },
-        ...     {"name": "John", "age": 30},
+        ...     [
+        ...         ({"name": "John", "age": 25}, {"name": "John", "age": 30}),
+        ...         ({"name": "Jane", "age": 30}, {"name": "John", "age": 30}),
+        ...     ]
         ... )
-        >>> scores["a"]
-        AttributeValueSim(value=0.5, by_attribute={'age': 0.0, 'name': 1.0})
-        >>> scores["b"]
-        AttributeValueSim(value=0.5, by_attribute={'age': 1.0, 'name': 0.0})
+        >>> scores[0]
+        AttributeValueSim(value=0.5, attributes={'name': 1.0, 'age': 0.0})
+        >>> scores[1]
+        AttributeValueSim(value=0.5, attributes={'name': 0.0, 'age': 1.0})
     """
 
-    attributes: Mapping[str, AnySimFunc[K, Any, S]] = field(default_factory=dict)
-    types: Mapping[type[Any], AnySimFunc[K, Any, S]] = field(default_factory=dict)
-    types_fallback: AnySimFunc[K, Any, S] | None = None
-    aggregator: AggregatorFunc[str, S] = _aggregator
-    value_getter: Callable[[Any, str], Any] = _value_getter
-    key_getter: Callable[[Any], Iterator[str]] = _key_getter
+    attributes: Mapping[str, AnySimFunc[Any, S]]
+    aggregator: AggregatorFunc[str, S] = default_aggregator
+    value_getter: Callable[[Any, str], Any] = default_value_getter
 
     @property
     @override
@@ -100,51 +83,26 @@ class attribute_value[K, V, S: Float](
             "attributes": {
                 key: get_metadata(value) for key, value in self.attributes.items()
             },
-            "types": {
-                key.__name__: get_metadata(value) for key, value in self.types.items()
-            },
-            "types_fallback": get_metadata(self.types_fallback),
             "aggregator": get_metadata(self.aggregator),
-            "value_getter": get_name(self.value_getter),
-            "key_getter": get_name(self.key_getter),
+            "value_getter": get_metadata(self.value_getter),
         }
 
     @override
-    def __call__(self, x_map: Mapping[K, V], y: V) -> SimMap[K, AttributeValueSim[S]]:
-        local_sims: defaultdict[K, dict[str, S]] = defaultdict(dict)
+    def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[AttributeValueSim[S]]:
+        if len(pairs) == 0:
+            return []
 
-        attribute_names = (
-            set(self.attributes).intersection(self.key_getter(y))
-            if len(self.attributes) > 0
-            and len(self.types) == 0
-            and self.types_fallback is None
-            else set(self.key_getter(y))
-        )
+        local_sims: list[dict[str, S]] = [dict() for _ in range(len(pairs))]
 
-        for attr_name in attribute_names:
-            x_attributes = {
-                key: self.value_getter(value, attr_name) for key, value in x_map.items()
-            }
-            y_attribute = self.value_getter(y, attr_name)
-            attr_type = type(y_attribute)
+        for attr_name in self.attributes:
+            attribute_values = [
+                (self.value_getter(x, attr_name), self.value_getter(y, attr_name))
+                for x, y in pairs
+            ]
+            sim_func = SimSeqWrapper(self.attributes[attr_name])
+            sim_func_result = sim_func(attribute_values)
 
-            sim_func = (
-                self.attributes[attr_name]
-                if attr_name in self.attributes
-                else self.types.get(attr_type, self.types_fallback)
-            )
+            for idx, sim in enumerate(sim_func_result):
+                local_sims[idx][attr_name] = sim
 
-            assert (
-                sim_func is not None
-            ), f"no similarity function for {attr_name} with type {attr_type}"
-
-            sim_func = sim2map(sim_func)
-            sim_func_result = sim_func(x_attributes, y_attribute)
-
-            for key, sim in sim_func_result.items():
-                local_sims[key][attr_name] = sim
-
-        return {
-            key: AttributeValueSim(self.aggregator(sims), sims)
-            for key, sims in local_sims.items()
-        }
+        return [AttributeValueSim(self.aggregator(sims), sims) for sims in local_sims]

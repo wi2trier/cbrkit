@@ -27,7 +27,6 @@ def test_retrieve_multiprocessing():
                 "make": cbrkit.sim.strings.levenshtein(),
                 "miles": _custom_numeric_sim,
             },
-            types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
         limit=5,
@@ -71,7 +70,6 @@ def test_retrieve_pandas():
                 "make": cbrkit.sim.strings.levenshtein(),
                 "miles": cbrkit.sim.numbers.linear(max=1000000),
             },
-            types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
         limit=5,
@@ -93,7 +91,13 @@ def test_retrieve_pandas_custom_query():
     casebase = cbrkit.loaders.dataframe(df)
 
     query = pd.Series(
-        {"price": 10000, "year": 2010, "manufacturer": "audi", "make": "a4"}
+        {
+            "price": 10000,
+            "year": 2010,
+            "manufacturer": "audi",
+            "make": "a4",
+            "miles": 100000,
+        }
     )
 
     retriever = cbrkit.retrieval.build(
@@ -108,7 +112,6 @@ def test_retrieve_pandas_custom_query():
                 "make": cbrkit.sim.strings.levenshtein(),
                 "miles": _custom_numeric_sim,
             },
-            types_fallback=cbrkit.sim.generic.equality(),
             aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
         limit=5,
@@ -151,8 +154,8 @@ def test_retrieve_nested():
     assert result.similarities[query_name].value == 1.0
     assert result.ranking[0] == query_name
 
-    model_sim = result.similarities[query_name].by_attribute["model"]
+    model_sim = result.similarities[query_name].attributes["model"]
 
     assert isinstance(model_sim, cbrkit.sim.AttributeValueSim)
     assert model_sim.value == 1.0
-    assert model_sim.by_attribute["make"] == 1.0
+    assert model_sim.attributes["make"] == 1.0

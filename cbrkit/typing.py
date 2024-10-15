@@ -31,9 +31,8 @@ class SupportsMetadata(Protocol):
         return {}
 
 
-# Parameter names must match so that the signature can be inspected, do not add `/` here!
 class SimMapFunc[K, V, S: Float](Protocol):
-    def __call__(self, x_map: Mapping[K, V], y: V) -> SimMap[K, S]: ...
+    def __call__(self, x_map: Mapping[K, V], y: V, /) -> SimMap[K, S]: ...
 
 
 class SimSeqFunc[V, S: Float](Protocol):
@@ -44,16 +43,14 @@ class SimPairFunc[V, S: Float](Protocol):
     def __call__(self, x: V, y: V, /) -> S: ...
 
 
-type AnySimFunc[K, V, S: Float] = (
-    SimMapFunc[K, V, S] | SimSeqFunc[V, S] | SimPairFunc[V, S]
-)
+type AnySimFunc[V, S: Float] = SimPairFunc[V, S] | SimSeqFunc[V, S]
 
 
 class RetrieverFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        x_map: Mapping[K, V],
-        y: V,
+        casebase: Mapping[K, V],
+        query: V,
         processes: int,
     ) -> SimMap[K, S]: ...
 
@@ -79,5 +76,5 @@ class AdaptationFunc[K, V, S: Float](Protocol):
         self,
         x_map: Casebase[K, V],
         y: V,
-        sim_func: AnySimFunc[K, V, S],
+        sim_func: AnySimFunc[V, S],
     ) -> V: ...

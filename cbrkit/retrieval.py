@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from multiprocessing import Pool
 from typing import Any, Literal, cast, override
 
-from cbrkit.helpers import get_metadata, sim2map, unpack_sim
+from cbrkit.helpers import SimMapWrapper, get_metadata, unpack_sim
 from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
@@ -172,7 +172,6 @@ def apply[K, V, S: Float](
         ...             ),
         ...             "miles": cbrkit.sim.numbers.linear(max=1000000),
         ...         },
-        ...         types_fallback=cbrkit.sim.generic.equality(),
         ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ...     ),
         ...     limit=5,
@@ -257,7 +256,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
         ... )
     """
 
-    similarity_func: AnySimFunc[K, V, S]
+    similarity_func: AnySimFunc[V, S]
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
@@ -275,11 +274,11 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     @override
     def __call__(
         self,
-        x_map: Mapping[K, V],
-        y: V,
+        casebase: Casebase[K, V],
+        query: V,
         processes: int = 1,
     ) -> SimMap[K, S]:
-        sim_func = sim2map(self.similarity_func)
+        sim_func = SimMapWrapper(self.similarity_func)
         similarities: SimMap[K, S] = {}
 
         if processes != 1:
@@ -287,20 +286,20 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
             chunks_num = os.cpu_count() if not pool_processes else pool_processes
             assert chunks_num is not None
 
-            x_chunks: list[Casebase[K, V]] = [
-                dict(chunk) for chunk in _chunkify(list(x_map.items()), chunks_num)
+            case_chunks: list[Casebase[K, V]] = [
+                dict(chunk) for chunk in _chunkify(list(casebase.items()), chunks_num)
             ]
 
             with Pool(pool_processes) as pool:
-                sim_chunks: list[SimMap[K, S]] = pool.starmap(
+                sim_chunks = pool.starmap(
                     sim_func,
-                    ((x_chunk, y) for x_chunk in x_chunks),
+                    ((x_chunk, query) for x_chunk in case_chunks),
                 )
 
             for sim_chunk in sim_chunks:
                 similarities.update(sim_chunk)
         else:
-            similarities = sim_func(x_map, y)
+            similarities = sim_func(casebase, query)
 
         ranking = _similarities2ranking(similarities)
 

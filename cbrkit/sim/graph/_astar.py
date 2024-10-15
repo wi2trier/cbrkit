@@ -3,11 +3,11 @@ from __future__ import annotations
 import bisect
 import itertools
 import random
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, override
+from typing import Literal, Protocol, override
 
-from cbrkit.helpers import get_metadata, unpack_sim, unpack_sims
+from cbrkit.helpers import SimSeqWrapper, get_metadata, unpack_sim, unpack_sims
 from cbrkit.sim.graph._model import (
     Edge,
     Graph,
@@ -15,11 +15,11 @@ from cbrkit.sim.graph._model import (
 )
 from cbrkit.typing import (
     AnnotatedFloat,
-    Casebase,
+    AnySimFunc,
     Float,
     JsonDict,
-    SimMapFunc,
     SimPairFunc,
+    SimSeqFunc,
     SupportsMetadata,
 )
 
@@ -27,9 +27,10 @@ type ElementKind = Literal["node", "edge"]
 
 
 @dataclass(slots=True, frozen=True)
-class GraphSim[K, N, E, G](AnnotatedFloat):
+class GraphSim[K](AnnotatedFloat):
     value: float
-    mapping: GraphMapping[K, N, E, G]
+    node_mappings: dict[K, K]
+    edge_mappings: dict[K, K]
 
 
 @dataclass(slots=True, frozen=True)
@@ -170,9 +171,26 @@ class SearchNode[K, N, E, G]:
             self.unmapped_edges.remove(q)
 
 
+@dataclass(slots=True, frozen=True)
+class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
+    node_sim_func: SimSeqFunc[Node[K, N], Float]
+
+    @override
+    def __call__(
+        self, pairs: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
+    ) -> list[float]:
+        source_sims = self.node_sim_func([(x.source, y.source) for x, y in pairs])
+        target_sims = self.node_sim_func([(x.target, y.target) for x, y in pairs])
+
+        return [
+            0.5 * (unpack_sim(source) + unpack_sim(target))
+            for source, target in zip(source_sims, target_sims, strict=True)
+        ]
+
+
 @dataclass(slots=True)
 class astar[K, N, E, G](
-    SimMapFunc[Any, Graph[K, N, E, G], GraphSim[K, N, E, G]],
+    SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
     SupportsMetadata,
 ):
     """
@@ -186,8 +204,8 @@ class astar[K, N, E, G](
 
     """
 
-    node_sim_func: SimPairFunc[Node[K, N], Float]
-    edge_sim_func: SimPairFunc[Edge[K, N, E], Float]
+    node_sim_func: SimSeqFunc[Node[K, N], Float]
+    edge_sim_func: SimSeqFunc[Edge[K, N, E], Float]
     queue_limit: int
     future_cost_func: HeuristicFunc[K, N, E, G]
     past_cost_func: HeuristicFunc[K, N, E, G]
@@ -195,17 +213,19 @@ class astar[K, N, E, G](
 
     def __init__(
         self,
-        node_sim_func: SimPairFunc[Node[K, N], Float],
-        edge_sim_func: SimPairFunc[Edge[K, N, E], Float]
+        node_sim_func: AnySimFunc[Node[K, N], Float],
+        edge_sim_func: AnySimFunc[Edge[K, N, E], Float]
         | Literal["default"] = "default",
         queue_limit: int = 10000,
         future_cost_func: HeuristicFunc[K, N, E, G] | Literal["h1", "h2"] = "h2",
         past_cost_func: HeuristicFunc[K, N, E, G] | Literal["g1"] = "g1",
         select_func: SelectionFunc[K, N, E, G] | Literal["select1"] = "select1",
     ) -> None:
-        self.node_sim_func = node_sim_func
+        self.node_sim_func = SimSeqWrapper(node_sim_func)
         self.edge_sim_func = (
-            self.default_edge_sim if edge_sim_func == "default" else edge_sim_func
+            default_edge_sim(self.node_sim_func)
+            if edge_sim_func == "default"
+            else SimSeqWrapper(edge_sim_func)
         )
         self.queue_limit = queue_limit
         self.future_cost_func = (
@@ -233,12 +253,6 @@ class astar[K, N, E, G](
             "past_cost_func": get_metadata(self.past_cost_func),
             "select_func": get_metadata(self.select_func),
         }
-
-    def default_edge_sim(self, x: Edge[K, N, E], y: Edge[K, N, E]) -> float:
-        return 0.5 * (
-            unpack_sim(self.node_sim_func(x.source, y.source))
-            + unpack_sim(self.node_sim_func(x.target, y.target))
-        )
 
     def select1(
         self,
@@ -277,8 +291,9 @@ class astar[K, N, E, G](
         for y_name in s.unmapped_nodes:
             max_sim = max(
                 unpack_sims(
-                    self.node_sim_func(x_node, y.nodes[y_name])
-                    for x_node in (x.nodes.values())
+                    self.node_sim_func(
+                        [(x_node, y.nodes[y_name]) for x_node in (x.nodes.values())]
+                    )
                 )
             )
 
@@ -287,8 +302,9 @@ class astar[K, N, E, G](
         for y_name in s.unmapped_edges:
             max_sim = max(
                 unpack_sims(
-                    self.edge_sim_func(x_edge, y.edges[y_name])
-                    for x_edge in x.edges.values()
+                    self.edge_sim_func(
+                        [(x_edge, y.edges[y_name]) for x_edge in x.edges.values()]
+                    )
                 )
             )
 
@@ -302,14 +318,12 @@ class astar[K, N, E, G](
     ) -> float:
         """Function to compute the costs of all previous steps"""
 
-        node_sims = (
-            self.node_sim_func(s.x.nodes[x], s.y.nodes[y])
-            for x, y in s.mapping.node_mappings.items()
+        node_sims = self.node_sim_func(
+            [(s.x.nodes[x], s.y.nodes[y]) for x, y in s.mapping.node_mappings.items()]
         )
 
-        edge_sims = (
-            self.edge_sim_func(s.x.edges[x], s.y.edges[y])
-            for x, y in s.mapping.edge_mappings.items()
+        edge_sims = self.edge_sim_func(
+            [(s.x.edges[x], s.y.edges[y]) for x, y in s.mapping.edge_mappings.items()]
         )
 
         all_sims = unpack_sims(itertools.chain(node_sims, edge_sims))
@@ -350,31 +364,24 @@ class astar[K, N, E, G](
 
         return q[len(q) - self.queue_limit :] if self.queue_limit > 0 else q
 
-    def _astar_single(
+    @override
+    def __call__(
         self,
-        s0: SearchNode[K, N, E, G],
-    ):
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> GraphSim[K]:
         """Perform an A* analysis of the x base and the y"""
 
+        s0 = SearchNode(GraphMapping(x, y))
         q = [s0]
 
         while q[-1].unmapped_nodes or q[-1].unmapped_edges:
             q = self._expand(q)
 
-        return q[-1]
+        result = q[-1]
 
-    @override
-    def __call__(
-        self,
-        x_map: Casebase[K, Graph[K, N, E, G]],
-        y: Graph[K, N, E, G],
-    ) -> dict[K, GraphSim[K, N, E, G]]:
-        results = {
-            key: self._astar_single(SearchNode(GraphMapping(x, y)))
-            for key, x in x_map.items()
-        }
-
-        return {
-            key: GraphSim(self.past_cost_func(result), result.mapping)
-            for key, result in results.items()
-        }
+        return GraphSim(
+            self.past_cost_func(result),
+            result.mapping.node_mappings,
+            result.mapping.edge_mappings,
+        )
