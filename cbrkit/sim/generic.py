@@ -1,15 +1,20 @@
-from collections import defaultdict
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, override
 
-from cbrkit.typing import JsonDict, SimPairFunc, SupportsMetadata
+from cbrkit.helpers import SimPairWrapper, get_metadata
+from cbrkit.typing import AnySimFunc, JsonDict, SimPairFunc, SupportsMetadata
 
 __all__ = ["table", "equality", "static"]
 
 
+def default_key_getter(x: Any) -> Any:
+    return x
+
+
+# TODO: convert to SimSeqFunc
 @dataclass(slots=True)
-class table[V](SimPairFunc[V, float], SupportsMetadata):
+class table[K, V](SimPairFunc[V, float], SupportsMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -25,31 +30,80 @@ class table[V](SimPairFunc[V, float], SupportsMetadata):
         0.0
     """
 
-    entries: Sequence[tuple[V, V, float]]
-    symmetric: bool = True
-    default: float = 0.0
-    table: defaultdict[V, defaultdict[V, float]] = field(init=False)
+    symmetric: bool
+    default: float | SimPairFunc[V, float]
+    key_getter: Callable[[V], K]
+    table: dict[tuple[K, K], float | SimPairFunc[V, float]]
 
     @property
     @override
     def metadata(self) -> JsonDict:
         return {
             "symmetric": self.symmetric,
-            "default": self.default,
+            "default": get_metadata(self.default)
+            if isinstance(self.default, Callable)
+            else self.default,
+            "key_getter": get_metadata(self.key_getter),
+            "table": [
+                {
+                    "x": str(k[0]),
+                    "y": str(k[1]),
+                    "value": get_metadata(v) if isinstance(v, Callable) else v,
+                }
+                for k, v in self.table.items()
+            ],
         }
 
-    def __post_init__(self):
-        self.table = defaultdict(lambda: defaultdict(lambda: self.default))
+    def __init__(
+        self,
+        entries: Sequence[tuple[K, K, float | AnySimFunc[V, float]]]
+        | Mapping[tuple[K, K], float | AnySimFunc[V, float]],
+        symmetric: bool = True,
+        default: float | AnySimFunc[V, float] = 0.0,
+        key_getter: Callable[[V], K] | None = None,
+    ):
+        self.default = (
+            SimPairWrapper(default) if isinstance(default, Callable) else default
+        )
+        self.symmetric = symmetric
+        self.table = {}
+        self.key_getter = key_getter or default_key_getter
 
-        for x in self.entries:
-            self.table[x[0]][x[1]] = x[2]
+        if isinstance(entries, Mapping):
+            for (x, y), raw_value in entries.items():
+                value = (
+                    SimPairWrapper(raw_value)
+                    if isinstance(raw_value, Callable)
+                    else raw_value
+                )
+                self.table[(x, y)] = value
 
-            if self.symmetric:
-                self.table[x[1]][x[0]] = x[2]
+                if self.symmetric:
+                    self.table[(y, x)] = value
+        else:
+            for entry in entries:
+                x, y, raw_value = entry
+                value = (
+                    SimPairWrapper(raw_value)
+                    if isinstance(raw_value, Callable)
+                    else raw_value
+                )
+                self.table[(x, y)] = value
+
+                if self.symmetric:
+                    self.table[(y, x)] = value
 
     @override
     def __call__(self, x: V, y: V) -> float:
-        return self.table[x][y]
+        x_key = self.key_getter(x)
+        y_key = self.key_getter(y)
+
+        entry = self.table.get((x_key, y_key), self.default)
+
+        if isinstance(entry, Callable):
+            return entry(x, y)
+
+        return entry
 
 
 @dataclass(slots=True, frozen=True)
