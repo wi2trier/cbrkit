@@ -9,7 +9,7 @@ there is also a measure for attribute-value data.
 Additionally, the module contains an aggregator to combine multiple local measures into a global score.
 """
 
-from . import collections, generic, numbers, strings
+from . import collections, generic, graphs, numbers, strings
 from ._aggregator import PoolingName, aggregator
 from ._attribute_value import AttributeValueData, AttributeValueSim, attribute_value
 
@@ -19,6 +19,7 @@ __all__ = [
     "numbers",
     "strings",
     "attribute_value",
+    "graphs",
     "aggregator",
     "PoolingName",
     "AttributeValueData",
