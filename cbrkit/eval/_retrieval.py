@@ -1,29 +1,39 @@
-from typing import override
+from typing import Any
 
-import ranx
+from cbrkit.retrieval import Result, ResultStep
+from cbrkit.typing import Float
 
-from cbrkit.helpers import unpack_sim
-from cbrkit.retrieval import ResultStep
-
-from ._base import Base
+from ._base import base
 
 
-class Retrieval(Base):
-    @override
-    def __init__(
-        self,
-        qrels: dict[str, dict[str, int]],
-        queries_results: dict[str, ResultStep],
-    ) -> None:
-        super().__init__(
-            ranx.Qrels(qrels),
-            ranx.Run(
-                {
-                    query: {
-                        case: unpack_sim(sim)
-                        for case, sim in result.similarities.items()
-                    }
-                    for query, result in queries_results.items()
-                }
-            ),
+def retrieval_step[QK, CK, S: Float](
+    qrels: dict[QK, dict[CK, int]],
+    queries_step: dict[QK, ResultStep[CK, Any, S]],
+) -> dict[str, float]:
+    return base(
+        qrels,
+        {
+            query: {case: sim for case, sim in step.similarities.items()}
+            for query, step in queries_step.items()
+        },
+    )
+
+
+def retrieval[QK, CK, S: Float](
+    qrels: dict[QK, dict[CK, int]],
+    queries_result: dict[QK, Result[CK, Any, S]],
+) -> list[dict[str, float]]:
+    all_steps = {len(result.steps) for result in queries_result.values()}
+
+    if len(all_steps) != 1:
+        raise ValueError("All queries must have the same number of retrieval steps")
+
+    num_steps = all_steps.pop()
+
+    return [
+        retrieval_step(
+            qrels,
+            {query: result.steps[idx] for query, result in queries_result.items()},
         )
+        for idx in range(num_steps)
+    ]
