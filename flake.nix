@@ -49,6 +49,7 @@
                 projectDir = ./.;
                 preferWheels = true;
                 checkPhase = "pytest";
+                extras = [ "all" ];
                 meta = {
                   description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
                   license = lib.licenses.mit;
@@ -98,7 +99,10 @@
             };
             docs =
               let
-                app = mkPoetryApp { groups = [ "docs" ]; };
+                app = mkPoetryApp {
+                  groups = [ "docs" ];
+                  nativeCheckInputs = [ ];
+                };
                 env = app.dependencyEnv;
               in
               pkgs.stdenv.mkDerivation {
