@@ -48,7 +48,7 @@
                 inherit python;
                 projectDir = ./.;
                 preferWheels = true;
-                checkPhase = "pytest";
+                nativeCheckInputs = [ python.pkgs.pytestCheckHook ];
                 extras = [ "all" ];
                 meta = {
                   description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
