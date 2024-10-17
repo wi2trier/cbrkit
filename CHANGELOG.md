@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.17.0](https://github.com/wi2trier/cbrkit/compare/v0.16.0...v0.17.0) (2024-10-17)
+
+
+### Features
+
+* add initial version of eval module ([cfb1b2d](https://github.com/wi2trier/cbrkit/commit/cfb1b2dc8d6192e5650279a6a4059fd8543925a9))
+
+
+### Bug Fixes
+
+* **eval:** import ranx in function instead of globally ([ff17643](https://github.com/wi2trier/cbrkit/commit/ff17643d8db946c92f2f824eedf726f7cd223d3b))
+* **eval:** use functional approach instead of classes ([4a8d97e](https://github.com/wi2trier/cbrkit/commit/4a8d97ef15b473bb2cbdc6b604bf0f5eb075ffa0))
+* **retrieval:** add query key type for mapply ([3e8ac6b](https://github.com/wi2trier/cbrkit/commit/3e8ac6bf4eda2e13eee38e2de2e115fbce160b23))
+* **sim:** export graph sim ([edb3ef0](https://github.com/wi2trier/cbrkit/commit/edb3ef0b4b18f099df45b35590b905d209d5bcab))
+
 ## [0.16.0](https://github.com/wi2trier/cbrkit/compare/v0.15.0...v0.16.0) (2024-10-15)
 
 
