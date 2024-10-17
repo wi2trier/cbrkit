@@ -60,8 +60,9 @@
                   pytestCheckHook
                   pytest-cov-stub
                 ];
-                overrides = pkgs.poetry2nix.overrides.withDefaults (injectBuildInputs { });
-                extras = [ "all" ];
+                overrides = pkgs.poetry2nix.overrides.withDefaults (injectBuildInputs {
+                  warc3-wet-clueweb09 = [ "setuptools" ];
+                });
                 meta = with lib; {
                   description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
                   license = licenses.mit;

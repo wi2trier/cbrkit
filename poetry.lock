@@ -3291,13 +3291,13 @@ semver = ["semver (>=3.0.2)"]
 
 [[package]]
 name = "pydantic-settings"
-version = "2.5.2"
+version = "2.6.0"
 description = "Settings management using Pydantic"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "pydantic_settings-2.5.2-py3-none-any.whl", hash = "sha256:2c912e55fd5794a59bf8c832b9de832dcfdf4778d79ff79b708744eed499a907"},
-    {file = "pydantic_settings-2.5.2.tar.gz", hash = "sha256:f90b139682bee4d2065273d5185d71d37ea46cfe57e1b5ae184fc6a0b2484ca0"},
+    {file = "pydantic_settings-2.6.0-py3-none-any.whl", hash = "sha256:4a819166f119b74d7f8c765196b165f95cc7487ce58ea27dec8a5a26be0970e0"},
+    {file = "pydantic_settings-2.6.0.tar.gz", hash = "sha256:44a1804abffac9e6a30372bb45f6cafab945ef5af25e66b1c634c01dd39e0188"},
 ]
 
 [package.dependencies]
@@ -5386,7 +5386,7 @@ files = [
 ]
 
 [extras]
-all = ["dtaidistance", "fastapi", "levenshtein", "levenshtein", "levenshtein", "minineedle", "networkx", "nltk", "numpy", "openai", "polars", "rich", "scipy", "sentence-transformers", "spacy", "torch", "torch", "torch", "transformers", "typer", "uvicorn"]
+all = ["dtaidistance", "fastapi", "levenshtein", "levenshtein", "levenshtein", "minineedle", "networkx", "nltk", "numpy", "openai", "polars", "ranx", "rich", "scipy", "sentence-transformers", "spacy", "torch", "torch", "torch", "transformers", "typer", "uvicorn"]
 api = ["fastapi", "rich", "typer", "uvicorn"]
 cli = ["rich", "typer"]
 eval = ["ranx"]
@@ -5397,4 +5397,4 @@ transformers = ["sentence-transformers", "torch", "torch", "torch", "transformer
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "57781a97e701b4532e00492f2e5230e0cb402f2e0b1222222f70b8b8d15d7be0"
+content-hash = "1c63845c37a0b81441ce0e3eb13bc300e6c0822a50703f1f39a4c6adca0a7092"

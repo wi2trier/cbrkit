@@ -93,6 +93,7 @@ all = [
     "numpy",
     "openai",
     "polars",
+    "ranx",
     "rich",
     "scipy",
     "sentence-transformers",
@@ -101,7 +102,6 @@ all = [
     "transformers",
     "typer",
     "uvicorn",
-    # "ranx", # not working with nix due to numba cache expecting writable directories
 ]
 api = ["rich", "typer", "fastapi", "uvicorn"]
 cli = ["rich", "typer"]
