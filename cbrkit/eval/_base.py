@@ -2,8 +2,6 @@ import statistics
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 
-import ranx
-
 from cbrkit.helpers import unpack_sim
 from cbrkit.typing import Float
 
@@ -98,6 +96,8 @@ def base[QK, CK, S: Float](
     run: Mapping[QK, Mapping[CK, S]],
     metrics: Sequence[str] = DEFAULT_METRICS,
 ) -> dict[str, float]:
+    import ranx
+
     ranx_metrics = [
         x for x in metrics if not any(x.startswith(y) for y in CUSTOM_METRICS)
     ]
