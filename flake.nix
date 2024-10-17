@@ -41,6 +41,14 @@
         let
           python = pkgs.python312;
           poetry = pkgs.poetry;
+          injectBuildInputs =
+            attrs: final: prev:
+            lib.mapAttrs (
+              name: value:
+              prev.${name}.overridePythonAttrs (old: {
+                buildInputs = (old.buildInputs or [ ]) ++ (map (v: prev.${v}) value);
+              })
+            ) attrs;
           mkPoetryApp =
             args:
             pkgs.poetry2nix.mkPoetryApplication (
@@ -49,6 +57,7 @@
                 projectDir = ./.;
                 preferWheels = true;
                 nativeCheckInputs = [ python.pkgs.pytestCheckHook ];
+                overrides = pkgs.poetry2nix.overrides.withDefaults (injectBuildInputs { });
                 extras = [ "all" ];
                 meta = {
                   description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
