@@ -180,6 +180,55 @@ except ImportError:
 
 try:
     import numpy as np
+    from ollama import Client, Options
+
+    @dataclass(slots=True, frozen=True)
+    class ollama(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using Ollama's embedding models
+
+        Args:
+            model: Name of the [embedding model](https://ollama.com/blog/embedding-models).
+        """
+
+        model: str
+        truncate: bool = True
+        options: Options | None = None
+        keep_alive: float | str | None = None
+        client: Client = field(default_factory=Client)
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                "model": self.model,
+                "truncate": self.truncate,
+                "keep_alive": self.keep_alive,
+                "options": str(self.options),
+            }
+
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
+            texts = _unique_items(pairs)
+            res = self.client.embed(
+                self.model,
+                texts,
+                truncate=self.truncate,
+                options=self.options,
+                keep_alive=self.keep_alive,
+            )
+            _vecs = [np.array(x) for x in res["embeddings"]]
+            vecs = dict(zip(texts, _vecs, strict=True))
+
+            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+
+    __all__ += ["ollama"]
+
+except ImportError:
+    pass
+
+
+try:
+    import numpy as np
     from cohere import Client
     from cohere.core import RequestOptions
 
