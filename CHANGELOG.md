@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.18.0](https://github.com/wi2trier/cbrkit/compare/v0.17.0...v0.18.0) (2024-10-23)
+
+
+### Features
+
+* **retrieval:** add base retrieval function ([e5cddde](https://github.com/wi2trier/cbrkit/commit/e5cddde780c539942c7bc71d84341c2bb5e67bf2))
+* **retrieval:** add cohere retrieval function ([839383f](https://github.com/wi2trier/cbrkit/commit/839383fa20ec2384d6be35ba623996c05a78aa48))
+* **sim/generic:** add transpose function ([54d34ad](https://github.com/wi2trier/cbrkit/commit/54d34ad909c3764bc81281f2b02e912e695f117a))
+* **sim/strings:** add cohere embeddings function ([bb67318](https://github.com/wi2trier/cbrkit/commit/bb673186a7747350f9042b91884566fae6b9cfdb))
+* **sim/strings:** add ollama embeddings function ([9da4ef0](https://github.com/wi2trier/cbrkit/commit/9da4ef065ef4978534cd22b395cf28ef6bf773f0))
+
+
+### Bug Fixes
+
+* **retrieval:** properly call super() for dataclasses ([778d9e5](https://github.com/wi2trier/cbrkit/commit/778d9e5bcdb561390cd507890b2eab94bd248c62))
+* **sim/openai:** update model calling ([4caca8b](https://github.com/wi2trier/cbrkit/commit/4caca8bf3064176e3f06abdc6a256b959ed9f208))
+
 ## [0.17.0](https://github.com/wi2trier/cbrkit/compare/v0.16.0...v0.17.0) (2024-10-17)
 
 
