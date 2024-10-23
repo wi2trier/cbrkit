@@ -38,47 +38,15 @@
           config,
           ...
         }:
-        let
-          python = pkgs.python312;
-          poetry = pkgs.poetry;
-          injectBuildInputs =
-            attrs: final: prev:
-            lib.mapAttrs (
-              name: value:
-              prev.${name}.overridePythonAttrs (old: {
-                buildInputs = (old.buildInputs or [ ]) ++ (map (v: prev.${v}) value);
-              })
-            ) attrs;
-          mkPoetryApp =
-            args:
-            pkgs.poetry2nix.mkPoetryApplication (
-              {
-                inherit python;
-                projectDir = ./.;
-                preferWheels = true;
-                nativeCheckInputs = with python.pkgs; [
-                  pytestCheckHook
-                  pytest-cov-stub
-                ];
-                overrides = pkgs.poetry2nix.overrides.withDefaults (injectBuildInputs {
-                  warc3-wet-clueweb09 = [ "setuptools" ];
-                });
-                meta = with lib; {
-                  description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
-                  license = licenses.mit;
-                  maintainers = with maintainers; [ mirkolenz ];
-                  platforms = with platforms; darwin ++ linux;
-                  homepage = "https://github.com/wi2trier/cbrkit";
-                  mainProgram = "cbrkit";
-                };
-              }
-              // args
-            );
-        in
         {
           _module.args.pkgs = import nixpkgs {
             inherit system;
-            overlays = [ inputs.poetry2nix.overlays.default ];
+            overlays = [
+              inputs.poetry2nix.overlays.default
+              (final: prev: {
+                python3 = final.python312;
+              })
+            ];
           };
           checks = {
             inherit (config.packages) cbrkit;
@@ -93,55 +61,21 @@
           };
           packages = {
             default = config.packages.cbrkit;
-            cbrkit = mkPoetryApp { };
+            cbrkit = pkgs.callPackage ./default.nix { };
+            docs = pkgs.callPackage ./docs.nix { inherit (config.packages) cbrkit; };
             docker = pkgs.dockerTools.buildLayeredImage {
               name = "cbrkit";
               tag = "latest";
               created = "now";
-              config = {
-                entrypoint = [ (lib.getExe config.packages.default) ];
-                cmd = [ ];
-              };
+              config.Entrypoint = [ (lib.getExe config.packages.default) ];
             };
             release-env = pkgs.buildEnv {
               name = "release-env";
-              paths = [
-                python
+              paths = with pkgs; [
+                python3
                 poetry
               ];
             };
-            docs =
-              let
-                app = mkPoetryApp {
-                  groups = [ "docs" ];
-                  nativeCheckInputs = [ ];
-                };
-                env = app.dependencyEnv;
-              in
-              pkgs.stdenv.mkDerivation {
-                name = "docs";
-                src = ./.;
-                buildPhase = ''
-                  mkdir -p "$out"
-
-                  {
-                    echo '```txt'
-                    COLUMNS=120 ${lib.getExe app} --help
-                    echo '```'
-                  } > ./cli.md
-
-                  # remove everyting before the first header
-                  ${lib.getExe pkgs.gnused} -i '1,/^# /d' ./README.md
-
-                  ${lib.getExe' env "pdoc"} -d google -t pdoc-template --math \
-                    --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
-                    -o "$out" ./cbrkit
-
-                  mkdir "$out/assets"
-                  cp -rf ./assets/**/{*.png,*.gif} "$out/assets/"
-                '';
-                dontInstall = true;
-              };
           };
           apps.docker-manifest.program = flocken.legacyPackages.${system}.mkDockerManifest {
             github = {
@@ -156,16 +90,16 @@
               stdenv.cc.cc
               zlib
             ];
-            packages = [
-              python
+            packages = with pkgs; [
+              python3
               poetry
               config.treefmt.build.wrapper
             ];
             POETRY_VIRTUALENVS_IN_PROJECT = true;
             LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
             shellHook = ''
-              ${lib.getExe poetry} env use ${lib.getExe python}
-              ${lib.getExe poetry} install --all-extras --no-root --sync
+              ${lib.getExe pkgs.poetry} env use ${lib.getExe pkgs.python3}
+              ${lib.getExe pkgs.poetry} install --all-extras --no-root --sync
             '';
           };
         };
