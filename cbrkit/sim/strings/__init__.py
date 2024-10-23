@@ -9,7 +9,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast, override
+from typing import Literal, cast, override
 
 from cbrkit.sim.generic import static_table
 from cbrkit.sim.strings import taxonomy
@@ -173,6 +173,71 @@ try:
             return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
 
     __all__ += ["openai"]
+
+except ImportError:
+    pass
+
+
+try:
+    import numpy as np
+    from cohere import Client
+    from cohere.core import RequestOptions
+
+    @dataclass(slots=True, frozen=True)
+    class cohere(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using Cohere's embedding models
+
+        Args:
+            model: Name of the [embedding model](https://docs.cohere.com/reference/embed).
+        """
+
+        model: str
+        client: Client = field(default_factory=Client)
+        truncate: Literal["NONE", "START", "END"] | None = None
+        request_options: RequestOptions | None = None
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                "model": self.model,
+                "truncate": self.truncate,
+                "request_options": str(self.request_options),
+            }
+
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
+            case_texts = list({x for x, _ in pairs})
+            query_texts = list({y for _, y in pairs})
+
+            case_raw_vecs = self.client.v2.embed(
+                model=self.model,
+                texts=case_texts,
+                input_type="search_document",
+                embedding_types="float",
+                truncate=self.truncate,
+                request_options=self.request_options,
+            ).embeddings.float_
+            query_raw_vecs = self.client.v2.embed(
+                model=self.model,
+                texts=query_texts,
+                input_type="search_document",
+                embedding_types="float",
+                truncate=self.truncate,
+                request_options=self.request_options,
+            ).embeddings.float_
+
+            assert case_raw_vecs is not None and query_raw_vecs is not None
+
+            case_np_vecs = [np.array(x) for x in case_raw_vecs]
+            query_np_vecs = [np.array(x) for x in query_raw_vecs]
+
+            case_vecs = dict(zip(case_texts, case_np_vecs, strict=True))
+            query_vecs = dict(zip(query_texts, query_np_vecs, strict=True))
+
+            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in pairs]
+
+    __all__ += ["cohere"]
 
 except ImportError:
     pass
