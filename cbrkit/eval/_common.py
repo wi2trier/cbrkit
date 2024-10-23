@@ -1,3 +1,4 @@
+import itertools
 import statistics
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
@@ -6,6 +7,8 @@ from cbrkit.helpers import unpack_sim
 from cbrkit.typing import Float
 
 # https://amenra.github.io/ranx/metrics/
+
+__all__ = ["compute", "correctness_completeness", "metrics_at_k", "parse_metric"]
 
 
 def correctness_completeness(
@@ -40,19 +43,20 @@ def _correctness_completeness_single(
     correctness = 1
     completeness = 1
 
-    for user_key_1, user_rank_1 in qrel.items():
-        for user_key_2, user_rank_2 in qrel.items():
-            if user_key_1 != user_key_2 and user_rank_1 > user_rank_2:
-                orders += 1
+    for (user_key_1, user_rank_1), (user_key_2, user_rank_2) in itertools.product(
+        qrel.items(), qrel.items()
+    ):
+        if user_key_1 != user_key_2 and user_rank_1 > user_rank_2:
+            orders += 1
 
-                system_rank_1 = run_ranking.get(user_key_1)
-                system_rank_2 = run_ranking.get(user_key_2)
+            system_rank_1 = run_ranking.get(user_key_1)
+            system_rank_2 = run_ranking.get(user_key_2)
 
-                if system_rank_1 is not None and system_rank_2 is not None:
-                    if system_rank_1 > system_rank_2:
-                        concordances += 1
-                    elif system_rank_1 < system_rank_2:
-                        disconcordances += 1
+            if system_rank_1 is not None and system_rank_2 is not None:
+                if system_rank_1 > system_rank_2:
+                    concordances += 1
+                elif system_rank_1 < system_rank_2:
+                    disconcordances += 1
 
     if concordances + disconcordances > 0:
         correctness = (concordances - disconcordances) / (
@@ -91,7 +95,7 @@ DEFAULT_METRICS = (
 CUSTOM_METRICS = ("correctness_completeness",)
 
 
-def base[QK, CK, S: Float](
+def compute[QK, CK, S: Float](
     qrels: Mapping[QK, Mapping[CK, int]],
     run: Mapping[QK, Mapping[CK, S]],
     metrics: Sequence[str] = DEFAULT_METRICS,
