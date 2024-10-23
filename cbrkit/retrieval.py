@@ -297,7 +297,7 @@ class build[K, V, S: Float](base_retriever[K, V, S]):
     @override
     def metadata(self) -> JsonDict:
         return {
-            **super().metadata,
+            **super(build, self).metadata,
             "similarity_func": get_metadata(self.similarity_func),
         }
 
@@ -395,7 +395,7 @@ try:
         @override
         def metadata(self) -> JsonDict:
             return {
-                **super().metadata,
+                **super(cohere, self).metadata,
                 "model": self.model,
                 "conversion_func": get_metadata(self.conversion_func),
                 "top_n": self.top_n,
