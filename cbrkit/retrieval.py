@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
 from typing import Any, Literal, cast, override
 
@@ -370,3 +370,65 @@ def load_map(
             retrievers.update(obj)
 
     return retrievers
+
+
+try:
+    from cohere import Client
+    from cohere.core import RequestOptions
+
+    @dataclass(slots=True, frozen=True)
+    class cohere[K, V, U](base_retriever[K, V, float]):
+        """Semantic similarity using Cohere's rerank models
+
+        Args:
+            model: Name of the [rerank model](https://docs.cohere.com/reference/rerank).
+        """
+
+        model: str
+        conversion_func: Callable[[V], str]
+        top_n: int | None = None
+        max_chunks_per_doc: int | None = None
+        client: Client = field(default_factory=Client)
+        request_options: RequestOptions | None = None
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                **super().metadata,
+                "model": self.model,
+                "conversion_func": get_metadata(self.conversion_func),
+                "top_n": self.top_n,
+                "max_chunks_per_doc": self.max_chunks_per_doc,
+                "request_options": str(self.request_options),
+            }
+
+        @override
+        def __call__(
+            self,
+            casebase: Casebase[K, V],
+            query: V,
+            processes: int = 1,
+        ) -> SimMap[K, float]:
+            response = self.client.v2.rerank(
+                model=self.model,
+                query=self.conversion_func(query),
+                documents=[self.conversion_func(value) for value in casebase.values()],
+                return_documents=False,
+                top_n=self.top_n,
+                max_chunks_per_doc=self.max_chunks_per_doc,
+                request_options=self.request_options,
+            )
+            key_index = {idx: key for idx, key in enumerate(casebase)}
+
+            similarities: SimMap[K, float] = {
+                key_index[result.index]: result.relevance_score
+                for result in response.results
+            }
+
+            return self.postprocess(similarities)
+
+    __all__ += ["cohere"]
+
+except ImportError:
+    pass
