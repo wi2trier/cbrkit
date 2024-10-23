@@ -24,6 +24,7 @@ __all__ = [
     "load_map",
     "Result",
     "ResultStep",
+    "base_retriever",
 ]
 
 
@@ -218,8 +219,42 @@ def _chunkify[V](val: Sequence[V], n: int) -> Iterator[Sequence[V]]:
         yield val[i : i + k]
 
 
+@dataclass(slots=True, frozen=True, kw_only=True)
+class base_retriever[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+    limit: int | None = None
+    min_similarity: float | None = None
+    max_similarity: float | None = None
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "limit": self.limit,
+            "min_similarity": self.min_similarity,
+            "max_similarity": self.max_similarity,
+        }
+
+    def postprocess(self, similarities: SimMap[K, S]) -> SimMap[K, S]:
+        ranking = _similarities2ranking(similarities)
+
+        if self.min_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) >= self.min_similarity
+            ]
+        if self.max_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) <= self.max_similarity
+            ]
+
+        return {key: similarities[key] for key in ranking[: self.limit]}
+
+
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+class build[K, V, S: Float](base_retriever[K, V, S]):
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -257,18 +292,13 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     """
 
     similarity_func: AnySimFunc[V, S]
-    limit: int | None = None
-    min_similarity: float | None = None
-    max_similarity: float | None = None
 
     @property
     @override
-    def metadata(self) -> dict[str, Any]:
+    def metadata(self) -> JsonDict:
         return {
+            **super().metadata,
             "similarity_func": get_metadata(self.similarity_func),
-            "limit": self.limit,
-            "min_similarity": self.min_similarity,
-            "max_similarity": self.max_similarity,
         }
 
     @override
@@ -301,22 +331,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
         else:
             similarities = sim_func(casebase, query)
 
-        ranking = _similarities2ranking(similarities)
-
-        if self.min_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) >= self.min_similarity
-            ]
-        if self.max_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) <= self.max_similarity
-            ]
-
-        return {key: similarities[key] for key in ranking[: self.limit]}
+        return self.postprocess(similarities)
 
 
 def load(
