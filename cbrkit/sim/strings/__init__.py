@@ -162,7 +162,11 @@ try:
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
             texts = _unique_items(pairs)
-            res = self.client.embeddings.create(input=texts, model=self.model)
+            res = self.client.embeddings.create(
+                input=texts,
+                model=self.model,
+                encoding_format="float",
+            )
             _vecs = [np.array(x.embedding) for x in res.data]
             vecs = dict(zip(texts, _vecs, strict=True))
 
