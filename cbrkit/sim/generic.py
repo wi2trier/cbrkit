@@ -14,7 +14,14 @@ from cbrkit.typing import (
     SupportsMetadata,
 )
 
-__all__ = ["table", "static_table", "dynamic_table", "equality", "static"]
+__all__ = [
+    "table",
+    "static_table",
+    "dynamic_table",
+    "equality",
+    "static",
+    "transpose",
+]
 
 
 @dataclass(slots=True)
@@ -232,3 +239,36 @@ class static(SimPairFunc[Any, float], SupportsMetadata):
     @override
     def __call__(self, x: Any, y: Any) -> float:
         return self.value
+
+
+@dataclass(slots=True)
+class transpose[U, V, S: Float](SimSeqFunc[V, S], SupportsMetadata):
+    """Transforms a similarity function from one type to another.
+
+    Args:
+        conversion_func: A function that converts the input values from one type to another.
+        similarity_func: The similarity function to be used on the converted values.
+
+    Examples:
+        >>> sim = transpose(
+        ...     conversion_func=lambda x: x.lower(),
+        ...     similarity_func=equality()
+        ... )
+        >>> sim([("A", "a"), ("b", "B")])
+        [1.0, 1.0]
+    """
+
+    conversion_func: Callable[[V], U]
+    similarity_func: SimSeqFunc[U, S]
+
+    def __init__(
+        self, conversion_func: Callable[[V], U], similarity_func: AnySimFunc[V, S]
+    ):
+        self.conversion_func = conversion_func
+        self.similarity_func = SimSeqWrapper(similarity_func)
+
+    @override
+    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
+        return self.similarity_func(
+            [(self.conversion_func(x), self.conversion_func(y)) for x, y in pairs]
+        )
