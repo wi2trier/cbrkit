@@ -76,7 +76,7 @@ import pandas as pd
 import cbrkit
 
 df = pd.read_csv("path/to/cases.csv")
-casebase = cbrkit.loaders.dataframe(df)
+casebase = cbrkit.loaders.pandas(df)
 ```
 
 When dealing with formats like JSON, the files can be loaded directly:
@@ -101,7 +101,7 @@ If you have a collection of queries, you can load them using the same loader fun
 
 ```python
  # for pandas
-queries = cbrkit.loaders.dataframe(pd.read_csv("path/to/queries.csv"))
+queries = cbrkit.loaders.pandas(pd.read_csv("path/to/queries.csv"))
 # for json
 queries = cbrkit.loaders.json("path/to/queries.json")
 ```

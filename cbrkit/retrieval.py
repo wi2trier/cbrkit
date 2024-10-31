@@ -160,7 +160,7 @@ def apply[K, V, S: Float](
         >>> import cbrkit
         >>> import pandas as pd
         >>> df = pd.read_csv("./data/cars-1k.csv")
-        >>> casebase = cbrkit.loaders.dataframe(df)
+        >>> casebase = cbrkit.loaders.pandas(df)
         >>> query = casebase[42]
         >>> retriever = cbrkit.retrieval.build(
         ...     cbrkit.sim.attribute_value(

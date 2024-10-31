@@ -14,7 +14,7 @@ def test_retrieve_multiprocessing():
     casebase_file = "data/cars-1k.csv"
 
     df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.dataframe(df)
+    casebase = cbrkit.loaders.pandas(df)
     retriever = cbrkit.retrieval.build(
         cbrkit.sim.attribute_value(
             attributes={
@@ -56,7 +56,7 @@ def test_retrieve_pandas():
     casebase_file = "data/cars-1k.csv"
 
     df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.dataframe(df)
+    casebase = cbrkit.loaders.pandas(df)
     query = casebase[query_name]
     retriever = cbrkit.retrieval.build(
         cbrkit.sim.attribute_value(
@@ -88,7 +88,7 @@ def test_retrieve_pandas_custom_query():
     casebase_file = "data/cars-1k.csv"
 
     df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.dataframe(df)
+    casebase = cbrkit.loaders.pandas(df)
 
     query = pd.Series(
         {

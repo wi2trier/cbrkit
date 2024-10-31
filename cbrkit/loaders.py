@@ -76,8 +76,6 @@ class pandas(Mapping[int, pd.Series]):
         return self.df.shape[0]
 
 
-dataframe = pandas
-
 # @dataclass(slots=True)
 # class dataframe(Mapping[int, tuple[Any, ...]]):
 #     df: DataFrame
@@ -150,7 +148,7 @@ def csv(path: FilePath) -> dict[int, dict[str, str]]:
 def _csv_pandas(path: FilePath) -> dict[int, pd.Series]:
     df = pd.read_csv(path)
 
-    return cast(dict[int, pd.Series], dataframe(df))
+    return cast(dict[int, pd.Series], pandas(df))
 
 
 def json(path: FilePath) -> dict[Any, Any]:
@@ -410,7 +408,7 @@ def validate(data: Casebase[Any, Any] | Any, validation_model: BaseModel):
         >>> validate(data, Car)
         >>> import pandas as pd
         >>> df = pd.read_csv("data/cars-1k.csv")
-        >>> data = dataframe(df)
+        >>> data = pandas(df)
         >>> validate(data, Car)
     """
     assert data is not None
