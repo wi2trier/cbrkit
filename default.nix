@@ -3,7 +3,7 @@
   python3,
   lib,
   dontCheck ? false,
-  groups ? [ ],
+  extraGroups ? [ ],
 }:
 let
   injectBuildInputs =
@@ -16,9 +16,10 @@ let
     ) attrs;
 in
 poetry2nix.mkPoetryApplication {
-  inherit dontCheck groups;
+  inherit dontCheck;
   projectDir = ./.;
   preferWheels = true;
+  groups = [ "main" ] ++ extraGroups;
   nativeCheckInputs = with python3.pkgs; [
     pytestCheckHook
     pytest-cov-stub

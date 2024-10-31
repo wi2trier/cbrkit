@@ -5,7 +5,7 @@
 }:
 let
   app = cbrkit.override {
-    groups = [ "docs" ];
+    extraGroups = [ "docs" ];
     dontCheck = true;
   };
   env = app.dependencyEnv;
