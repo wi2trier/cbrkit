@@ -20,7 +20,6 @@ from cbrkit.typing import Casebase, FilePath
 
 __all__ = [
     "csv",
-    "dataframe",
     "pandas",
     "file",
     "folder",
@@ -62,14 +61,19 @@ def python(import_name: str) -> Any:
 class pandas(Mapping[int, pd.Series]):
     df: pd.DataFrame
 
-    def __getitem__(self, key: int) -> pd.Series:
-        return self.df.iloc[key]
+    def __getitem__(self, key: int | str) -> pd.Series:
+        if isinstance(key, str):
+            return cast(pd.Series, self.df.loc[key])
+        elif isinstance(key, int):
+            return self.df.iloc[key]
+
+        raise TypeError(f"Invalid key type: {type(key)}")
 
     def __iter__(self) -> Iterator[int]:
-        return iter(range(len(self.df)))
+        return iter(range(self.df.shape[0]))
 
     def __len__(self) -> int:
-        return len(self.df)
+        return self.df.shape[0]
 
 
 dataframe = pandas
@@ -95,17 +99,22 @@ try:
     import polars as pl
 
     @dataclass(slots=True, frozen=True)
-    class polars(Mapping[int, pl.DataFrame]):
+    class polars(Mapping[int, pl.Series]):
         df: pl.DataFrame
 
-        def __getitem__(self, key: int) -> pl.DataFrame:
-            return self.df.slice(key, 1)
+        def __getitem__(self, key: int | str) -> pl.Series:
+            if isinstance(key, str):
+                return self.df[key]
+            elif isinstance(key, int):
+                return pl.Series(self.df.row(key))
+
+            raise TypeError(f"Invalid key type: {type(key)}")
 
         def __iter__(self) -> Iterator[int]:
-            return iter(range(len(self.df)))
+            return iter(range(self.df.shape[0]))
 
         def __len__(self) -> int:
-            return len(self.df)
+            return self.df.shape[0]
 
         __all__ += ["polars"]
 
