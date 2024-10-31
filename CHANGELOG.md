@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/wi2trier/cbrkit/compare/v0.18.0...v0.18.1) (2024-10-31)
+
+
+### Bug Fixes
+
+* **loaders:** allow getting pandas/polars rows by string ([5d21c3c](https://github.com/wi2trier/cbrkit/commit/5d21c3c8f14cac85482a613c34384936548ce073))
+* **loaders:** replace `loaders.dataframe` with `loaders.pandas` ([14cec3a](https://github.com/wi2trier/cbrkit/commit/14cec3aa9c139b8daebf94d1299a29889f814de0))
+
 ## [0.18.0](https://github.com/wi2trier/cbrkit/compare/v0.17.0...v0.18.0) (2024-10-23)
 
 
