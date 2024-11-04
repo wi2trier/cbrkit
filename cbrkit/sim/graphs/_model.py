@@ -164,7 +164,6 @@ except ImportError:
 try:
     import networkx as nx
 
-
     def to_networkx[N, E](g: Graph[Any, N, E, Any]) -> "nx.DiGraph":
         ng = nx.DiGraph()
         # Set graph attributes
@@ -176,27 +175,28 @@ try:
 
         # Add edges with their data
         for edge in g.edges.values():
-            ng.add_edge(edge.source.key, edge.target.key,
-                    key=edge.key, data=edge.data)
+            ng.add_edge(edge.source.key, edge.target.key, key=edge.key, data=edge.data)
 
         return ng
 
     def from_networkx[N, E](g: "nx.DiGraph") -> Graph[Any, N, E, Any]:
         # Create nodes
         nodes = immutables.Map(
-            (node_id, Node(node_id, g.nodes[node_id].get('data')))
+            (node_id, Node(node_id, g.nodes[node_id].get("data")))
             for node_id in g.nodes
-            )
+        )
 
         # Create edges
         edges = immutables.Map(
-            (edge_data.get('key', idx),
-            Edge(
-            edge_data.get('key', idx),
-            nodes[source],
-            nodes[target],
-            edge_data.get('data')
-            ))
+            (
+                edge_data.get("key", idx),
+                Edge(
+                    edge_data.get("key", idx),
+                    nodes[source],
+                    nodes[target],
+                    edge_data.get("data"),
+                ),
+            )
             for idx, (source, target, edge_data) in enumerate(g.edges(data=True))
         )
 
