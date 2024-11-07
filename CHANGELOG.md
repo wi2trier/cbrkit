@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.2](https://github.com/wi2trier/cbrkit/compare/v0.18.1...v0.18.2) (2024-11-07)
+
+### Bug Fixes
+
+* **sim/graph:** add support for networkx ([#196](https://github.com/wi2trier/cbrkit/issues/196)) ([e682dcd](https://github.com/wi2trier/cbrkit/commit/e682dcd1501902ef7b99af13ceb1be90c53cfbe3))
+
 ## [0.18.1](https://github.com/wi2trier/cbrkit/compare/v0.18.0...v0.18.1) (2024-10-31)
 
 
