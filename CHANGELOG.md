@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.3](https://github.com/wi2trier/cbrkit/compare/v0.18.2...v0.18.3) (2024-11-07)
+
+### Bug Fixes
+
+* **sim/graph:** improve networkx integration ([ead9c71](https://github.com/wi2trier/cbrkit/commit/ead9c715f76429807de85820d9b628fa75a9cf21))
+
 ## [0.18.2](https://github.com/wi2trier/cbrkit/compare/v0.18.1...v0.18.2) (2024-11-07)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cbrkit"
-version = "0.18.2"
+version = "0.18.3"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI."
 authors = ["Mirko Lenz <mirko@mirkolenz.com>"]
 license = "MIT"
