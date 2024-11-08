@@ -34,7 +34,7 @@ def _correctness_completeness_single(
     k: int | None,
 ) -> tuple[float, float]:
     sorted_run = sorted(run.items(), key=lambda x: x[1], reverse=True)
-    run_ranking = {x[0]: i + 1 for i, x in enumerate(sorted_run[:k])}
+    run_k = {x[0]: x[1] for x in sorted_run[:k]}
 
     orders = 0
     concordances = 0
@@ -43,19 +43,17 @@ def _correctness_completeness_single(
     correctness = 1
     completeness = 1
 
-    for (user_key_1, user_rank_1), (user_key_2, user_rank_2) in itertools.product(
-        qrel.items(), qrel.items()
-    ):
-        if user_key_1 != user_key_2 and user_rank_1 > user_rank_2:
+    for (idx1, qrel1), (idx2, qrel2) in itertools.product(qrel.items(), qrel.items()):
+        if idx1 != idx2 and qrel1 > qrel2:
             orders += 1
 
-            system_rank_1 = run_ranking.get(user_key_1)
-            system_rank_2 = run_ranking.get(user_key_2)
+            run1 = run_k.get(idx1)
+            run2 = run_k.get(idx2)
 
-            if system_rank_1 is not None and system_rank_2 is not None:
-                if system_rank_1 > system_rank_2:
+            if run1 is not None and run2 is not None:
+                if run1 > run2:
                     concordances += 1
-                elif system_rank_1 < system_rank_2:
+                elif run1 < run2:
                     disconcordances += 1
 
     if concordances + disconcordances > 0:
