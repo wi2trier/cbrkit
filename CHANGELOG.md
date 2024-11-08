@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.19.0](https://github.com/wi2trier/cbrkit/compare/v0.18.3...v0.19.0) (2024-11-08)
+
+### Features
+
+* **sim/graph:** add isomorphism-based approach ([8de9597](https://github.com/wi2trier/cbrkit/commit/8de9597ff422534d87f22fef5ab365625c6238dc))
+
+### Bug Fixes
+
+* **eval:** overhaul correctness completeness ([fc530bf](https://github.com/wi2trier/cbrkit/commit/fc530bf3ea5fb22ca699895f8e1ec201b19a1781))
+* **eval:** update correctness completeness ([04ffab0](https://github.com/wi2trier/cbrkit/commit/04ffab0d94ae534ba6be3b5412e25fbe220acc90))
+
 ## [0.18.3](https://github.com/wi2trier/cbrkit/compare/v0.18.2...v0.18.3) (2024-11-07)
 
 ### Bug Fixes
