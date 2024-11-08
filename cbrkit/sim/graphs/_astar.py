@@ -5,23 +5,22 @@ import itertools
 import random
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, cast, override
+from typing import Literal, Protocol, override
 
 from cbrkit.helpers import (
     SimSeqWrapper,
-    SimWrapper,
     get_metadata,
     unpack_sim,
     unpack_sims,
 )
 from cbrkit.sim.graphs._model import (
+    DataSimWrapper,
     Edge,
     Graph,
-    HasData,
+    GraphSim,
     Node,
 )
 from cbrkit.typing import (
-    AnnotatedFloat,
     AnySimFunc,
     Float,
     JsonDict,
@@ -31,13 +30,6 @@ from cbrkit.typing import (
 )
 
 type ElementKind = Literal["node", "edge"]
-
-
-@dataclass(slots=True, frozen=True)
-class GraphSim[K](AnnotatedFloat):
-    value: float
-    node_mappings: dict[K, K]
-    edge_mappings: dict[K, K]
 
 
 @dataclass(slots=True, frozen=True)
@@ -193,17 +185,6 @@ class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
             0.5 * (unpack_sim(source) + unpack_sim(target))
             for source, target in zip(source_sims, target_sims, strict=True)
         ]
-
-
-class DataSimWrapper[V: HasData[Any], S: Float](SimWrapper, SimSeqFunc[V, S]):
-    @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
-        if self.kind == "pair":
-            func = cast(SimPairFunc[V, S], self.func)
-            return [func(x.data, y.data) for (x, y) in pairs]
-
-        func = cast(SimSeqFunc[V, S], self.func)
-        return func([(x.data, y.data) for x, y in pairs])
 
 
 @dataclass(slots=True)

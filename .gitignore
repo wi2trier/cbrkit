@@ -228,5 +228,3 @@ poetry.toml
 /data/cars-*.csv
 !/data/cars-1k.csv
 /data/private
-
-/cbrkit/sim/graphs/_isomorphism.py

@@ -1,8 +1,18 @@
-from collections.abc import Mapping
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, TypedDict
+from typing import Any, Protocol, TypedDict, cast, override
 
 import immutables
+
+from cbrkit.helpers import SimWrapper
+from cbrkit.typing import (
+    AnnotatedFloat,
+    Float,
+    SimPairFunc,
+    SimSeqFunc,
+)
 
 __all__ = [
     "Node",
@@ -14,6 +24,24 @@ __all__ = [
     "to_dict",
     "from_dict",
 ]
+
+
+@dataclass(slots=True, frozen=True)
+class GraphSim[K](AnnotatedFloat):
+    value: float
+    node_mappings: dict[K, K]
+    edge_mappings: dict[K, K]
+
+
+class DataSimWrapper[V: HasData[Any], S: Float](SimWrapper, SimSeqFunc[V, S]):
+    @override
+    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
+        if self.kind == "pair":
+            func = cast(SimPairFunc[V, S], self.func)
+            return [func(x.data, y.data) for (x, y) in pairs]
+
+        func = cast(SimSeqFunc[V, S], self.func)
+        return func([(x.data, y.data) for x, y in pairs])
 
 
 class HasData[T](Protocol):
@@ -49,7 +77,7 @@ class Node[K, N](HasData[N]):
         cls,
         key: K,
         data: SerializedNode[N],
-    ) -> "Node[K, N]":
+    ) -> Node[K, N]:
         return cls(key, data["data"])
 
 
@@ -73,7 +101,7 @@ class Edge[K, N, E](HasData[E]):
         key: K,
         data: SerializedEdge[K, E],
         nodes: Mapping[K, Node[K, N]],
-    ) -> "Edge[K, N, E]":
+    ) -> Edge[K, N, E]:
         return cls(
             key,
             nodes[data["source"]],
@@ -99,7 +127,7 @@ class Graph[K, N, E, G](HasData[G]):
     def from_dict(
         cls,
         g: SerializedGraph[K, N, E, G],
-    ) -> "Graph[K, N, E, G]":
+    ) -> Graph[K, N, E, G]:
         nodes = immutables.Map(
             (key, Node.from_dict(key, value)) for key, value in g["nodes"].items()
         )
@@ -121,7 +149,9 @@ def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
 try:
     import rustworkx
 
-    def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> "rustworkx.PyDiGraph[N, E]":
+    def to_rustworkx_with_lookup[K, N, E](
+        g: Graph[K, N, E, Any],
+    ) -> tuple[rustworkx.PyDiGraph[N, E], dict[int, K]]:
         ng = rustworkx.PyDiGraph(attrs=g.data)
         new_ids = ng.add_nodes_from(list(g.nodes.values()))
         id_map = {
@@ -139,9 +169,12 @@ try:
             ]
         )
 
-        return ng
+        return ng, {new_id: old_id for old_id, new_id in id_map.items()}
 
-    def from_rustworkx[N, E](g: "rustworkx.PyDiGraph[N, E]") -> Graph[int, N, E, Any]:
+    def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> rustworkx.PyDiGraph[N, E]:
+        return to_rustworkx_with_lookup(g)[0]
+
+    def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
         nodes = immutables.Map(
             (idx, Node(idx, g.get_node_data(idx))) for idx in g.node_indices()
         )

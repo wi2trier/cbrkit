@@ -109,6 +109,7 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], SupportsMetadata):
         entries: Sequence[tuple[a, b, sim(a, b)]
         symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
         default: Default similarity value for pairs not in the table
+        key_getter: A function that extracts the the key for lookup from the input values
 
     Examples:
         >>> sim = dynamic_table(
