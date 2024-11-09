@@ -1,11 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass  # Import dataclass directly
+from dataclasses import dataclass
 from typing import Generic
-
-# Import the necessary modules with explicit paths to ensure they are recognized
-from cbrkit.helpers import SimSeqFunc  # Adjust path as needed for SimSeqFunc
-from cbrkit.sim.graphs._model import Graph, Node  # Ensure the correct path for Graph and Node
-from cbrkit.typing import Float  # Adjust path as needed for Float
+from cbrkit.helpers import SimSeqFunc
+from cbrkit.sim.graphs._model import Graph, Node 
+from cbrkit.typing import Float
 
 from ..collections import dtw as dtw_func, \
     smith_waterman as smith_waterman_func  # Import the existing DTW and SW implementations
