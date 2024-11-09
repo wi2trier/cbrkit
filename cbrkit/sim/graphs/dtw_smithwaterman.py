@@ -1,14 +1,15 @@
 from __future__ import annotations
-from dataclasses import dataclass  # Import dataclass directly
-from typing import Generic
+from dataclasses import dataclass
+from typing import Generic, TypeVar
+from cbrkit.sim.graphs._model import Graph, Node
+from cbrkit.typing import SimSeqFunc, Float
+from ..collections import dtw as dtw_func, smith_waterman as smith_waterman_func, mapping, \
+    isolated_mapping  # Import the existing functions and mappings
 
-# Import the necessary modules with explicit paths to ensure they are recognized
-from cbrkit.helpers import SimSeqFunc  # Adjust path as needed for SimSeqFunc
-from cbrkit.sim.graphs._model import Graph, Node  # Ensure the correct path for Graph and Node
-from cbrkit.typing import Float  # Adjust path as needed for Float
-
-from ..collections import dtw as dtw_func, \
-    smith_waterman as smith_waterman_func  # Import the existing DTW and SW implementations
+K = TypeVar("K")  # Key type for nodes
+N = TypeVar("N")  # Node data type
+E = TypeVar("E")  # Edge data type
+G = TypeVar("G")  # Graph type
 
 
 @dataclass(slots=True)
@@ -34,17 +35,23 @@ class GraphAlignment[K, N, E, G](Generic[K, N, E, G]):
         return len(graph.get_outgoing_edges(nodes[-1])) == 0
 
     def dynamic_time_warping(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
-        """Perform DTW using the existing dtw similarity function."""
+        """Perform DTW using existing dtw similarity function and mapping-based alignment."""
         x_nodes = [self.node_sim_func([(node, node)])[0] for node in x.nodes.values()]
         y_nodes = [self.node_sim_func([(node, node)])[0] for node in y.nodes.values()]
 
-        # Use the existing dtw function from collections.py
-        return dtw_func()(x_nodes, y_nodes)
+        # Use the mapping to generate the best alignment sequence for DTW
+        alignment_mapping = mapping(self.node_sim_func)
+        alignment_score = dtw_func()(alignment_mapping(x_nodes, y_nodes))
+
+        return alignment_score
 
     def smith_waterman(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
-        """Perform Smith-Waterman using the existing smith_waterman similarity function."""
+        """Perform Smith-Waterman using existing smith_waterman similarity function and isolated_mapping alignment."""
         x_nodes = [self.node_sim_func([(node, node)])[0] for node in x.nodes.values()]
         y_nodes = [self.node_sim_func([(node, node)])[0] for node in y.nodes.values()]
 
-        # Use the existing smith_waterman function from collections.py
-        return smith_waterman_func()(x_nodes, y_nodes)
+        # Use isolated_mapping to generate the best alignment sequence for SMA
+        isolated_alignment = isolated_mapping(self.node_sim_func)
+        alignment_score = smith_waterman_func()(isolated_alignment(x_nodes, y_nodes))
+
+        return alignment_score
