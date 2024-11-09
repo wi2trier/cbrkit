@@ -6,12 +6,6 @@ from cbrkit.typing import SimSeqFunc, Float
 from ..collections import dtw as dtw_func, smith_waterman as smith_waterman_func, mapping, \
     isolated_mapping  # Import the existing functions and mappings
 
-K = TypeVar("K")  # Key type for nodes
-N = TypeVar("N")  # Node data type
-E = TypeVar("E")  # Edge data type
-G = TypeVar("G")  # Graph type
-
-
 @dataclass(slots=True)
 class GraphAlignment[K, N, E, G](Generic[K, N, E, G]):
     """
