@@ -1,10 +1,15 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Generic
 from cbrkit.sim.graphs._model import Graph, Node
 from cbrkit.typing import SimSeqFunc, Float
-from ..collections import dtw as dtw_func, smith_waterman as smith_waterman_func, mapping, \
-    isolated_mapping  # Import the existing functions and mappings
+from ..collections import (
+    dtw as dtw_func,
+    smith_waterman as smith_waterman_func,
+    mapping,
+    isolated_mapping,
+)  # Import the existing functions and mappings
+
 
 @dataclass(slots=True)
 class GraphAlignment[K, N, E, G](Generic[K, N, E, G]):
@@ -14,6 +19,7 @@ class GraphAlignment[K, N, E, G](Generic[K, N, E, G]):
     Args:
         node_sim_func: A similarity function for graph nodes.
     """
+
     node_sim_func: SimSeqFunc[Node[K, N], Float]
 
     def is_sequential_workflow(self, graph: Graph[K, N, E, G]) -> bool:
