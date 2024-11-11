@@ -56,7 +56,7 @@ def _correctness_completeness_single(
                         qrel1 > qrel2 and run1 > run2
                     ):
                         concordant_pairs += 1
-                    elif qrel1 != qrel2:
+                    else:
                         discordant_pairs += 1
 
     correctness = (
