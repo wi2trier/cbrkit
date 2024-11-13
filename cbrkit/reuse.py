@@ -1,31 +1,32 @@
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from inspect import signature as inspect_signature
 from multiprocessing import Pool
-from typing import Any
+from typing import Any, cast
 
 from cbrkit.helpers import SimPairWrapper, get_metadata, unpack_sim
 from cbrkit.typing import (
+    AdaptCompositionalFunc,
     AdaptPairFunc,
+    AnyAdaptFunc,
     AnySimFunc,
     Casebase,
     Float,
     JsonDict,
     ReuserFunc,
-    SimPairFunc,
 )
 
 __all__ = [
     "build",
     "apply",
-    "apply_map",
-    "apply_reduce",
     "Result",
     "ResultStep",
 ]
 
 
 @dataclass(slots=True, frozen=True)
-class ResultStep[V, S: Float]:
+class ResultStep[K, V, S: Float]:
+    key: K
     case: V | None
     similarity: S
     metadata: JsonDict
@@ -38,12 +39,16 @@ class ResultStep[V, S: Float]:
 
 
 @dataclass(slots=True, frozen=True)
-class Result[V, S: Float]:
-    steps: list[ResultStep[V, S]]
+class Result[K, V, S: Float]:
+    steps: list[ResultStep[K, V, S]]
 
     @property
-    def final(self) -> ResultStep[V, S]:
+    def final(self) -> ResultStep[K, V, S]:
         return self.steps[-1]
+
+    @property
+    def key(self) -> K:
+        return self.final.key
 
     @property
     def similarity(self) -> S:
@@ -66,95 +71,102 @@ class Result[V, S: Float]:
         return x
 
 
-class build[V, S: Float](ReuserFunc[V, S]):
-    adaptation_func: AdaptPairFunc[V]
-    similarity_func: SimPairFunc[V, S]
-    max_similarity_decrease: float | None
+@dataclass(slots=True, frozen=True)
+class build[K, V, S: Float](ReuserFunc[K, V, S]):
+    adaptation_func: AnyAdaptFunc[K, V]
+    similarity_func: AnySimFunc[V, S]
+    max_similarity_decrease: float | None = None
 
-    def __init__(
+    def __call__(
         self,
-        adaptation_func: AdaptPairFunc[V],
-        similarity_func: AnySimFunc[V, S],
-        max_similarity_decrease: float | None = None,
-    ) -> None:
-        self.adaptation_func = adaptation_func
-        self.max_similarity_decrease = max_similarity_decrease
-        self.similarity_func = SimPairWrapper(similarity_func)
+        casebase: Casebase[K, V],
+        query: V,
+        processes: int,
+    ) -> tuple[K, V | None, S]:
+        sim_func = SimPairWrapper(self.similarity_func)
 
-    def __call__(self, case: V, query: V) -> tuple[V | None, S]:
-        adapted_case = self.adaptation_func(case, query)
-        new_similarity = self.similarity_func(adapted_case, query)
+        adapt_signature = inspect_signature(self.adaptation_func)
 
-        if (
-            self.max_similarity_decrease is not None
-            and self.similarity_func is not None
-        ):
-            old_similarity = self.similarity_func(case, query)
+        adapted_key: K
+        adapted_case: V | None
+        adapted_sim: S
+
+        if "casebase" in adapt_signature.parameters:
+            adapt_func = cast(AdaptCompositionalFunc[K, V], self.adaptation_func)
+            adapted_key, adapted_case = adapt_func(casebase, query)
+            adapted_sim = sim_func(adapted_case, query)
+
+        else:
+            adapt_func = cast(AdaptPairFunc[V], self.adaptation_func)
+            adapted_casebase: dict[K, tuple[V | None, S]] = {}
+
+            if processes != 1:
+                pool_processes = None if processes <= 0 else processes
+                keys = list(casebase.keys())
+
+                with Pool(pool_processes) as pool:
+                    adapted_cases = pool.starmap(
+                        adapt_func,
+                        ((casebase[key], query) for key in keys),
+                    )
+                    adapted_sims = pool.starmap(
+                        sim_func,
+                        ((case, query) for case in adapted_cases),
+                    )
+
+                adapted_casebase = {
+                    key: (case, sim)
+                    for key, case, sim in zip(
+                        keys, adapted_cases, adapted_sims, strict=True
+                    )
+                }
+            else:
+                for key, case in casebase.items():
+                    adapted_case = adapt_func(case, query)
+                    adapted_sim = sim_func(adapted_case, query)
+                    adapted_casebase[key] = adapted_case, adapted_sim
+
+            adapted_key, (adapted_case, adapted_sim) = max(
+                adapted_casebase.items(),
+                key=lambda x: unpack_sim(x[1][1]),
+            )
+
+        if self.max_similarity_decrease is not None:
+            old_sim = sim_func(casebase[adapted_key], query)
 
             if (
-                unpack_sim(new_similarity)
-                < unpack_sim(old_similarity) - self.max_similarity_decrease
+                unpack_sim(adapted_sim)
+                < unpack_sim(old_sim) - self.max_similarity_decrease
             ):
-                return None, new_similarity
+                adapted_case = None
 
-        return adapted_case, new_similarity
+        return adapted_key, adapted_case, adapted_sim
 
 
-def apply[V, S: Float](
-    case: V,
+def apply[K, V, S: Float](
+    casebase: Casebase[K, V],
     query: V,
-    reusers: ReuserFunc[V, S] | Sequence[ReuserFunc[V, S]],
-) -> Result[V, S]:
+    reusers: ReuserFunc[K, V, S] | Sequence[ReuserFunc[K, V, S]],
+    processes: int = 1,
+) -> Result[K, V, S]:
     if not isinstance(reusers, Sequence):
         reusers = [reusers]
 
-    steps: list[ResultStep[V, S]] = []
-    current_case: V = case
+    steps: list[ResultStep[K, V, S]] = []
+    current_casebase: Casebase[K, V] = casebase
 
     for reuser in reusers:
-        adapted_case, adapted_sim = reuser(current_case, query)
+        # TODO: move logic from "build" to here so that the entire case base is adapted and can be forwarded to the next step
+        adapted_key, adapted_case, addapted_sim = reuser(
+            current_casebase, query, processes
+        )
         steps.append(
-            ResultStep(
-                case=adapted_case,
-                similarity=adapted_sim,
-                metadata=get_metadata(reuser),
-            )
+            ResultStep(adapted_key, adapted_case, addapted_sim, get_metadata(reuser))
         )
 
         if adapted_case is not None:
-            current_case = adapted_case
+            current_casebase = {adapted_key: adapted_case}
+        else:
+            current_casebase = {adapted_key: casebase[adapted_key]}
 
     return Result(steps)
-
-
-def apply_map[K, V, S: Float](
-    casebase: Casebase[K, V],
-    query: V,
-    reusers: ReuserFunc[V, S] | Sequence[ReuserFunc[V, S]],
-    processes: int = 1,
-) -> dict[K, Result[V, S]]:
-    if processes != 1:
-        pool_processes = None if processes <= 0 else processes
-        keys = list(casebase.keys())
-
-        with Pool(pool_processes) as pool:
-            results = pool.starmap(
-                apply,
-                ((casebase[key], query, reusers) for key in keys),
-            )
-
-        return dict(zip(keys, results, strict=True))
-
-    return {key: apply(case, query, reusers) for key, case in casebase.items()}
-
-
-def apply_reduce[K, V, S: Float](
-    casebase: Casebase[K, V],
-    query: V,
-    reusers: ReuserFunc[V, S] | Sequence[ReuserFunc[V, S]],
-    processes: int = 1,
-) -> Result[V, S]:
-    """Return the best adapted case from the casebase."""
-
-    results = apply_map(casebase, query, reusers, processes)
-    return max(results.values(), key=lambda x: unpack_sim(x.similarity))

@@ -304,7 +304,7 @@ class build[K, V, S: Float](base_retriever[K, V, S]):
         self,
         casebase: Casebase[K, V],
         query: V,
-        processes: int = 1,
+        processes: int,
     ) -> SimMap[K, S]:
         sim_func = SimMapWrapper(self.similarity_func)
         similarities: SimMap[K, S] = {}
@@ -406,7 +406,7 @@ try:
             self,
             casebase: Casebase[K, V],
             query: V,
-            processes: int = 1,
+            processes: int,
         ) -> SimMap[K, float]:
             response = self.client.v2.rerank(
                 model=self.model,

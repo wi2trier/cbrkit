@@ -60,15 +60,27 @@ class AdaptPairFunc[V](Protocol):
         self,
         case: V,
         query: V,
-    ) -> V: ...  # maybe allow None as return value
+    ) -> V: ...
 
 
-class ReuserFunc[V, S: Float](Protocol):
+class AdaptCompositionalFunc[K, V](Protocol):
     def __call__(
         self,
-        case: V,
+        casebase: Casebase[K, V],
         query: V,
-    ) -> tuple[V | None, S]: ...
+    ) -> tuple[K, V]: ...
+
+
+type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptCompositionalFunc[K, V]
+
+
+class ReuserFunc[K, V, S: Float](Protocol):
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+        processes: int,
+    ) -> tuple[K, V | None, S]: ...
 
 
 class AggregatorFunc[K, S: Float](Protocol):
