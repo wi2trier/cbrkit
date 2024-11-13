@@ -183,19 +183,17 @@ def apply[K, V, S: Float](
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[ResultStep[K, V, S]] = []
+    steps: list[ResultStep[K, V, S]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
         sim_map = retriever_func(current_casebase, query, processes)
-        result = ResultStep.build(
-            sim_map, current_casebase, get_metadata(retriever_func)
-        )
+        step = ResultStep.build(sim_map, current_casebase, get_metadata(retriever_func))
 
-        results.append(result)
-        current_casebase = result.casebase
+        steps.append(step)
+        current_casebase = step.casebase
 
-    return Result(results)
+    return Result(steps)
 
 
 def _chunkify[V](val: Sequence[V], n: int) -> Iterator[Sequence[V]]:
