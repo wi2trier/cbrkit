@@ -107,7 +107,7 @@ class SimWrapper[V, S: Float](SupportsMetadata):
             self.kind = "seq"
 
 
-class SimSeqWrapper[V, S: Float](SimWrapper, SimSeqFunc[V, S]):
+class SimSeqWrapper[V, S: Float](SimWrapper[V, S], SimSeqFunc[V, S]):
     @override
     def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
         if self.kind == "pair":
@@ -118,7 +118,7 @@ class SimSeqWrapper[V, S: Float](SimWrapper, SimSeqFunc[V, S]):
         return func(pairs)
 
 
-class SimMapWrapper[V, S: Float](SimWrapper, SimMapFunc[Any, V, S]):
+class SimMapWrapper[V, S: Float](SimWrapper[V, S], SimMapFunc[Any, V, S]):
     @override
     def __call__(self, x_map: Mapping[Any, V], y: V) -> SimMap[Any, S]:
         if self.kind == "seq":
@@ -132,7 +132,7 @@ class SimMapWrapper[V, S: Float](SimWrapper, SimMapFunc[Any, V, S]):
         return {key: func(x, y) for key, x in x_map.items()}
 
 
-class SimPairWrapper[V, S: Float](SimWrapper, SimPairFunc[V, S]):
+class SimPairWrapper[V, S: Float](SimWrapper[V, S], SimPairFunc[V, S]):
     @override
     def __call__(self, x: V, y: V) -> S:
         if self.kind == "seq":
