@@ -11,6 +11,7 @@ from cbrkit.typing import (
     SimMapFunc,
     SimPairFunc,
     SimSeqFunc,
+    SimSeqOrMap,
     SupportsMetadata,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "unpack_sim",
     "unpack_sims",
     "singleton",
+    "similarities2ranking",
 ]
 
 
@@ -152,3 +154,18 @@ def unpack_sim(sim: Float) -> float:
 
 def unpack_sims(sims: Iterable[Float]) -> list[float]:
     return [unpack_sim(sim) for sim in sims]
+
+
+def similarities2ranking[K, S: Float](similarities: SimSeqOrMap[K, S]) -> list[Any]:
+    if isinstance(similarities, Sequence):
+        return sorted(
+            range(len(similarities)),
+            key=lambda i: unpack_sim(similarities[i]),
+            reverse=True,
+        )
+    elif isinstance(similarities, Mapping):
+        return sorted(
+            similarities, key=lambda i: unpack_sim(similarities[i]), reverse=True
+        )
+
+    raise TypeError(f"Expected a Sequence or Mapping, but got {type(similarities)}")

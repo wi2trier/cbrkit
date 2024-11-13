@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
 from typing import Any, Literal, cast, override
 
-from cbrkit.helpers import SimMapWrapper, get_metadata, unpack_sim
+from cbrkit.helpers import SimMapWrapper, get_metadata, similarities2ranking, unpack_sim
 from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
@@ -28,12 +28,6 @@ __all__ = [
 ]
 
 
-def _similarities2ranking[K](
-    sim_map: SimMap[K, Any],
-) -> list[K]:
-    return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
-
-
 @dataclass(slots=True, frozen=True)
 class ResultStep[K, V, S: Float]:
     similarities: SimMap[K, S]
@@ -48,7 +42,7 @@ class ResultStep[K, V, S: Float]:
         full_casebase: Casebase[K, V],
         metadata: JsonDict,
     ) -> "ResultStep[K, V, S]":
-        ranking = _similarities2ranking(similarities)
+        ranking = similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
         return cls(similarities, tuple(ranking), casebase, metadata)
@@ -233,7 +227,7 @@ class base_retriever[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
         }
 
     def postprocess(self, similarities: SimMap[K, S]) -> SimMap[K, S]:
-        ranking = _similarities2ranking(similarities)
+        ranking = similarities2ranking(similarities)
 
         if self.min_similarity is not None:
             ranking = [
