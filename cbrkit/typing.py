@@ -63,7 +63,15 @@ class AdaptPairFunc[V](Protocol):
     ) -> V: ...
 
 
-class AdaptCompositionalFunc[K, V](Protocol):
+class AdaptMapFunc[K, V](Protocol):
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+    ) -> Casebase[K, V]: ...
+
+
+class AdaptReduceFunc[K, V](Protocol):
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -71,7 +79,7 @@ class AdaptCompositionalFunc[K, V](Protocol):
     ) -> tuple[K, V]: ...
 
 
-type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptCompositionalFunc[K, V]
+type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptMapFunc[K, V] | AdaptReduceFunc[K, V]
 
 
 class ReuserFunc[K, V, S: Float](Protocol):
@@ -80,7 +88,7 @@ class ReuserFunc[K, V, S: Float](Protocol):
         casebase: Casebase[K, V],
         query: V,
         processes: int,
-    ) -> tuple[K, V | None, S]: ...
+    ) -> Casebase[K, tuple[V | None, S]]: ...
 
 
 class AggregatorFunc[K, S: Float](Protocol):
