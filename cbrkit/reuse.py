@@ -221,13 +221,13 @@ class build[K, V, S: Float](base_reuser[K, V, S]):
         return self.postprocess(adapted_casebase)
 
 
-def apply_single[K, V, S: Float](
+def apply_single[V, S: Float](
     case: V,
     query: V,
-    reusers: ReuserFunc[Any, V, S] | Sequence[ReuserFunc[Any, V, S]],
+    reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],
     processes: int = 1,
-) -> Result[Any, V, S]:
-    return apply({0: case}, query, reusers, processes)
+) -> Result[str, V, S]:
+    return apply({"default": case}, query, reusers, processes)
 
 
 def apply[K, V, S: Float](
