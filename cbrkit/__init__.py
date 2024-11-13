@@ -10,6 +10,7 @@ from . import (
     helpers,
     loaders,
     retrieval,
+    reuse,
     sim,
     typing,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "loaders",
     "sim",
     "retrieval",
+    "reuse",
     "eval",
     "typing",
     "helpers",

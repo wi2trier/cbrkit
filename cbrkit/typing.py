@@ -55,6 +55,22 @@ class RetrieverFunc[K, V, S: Float](Protocol):
     ) -> SimMap[K, S]: ...
 
 
+class AdaptPairFunc[V](Protocol):
+    def __call__(
+        self,
+        case: V,
+        query: V,
+    ) -> V: ...  # maybe allow None as return value
+
+
+class ReuserFunc[V, S: Float](Protocol):
+    def __call__(
+        self,
+        case: V,
+        query: V,
+    ) -> tuple[V | None, S]: ...
+
+
 class AggregatorFunc[K, S: Float](Protocol):
     def __call__(
         self,
@@ -69,12 +85,3 @@ class PoolingFunc(Protocol):
         similarities: SimSeq[float],
         /,
     ) -> float: ...
-
-
-class AdaptationFunc[K, V, S: Float](Protocol):
-    def __call__(
-        self,
-        x_map: Casebase[K, V],
-        y: V,
-        sim_func: AnySimFunc[V, S],
-    ) -> V: ...
