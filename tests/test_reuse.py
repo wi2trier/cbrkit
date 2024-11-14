@@ -32,6 +32,7 @@ def test_reuse_simple():
                 "manufacturer": cbrkit.adapt.strings.regex(
                     "audi", "audi", lambda case, query: f"{case.string}-{query.string}"
                 ),
+                "miles": cbrkit.adapt.numbers.aggregate("mean"),
             }
         ),
         similarity_func=cbrkit.sim.attribute_value(
@@ -51,5 +52,5 @@ def test_reuse_simple():
         "year": 2008,
         "manufacturer": "audi-audi",
         "make": "a4",
-        "miles": 150000,
+        "miles": 125000,
     }
