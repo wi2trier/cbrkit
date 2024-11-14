@@ -18,12 +18,17 @@ import cbrkit
 RetrievalResult = dataclass(
     cbrkit.retrieval.Result, config=ConfigDict(arbitrary_types_allowed=True)
 )
+ReuseResult = dataclass(
+    cbrkit.reuse.Result, config=ConfigDict(arbitrary_types_allowed=True)
+)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
     retriever: str | None = None
     retriever_map: str | None = None
+    reuser: str | None = None
+    reuser_map: str | None = None
 
 
 settings = Settings()
@@ -41,6 +46,19 @@ elif settings.retriever is not None:
 elif settings.retriever_map is not None:
     retriever_map = cbrkit.helpers.load_callables_map(settings.retriever_map.split(","))
     retriever = list(retriever_map.values())
+
+reuser: list[ReuserFunc] = []
+reuser_map: dict[str, ReuserFunc] = {}
+
+if settings.reuser is not None and settings.reuser_map is not None:
+    reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))
+    reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
+elif settings.reuser is not None:
+    reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))
+    reuser_map = {str(idx): reuser for idx, reuser in enumerate(reuser)}
+elif settings.reuser_map is not None:
+    reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
+    reuser = list(reuser_map.values())
 
 
 @app.post("/retrieve", response_model=Mapping[str, RetrievalResult])
@@ -68,6 +86,39 @@ def named_retriever(
     parallel: Literal["queries", "casebase"] = "queries",
 ) -> Mapping[str, cbrkit.retrieval.Result]:
     return cbrkit.retrieval.mapply(
+        casebase,
+        queries,
+        retriever_map[retriever_name],
+        processes,
+        parallel,
+    )
+
+
+@app.post("/reuse", response_model=Mapping[str, ReuseResult])
+def all_reusers(
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+    processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
+) -> Mapping[str, cbrkit.reuse.Result]:
+    return cbrkit.reuse.mapply(
+        casebase,
+        queries,
+        retriever,
+        processes,
+        parallel,
+    )
+
+
+@app.post("/reuse/{retriever_name}", response_model=Mapping[str, ReuseResult])
+def named_reuser(
+    retriever_name: str,
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+    processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
+) -> Mapping[str, cbrkit.reuse.Result]:
+    return cbrkit.reuse.mapply(
         casebase,
         queries,
         retriever_map[retriever_name],
