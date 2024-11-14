@@ -14,8 +14,8 @@ __all__ = [
 
 @dataclass(slots=True)
 class regex(AdaptPairFunc[str], SupportsMetadata):
-    query_pattern: re.Pattern[str]
     case_pattern: re.Pattern[str]
+    query_pattern: re.Pattern[str]
     replacement: Callable[[re.Match[str], re.Match[str]], str]
     count: int
     pos: int
@@ -24,8 +24,8 @@ class regex(AdaptPairFunc[str], SupportsMetadata):
 
     def __init__(
         self,
-        query_pattern: str | re.Pattern[str],
         case_pattern: str | re.Pattern[str],
+        query_pattern: str | re.Pattern[str],
         replacement: str | Callable[[re.Match[str], re.Match[str]], str],
         count: int = 0,
         pos: int = 0,
