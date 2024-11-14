@@ -110,8 +110,8 @@ all = [
 api = ["rich", "typer", "fastapi", "uvicorn"]
 cli = ["rich", "typer"]
 eval = ["ranx"]
-nlp = ["levenshtein", "nltk", "spacy"]
 llm = ["cohere", "ollama", "openai"]
+nlp = ["levenshtein", "nltk", "spacy"]
 timeseries = ["minineedle", "dtaidistance"]
 transformers = ["sentence-transformers", "torch", "transformers"]
 
