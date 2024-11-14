@@ -1,8 +1,8 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from inspect import signature as inspect_signature
 from multiprocessing import Pool
-from typing import Any, cast, override
+from typing import Any, Literal, cast, override
 
 from cbrkit.helpers import (
     SimPairWrapper,
@@ -136,6 +136,17 @@ class base_reuser[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
 
 @dataclass(slots=True, frozen=True)
 class build[K, V, S: Float](base_reuser[K, V, S]):
+    """Builds a casebase by adapting cases using an adaptation function and a similarity function.
+
+    Args:
+        adaptation_func: The adaptation function that will be applied to the cases.
+        similarity_func: The similarity function that will be used to compare the adapted cases to the query.
+        max_similarity_decrease: Maximum decrease in similarity allowed for an adapted case.
+
+    Returns:
+        The adapted casebase.
+    """
+
     adaptation_func: AnyAdaptFunc[K, V]
     similarity_func: AnySimFunc[V, S]
     max_similarity_decrease: float | None = None
@@ -227,6 +238,20 @@ def apply_single[V, S: Float](
     reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],
     processes: int = 1,
 ) -> Result[str, V, S]:
+    """Applies a single query to a single case using reuser functions.
+
+    Args:
+        case: The case that will be used for the query.
+        query: The query that will be applied to the case.
+        reusers: The reuser functions that will be applied to the case.
+        processes: Number of CPUs that will be used for multiprocessing.
+            If 1, a regular loop will be used.
+            If 0, the number of processes will be equal to the number of CPUs.
+            Negative values will be treated as 0.
+
+    Returns:
+        Returns an object of type Result.
+    """
     return apply({"default": case}, query, reusers, processes)
 
 
@@ -236,6 +261,21 @@ def apply[K, V, S: Float](
     reusers: ReuserFunc[K, V, S] | Sequence[ReuserFunc[K, V, S]],
     processes: int = 1,
 ) -> Result[K, V, S]:
+    """Applies a single query to a casebase using reuser functions.
+
+    Args:
+        casebase: The casebase for the query.
+        query: The query that will be applied to the casebase.
+        reusers: The reuser functions that will be applied to the casebase.
+        processes: Number of CPUs that will be used for multiprocessing.
+            If 1, a regular loop will be used.
+            If 0, the number of processes will be equal to the number of CPUs.
+            Negative values will be treated as 0.
+
+    Returns:
+        Returns an object of type Result
+    """
+
     if not isinstance(reusers, Sequence):
         reusers = [reusers]
 
@@ -260,3 +300,46 @@ def apply[K, V, S: Float](
         current_casebase = adapted_casebase
 
     return Result(steps)
+
+
+def mapply[QK, CK, V, S: Float](
+    casebase: Casebase[CK, V],
+    queries: Mapping[QK, V],
+    reusers: ReuserFunc[CK, V, S] | Sequence[ReuserFunc[CK, V, S]],
+    processes: int = 1,
+    parallel: Literal["queries", "casebase"] = "queries",
+) -> Mapping[QK, Result[CK, V, S]]:
+    """Applies multiple queries to a Casebase using reuser functions.
+
+    Args:
+        casebase: The casebase for the query.
+        queries: The queries that will be applied to the casebase
+        reusers: The reuser functions that will be applied to the casebase.
+        processes: Number of CPUs that will be used for multiprocessing.
+            If 1, a regular loop will be used.
+            If 0, the number of processes will be equal to the number of CPUs.
+            Negative values will be treated as 0.
+        parallel: Strategy for parallelization.
+            If "queries", each query will be processed in parallel,
+            if "casebase" the whole casebase will be processed in parallel.
+
+    Returns:
+        Returns an object of type Result.
+    """
+
+    if processes != 1 and parallel == "queries":
+        pool_processes = None if processes <= 0 else processes
+        keys = list(queries.keys())
+
+        with Pool(pool_processes) as pool:
+            results = pool.starmap(
+                apply,
+                ((casebase, queries[key], reusers) for key in keys),
+            )
+
+        return dict(zip(keys, results, strict=True))
+
+    return {
+        key: apply(casebase, value, reusers, processes)
+        for key, value in queries.items()
+    }
