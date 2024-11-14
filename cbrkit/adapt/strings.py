@@ -14,6 +14,25 @@ __all__ = [
 
 @dataclass(slots=True)
 class regex(AdaptPairFunc[str], SupportsMetadata):
+    """Replace parts of a string using regular expressions.
+
+    Args:
+        case_pattern: Regular expression pattern to match against the case.
+        query_pattern: Regular expression pattern to match against the query.
+        replacement: Replacement string or function that takes two match objects.
+        count: Maximum number of replacements to make.
+        pos: Position in the string to start searching.
+        endpos: Position in the string to stop searching.
+
+    Returns:
+        The modified string.
+
+    Examples:
+        >>> func = regex("\\d+", "\\d+", "NUMBER")
+        >>> func("Alice is 25 years old.", "Peter is 30 years old.")
+        'Alice is NUMBER years old.'
+    """
+
     case_pattern: re.Pattern[str]
     query_pattern: re.Pattern[str]
     replacement: Callable[[re.Match[str], re.Match[str]], str]

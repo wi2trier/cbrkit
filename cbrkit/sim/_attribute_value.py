@@ -44,8 +44,7 @@ default_aggregator = aggregator()
 class attribute_value[V, S: Float](
     SimSeqFunc[V, AttributeValueSim[S]], SupportsMetadata
 ):
-    """
-    Similarity function that computes the attribute value similarity between two cases.
+    """Similarity function that computes the attribute value similarity between two cases.
 
     Args:
         attributes: A mapping of attribute names to the similarity functions to be used for those attributes.
@@ -54,18 +53,14 @@ class attribute_value[V, S: Float](
 
     Examples:
         >>> equality = lambda x, y: 1.0 if x == y else 0.0
-        >>> sim = attribute_value(
-        ...     attributes={
-        ...         "name": equality,
-        ...         "age": equality,
-        ...     },
-        ... )
-        >>> scores = sim(
-        ...     [
-        ...         ({"name": "John", "age": 25}, {"name": "John", "age": 30}),
-        ...         ({"name": "Jane", "age": 30}, {"name": "John", "age": 30}),
-        ...     ]
-        ... )
+        >>> sim = attribute_value({
+        ...     "name": equality,
+        ...     "age": equality,
+        ... })
+        >>> scores = sim([
+        ...     ({"name": "John", "age": 25}, {"name": "John", "age": 30}),
+        ...     ({"name": "Jane", "age": 30}, {"name": "John", "age": 30}),
+        ... ])
         >>> scores[0]
         AttributeValueSim(value=0.5, attributes={'name': 1.0, 'age': 0.0})
         >>> scores[1]

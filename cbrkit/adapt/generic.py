@@ -11,6 +11,23 @@ __all__ = [
 
 @dataclass(slots=True, frozen=True)
 class pipe[V](AdaptPairFunc[V], SupportsMetadata):
+    """Chain multiple adaptation functions together.
+
+    Args:
+        functions: List of adaptation functions to apply in order.
+
+    Returns:
+        The adapted value.
+
+    Examples:
+        >>> func = pipe([
+        ...     lambda x, y: x + y,
+        ...     lambda x, y: x * y,
+        ... ])
+        >>> func(2, 3)
+        15
+    """
+
     functions: list[AdaptPairFunc[V]]
 
     @property

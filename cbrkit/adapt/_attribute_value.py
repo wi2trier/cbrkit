@@ -33,6 +33,34 @@ def default_value_setter(obj: AttributeValueData, key: Any, value: Any) -> None:
 
 @dataclass(slots=True, frozen=True)
 class attribute_value[V](AdaptPairFunc[V], SupportsMetadata):
+    """Adapt values of attributes using specified adaptation functions.
+
+    This class allows for the adaptation of multiple attributes of a case by applying
+    one or more adaptation functions to each attribute. It supports different data structures
+    like mappings (dictionaries) and pandas Series.
+
+    Args:
+        attributes: A mapping of attribute names to either single adaptation functions or
+            sequences of adaptation functions that will be applied in order.
+        value_getter: Function to retrieve values from objects. Defaults to dictionary/attribute access.
+        value_setter: Function to set values on objects. Defaults to dictionary/attribute assignment.
+
+    Returns:
+        A new case with adapted attribute values.
+
+    Examples:
+        >>> func = attribute_value({
+        ...     "name": lambda x, y: x if x == y else y,
+        ...     "age": lambda x, y: x if x > y else y,
+        ... })
+        >>> result = func(
+        ...     {"name": "Alice", "age": 30},
+        ...     {"name": "Peter", "age": 25}
+        ... )
+        >>> result
+        {'name': 'Peter', 'age': 30}
+    """
+
     attributes: Mapping[str, AdaptPairFunc[Any] | Sequence[AdaptPairFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = default_value_getter
     value_setter: Callable[[Any, str, Any], None] = default_value_setter
