@@ -41,7 +41,7 @@ default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[K, V, S: Float](
+class attribute_value[V, S: Float](
     SimSeqFunc[V, AttributeValueSim[S]], SupportsMetadata
 ):
     """
