@@ -1,3 +1,5 @@
+from typing import Any
+
 import cbrkit
 
 
@@ -55,4 +57,51 @@ def test_reuse_simple():
         "manufacturer": "audi-audi",
         "make": "a4",
         "miles": 125000,
+    }
+
+
+def test_reuse_nested():
+    query = {
+        "miles": 100000,
+        "model": {
+            "manufacturer": "audi",
+            "make": "a4",
+        },
+    }
+    full_casebase: dict[int, Any] = cbrkit.loaders.yaml("data/cars-1k.yaml")
+    casebase = {key: full_casebase[key] for key in list(full_casebase.keys())[:10]}
+
+    reuse_func = cbrkit.reuse.build(
+        adaptation_func=cbrkit.adapt.attribute_value(
+            attributes={
+                "miles": cbrkit.adapt.numbers.aggregate("mean"),
+                "model": cbrkit.adapt.attribute_value(
+                    {
+                        "make": cbrkit.adapt.strings.regex("v.*", ".*", "vclass"),
+                        "manufacturer": cbrkit.adapt.strings.regex(
+                            "mercedes-benz", ".*", "mercedes"
+                        ),
+                    }
+                ),
+            }
+        ),
+        similarity_func=cbrkit.sim.attribute_value(
+            attributes={
+                "miles": cbrkit.sim.numbers.linear(max=100000),
+                "model": cbrkit.sim.attribute_value(
+                    attributes={
+                        "make": cbrkit.sim.strings.levenshtein(),
+                        "manufacturer": cbrkit.sim.strings.levenshtein(),
+                    }
+                ),
+            }
+        ),
+    )
+
+    result = cbrkit.reuse.apply(casebase, query, reuse_func)
+
+    assert len(result.casebase) == len(casebase)
+    assert result.casebase[0]["model"] == {
+        "make": "vclass",
+        "manufacturer": "mercedes",
     }
