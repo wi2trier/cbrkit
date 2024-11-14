@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from cbrkit.helpers import unpack_sim
-from cbrkit.typing import RetrieverFunc
+from cbrkit.typing import RetrieverFunc, ReuserFunc
 
 try:
     import typer
@@ -78,6 +78,32 @@ def retrieve(
                     print(f"  {case_name}: {unpack_sim(similarity)}")
 
             print()
+
+
+@app.command()
+def reuse(
+    casebase_path: Path,
+    queries_path: Path,
+    reuser: str,
+    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    output_path: Path | None = None,
+    processes: int = 1,
+    parallel: ParallelStrategy = ParallelStrategy.queries,
+) -> None:
+    sys.path.extend(str(x) for x in search_path)
+    casebase = cbrkit.loaders.path(casebase_path)
+    queries = cbrkit.loaders.path(queries_path)
+    reusers: list[ReuserFunc] = cbrkit.helpers.load_callables(reuser)
+
+    results = cbrkit.reuse.mapply(casebase, queries, reusers, processes, parallel.value)
+
+    if output_path:
+        results_dict = {
+            query_name: result.as_dict() for query_name, result in results.items()
+        }
+
+        with output_path.with_suffix(".json").open("w") as fp:
+            json.dump(results_dict, fp, indent=2)
 
 
 @app.command()
