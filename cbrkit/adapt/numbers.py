@@ -14,8 +14,8 @@ __all__ = [
 @dataclass(slots=True)
 class aggregate(AdaptPairFunc[Number], SupportsMetadata):
     pooling: PoolingName | PoolingFunc = "mean"
-    case_factor: float = 1.0
-    query_factor: float = 1.0
+    case_factor: Number = 1.0
+    query_factor: Number = 1.0
 
     @override
     def __call__(self, case: Number, query: Number) -> float:

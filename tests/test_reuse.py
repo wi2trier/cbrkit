@@ -30,7 +30,9 @@ def test_reuse_simple():
                 "price": adapt_int,
                 "make": cbrkit.adapt.strings.regex("a[0-9]", "a[0-9]", "a4"),
                 "manufacturer": cbrkit.adapt.strings.regex(
-                    "audi", "audi", lambda case, query: f"{case.string}-{query.string}"
+                    "audi",
+                    "audi",
+                    lambda case, query: f"{case.string}-{query.string}",
                 ),
                 "miles": cbrkit.adapt.numbers.aggregate("mean"),
             }
