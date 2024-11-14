@@ -4,7 +4,7 @@ from typing import override
 
 from cbrkit.typing import SimPairFunc, SupportsMetadata
 
-Number = float | int
+type Number = float | int
 
 __all__ = ["linear_interval", "linear", "threshold", "exponential", "sigmoid"]
 
