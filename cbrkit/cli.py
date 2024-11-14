@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from cbrkit.helpers import unpack_sim
+from cbrkit.typing import RetrieverFunc
 
 try:
     import typer
@@ -50,7 +51,7 @@ def retrieve(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers = cbrkit.retrieval.load(retriever)
+    retrievers: list[RetrieverFunc] = cbrkit.helpers.load_callables(retriever)
 
     results = cbrkit.retrieval.mapply(
         casebase, queries, retrievers, processes, parallel.value

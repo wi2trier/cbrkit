@@ -1,11 +1,10 @@
 import os
-from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 
 from cbrkit.helpers import SimMapWrapper, get_metadata, similarities2ranking, unpack_sim
-from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
     Casebase,
@@ -20,8 +19,6 @@ __all__ = [
     "build",
     "mapply",
     "apply",
-    "load",
-    "load_map",
     "Result",
     "ResultStep",
     "base_retriever",
@@ -324,44 +321,6 @@ class build[K, V, S: Float](base_retriever[K, V, S]):
             similarities = sim_func(casebase, query)
 
         return self.postprocess(similarities)
-
-
-def load(
-    import_names: Sequence[str] | str,
-) -> list[RetrieverFunc[Any, Any, Any]]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
-    retrievers: list[RetrieverFunc[Any, Any, Any]] = []
-
-    for import_path in import_names:
-        obj = load_python(import_path)
-
-        if isinstance(obj, Sequence):
-            assert all(isinstance(func, Callable) for func in retrievers)
-            retrievers.extend(obj)
-        elif isinstance(obj, Callable):
-            retrievers.append(cast(RetrieverFunc[Any, Any, Any], obj))
-
-    return retrievers
-
-
-def load_map(
-    import_names: Collection[str] | str,
-) -> dict[str, RetrieverFunc[Any, Any, Any]]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
-    retrievers: dict[str, RetrieverFunc] = {}
-
-    for import_path in import_names:
-        obj = load_python(import_path)
-
-        if isinstance(obj, Mapping):
-            assert all(isinstance(func, Callable) for func in obj.values())
-            retrievers.update(obj)
-
-    return retrievers
 
 
 try:

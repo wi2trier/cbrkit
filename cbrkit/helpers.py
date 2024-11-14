@@ -1,8 +1,9 @@
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
+from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
     Float,
@@ -25,6 +26,8 @@ __all__ = [
     "unpack_sims",
     "singleton",
     "similarities2ranking",
+    "load_callables",
+    "load_callables_map",
 ]
 
 
@@ -169,3 +172,41 @@ def similarities2ranking[K, S: Float](similarities: SimSeqOrMap[K, S]) -> list[A
         )
 
     raise TypeError(f"Expected a Sequence or Mapping, but got {type(similarities)}")
+
+
+def load_callables(
+    import_names: Sequence[str] | str,
+) -> list[Callable]:
+    if isinstance(import_names, str):
+        import_names = [import_names]
+
+    functions: list[Callable] = []
+
+    for import_path in import_names:
+        obj = load_python(import_path)
+
+        if isinstance(obj, Sequence):
+            assert all(isinstance(func, Callable) for func in functions)
+            functions.extend(obj)
+        elif isinstance(obj, Callable):
+            functions.append(obj)
+
+    return functions
+
+
+def load_callables_map(
+    import_names: Collection[str] | str,
+) -> dict[str, Callable]:
+    if isinstance(import_names, str):
+        import_names = [import_names]
+
+    functions: dict[str, Callable] = {}
+
+    for import_path in import_names:
+        obj = load_python(import_path)
+
+        if isinstance(obj, Mapping):
+            assert all(isinstance(func, Callable) for func in obj.values())
+            functions.update(obj)
+
+    return functions
