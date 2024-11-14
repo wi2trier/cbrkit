@@ -1,11 +1,13 @@
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import override
+from typing import Literal, override
 
 from cbrkit.helpers import get_metadata
 from cbrkit.typing import AdaptPairFunc, JsonDict, SupportsMetadata
 
 __all__ = [
     "pipe",
+    "null",
 ]
 
 
@@ -45,3 +47,40 @@ class pipe[V](AdaptPairFunc[V], SupportsMetadata):
             current_case = func(current_case, query)
 
         return current_case
+
+
+@dataclass(slots=True, frozen=True)
+class null[V](AdaptPairFunc[V], SupportsMetadata):
+    """Perform a null adaptation and return the original case or query value.
+
+    Args:
+        select: Either "case" or "query".
+        copy: Whether to copy the value before returning it.
+
+    Returns:
+        The original case value.
+
+    Examples:
+        >>> func = null()
+        >>> func(2, 3)
+        2
+    """
+
+    target: Literal["case", "query"] = "case"
+    copy: bool = False
+
+    @override
+    def __call__(self, case: V, query: V) -> V:
+        value: V
+
+        if self.target == "case":
+            value = case
+        elif self.target == "query":
+            value = query
+        else:
+            raise ValueError(f"Invalid target value: {self.target}")
+
+        if self.copy:
+            value = deepcopy(value)
+
+        return value
