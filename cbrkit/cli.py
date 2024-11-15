@@ -101,7 +101,8 @@ def reuse(
 
 @app.command()
 def serve(
-    retriever: list[str],
+    retriever: Annotated[list[str], typer.Option(default_factory=list)],
+    reuser: Annotated[list[str], typer.Option(default_factory=list)],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     host: str = "0.0.0.0",
     port: int = 8080,
@@ -112,6 +113,7 @@ def serve(
 
     sys.path.extend(str(x) for x in search_path)
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
+    os.environ["CBRKIT_REUSER"] = ",".join(reuser)
 
     uvicorn.run(
         "cbrkit.api:app",
