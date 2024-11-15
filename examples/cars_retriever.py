@@ -1,6 +1,6 @@
 import cbrkit
 
-# poetry run python -m cbrkit retrieve data/cars-1k.csv data/cars-queries.csv examples.cars_retriever:retriever --output-path data/output.json
+# uv run -m cbrkit retrieve data/cars-1k.csv data/cars-queries.csv examples.cars_retriever:retriever --output-path data/output.json
 retriever = cbrkit.retrieval.build(
     cbrkit.sim.attribute_value(
         attributes={
