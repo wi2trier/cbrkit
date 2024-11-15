@@ -40,6 +40,8 @@ The following modules are part of CBRkit:
 - `cbrkit.loaders`: Functions for loading cases and queries.
 - `cbrkit.sim`: Similarity generator functions for common data types like strings and numbers.
 - `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines.
+- `cbrkit.adapt`: Adaptation generator functions for adapting cases based on a query.
+- `cbrkit.reuse`: Functions for defining and applying reuse pipelines.
 - `cbrkit.typing`: Generic type definitions for defining custom functions.
 
 ## Installation
@@ -58,11 +60,14 @@ pip install cbrkit[EXTRA_NAME,...]
 
 where `EXTRA_NAME` is one of the following:
 
-- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
-- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
-- `cli`: Command Line Interface (CLI)
+- `all`: All optional dependencies
 - `api`: REST API Server
-- `all`: All of the above
+- `cli`: Command Line Interface (CLI)
+- `eval`: Evaluation tools for common metrics like `precision` and `recall`
+- `llm`: Large Language Models (LLM) APIs like Ollama and OpenAI
+- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
+- `timeseries`: Time series similarity measures like `dtw` and `smith_waterman`
+- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
 
 ## Loading Cases
 
@@ -221,8 +226,6 @@ Our result has the following attributes:
 - `similarities`: A dictionary containing the similarity scores for each case.
 - `ranking` A list of case indices sorted by their similarity score.
 - `casebase` The casebase containing only the retrieved cases (useful for downstream tasks).
-
-## Combining Multiple Retrieval Pipelines
 
 In some cases, it is useful to combine multiple retrieval pipelines, for example when applying the MAC/FAC pattern where a cheap pre-filter is applied to the whole casebase before a more expensive similarity measure is applied on the remaining cases.
 To use this pattern, first create the corresponding retrievers using the builder:
