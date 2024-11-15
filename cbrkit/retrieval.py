@@ -4,8 +4,8 @@ from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
 from typing import Any, Literal, override
 
-from cbrkit.helpers import SimMapWrapper, get_metadata, similarities2ranking, unpack_sim
-from cbrkit.typing import (
+from .helpers import SimMapWrapper, get_metadata, similarities2ranking, unpack_sim
+from .typing import (
     AnySimFunc,
     Casebase,
     Float,

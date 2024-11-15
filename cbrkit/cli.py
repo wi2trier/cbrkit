@@ -1,7 +1,3 @@
-"""
-.. include:: ../cli.md
-"""
-
 import json
 import os
 import sys
@@ -9,16 +5,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
-from cbrkit.helpers import unpack_sim
-from cbrkit.typing import RetrieverFunc, ReuserFunc
-
 try:
     import typer
     from rich import print
 except ModuleNotFoundError:
-    print(
-        "Please install cbrkit with the [cli] extra to use the command line interface."
-    )
+    print("Please install with the [cli] extra to use the command line interface.")
     raise
 
 import cbrkit
@@ -51,7 +42,9 @@ def retrieve(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[RetrieverFunc] = cbrkit.helpers.load_callables(retriever)
+    retrievers: list[cbrkit.typing.RetrieverFunc] = cbrkit.helpers.load_callables(
+        retriever
+    )
 
     results = cbrkit.retrieval.mapply(
         casebase, queries, retrievers, processes, parallel.value
@@ -75,7 +68,7 @@ def retrieve(
             if print_similarities:
                 print("Similarities:")
                 for case_name, similarity in result.similarities.items():
-                    print(f"  {case_name}: {unpack_sim(similarity)}")
+                    print(f"  {case_name}: {cbrkit.helpers.unpack_sim(similarity)}")
 
             print()
 
@@ -93,7 +86,7 @@ def reuse(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    reusers: list[ReuserFunc] = cbrkit.helpers.load_callables(reuser)
+    reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
 
     results = cbrkit.reuse.mapply(casebase, queries, reusers, processes, parallel.value)
 

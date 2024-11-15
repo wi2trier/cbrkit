@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 from typing import override
 
-from cbrkit.typing import SimPairFunc, SupportsMetadata
+from ..typing import SimPairFunc, SupportsMetadata
 
 type Number = float | int
 

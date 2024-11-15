@@ -4,8 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
 
-from cbrkit.helpers import get_metadata
-from cbrkit.typing import AdaptPairFunc, JsonDict, SupportsMetadata
+from ..helpers import get_metadata
+from ..typing import AdaptPairFunc, JsonDict, SupportsMetadata
 
 __all__ = [
     "regex",

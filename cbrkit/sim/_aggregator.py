@@ -3,8 +3,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, override
 
-from cbrkit.helpers import get_name, unpack_sim
-from cbrkit.typing import (
+from ..helpers import get_name, unpack_sim
+from ..typing import (
     AggregatorFunc,
     Float,
     JsonDict,

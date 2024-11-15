@@ -11,9 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast, override
 
-from cbrkit.sim.generic import static_table
-from cbrkit.sim.strings import taxonomy
-from cbrkit.typing import (
+from ...typing import (
     FilePath,
     JsonDict,
     SimPairFunc,
@@ -21,11 +19,10 @@ from cbrkit.typing import (
     SimSeqFunc,
     SupportsMetadata,
 )
+from ..generic import static_table
+from . import taxonomy
 
 __all__ = [
-    "levenshtein",
-    "jaro",
-    "jaro_winkler",
     "table",
     "taxonomy",
     "ngram",
@@ -293,7 +290,7 @@ except ImportError:
 
 
 try:
-    import Levenshtein
+    import Levenshtein as pyLevenshtein
 
     @dataclass(slots=True, frozen=True)
     class levenshtein(SimPairFunc[str, float], SupportsMetadata):
@@ -318,7 +315,7 @@ try:
             if not self.case_sensitive:
                 x, y = x.lower(), y.lower()
 
-            return Levenshtein.ratio(x, y, score_cutoff=self.score_cutoff)
+            return pyLevenshtein.ratio(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
     class jaro(SimPairFunc[str, float], SupportsMetadata):
@@ -339,7 +336,7 @@ try:
 
         @override
         def __call__(self, x: str, y: str) -> float:
-            return Levenshtein.jaro(x, y, score_cutoff=self.score_cutoff)
+            return pyLevenshtein.jaro(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
     class jaro_winkler(SimPairFunc[str, float], SupportsMetadata):
@@ -362,7 +359,7 @@ try:
 
         @override
         def __call__(self, x: str, y: str) -> float:
-            return Levenshtein.jaro_winkler(
+            return pyLevenshtein.jaro_winkler(
                 x, y, score_cutoff=self.score_cutoff, prefix_weight=self.prefix_weight
             )
 

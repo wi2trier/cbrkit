@@ -1,3 +1,3 @@
-from cbrkit.cli import app
+from .cli import app
 
 app()

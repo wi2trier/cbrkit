@@ -15,8 +15,8 @@ import xmltodict
 import yaml as yamllib
 from pydantic import BaseModel
 
-from cbrkit.typing import Casebase, FilePath
 from .helpers import load_object
+from .typing import Casebase, FilePath
 
 __all__ = [
     "csv",

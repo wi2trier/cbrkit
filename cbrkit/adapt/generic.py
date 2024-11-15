@@ -2,8 +2,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal, override
 
-from cbrkit.helpers import get_metadata
-from cbrkit.typing import AdaptPairFunc, JsonDict, SupportsMetadata
+from ..helpers import get_metadata
+from ..typing import AdaptPairFunc, JsonDict, SupportsMetadata
 
 __all__ = [
     "pipe",

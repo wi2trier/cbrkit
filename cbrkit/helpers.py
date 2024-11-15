@@ -4,7 +4,7 @@ from importlib import import_module
 from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
-from cbrkit.typing import (
+from .typing import (
     AnySimFunc,
     Float,
     JsonDict,

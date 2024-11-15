@@ -4,13 +4,13 @@ from inspect import signature as inspect_signature
 from multiprocessing import Pool
 from typing import Any, Literal, cast, override
 
-from cbrkit.helpers import (
+from .helpers import (
     SimPairWrapper,
     get_metadata,
     similarities2ranking,
     unpack_sim,
 )
-from cbrkit.typing import (
+from .typing import (
     AdaptMapFunc,
     AdaptPairFunc,
     AdaptReduceFunc,

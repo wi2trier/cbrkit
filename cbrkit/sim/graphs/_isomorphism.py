@@ -12,7 +12,8 @@ from cbrkit.typing import (
     SupportsMetadata,
 )
 
-from ._model import DataSimWrapper, Graph, GraphSim, Node, to_rustworkx_with_lookup
+from . import _model as model
+from ._model import DataSimWrapper, Graph, GraphSim, Node
 
 
 @dataclass(slots=True)
@@ -66,8 +67,8 @@ class isomorphism[K, N, E, G](
     ) -> GraphSim[K]:
         import rustworkx
 
-        x_rw, x_lookup = to_rustworkx_with_lookup(x)
-        y_rw, y_lookup = to_rustworkx_with_lookup(y)
+        x_rw, x_lookup = model.to_rustworkx_with_lookup(x)
+        y_rw, y_lookup = model.to_rustworkx_with_lookup(y)
 
         rw_mappings = rustworkx.vf2_mapping(
             y_rw,

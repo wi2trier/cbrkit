@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import override
 
-from cbrkit.sim._aggregator import PoolingName, pooling_funcs
-from cbrkit.typing import AdaptPairFunc, PoolingFunc, SupportsMetadata
+from ..sim._aggregator import PoolingName, pooling_funcs
+from ..typing import AdaptPairFunc, PoolingFunc, SupportsMetadata
 
 type Number = float | int
 

@@ -1,8 +1,7 @@
 from typing import Any
 
-from cbrkit.retrieval import Result, ResultStep
-from cbrkit.typing import Float
-
+from ..retrieval import Result, ResultStep
+from ..typing import Float
 from ._common import compute
 
 

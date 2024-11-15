@@ -4,8 +4,6 @@ from typing import Any, Literal
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
-from cbrkit.typing import RetrieverFunc, ReuserFunc
-
 try:
     from fastapi import FastAPI
     from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,8 +32,8 @@ class Settings(BaseSettings):
 settings = Settings()
 app = FastAPI()
 
-retriever: list[RetrieverFunc] = []
-retriever_map: dict[str, RetrieverFunc] = {}
+retriever: list[cbrkit.typing.RetrieverFunc] = []
+retriever_map: dict[str, cbrkit.typing.RetrieverFunc] = {}
 
 if settings.retriever is not None and settings.retriever_map is not None:
     retriever = cbrkit.helpers.load_callables(settings.retriever.split(","))
@@ -47,8 +45,8 @@ elif settings.retriever_map is not None:
     retriever_map = cbrkit.helpers.load_callables_map(settings.retriever_map.split(","))
     retriever = list(retriever_map.values())
 
-reuser: list[ReuserFunc] = []
-reuser_map: dict[str, ReuserFunc] = {}
+reuser: list[cbrkit.typing.ReuserFunc] = []
+reuser_map: dict[str, cbrkit.typing.ReuserFunc] = {}
 
 if settings.reuser is not None and settings.reuser_map is not None:
     reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))

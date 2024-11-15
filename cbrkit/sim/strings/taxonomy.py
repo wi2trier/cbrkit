@@ -11,9 +11,9 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Protocol, TypedDict, cast, override
 
-from cbrkit.helpers import get_metadata
-from cbrkit.loaders import data as load_data
-from cbrkit.typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
+from ...helpers import get_metadata
+from ...loaders import data as load_data
+from ...typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
 
 __all__ = [
     "load",

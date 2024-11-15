@@ -2,8 +2,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from cbrkit.helpers import get_metadata
-from cbrkit.typing import (
+from ..helpers import get_metadata
+from ..typing import (
     AdaptPairFunc,
     JsonDict,
     SupportsMetadata,
