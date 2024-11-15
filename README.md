@@ -249,6 +249,18 @@ The result has the following two attributes:
 Both `final` and each entry in `steps` have the same attributes as discussed previously.
 The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
 
+## Adaptation Functions
+
+TODO
+
+## Reuse
+
+TODO
+
+## Evaluation
+
+TODO
+
 ## REST API and CLI
 
 In order to use the built-in API and CLI, you need to define a retriever in a Python module using the function `cbrkit.retrieval.build()`.
