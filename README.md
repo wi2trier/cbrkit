@@ -68,15 +68,15 @@ where `EXTRA_NAME` is one of the following:
 
 The first step is to load cases and queries.
 We provide predefined functions for the most common formats like CSV, JSON, and XML.
-Additionally, CBRkit also integrates with `pandas` for loading data frames.
-The following example shows how to load cases and queries from a CSV file using `pandas`:
+Additionally, CBRkit also integrates with `polars` and `pandas` for loading data frames.
+The following example shows how to load cases and queries from a CSV file using `polars`:
 
 ```python
-import pandas as pd
+import polars as pl
 import cbrkit
 
-df = pd.read_csv("path/to/cases.csv")
-casebase = cbrkit.loaders.pandas(df)
+df = pl.read_csv("path/to/cases.csv")
+casebase = cbrkit.loaders.polars(df)
 ```
 
 When dealing with formats like JSON, the files can be loaded directly:
@@ -91,17 +91,14 @@ CBRkit expects the type of the queries to match the type of the cases.
 You may define a single query directly in Python as follows
 
 ```python
-# for pandas
-query = pd.Series({"name": "John", "age": 25})
-# for json
 query = {"name": "John", "age": 25}
 ```
 
 If you have a collection of queries, you can load them using the same loader functions as for the cases.
 
 ```python
- # for pandas
-queries = cbrkit.loaders.pandas(pd.read_csv("path/to/queries.csv"))
+ # for polars
+queries = cbrkit.loaders.polars(pl.read_csv("path/to/queries.csv"))
 # for json
 queries = cbrkit.loaders.json("path/to/queries.json")
 ```

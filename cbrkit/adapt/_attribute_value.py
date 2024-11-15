@@ -1,8 +1,6 @@
-from collections.abc import Callable, Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
-
-import pandas as pd
 
 from cbrkit.helpers import get_metadata
 from cbrkit.typing import (
@@ -11,21 +9,18 @@ from cbrkit.typing import (
     SupportsMetadata,
 )
 
-__all__ = ["attribute_value", "AttributeValueData"]
-
-# TODO: Add Polars
-type AttributeValueData = Mapping | pd.Series
+__all__ = ["attribute_value"]
 
 
-def default_value_getter(obj: AttributeValueData, key: Any) -> Any:
-    if isinstance(obj, Mapping | pd.Series):
+def default_value_getter(obj: Any, key: Any) -> Any:
+    if hasattr(obj, "__getitem__"):
         return obj[key]
     else:
         return getattr(obj, key)
 
 
-def default_value_setter(obj: AttributeValueData, key: Any, value: Any) -> None:
-    if isinstance(obj, MutableMapping):
+def default_value_setter(obj: Any, key: Any, value: Any) -> None:
+    if hasattr(obj, "__setitem__"):
         obj[key] = value
     else:
         setattr(obj, key, value)
@@ -37,7 +32,7 @@ class attribute_value[V](AdaptPairFunc[V], SupportsMetadata):
 
     This class allows for the adaptation of multiple attributes of a case by applying
     one or more adaptation functions to each attribute. It supports different data structures
-    like mappings (dictionaries) and pandas Series.
+    like mappings (dictionaries) and dataframes
 
     Args:
         attributes: A mapping of attribute names to either single adaptation functions or

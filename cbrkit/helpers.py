@@ -1,9 +1,9 @@
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import import_module
 from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
-from cbrkit.loaders import python as load_python
 from cbrkit.typing import (
     AnySimFunc,
     Float,
@@ -26,6 +26,7 @@ __all__ = [
     "unpack_sims",
     "singleton",
     "similarities2ranking",
+    "load_object",
     "load_callables",
     "load_callables_map",
 ]
@@ -174,6 +175,29 @@ def similarities2ranking[K, S: Float](similarities: SimSeqOrMap[K, S]) -> list[A
     raise TypeError(f"Expected a Sequence or Mapping, but got {type(similarities)}")
 
 
+def load_object(import_name: str) -> Any:
+    """Import an object based on a string.
+
+    Args:
+        import_name: Can either be in in dotted notation (`module.submodule.object`)
+            or with a colon as object delimiter (`module.submodule:object`).
+
+    Returns:
+        The imported object.
+    """
+
+    if ":" in import_name:
+        module_name, obj_name = import_name.split(":", 1)
+    elif "." in import_name:
+        module_name, obj_name = import_name.rsplit(".", 1)
+    else:
+        raise ValueError(f"Failed to import {import_name!r}")
+
+    module = import_module(module_name)
+
+    return getattr(module, obj_name)
+
+
 def load_callables(
     import_names: Sequence[str] | str,
 ) -> list[Callable]:
@@ -183,7 +207,7 @@ def load_callables(
     functions: list[Callable] = []
 
     for import_path in import_names:
-        obj = load_python(import_path)
+        obj = load_object(import_path)
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in functions)
@@ -203,7 +227,7 @@ def load_callables_map(
     functions: dict[str, Callable] = {}
 
     for import_path in import_names:
-        obj = load_python(import_path)
+        obj = load_object(import_path)
 
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())

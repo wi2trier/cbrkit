@@ -11,7 +11,7 @@ Additionally, the module contains an aggregator to combine multiple local measur
 
 from . import collections, generic, graphs, numbers, strings
 from ._aggregator import PoolingName, aggregator
-from ._attribute_value import AttributeValueData, AttributeValueSim, attribute_value
+from ._attribute_value import AttributeValueSim, attribute_value
 
 __all__ = [
     "collections",
@@ -22,6 +22,5 @@ __all__ = [
     "graphs",
     "aggregator",
     "PoolingName",
-    "AttributeValueData",
     "AttributeValueSim",
 ]

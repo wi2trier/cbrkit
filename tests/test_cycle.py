@@ -1,23 +1,19 @@
-import pandas as pd
+import polars as pl
 
 import cbrkit
 
 
 def test_simple():
-    casebase_file = "data/cars-1k.csv"
+    df = pl.read_csv("data/cars-1k.csv")
+    casebase = cbrkit.loaders.polars(df)
 
-    df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.pandas(df)
-
-    query = pd.Series(
-        {
-            "price": 10000,
-            "year": 2010,
-            "manufacturer": "audi",
-            "make": "a4",
-            "miles": 100000,
-        }
-    )
+    query = {
+        "price": 10000,
+        "year": 2010,
+        "manufacturer": "audi",
+        "make": "a4",
+        "miles": 100000,
+    }
 
     sim_func = cbrkit.sim.attribute_value(
         attributes={

@@ -2,8 +2,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-import pandas as pd
-
 from cbrkit.helpers import SimSeqWrapper, get_metadata
 from cbrkit.typing import (
     AggregatorFunc,
@@ -18,14 +16,11 @@ from cbrkit.typing import (
 
 from ._aggregator import aggregator
 
-__all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
-
-# TODO: Add Polars
-type AttributeValueData = Mapping | pd.Series
+__all__ = ["attribute_value", "AttributeValueSim"]
 
 
-def default_value_getter(obj: AttributeValueData, key: Any) -> Any:
-    if isinstance(obj, Mapping | pd.Series):
+def default_value_getter(obj: Any, key: Any) -> Any:
+    if hasattr(obj, "__getitem__"):
         return obj[key]
     else:
         return getattr(obj, key)

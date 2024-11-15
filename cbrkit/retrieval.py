@@ -149,9 +149,9 @@ def apply[K, V, S: Float](
 
     Examples:
         >>> import cbrkit
-        >>> import pandas as pd
-        >>> df = pd.read_csv("./data/cars-1k.csv")
-        >>> casebase = cbrkit.loaders.pandas(df)
+        >>> import polars as pl
+        >>> df = pl.read_csv("./data/cars-1k.csv")
+        >>> casebase = cbrkit.loaders.polars(df)
         >>> query = casebase[42]
         >>> retriever = cbrkit.retrieval.build(
         ...     cbrkit.sim.attribute_value(

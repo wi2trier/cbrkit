@@ -8,12 +8,11 @@ there is also a function for attribute-value data.
 """
 
 from . import generic, numbers, strings
-from ._attribute_value import AttributeValueData, attribute_value
+from ._attribute_value import attribute_value
 
 __all__ = [
     "generic",
     "strings",
     "numbers",
     "attribute_value",
-    "AttributeValueData",
 ]
