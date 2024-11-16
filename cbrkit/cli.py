@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
+from cbrkit.helpers import unpack_sim
+
 try:
     import typer
     from rich import print
@@ -33,7 +35,6 @@ class ParallelStrategy(str, Enum):
     casebase = "casebase"
 
 
-# py -m cbrkit retrieve data/cars-1k.csv data/cars-queries.csv examples.cars_retriever:retriever --output-path data/output.json
 @app.command()
 def retrieve(
     casebase_path: Path,
@@ -41,6 +42,7 @@ def retrieve(
     retriever: str,
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     print_ranking: bool = True,
+    print_similarities: bool = False,
     output_path: Path | None = None,
     processes: int = 1,
     parallel: ParallelStrategy = ParallelStrategy.queries,
@@ -62,10 +64,18 @@ def retrieve(
         with output_path.with_suffix(".json").open("w") as fp:
             json.dump(results_dict, fp, indent=2)
 
-    if print_ranking:
+    if print_ranking or print_similarities:
         for query_name, result in results.items():
             print(f"Query: {query_name}")
-            print(result.ranking)
+
+            if print_ranking:
+                print(f"Ranking: {", ".join(map(str, result.ranking))}")
+
+            if print_similarities:
+                print("Similarities:")
+                for case_name, similarity in result.similarities.items():
+                    print(f"  {case_name}: {unpack_sim(similarity)}")
+
             print()
 
 

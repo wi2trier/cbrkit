@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.2](https://github.com/wi2trier/cbrkit/compare/v0.19.1...v0.19.2) (2024-11-11)
+
+### Bug Fixes
+
+* **eval:** ensure inequality of two qrels for completeness/correctness ([d2bd202](https://github.com/wi2trier/cbrkit/commit/d2bd2026234aab12cbb3ec3e9baa4104cc0f910a))
+
+## [0.19.1](https://github.com/wi2trier/cbrkit/compare/v0.19.0...v0.19.1) (2024-11-11)
+
+### Bug Fixes
+
+* **cli:** allow printing of similarities ([9fc1595](https://github.com/wi2trier/cbrkit/commit/9fc1595b8e24257638f5f34adb472c487d67cb4d))
+
 ## [0.19.0](https://github.com/wi2trier/cbrkit/compare/v0.18.3...v0.19.0) (2024-11-08)
 
 ### Features

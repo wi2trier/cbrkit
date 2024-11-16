@@ -44,16 +44,20 @@ def _correctness_completeness_single(
     for i in range(len(case_keys)):
         for j in range(i + 1, len(case_keys)):
             idx1, idx2 = case_keys[i], case_keys[j]
-            total_pairs += 1
+            qrel1, qrel2 = qrel[idx1], qrel[idx2]
 
-            if idx1 in run_k and idx2 in run_k:
-                qrel1, qrel2 = qrel[idx1], qrel[idx2]
-                run1, run2 = run_k[idx1], run_k[idx2]
+            if qrel1 != qrel2:
+                total_pairs += 1
 
-                if (qrel1 < qrel2 and run1 < run2) or (qrel1 > qrel2 and run1 > run2):
-                    concordant_pairs += 1
-                elif qrel1 != qrel2:
-                    discordant_pairs += 1
+                if idx1 in run_k and idx2 in run_k:
+                    run1, run2 = run_k[idx1], run_k[idx2]
+
+                    if (qrel1 < qrel2 and run1 < run2) or (
+                        qrel1 > qrel2 and run1 > run2
+                    ):
+                        concordant_pairs += 1
+                    else:
+                        discordant_pairs += 1
 
     correctness = (
         (concordant_pairs - discordant_pairs) / (concordant_pairs + discordant_pairs)

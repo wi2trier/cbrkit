@@ -26,6 +26,7 @@ poetry2nix.mkPoetryApplication {
   ];
   overrides = poetry2nix.overrides.withDefaults (injectBuildInputs {
     warc3-wet-clueweb09 = [ "setuptools" ];
+    dtaidistance = [ "setuptools" ];
   });
   meta = with lib; {
     description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.";
