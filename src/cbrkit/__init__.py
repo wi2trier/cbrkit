@@ -1,7 +1,7 @@
 """
 **[🌟 GitHub Project 🌟](https://github.com/wi2trier/cbrkit)**
 
-.. include:: ../README.md
+.. include:: ../../README.md
 
 """
 
