@@ -251,15 +251,15 @@ The returned result also has these entries which are an alias for the correspond
 
 ## Adaptation Functions
 
-TODO
+Coming soon...
 
 ## Reuse
 
-TODO
+Coming soon...
 
 ## Evaluation
 
-TODO
+Coming soon...
 
 ## REST API and CLI
 
