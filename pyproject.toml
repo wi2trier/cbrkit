@@ -76,10 +76,6 @@ transformers = [
     "transformers>=4,<5",
 ]
 
-[dependency-groups]
-test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
-docs = ["pdoc>=15,<16"]
-
 [project.urls]
 Repository = "https://github.com/wi2trier/cbrkit"
 Documentation = "https://wi2trier.github.io/cbrkit/"
@@ -89,19 +85,23 @@ Changelog = "https://github.com/wi2trier/cbrkit/releases"
 [project.scripts]
 cbrkit = "cbrkit.cli:app"
 
+[dependency-groups]
+test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
+docs = ["pdoc>=15,<16"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [tool.pytest.ini_options]
 addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore data --ignore examples --ignore cbrkit/cli.py --ignore cbrkit/api.py --ignore result"
 doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
 
 [tool.uv]
 default-groups = ["test", "docs"]
-package = true
 
 [tool.ruff]
 target-version = "py312"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.setuptools]
-packages = ["cbrkit"]
