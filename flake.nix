@@ -120,22 +120,20 @@
                   buildPhase = ''
                     runHook preBuild
 
-                    # remove everyting before the first header
-                    sed -i '1,/^# /d' ./README.md
-
-                    pdoc -d google -t pdoc-template --math \
+                    pdoc \
+                      -d google \
+                      -t pdoc-template \
+                      --math \
                       --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
-                      -o ./docs ./cbrkit
+                      -o "$out" \
+                      ./src/cbrkit
 
                     runHook postBuild
                   '';
                   installPhase = ''
                     runHook preInstall
 
-                    mkdir -p "$out"
                     mkdir -p "$out/assets"
-
-                    cp -rf ./docs/. "$out"
                     cp -rf ./assets/**/{*.png,*.gif} "$out/assets"
 
                     runHook postInstall
