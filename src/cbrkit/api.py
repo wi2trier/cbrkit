@@ -13,12 +13,14 @@ except ModuleNotFoundError:
 
 import cbrkit
 
-RetrievalResult = dataclass(
-    cbrkit.retrieval.Result, config=ConfigDict(arbitrary_types_allowed=True)
-)
-ReuseResult = dataclass(
-    cbrkit.reuse.Result, config=ConfigDict(arbitrary_types_allowed=True)
-)
+pydantic_dataclass_kwargs = {
+    "config": ConfigDict(arbitrary_types_allowed=True),
+    "frozen": True,
+    "slots": True,
+}
+
+RetrievalResult = dataclass(cbrkit.retrieval.Result, **pydantic_dataclass_kwargs)
+ReuseResult = dataclass(cbrkit.reuse.Result, **pydantic_dataclass_kwargs)
 
 
 class Settings(BaseSettings):
