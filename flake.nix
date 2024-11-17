@@ -158,10 +158,6 @@
           addMeta =
             drv:
             drv.overrideAttrs (old: {
-              # the default command throws import errors due to circular imports
-              postFixup = ''
-                echo "$out/bin/python3 -m cbrkit \"\$@\"" > $out/bin/cbrkit
-              '';
               passthru = lib.recursiveUpdate (old.passthru or { }) {
                 inherit (pythonSet.cbrkit.passthru) tests;
               };
