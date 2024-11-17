@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.20.0](https://github.com/wi2trier/cbrkit/compare/v0.19.2...v0.20.0) (2024-11-17)
+
+### Features
+
+* **adapt:** add null adaptation ([e477975](https://github.com/wi2trier/cbrkit/commit/e477975aa59a1e0d02230813824697a6a4bb262b))
+* **adapt:** add number aggregator ([ef9a6be](https://github.com/wi2trier/cbrkit/commit/ef9a6bea30c4f8581a1ec92c287bd62003dfc7eb))
+* add built-in adaptation functions ([8072481](https://github.com/wi2trier/cbrkit/commit/8072481e48341c78ea41f599ff14c6f137fd5bfd))
+* add compositional adaptation ([e5b8634](https://github.com/wi2trier/cbrkit/commit/e5b8634b089f6e4e52c00da255b4cfea09137546))
+* add reuse/adaptation interface with build/apply helpers ([fdd54c0](https://github.com/wi2trier/cbrkit/commit/fdd54c080aecbc18d6f4e2bb6627db7d8754044c))
+* **api:** add reuse endpoints ([3e728f7](https://github.com/wi2trier/cbrkit/commit/3e728f7b4a71408c943dcd85bb5f17a042a2ae78))
+* **cli:** add reuse command ([0e5c6bf](https://github.com/wi2trier/cbrkit/commit/0e5c6bf2589903b8b71b7cf42b7b5b25c9340bb2))
+* migrate from poetry to uv ([794455c](https://github.com/wi2trier/cbrkit/commit/794455cda9c9f4bea61dc5f7fabedd8d5a7069d7))
+* prefer polars over pandas ([773bed8](https://github.com/wi2trier/cbrkit/commit/773bed82346d72081ef9fc647259a91ce531cc12))
+* **reuse:** make interface more generic ([119ce3b](https://github.com/wi2trier/cbrkit/commit/119ce3b61a426bd32122f41313a33e513c2af77e))
+
+### Bug Fixes
+
+* **adapt/strings:** improve regex ([84acce6](https://github.com/wi2trier/cbrkit/commit/84acce6a9abf953cd4358cf7b03a1e7652b3e94e))
+* **adapt/strings:** swap order of query and case pattern ([84a1a7a](https://github.com/wi2trier/cbrkit/commit/84a1a7ad617f045e1fbdaa44683e85c398b272d4))
+* **adapt:** rename rules to pipe ([c60b0d3](https://github.com/wi2trier/cbrkit/commit/c60b0d31fdeda78be4b6e598597412d15d468797))
+* **aggregator:** export pooling functions ([49644bd](https://github.com/wi2trier/cbrkit/commit/49644bde1fc70837c9cdfc14a59a3d2875294177))
+* **api:** properly extend result classes ([b622610](https://github.com/wi2trier/cbrkit/commit/b62261074825438502e66612572bd64cba4a52b3))
+* **attribute-value:** remove unused type parameter ([6e6e0cf](https://github.com/wi2trier/cbrkit/commit/6e6e0cf979c54827405a7147d6c424fa1da67202))
+* **cli:** add reusers to serve function ([43aeb29](https://github.com/wi2trier/cbrkit/commit/43aeb29ae205531613e716151a44dddf53e921cb))
+* **helpers:** add generics to sim wrappers ([dcf4007](https://github.com/wi2trier/cbrkit/commit/dcf40075b49bec106203e36ca329b85f19403a9c))
+* **loaders:** make pydantic optional ([5ea54d6](https://github.com/wi2trier/cbrkit/commit/5ea54d6d19662258bb06460c5b782901752a4ad8))
+* **reuse:** update typing of apply_single ([79983bd](https://github.com/wi2trier/cbrkit/commit/79983bde7bb1e6864bf141750a654ad98c605ebe))
+* **sim/graphs:** improve similarity types ([176fe2b](https://github.com/wi2trier/cbrkit/commit/176fe2be88ac78b112a879636782b508f40958d1))
+
 ## [0.19.2](https://github.com/wi2trier/cbrkit/compare/v0.19.1...v0.19.2) (2024-11-11)
 
 ### Bug Fixes
