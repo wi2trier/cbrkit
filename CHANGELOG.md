@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.1](https://github.com/wi2trier/cbrkit/compare/v0.20.0...v0.20.1) (2024-11-17)
+
+### Bug Fixes
+
+* adjust paths in docs to fix build ([59e1f87](https://github.com/wi2trier/cbrkit/commit/59e1f87ff20d400c6d3c7853e2332d5263cb9e2a))
+
 ## [0.20.0](https://github.com/wi2trier/cbrkit/compare/v0.19.2...v0.20.0) (2024-11-17)
 
 ### Features
