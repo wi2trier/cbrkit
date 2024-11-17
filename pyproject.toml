@@ -45,7 +45,9 @@ dependencies = [
 [project.optional-dependencies]
 all = [
     "cbrkit[api,cli,eval,graphs,llm,nlp,timeseries,transformers]",
-    "numpy>=1,<3",
+    "numpy>=1,<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy>=2,<3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "numpy>=2,<3; sys_platform == 'linux'",
     "pandas>=2,<3",
     "pydantic>=2,<3",
     "scipy>=1,<2",
@@ -65,11 +67,13 @@ nlp = [
     "levenshtein>=0.26,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "levenshtein>=0.26,<1; sys_platform == 'linux'",
     "nltk>=3,<4",
-    "spacy>=3,<4",
+    "spacy>=3.7,<3.8; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "spacy>=3.8,<4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "spacy>=3.8,<4; sys_platform == 'linux'",
 ]
 timeseries = ["minineedle>=3,<4", "dtaidistance>=2,<3"]
 transformers = [
-    "sentence-transformers>=2,<4",
+    "sentence-transformers>=3,<4",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch>=2.5,<3; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "torch>=2.5,<3; sys_platform == 'linux'",
