@@ -54,14 +54,7 @@
           ...
         }:
         let
-          inherit
-            (pkgs.callPackage ./default.nix {
-              inherit (inputs) uv2nix pyproject-nix;
-            })
-            workspace
-            pythonSet
-            addMeta
-            ;
+          inherit (config.legacyPackages) pythonSet;
         in
         {
           _module.args.pkgs = import nixpkgs {
@@ -90,10 +83,13 @@
               nixfmt.enable = true;
             };
           };
+          legacyPackages.pythonSet = pkgs.callPackage ./default.nix {
+            inherit (inputs) uv2nix pyproject-nix;
+          };
           packages = {
             inherit (pythonSet.cbrkit.passthru) docs;
             default = config.packages.cbrkit;
-            cbrkit = addMeta (pythonSet.mkVirtualEnv "cbrkit-env" workspace.deps.optionals);
+            cbrkit = pythonSet.mkApp "optionals";
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "cbrkit";
               tag = "latest";

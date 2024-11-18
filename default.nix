@@ -127,9 +127,6 @@ let
       packageOverlay
     ]
   );
-in
-{
-  inherit workspace pythonSet;
   addMeta =
     drv:
     drv.overrideAttrs (old: {
@@ -145,4 +142,8 @@ in
         platforms = with lib.platforms; darwin ++ linux;
       };
     });
+in
+pythonSet
+// {
+  mkApp = depsName: addMeta (pythonSet.mkVirtualEnv "cbrkit-env" workspace.deps.${depsName});
 }
