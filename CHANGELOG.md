@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.3](https://github.com/wi2trier/cbrkit/compare/v0.20.2...v0.20.3) (2024-11-18)
+
+### Bug Fixes
+
+* **deps:** update nix flake lock ([40e8a66](https://github.com/wi2trier/cbrkit/commit/40e8a66fa9ea6fce50d9f2cfdf89572e3ca2dab6))
+
 ## [0.20.2](https://github.com/wi2trier/cbrkit/compare/v0.20.1...v0.20.2) (2024-11-18)
 
 ### Bug Fixes
