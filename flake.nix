@@ -36,7 +36,6 @@
       flake-parts,
       systems,
       flocken,
-      pyproject-nix,
       uv2nix,
       ...
     }:
@@ -55,155 +54,14 @@
           ...
         }:
         let
-          workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
-          projectOverlay = workspace.mkPyprojectOverlay {
-            sourcePreference = "wheel";
-          };
-          cudaOverlay =
-            final: prev:
-            lib.genAttrs
-              # uv.lock -> torch -> nvidia deps
-              [
-                "nvidia-cublas-cu12"
-                "nvidia-cuda-cupti-cu12"
-                "nvidia-cuda-nvrtc-cu12"
-                "nvidia-cuda-runtime-cu12"
-                "nvidia-cudnn-cu12"
-                "nvidia-cufft-cu12"
-                "nvidia-curand-cu12"
-                "nvidia-cusolver-cu12"
-                "nvidia-cusparse-cu12"
-                "nvidia-nccl-cu12"
-                "nvidia-nvjitlink-cu12"
-                "nvidia-nvtx-cu12"
-              ]
-              (
-                name:
-                prev.${name}.overrideAttrs (old: {
-                  autoPatchelfIgnoreMissingDeps = true;
-                  dontUsePyprojectBytecode = true;
-                })
-              );
-          buildSystemOverlay =
-            final: prev:
-            lib.mapAttrs
-              (
-                name: value:
-                prev.${name}.overrideAttrs (old: {
-                  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ (final.resolveBuildSystem value);
-                })
-              )
-              {
-                cbor = {
-                  setuptools = [ ];
-                };
-                dtaidistance = {
-                  setuptools = [ ];
-                  cython = [ ];
-                  numpy = [ ];
-                  wheel = [ ];
-                };
-                warc3-wet-clueweb09 = {
-                  setuptools = [ ];
-                };
-              };
-          packageOverlay =
-            final: prev:
-            lib.mapAttrs (name: value: prev.${name}.overrideAttrs value) {
-              torch = old: {
-                autoPatchelfIgnoreMissingDeps = true;
-              };
-              numba = old: {
-                buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.tbb_2021_11 ];
-              };
-              cbrkit = old: {
-                passthru = lib.recursiveUpdate (old.passthru or { }) {
-                  tests.pytest = pkgs.stdenv.mkDerivation {
-                    name = "${final.cbrkit.name}-pytest";
-                    inherit (final.cbrkit) src;
-                    nativeBuildInputs = [
-                      (final.mkVirtualEnv "cbrkit-test-env" {
-                        cbrkit = [
-                          "all"
-                          "test"
-                        ];
-                      })
-                    ];
-                    dontConfigure = true;
-                    buildPhase = ''
-                      runHook preBuild
-                      pytest --cov-report=html
-                      runHook postBuild
-                    '';
-                    installPhase = ''
-                      runHook preInstall
-                      mv htmlcov $out
-                      runHook postInstall
-                    '';
-                  };
-                  docs = pkgs.stdenv.mkDerivation {
-                    name = "${final.cbrkit.name}-docs";
-                    inherit (final.cbrkit) src;
-                    nativeBuildInputs = [
-                      (final.mkVirtualEnv "cbrkit-docs-env" {
-                        cbrkit = [
-                          "all"
-                          "docs"
-                        ];
-                      })
-                    ];
-                    dontConfigure = true;
-                    buildPhase = ''
-                      runHook preBuild
-
-                      pdoc \
-                        -d google \
-                        -t pdoc-template \
-                        --math \
-                        --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
-                        -o "$out" \
-                        ./src/cbrkit
-
-                      runHook postBuild
-                    '';
-                    installPhase = ''
-                      runHook preInstall
-
-                      mkdir -p "$out/assets"
-                      cp -rf ./assets/**/{*.png,*.gif} "$out/assets"
-
-                      runHook postInstall
-                    '';
-                  };
-                };
-              };
-            };
-          baseSet = pkgs.callPackage pyproject-nix.build.packages {
-            python = pkgs.python3;
-          };
-          pythonSet = baseSet.overrideScope (
-            lib.composeManyExtensions [
-              projectOverlay
-              cudaOverlay
-              buildSystemOverlay
-              packageOverlay
-            ]
-          );
-          addMeta =
-            drv:
-            drv.overrideAttrs (old: {
-              passthru = lib.recursiveUpdate (old.passthru or { }) {
-                inherit (pythonSet.cbrkit.passthru) tests;
-              };
-              meta = (old.meta or { }) // {
-                mainProgram = "cbrkit";
-                maintainers = with lib.maintainers; [ mirkolenz ];
-                license = lib.licenses.mit;
-                homepage = "https://github.com/wi2trier/cbrkit";
-                description = "Generate entire directory structures using Jinja templates with support for external data and custom plugins.";
-                platforms = with lib.platforms; darwin ++ linux;
-              };
-            });
+          inherit
+            (pkgs.callPackage ./default.nix {
+              inherit (inputs) uv2nix pyproject-nix;
+            })
+            workspace
+            pythonSet
+            addMeta
+            ;
         in
         {
           _module.args.pkgs = import nixpkgs {
