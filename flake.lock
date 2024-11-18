@@ -99,22 +99,6 @@
         "url": "https://github.com/NixOS/nixpkgs/archive/fb192fec7cc7a4c26d51779e9bab07ce6fa5597a.tar.gz"
       }
     },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1725103162,
-        "narHash": "sha256-Ym04C5+qovuQDYL/rKWSR+WESseQBbNAe5DsXNx5trY=",
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "12228ff1752d7b7624a54e9c1af4b222b3c1073b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixos",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "pyproject-nix": {
       "inputs": {
         "nixpkgs": [
@@ -143,8 +127,7 @@
         "pyproject-nix": "pyproject-nix",
         "systems": "systems_2",
         "treefmt-nix": "treefmt-nix",
-        "uv2nix": "uv2nix",
-        "uv2nix-hammer": "uv2nix-hammer"
+        "uv2nix": "uv2nix"
       }
     },
     "systems": {
@@ -177,20 +160,6 @@
         "type": "github"
       }
     },
-    "systems_3": {
-      "locked": {
-        "lastModified": 1681028828,
-        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
-        "type": "github"
-      },
-      "original": {
-        "id": "systems",
-        "type": "indirect"
-      }
-    },
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
@@ -203,24 +172,6 @@
         "owner": "numtide",
         "repo": "treefmt-nix",
         "rev": "746901bb8dba96d154b66492a29f5db0693dbfcc",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "treefmt-nix_2": {
-      "inputs": {
-        "nixpkgs": "nixpkgs_2"
-      },
-      "locked": {
-        "lastModified": 1725271838,
-        "narHash": "sha256-VcqxWT0O/gMaeWTTjf1r4MOyG49NaNxW4GHTO3xuThE=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "9fb342d14b69aefdf46187f6bb80a4a0d97007cd",
         "type": "github"
       },
       "original": {
@@ -249,28 +200,6 @@
       "original": {
         "owner": "adisbladis",
         "repo": "uv2nix",
-        "type": "github"
-      }
-    },
-    "uv2nix-hammer": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "systems": "systems_3",
-        "treefmt-nix": "treefmt-nix_2"
-      },
-      "locked": {
-        "lastModified": 1731510248,
-        "narHash": "sha256-F3x70+8rhm9hDeJ/kdyDZh+XMQeiErK3Jbz8+ukFYLQ=",
-        "owner": "TyberiusPrime",
-        "repo": "uv2nix_hammer_overrides",
-        "rev": "9bc9d711a26aaa0e0ad350c0fc2cc51daaece03c",
-        "type": "github"
-      },
-      "original": {
-        "owner": "TyberiusPrime",
-        "repo": "uv2nix_hammer_overrides",
         "type": "github"
       }
     }

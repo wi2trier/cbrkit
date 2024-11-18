@@ -20,10 +20,6 @@
       inputs.pyproject-nix.follows = "pyproject-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    uv2nix-hammer = {
-      url = "github:TyberiusPrime/uv2nix_hammer_overrides";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
   nixConfig = {
     extra-substituters = [
@@ -42,7 +38,6 @@
       flocken,
       pyproject-nix,
       uv2nix,
-      uv2nix-hammer,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -61,27 +56,69 @@
         }:
         let
           workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
-          pyprojectOverlay = workspace.mkPyprojectOverlay {
+          projectOverlay = workspace.mkPyprojectOverlay {
             sourcePreference = "wheel";
           };
-          mkBuildSystemOverrides =
-            attrs: final: prev:
-            lib.mapAttrs (
-              name: value:
-              prev.${name}.overrideAttrs (old: {
-                nativeBuildInputs = old.nativeBuildInputs or [ ] ++ (final.resolveBuildSystem value);
-              })
-            ) attrs;
-          buildSystemOverrides = mkBuildSystemOverrides {
-            warc3-wet-clueweb09 = {
-              setuptools = [ ];
-            };
-          };
-          pyprojectOverrides = final: prev: {
-            cbrkit = prev.cbrkit.overrideAttrs (old: {
-              passthru = (old.passthru or { }) // {
-                tests = (old.tests or { }) // {
-                  pytest = pkgs.stdenv.mkDerivation {
+          cudaOverlay =
+            final: prev:
+            lib.genAttrs
+              # uv.lock -> torch -> nvidia deps
+              [
+                "nvidia-cublas-cu12"
+                "nvidia-cuda-cupti-cu12"
+                "nvidia-cuda-nvrtc-cu12"
+                "nvidia-cuda-runtime-cu12"
+                "nvidia-cudnn-cu12"
+                "nvidia-cufft-cu12"
+                "nvidia-curand-cu12"
+                "nvidia-cusolver-cu12"
+                "nvidia-cusparse-cu12"
+                "nvidia-nccl-cu12"
+                "nvidia-nvjitlink-cu12"
+                "nvidia-nvtx-cu12"
+              ]
+              (
+                name:
+                prev.${name}.overrideAttrs (old: {
+                  autoPatchelfIgnoreMissingDeps = true;
+                  dontUsePyprojectBytecode = true;
+                })
+              );
+          buildSystemOverlay =
+            final: prev:
+            lib.mapAttrs
+              (
+                name: value:
+                prev.${name}.overrideAttrs (old: {
+                  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ (final.resolveBuildSystem value);
+                })
+              )
+              {
+                cbor = {
+                  setuptools = [ ];
+                };
+                dtaidistance = {
+                  setuptools = [ ];
+                  cython = [ ];
+                  numpy = [ ];
+                  wheel = [ ];
+                };
+                warc3-wet-clueweb09 = {
+                  setuptools = [ ];
+                };
+              };
+          packageOverlay =
+            final: prev:
+            lib.mapAttrs (name: value: prev.${name}.overrideAttrs value) {
+              torch = old: {
+                autoPatchelfIgnoreMissingDeps = true;
+              };
+              numba = old: {
+                buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.tbb_2021_11 ];
+              };
+              cbrkit = old: {
+                passthru = lib.recursiveUpdate (old.passthru or { }) {
+                  tests.pytest = pkgs.stdenv.mkDerivation {
                     name = "${final.cbrkit.name}-pytest";
                     inherit (final.cbrkit) src;
                     nativeBuildInputs = [
@@ -104,53 +141,52 @@
                       runHook postInstall
                     '';
                   };
-                };
-                docs = pkgs.stdenv.mkDerivation {
-                  name = "${final.cbrkit.name}-docs";
-                  inherit (final.cbrkit) src;
-                  nativeBuildInputs = [
-                    (final.mkVirtualEnv "cbrkit-docs-env" {
-                      cbrkit = [
-                        "all"
-                        "docs"
-                      ];
-                    })
-                  ];
-                  dontConfigure = true;
-                  buildPhase = ''
-                    runHook preBuild
+                  docs = pkgs.stdenv.mkDerivation {
+                    name = "${final.cbrkit.name}-docs";
+                    inherit (final.cbrkit) src;
+                    nativeBuildInputs = [
+                      (final.mkVirtualEnv "cbrkit-docs-env" {
+                        cbrkit = [
+                          "all"
+                          "docs"
+                        ];
+                      })
+                    ];
+                    dontConfigure = true;
+                    buildPhase = ''
+                      runHook preBuild
 
-                    pdoc \
-                      -d google \
-                      -t pdoc-template \
-                      --math \
-                      --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
-                      -o "$out" \
-                      ./src/cbrkit
+                      pdoc \
+                        -d google \
+                        -t pdoc-template \
+                        --math \
+                        --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
+                        -o "$out" \
+                        ./src/cbrkit
 
-                    runHook postBuild
-                  '';
-                  installPhase = ''
-                    runHook preInstall
+                      runHook postBuild
+                    '';
+                    installPhase = ''
+                      runHook preInstall
 
-                    mkdir -p "$out/assets"
-                    cp -rf ./assets/**/{*.png,*.gif} "$out/assets"
+                      mkdir -p "$out/assets"
+                      cp -rf ./assets/**/{*.png,*.gif} "$out/assets"
 
-                    runHook postInstall
-                  '';
+                      runHook postInstall
+                    '';
+                  };
                 };
               };
-            });
-          };
+            };
           baseSet = pkgs.callPackage pyproject-nix.build.packages {
             python = pkgs.python3;
           };
           pythonSet = baseSet.overrideScope (
             lib.composeManyExtensions [
-              pyprojectOverlay
-              pyprojectOverrides
-              buildSystemOverrides
-              (uv2nix-hammer.overrides pkgs)
+              projectOverlay
+              cudaOverlay
+              buildSystemOverlay
+              packageOverlay
             ]
           );
           addMeta =
@@ -200,7 +236,7 @@
             inherit (pythonSet.cbrkit.passthru) docs;
             default = config.packages.cbrkit;
             cbrkit = addMeta (pythonSet.mkVirtualEnv "cbrkit-env" workspace.deps.optionals);
-            docker = pkgs.dockerTools.buildLayeredImage {
+            docker = pkgs.dockerTools.streamLayeredImage {
               name = "cbrkit";
               tag = "latest";
               created = "now";
@@ -220,10 +256,7 @@
               token = "$GH_TOKEN";
             };
             version = builtins.getEnv "VERSION";
-            images = with self.packages; [
-              x86_64-linux.docker
-              aarch64-linux.docker
-            ];
+            imageStreams = with self.packages; [ x86_64-linux.docker ];
           };
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
