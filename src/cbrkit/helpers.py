@@ -1,9 +1,10 @@
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import import_module
 from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
-from cbrkit.typing import (
+from .typing import (
     AnySimFunc,
     Float,
     JsonDict,
@@ -11,6 +12,7 @@ from cbrkit.typing import (
     SimMapFunc,
     SimPairFunc,
     SimSeqFunc,
+    SimSeqOrMap,
     SupportsMetadata,
 )
 
@@ -23,6 +25,10 @@ __all__ = [
     "unpack_sim",
     "unpack_sims",
     "singleton",
+    "similarities2ranking",
+    "load_object",
+    "load_callables",
+    "load_callables_map",
 ]
 
 
@@ -107,7 +113,7 @@ class SimWrapper[V, S: Float](SupportsMetadata):
             self.kind = "seq"
 
 
-class SimSeqWrapper[V, S: Float](SimWrapper, SimSeqFunc[V, S]):
+class SimSeqWrapper[V, S: Float](SimWrapper[V, S], SimSeqFunc[V, S]):
     @override
     def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
         if self.kind == "pair":
@@ -118,7 +124,7 @@ class SimSeqWrapper[V, S: Float](SimWrapper, SimSeqFunc[V, S]):
         return func(pairs)
 
 
-class SimMapWrapper[V, S: Float](SimWrapper, SimMapFunc[Any, V, S]):
+class SimMapWrapper[V, S: Float](SimWrapper[V, S], SimMapFunc[Any, V, S]):
     @override
     def __call__(self, x_map: Mapping[Any, V], y: V) -> SimMap[Any, S]:
         if self.kind == "seq":
@@ -132,7 +138,7 @@ class SimMapWrapper[V, S: Float](SimWrapper, SimMapFunc[Any, V, S]):
         return {key: func(x, y) for key, x in x_map.items()}
 
 
-class SimPairWrapper[V, S: Float](SimWrapper, SimPairFunc[V, S]):
+class SimPairWrapper[V, S: Float](SimWrapper[V, S], SimPairFunc[V, S]):
     @override
     def __call__(self, x: V, y: V) -> S:
         if self.kind == "seq":
@@ -152,3 +158,79 @@ def unpack_sim(sim: Float) -> float:
 
 def unpack_sims(sims: Iterable[Float]) -> list[float]:
     return [unpack_sim(sim) for sim in sims]
+
+
+def similarities2ranking[K, S: Float](similarities: SimSeqOrMap[K, S]) -> list[Any]:
+    if isinstance(similarities, Sequence):
+        return sorted(
+            range(len(similarities)),
+            key=lambda i: unpack_sim(similarities[i]),
+            reverse=True,
+        )
+    elif isinstance(similarities, Mapping):
+        return sorted(
+            similarities, key=lambda i: unpack_sim(similarities[i]), reverse=True
+        )
+
+    raise TypeError(f"Expected a Sequence or Mapping, but got {type(similarities)}")
+
+
+def load_object(import_name: str) -> Any:
+    """Import an object based on a string.
+
+    Args:
+        import_name: Can either be in in dotted notation (`module.submodule.object`)
+            or with a colon as object delimiter (`module.submodule:object`).
+
+    Returns:
+        The imported object.
+    """
+
+    if ":" in import_name:
+        module_name, obj_name = import_name.split(":", 1)
+    elif "." in import_name:
+        module_name, obj_name = import_name.rsplit(".", 1)
+    else:
+        raise ValueError(f"Failed to import {import_name!r}")
+
+    module = import_module(module_name)
+
+    return getattr(module, obj_name)
+
+
+def load_callables(
+    import_names: Sequence[str] | str,
+) -> list[Callable]:
+    if isinstance(import_names, str):
+        import_names = [import_names]
+
+    functions: list[Callable] = []
+
+    for import_path in import_names:
+        obj = load_object(import_path)
+
+        if isinstance(obj, Sequence):
+            assert all(isinstance(func, Callable) for func in functions)
+            functions.extend(obj)
+        elif isinstance(obj, Callable):
+            functions.append(obj)
+
+    return functions
+
+
+def load_callables_map(
+    import_names: Collection[str] | str,
+) -> dict[str, Callable]:
+    if isinstance(import_names, str):
+        import_names = [import_names]
+
+    functions: dict[str, Callable] = {}
+
+    for import_path in import_names:
+        obj = load_object(import_path)
+
+        if isinstance(obj, Mapping):
+            assert all(isinstance(func, Callable) for func in obj.values())
+            functions.update(obj)
+
+    return functions

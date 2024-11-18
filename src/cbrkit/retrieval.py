@@ -1,12 +1,11 @@
 import os
-from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 
-from cbrkit.helpers import SimMapWrapper, get_metadata, unpack_sim
-from cbrkit.loaders import python as load_python
-from cbrkit.typing import (
+from .helpers import SimMapWrapper, get_metadata, similarities2ranking, unpack_sim
+from .typing import (
     AnySimFunc,
     Casebase,
     Float,
@@ -20,18 +19,10 @@ __all__ = [
     "build",
     "mapply",
     "apply",
-    "load",
-    "load_map",
     "Result",
     "ResultStep",
     "base_retriever",
 ]
-
-
-def _similarities2ranking[K](
-    sim_map: SimMap[K, Any],
-) -> list[K]:
-    return sorted(sim_map, key=lambda key: unpack_sim(sim_map[key]), reverse=True)
 
 
 @dataclass(slots=True, frozen=True)
@@ -48,7 +39,7 @@ class ResultStep[K, V, S: Float]:
         full_casebase: Casebase[K, V],
         metadata: JsonDict,
     ) -> "ResultStep[K, V, S]":
-        ranking = _similarities2ranking(similarities)
+        ranking = similarities2ranking(similarities)
         casebase = {key: full_casebase[key] for key in ranking}
 
         return cls(similarities, tuple(ranking), casebase, metadata)
@@ -158,9 +149,9 @@ def apply[K, V, S: Float](
 
     Examples:
         >>> import cbrkit
-        >>> import pandas as pd
-        >>> df = pd.read_csv("./data/cars-1k.csv")
-        >>> casebase = cbrkit.loaders.pandas(df)
+        >>> import polars as pl
+        >>> df = pl.read_csv("./data/cars-1k.csv")
+        >>> casebase = cbrkit.loaders.polars(df)
         >>> query = casebase[42]
         >>> retriever = cbrkit.retrieval.build(
         ...     cbrkit.sim.attribute_value(
@@ -183,19 +174,17 @@ def apply[K, V, S: Float](
         retrievers = [retrievers]
 
     assert len(retrievers) > 0
-    results: list[ResultStep[K, V, S]] = []
+    steps: list[ResultStep[K, V, S]] = []
     current_casebase = casebase
 
     for retriever_func in retrievers:
         sim_map = retriever_func(current_casebase, query, processes)
-        result = ResultStep.build(
-            sim_map, current_casebase, get_metadata(retriever_func)
-        )
+        step = ResultStep.build(sim_map, current_casebase, get_metadata(retriever_func))
 
-        results.append(result)
-        current_casebase = result.casebase
+        steps.append(step)
+        current_casebase = step.casebase
 
-    return Result(results)
+    return Result(steps)
 
 
 def _chunkify[V](val: Sequence[V], n: int) -> Iterator[Sequence[V]]:
@@ -235,7 +224,7 @@ class base_retriever[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
         }
 
     def postprocess(self, similarities: SimMap[K, S]) -> SimMap[K, S]:
-        ranking = _similarities2ranking(similarities)
+        ranking = similarities2ranking(similarities)
 
         if self.min_similarity is not None:
             ranking = [
@@ -306,7 +295,7 @@ class build[K, V, S: Float](base_retriever[K, V, S]):
         self,
         casebase: Casebase[K, V],
         query: V,
-        processes: int = 1,
+        processes: int,
     ) -> SimMap[K, S]:
         sim_func = SimMapWrapper(self.similarity_func)
         similarities: SimMap[K, S] = {}
@@ -332,44 +321,6 @@ class build[K, V, S: Float](base_retriever[K, V, S]):
             similarities = sim_func(casebase, query)
 
         return self.postprocess(similarities)
-
-
-def load(
-    import_names: Sequence[str] | str,
-) -> list[RetrieverFunc[Any, Any, Any]]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
-    retrievers: list[RetrieverFunc[Any, Any, Any]] = []
-
-    for import_path in import_names:
-        obj = load_python(import_path)
-
-        if isinstance(obj, Sequence):
-            assert all(isinstance(func, Callable) for func in retrievers)
-            retrievers.extend(obj)
-        elif isinstance(obj, Callable):
-            retrievers.append(cast(RetrieverFunc[Any, Any, Any], obj))
-
-    return retrievers
-
-
-def load_map(
-    import_names: Collection[str] | str,
-) -> dict[str, RetrieverFunc[Any, Any, Any]]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
-    retrievers: dict[str, RetrieverFunc] = {}
-
-    for import_path in import_names:
-        obj = load_python(import_path)
-
-        if isinstance(obj, Mapping):
-            assert all(isinstance(func, Callable) for func in obj.values())
-            retrievers.update(obj)
-
-    return retrievers
 
 
 try:
@@ -408,7 +359,7 @@ try:
             self,
             casebase: Casebase[K, V],
             query: V,
-            processes: int = 1,
+            processes: int,
         ) -> SimMap[K, float]:
             response = self.client.v2.rerank(
                 model=self.model,

@@ -2,8 +2,8 @@ import statistics
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 
-from cbrkit.helpers import unpack_sim
-from cbrkit.typing import Float
+from ..helpers import unpack_sim
+from ..typing import Float
 
 # https://amenra.github.io/ranx/metrics/
 

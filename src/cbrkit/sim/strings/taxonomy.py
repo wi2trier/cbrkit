@@ -11,9 +11,9 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Protocol, TypedDict, cast, override
 
-from cbrkit.helpers import get_metadata
-from cbrkit.loaders import data as load_data
-from cbrkit.typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
+from ...helpers import get_metadata
+from ...loaders import data as load_data
+from ...typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
 
 __all__ = [
     "load",
@@ -146,7 +146,7 @@ class user_weights(TaxonomyFunc, SupportsMetadata):
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
 
-    ![user weights](../../assets/taxonomy/user-weights.png)
+    ![user weights](../../../../assets/taxonomy/user-weights.png)
 
     Examples:
         >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
@@ -186,7 +186,7 @@ class auto_weights(TaxonomyFunc, SupportsMetadata):
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
 
-    ![auto weights](../../assets/taxonomy/auto-weights.png)
+    ![auto weights](../../../../assets/taxonomy/auto-weights.png)
 
     Examples:
         >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
@@ -230,7 +230,7 @@ class node_levels(TaxonomyFunc, SupportsMetadata):
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
 
-    ![node levels](../../assets/taxonomy/node-levels.png)
+    ![node levels](../../../../assets/taxonomy/node-levels.png)
 
     Examples:
         >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
@@ -269,7 +269,7 @@ class path_steps(TaxonomyFunc, SupportsMetadata):
         weight_up: The weight to use for the steps up.
         weight_down: The weight to use for the steps down.
 
-    ![path steps](../../assets/taxonomy/path-steps.png)
+    ![path steps](../../../../assets/taxonomy/path.png)
 
     Examples:
         >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")

@@ -12,11 +12,12 @@ from cbrkit.typing import (
     SupportsMetadata,
 )
 
-from ._model import DataSimWrapper, Graph, GraphSim, Node, to_rustworkx_with_lookup
+from . import _model as model
+from ._model import DataSimWrapper, Graph, GraphSim, Node
 
 
 @dataclass(slots=True)
-class isomorphism[K, N, E, G, S: Float](
+class isomorphism[K, N, E, G](
     SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
     SupportsMetadata,
 ):
@@ -30,14 +31,14 @@ class isomorphism[K, N, E, G, S: Float](
 
     node_matcher: Callable[[N, N], bool]
     edge_matcher: Callable[[E, E], bool]
-    node_sim_func: SimSeqFunc[Node[K, N], S]
-    aggregator: AggregatorFunc[Any, S]
+    node_sim_func: SimSeqFunc[Node[K, N], Float]
+    aggregator: AggregatorFunc[Any, Float]
 
     def __init__(
         self,
         node_matcher: Callable[[N, N], bool],
         edge_matcher: Callable[[E, E], bool],
-        aggregator: AggregatorFunc[Any, S],
+        aggregator: AggregatorFunc[Any, Float],
         node_obj_sim: AnySimFunc[Node[K, N], Float] | None = None,
         node_data_sim: AnySimFunc[N, Float] | None = None,
     ) -> None:
@@ -66,8 +67,8 @@ class isomorphism[K, N, E, G, S: Float](
     ) -> GraphSim[K]:
         import rustworkx
 
-        x_rw, x_lookup = to_rustworkx_with_lookup(x)
-        y_rw, y_lookup = to_rustworkx_with_lookup(y)
+        x_rw, x_lookup = model.to_rustworkx_with_lookup(x)
+        y_rw, y_lookup = model.to_rustworkx_with_lookup(y)
 
         rw_mappings = rustworkx.vf2_mapping(
             y_rw,

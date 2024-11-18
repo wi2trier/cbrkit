@@ -3,8 +3,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, override
 
-from cbrkit.helpers import get_name, unpack_sim
-from cbrkit.typing import (
+from ..helpers import get_name, unpack_sim
+from ..typing import (
     AggregatorFunc,
     Float,
     JsonDict,
@@ -15,11 +15,12 @@ from cbrkit.typing import (
 
 __all__ = [
     "PoolingName",
+    "pooling_funcs",
     "aggregator",
 ]
 
 
-PoolingName = Literal[
+type PoolingName = Literal[
     "mean",
     "fmean",
     "geometric_mean",
@@ -33,7 +34,7 @@ PoolingName = Literal[
     "sum",
 ]
 
-_pooling_funcs: dict[PoolingName, PoolingFunc] = {
+pooling_funcs: dict[PoolingName, PoolingFunc] = {
     "mean": statistics.mean,
     "fmean": statistics.fmean,
     "geometric_mean": statistics.geometric_mean,
@@ -90,7 +91,7 @@ class aggregator[K](AggregatorFunc[K, Float], SupportsMetadata):
     @override
     def __call__(self, similarities: SimSeqOrMap[K, Float]) -> float:
         pooling_func = (
-            _pooling_funcs[self.pooling]
+            pooling_funcs[self.pooling]
             if isinstance(self.pooling, str)
             else self.pooling
         )

@@ -40,6 +40,8 @@ The following modules are part of CBRkit:
 - `cbrkit.loaders`: Functions for loading cases and queries.
 - `cbrkit.sim`: Similarity generator functions for common data types like strings and numbers.
 - `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines.
+- `cbrkit.adapt`: Adaptation generator functions for adapting cases based on a query.
+- `cbrkit.reuse`: Functions for defining and applying reuse pipelines.
 - `cbrkit.typing`: Generic type definitions for defining custom functions.
 
 ## Installation
@@ -58,25 +60,28 @@ pip install cbrkit[EXTRA_NAME,...]
 
 where `EXTRA_NAME` is one of the following:
 
-- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
-- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
-- `cli`: Command Line Interface (CLI)
+- `all`: All optional dependencies
 - `api`: REST API Server
-- `all`: All of the above
+- `cli`: Command Line Interface (CLI)
+- `eval`: Evaluation tools for common metrics like `precision` and `recall`
+- `llm`: Large Language Models (LLM) APIs like Ollama and OpenAI
+- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
+- `timeseries`: Time series similarity measures like `dtw` and `smith_waterman`
+- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
 
 ## Loading Cases
 
 The first step is to load cases and queries.
 We provide predefined functions for the most common formats like CSV, JSON, and XML.
-Additionally, CBRkit also integrates with `pandas` for loading data frames.
-The following example shows how to load cases and queries from a CSV file using `pandas`:
+Additionally, CBRkit also integrates with `polars` and `pandas` for loading data frames.
+The following example shows how to load cases and queries from a CSV file using `polars`:
 
 ```python
-import pandas as pd
+import polars as pl
 import cbrkit
 
-df = pd.read_csv("path/to/cases.csv")
-casebase = cbrkit.loaders.pandas(df)
+df = pl.read_csv("path/to/cases.csv")
+casebase = cbrkit.loaders.polars(df)
 ```
 
 When dealing with formats like JSON, the files can be loaded directly:
@@ -91,17 +96,14 @@ CBRkit expects the type of the queries to match the type of the cases.
 You may define a single query directly in Python as follows
 
 ```python
-# for pandas
-query = pd.Series({"name": "John", "age": 25})
-# for json
 query = {"name": "John", "age": 25}
 ```
 
 If you have a collection of queries, you can load them using the same loader functions as for the cases.
 
 ```python
- # for pandas
-queries = cbrkit.loaders.pandas(pd.read_csv("path/to/queries.csv"))
+ # for polars
+queries = cbrkit.loaders.polars(pl.read_csv("path/to/queries.csv"))
 # for json
 queries = cbrkit.loaders.json("path/to/queries.json")
 ```
@@ -225,8 +227,6 @@ Our result has the following attributes:
 - `ranking` A list of case indices sorted by their similarity score.
 - `casebase` The casebase containing only the retrieved cases (useful for downstream tasks).
 
-## Combining Multiple Retrieval Pipelines
-
 In some cases, it is useful to combine multiple retrieval pipelines, for example when applying the MAC/FAC pattern where a cheap pre-filter is applied to the whole casebase before a more expensive similarity measure is applied on the remaining cases.
 To use this pattern, first create the corresponding retrievers using the builder:
 
@@ -248,6 +248,18 @@ The result has the following two attributes:
 
 Both `final` and each entry in `steps` have the same attributes as discussed previously.
 The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
+
+## Adaptation Functions
+
+Coming soon...
+
+## Reuse
+
+Coming soon...
+
+## Evaluation
+
+Coming soon...
 
 ## REST API and CLI
 

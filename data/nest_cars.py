@@ -1,10 +1,10 @@
-import pandas as pd
+import polars as pl
 import yaml
 
-flat_data = pd.read_csv("data/cars-1k.csv")
+flat_data = pl.read_csv("data/cars-1k.csv")
 nested_data = []
 
-for row in flat_data.to_dict("records"):
+for row in flat_data.to_dicts():
     nested_data.append(
         {
             "price": row["price"],

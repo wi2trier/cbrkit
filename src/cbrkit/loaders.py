@@ -6,21 +6,20 @@ import csv as csvlib
 import tomllib
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
 
 import orjson
-import pandas as pd
+import polars as pl
 import xmltodict
 import yaml as yamllib
-from pydantic import BaseModel
 
-from cbrkit.typing import Casebase, FilePath
+from .helpers import load_object
+from .typing import Casebase, FilePath
 
 __all__ = [
     "csv",
-    "pandas",
+    "polars",
     "file",
     "folder",
     "json",
@@ -30,81 +29,22 @@ __all__ = [
     "python",
     "txt",
     "xml",
-    "validate",
 ]
 
-
-def python(import_name: str) -> Any:
-    """Import an object based on a string.
-
-    Args:
-        import_name: Can either be in in dotted notation (`module.submodule.object`)
-            or with a colon as object delimiter (`module.submodule:object`).
-
-    Returns:
-        The imported object.
-    """
-
-    if ":" in import_name:
-        module_name, obj_name = import_name.split(":", 1)
-    elif "." in import_name:
-        module_name, obj_name = import_name.rsplit(".", 1)
-    else:
-        raise ValueError(f"Failed to import {import_name!r}")
-
-    module = import_module(module_name)
-
-    return getattr(module, obj_name)
-
-
-@dataclass(slots=True, frozen=True)
-class pandas(Mapping[int, pd.Series]):
-    df: pd.DataFrame
-
-    def __getitem__(self, key: int | str) -> pd.Series:
-        if isinstance(key, str):
-            return cast(pd.Series, self.df.loc[key])
-        elif isinstance(key, int):
-            return self.df.iloc[key]
-
-        raise TypeError(f"Invalid key type: {type(key)}")
-
-    def __iter__(self) -> Iterator[int]:
-        return iter(range(self.df.shape[0]))
-
-    def __len__(self) -> int:
-        return self.df.shape[0]
-
-
-# @dataclass(slots=True)
-# class dataframe(Mapping[int, tuple[Any, ...]]):
-#     df: DataFrame
-
-#     def __init__(self, df: IntoDataFrame):
-#         self.df = nw.from_native(df, eager_only=True)
-
-#     def __getitem__(self, key: int) -> tuple[Any, ...]:
-#         return self.df.row(key)
-
-#     def __iter__(self) -> Iterator[int]:
-#         return iter(range(len(self.df)))
-
-#     def __len__(self) -> int:
-#         return len(self.df)
-
+python = load_object
 
 try:
-    import polars as pl
+    import pandas as pd
 
     @dataclass(slots=True, frozen=True)
-    class polars(Mapping[int, pl.Series]):
-        df: pl.DataFrame
+    class pandas(Mapping[int, pd.Series]):
+        df: pd.DataFrame
 
-        def __getitem__(self, key: int | str) -> pl.Series:
+        def __getitem__(self, key: int | str) -> pd.Series:
             if isinstance(key, str):
-                return self.df[key]
+                return cast(pd.Series, self.df.loc[key])
             elif isinstance(key, int):
-                return pl.Series(self.df.row(key))
+                return self.df.iloc[key]
 
             raise TypeError(f"Invalid key type: {type(key)}")
 
@@ -114,10 +54,23 @@ try:
         def __len__(self) -> int:
             return self.df.shape[0]
 
-        __all__ += ["polars"]
-
+    __all__ += ["pandas"]
 except ImportError:
     pass
+
+
+@dataclass(slots=True, frozen=True)
+class polars(Mapping[int, dict[str, Any]]):
+    df: pl.DataFrame
+
+    def __getitem__(self, key: int) -> dict[str, Any]:
+        return self.df.row(key, named=True)
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(range(self.df.shape[0]))
+
+    def __len__(self) -> int:
+        return self.df.shape[0]
 
 
 def csv(path: FilePath) -> dict[int, dict[str, str]]:
@@ -145,10 +98,8 @@ def csv(path: FilePath) -> dict[int, dict[str, str]]:
         return data
 
 
-def _csv_pandas(path: FilePath) -> dict[int, pd.Series]:
-    df = pd.read_csv(path)
-
-    return cast(dict[int, pd.Series], pandas(df))
+def _csv_polars(path: FilePath) -> Mapping[int, dict[str, Any]]:
+    return polars(pl.read_csv(path))
 
 
 def json(path: FilePath) -> dict[Any, Any]:
@@ -261,9 +212,9 @@ def xml(path: FilePath) -> dict[str, Any]:
     return data
 
 
-DataLoader = Callable[[FilePath], dict[str, Any]]
+DataLoader = Callable[[FilePath], Mapping[str, Any]]
 SingleLoader = Callable[[FilePath], Any]
-BatchLoader = Callable[[FilePath], dict[Any, Any]]
+BatchLoader = Callable[[FilePath], Mapping[Any, Any]]
 
 _data_loaders: dict[str, DataLoader] = {
     ".json": json,
@@ -275,7 +226,7 @@ _data_loaders: dict[str, DataLoader] = {
 # They contain the whole casebase in one file
 _batch_loaders: dict[str, BatchLoader] = {
     **_data_loaders,
-    ".csv": _csv_pandas,
+    ".csv": _csv_polars,
 }
 
 # They contain one case per file
@@ -286,7 +237,7 @@ _single_loaders: dict[str, SingleLoader] = {
 }
 
 
-def data(path: FilePath) -> dict[str, Any]:
+def data(path: FilePath) -> Mapping[str, Any]:
     """Reads files of types json, toml, yaml, and yml and parses it into a dict representation
 
     Args:
@@ -393,31 +344,48 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     return cb
 
 
-def validate(data: Casebase[Any, Any] | Any, validation_model: BaseModel):
-    """Validates the data against a Pydantic model. Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+try:
+    from pydantic import BaseModel
 
-    Args:
-        data: Data to validate. Can be an entire case base or a single case.
-        validation_model: Pydantic model to validate the data.
+    def validate(data: Casebase[Any, Any], validation_model: BaseModel):
+        """Validates the data against a Pydantic model.
 
-    Examples:
-        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-        >>> from data.cars_validation_model import Car
-        >>> from pathlib import Path
-        >>> data = path(Path("data/cars-1k.csv"))
-        >>> validate(data, Car)
-        >>> import pandas as pd
-        >>> df = pd.read_csv("data/cars-1k.csv")
-        >>> data = pandas(df)
-        >>> validate(data, Car)
-    """
-    assert data is not None
+        Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
 
-    if isinstance(data, pandas):
-        data = data.df.to_dict("index")
+        Args:
+            data: Data to validate. Can be an entire case base or a single case.
+            validation_model: Pydantic model to validate the data.
 
-    if isinstance(data, Mapping):
+        Examples:
+            >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+            >>> from data.cars_validation_model import Car
+            >>> from pathlib import Path
+            >>> data = path(Path("data/cars-1k.csv"))
+            >>> validate(data, Car)
+            >>> import polars as pl
+            >>> df = pl.read_csv("data/cars-1k.csv")
+            >>> data = polars(df)
+            >>> validate(data, Car)
+        """
+
         for item in data.values():
-            validation_model.model_validate(item)
-    else:
+            validate_single(item, validation_model)
+
+    def validate_single(data: Any, validation_model: BaseModel):
+        """Validates a single case against a Pydantic model.
+
+        Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+
+        Args:
+            data: Data to validate. Can be a single case.
+            validation_model: Pydantic model to validate the data.
+        """
+        if data is None:
+            raise ValueError("Data is None")
+
         validation_model.model_validate(data)
+
+    __all__ += ["validate", "validate_single"]
+
+except ImportError:
+    pass

@@ -3,8 +3,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from cbrkit.helpers import SimSeqWrapper, get_metadata
-from cbrkit.typing import (
+from ..helpers import SimSeqWrapper, get_metadata
+from ..typing import (
     AnySimFunc,
     Float,
     JsonDict,

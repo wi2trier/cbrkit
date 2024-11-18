@@ -2,10 +2,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-import pandas as pd
-
-from cbrkit.helpers import SimSeqWrapper, get_metadata
-from cbrkit.typing import (
+from ..helpers import SimSeqWrapper, get_metadata
+from ..typing import (
     AggregatorFunc,
     AnnotatedFloat,
     AnySimFunc,
@@ -15,17 +13,13 @@ from cbrkit.typing import (
     SimSeqFunc,
     SupportsMetadata,
 )
-
 from ._aggregator import aggregator
 
-__all__ = ["attribute_value", "AttributeValueData", "AttributeValueSim"]
-
-# TODO: Add Polars
-type AttributeValueData = Mapping | pd.Series
+__all__ = ["attribute_value", "AttributeValueSim"]
 
 
-def default_value_getter(obj: AttributeValueData, key: Any) -> Any:
-    if isinstance(obj, Mapping | pd.Series):
+def default_value_getter(obj: Any, key: Any) -> Any:
+    if hasattr(obj, "__getitem__"):
         return obj[key]
     else:
         return getattr(obj, key)
@@ -41,11 +35,10 @@ default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[K, V, S: Float](
+class attribute_value[V, S: Float](
     SimSeqFunc[V, AttributeValueSim[S]], SupportsMetadata
 ):
-    """
-    Similarity function that computes the attribute value similarity between two cases.
+    """Similarity function that computes the attribute value similarity between two cases.
 
     Args:
         attributes: A mapping of attribute names to the similarity functions to be used for those attributes.
@@ -54,18 +47,14 @@ class attribute_value[K, V, S: Float](
 
     Examples:
         >>> equality = lambda x, y: 1.0 if x == y else 0.0
-        >>> sim = attribute_value(
-        ...     attributes={
-        ...         "name": equality,
-        ...         "age": equality,
-        ...     },
-        ... )
-        >>> scores = sim(
-        ...     [
-        ...         ({"name": "John", "age": 25}, {"name": "John", "age": 30}),
-        ...         ({"name": "Jane", "age": 30}, {"name": "John", "age": 30}),
-        ...     ]
-        ... )
+        >>> sim = attribute_value({
+        ...     "name": equality,
+        ...     "age": equality,
+        ... })
+        >>> scores = sim([
+        ...     ({"name": "John", "age": 25}, {"name": "John", "age": 30}),
+        ...     ({"name": "Jane", "age": 30}, {"name": "John", "age": 30}),
+        ... ])
         >>> scores[0]
         AttributeValueSim(value=0.5, attributes={'name': 1.0, 'age': 0.0})
         >>> scores[1]

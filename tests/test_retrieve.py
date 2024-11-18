@@ -1,6 +1,6 @@
 from typing import Any
 
-import pandas as pd
+import polars as pl
 
 import cbrkit
 
@@ -13,8 +13,8 @@ def test_retrieve_multiprocessing():
     query_name = 42
     casebase_file = "data/cars-1k.csv"
 
-    df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.pandas(df)
+    df = pl.read_csv(casebase_file)
+    casebase = cbrkit.loaders.polars(df)
     retriever = cbrkit.retrieval.build(
         cbrkit.sim.attribute_value(
             attributes={
@@ -51,12 +51,12 @@ def test_retrieve_multiprocessing():
     assert len(result.ranking) == 5
 
 
-def test_retrieve_pandas():
+def test_retrieve_dataframe():
     query_name = 42
     casebase_file = "data/cars-1k.csv"
 
-    df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.pandas(df)
+    df = pl.read_csv(casebase_file)
+    casebase = cbrkit.loaders.polars(df)
     query = casebase[query_name]
     retriever = cbrkit.retrieval.build(
         cbrkit.sim.attribute_value(
@@ -84,21 +84,19 @@ def test_retrieve_pandas():
     assert result.ranking[0] == query_name
 
 
-def test_retrieve_pandas_custom_query():
+def test_retrieve_dataframe_custom_query():
     casebase_file = "data/cars-1k.csv"
 
-    df = pd.read_csv(casebase_file)
-    casebase = cbrkit.loaders.pandas(df)
+    df = pl.read_csv(casebase_file)
+    casebase = cbrkit.loaders.polars(df)
 
-    query = pd.Series(
-        {
-            "price": 10000,
-            "year": 2010,
-            "manufacturer": "audi",
-            "make": "a4",
-            "miles": 100000,
-        }
-    )
+    query = {
+        "price": 10000,
+        "year": 2010,
+        "manufacturer": "audi",
+        "make": "a4",
+        "miles": 100000,
+    }
 
     retriever = cbrkit.retrieval.build(
         cbrkit.sim.attribute_value(

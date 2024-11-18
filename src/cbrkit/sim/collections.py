@@ -3,8 +3,8 @@ from dataclasses import asdict, dataclass, field
 from itertools import product
 from typing import Any, cast, override
 
-from cbrkit.helpers import dist2sim, get_metadata, unpack_sim
-from cbrkit.typing import AnnotatedFloat, Float, JsonDict, SimPairFunc, SupportsMetadata
+from ..helpers import dist2sim, get_metadata, unpack_sim
+from ..typing import AnnotatedFloat, Float, JsonDict, SimPairFunc, SupportsMetadata
 
 Number = float | int
 
