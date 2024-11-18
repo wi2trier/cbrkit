@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.2](https://github.com/wi2trier/cbrkit/compare/v0.20.1...v0.20.2) (2024-11-18)
+
+### Bug Fixes
+
+* make docker image smaller to fix CI failures ([4405fd3](https://github.com/wi2trier/cbrkit/commit/4405fd32214f17f09ecfebe147e3fd440a97d576))
+
 ## [0.20.1](https://github.com/wi2trier/cbrkit/compare/v0.20.0...v0.20.1) (2024-11-17)
 
 ### Bug Fixes
