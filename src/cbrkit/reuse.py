@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from inspect import signature as inspect_signature
 from multiprocessing import Pool
-from typing import Any, Literal, cast, override
+from typing import Any, cast, override
 
 from .helpers import (
     SimPairWrapper,
@@ -22,22 +22,24 @@ from .typing import (
     ReuserFunc,
     SimMap,
     SupportsMetadata,
+    SupportsParallelQueries,
 )
 
 __all__ = [
     "build",
-    "apply",
+    "apply_queries",
+    "apply_query",
     "apply_single",
     "Result",
     "ResultStep",
+    "QueryResultStep",
 ]
 
 
 @dataclass(slots=True, frozen=True)
-class ResultStep[K, V, S: Float]:
+class QueryResultStep[K, V, S: Float]:
     similarities: SimMap[K, S]
     casebase: Casebase[K, V]
-    metadata: JsonDict
 
     @property
     def similarity(self) -> S:
@@ -53,6 +55,21 @@ class ResultStep[K, V, S: Float]:
 
         return next(iter(self.casebase.values()))
 
+    @classmethod
+    def build(
+        cls,
+        reuse_result: Casebase[K, tuple[V | None, S]],
+        original_casebase: Casebase[K, V],
+    ) -> "QueryResultStep[K, V, S]":
+        casebase = {}
+        sims = {}
+
+        for key, (case, sim) in reuse_result.items():
+            casebase[key] = case if case is not None else original_casebase[key]
+            sims[key] = sim
+
+        return cls(sims, casebase)
+
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
         del x["casebase"]
@@ -61,44 +78,66 @@ class ResultStep[K, V, S: Float]:
 
 
 @dataclass(slots=True, frozen=True)
-class Result[K, V, S: Float]:
-    steps: list[ResultStep[K, V, S]]
+class ResultStep[Q, C, V, S: Float]:
+    queries: Mapping[Q, QueryResultStep[C, V, S]]
+    metadata: JsonDict
 
     @property
-    def final(self) -> ResultStep[K, V, S]:
+    def default_query(self) -> QueryResultStep[C, V, S]:
+        if len(self.queries) != 1:
+            raise ValueError("The step contains multiple queries.")
+
+        return next(iter(self.queries.values()))
+
+
+@dataclass(slots=True, frozen=True)
+class Result[Q, C, V, S: Float]:
+    steps: list[ResultStep[Q, C, V, S]]
+
+    @property
+    def final_step(self) -> ResultStep[Q, C, V, S]:
         return self.steps[-1]
 
     @property
-    def similarities(self) -> SimMap[K, S]:
-        return self.final.similarities
+    def metadata(self) -> JsonDict:
+        return self.final_step.metadata
+
+    @property
+    def queries(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
+        return self.final_step.queries
+
+    @property
+    def default_query(self) -> QueryResultStep[C, V, S]:
+        return self.final_step.default_query
+
+    @property
+    def similarities(self) -> SimMap[C, S]:
+        return self.final_step.default_query.similarities
+
+    @property
+    def casebase(self) -> Mapping[C, V]:
+        return self.final_step.default_query.casebase
 
     @property
     def similarity(self) -> S:
-        return self.final.similarity
-
-    @property
-    def casebase(self) -> Casebase[K, V]:
-        return self.final.casebase
+        return self.final_step.default_query.similarity
 
     @property
     def case(self) -> V:
-        return self.final.case
-
-    @property
-    def metadata(self) -> JsonDict:
-        return self.final.metadata
+        return self.final_step.default_query.case
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
 
-        for entry in x["steps"]:
-            del entry["casebase"]
+        for step in x["steps"]:
+            for item in step["queries"].values():
+                del item["casebase"]
 
         return x
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class base_reuser[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
+class base_reuser[K, V, S: Float](SupportsMetadata):
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
@@ -112,7 +151,7 @@ class base_reuser[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
             "max_similarity": self.max_similarity,
         }
 
-    def postprocess(
+    def process(
         self, casebase: Casebase[K, tuple[V | None, S]]
     ) -> Casebase[K, tuple[V | None, S]]:
         similarities = {key: sim for key, (_, sim) in casebase.items()}
@@ -135,7 +174,7 @@ class base_reuser[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](base_reuser[K, V, S]):
+class build[K, V, S: Float](base_reuser[K, V, S], ReuserFunc[K, V, S]):
     """Builds a casebase by adapting cases using an adaptation function and a similarity function.
 
     Args:
@@ -150,6 +189,8 @@ class build[K, V, S: Float](base_reuser[K, V, S]):
     adaptation_func: AnyAdaptFunc[K, V]
     similarity_func: AnySimFunc[V, S]
     max_similarity_decrease: float | None = None
+    case_processes: int = 1
+    query_processes: int = 1
 
     @property
     @override
@@ -161,11 +202,11 @@ class build[K, V, S: Float](base_reuser[K, V, S]):
             "max_similarity_decrease": self.max_similarity_decrease,
         }
 
+    @override
     def __call__(
         self,
         casebase: Casebase[K, V],
         query: V,
-        processes: int,
     ) -> Casebase[K, tuple[V | None, S]]:
         sim_func = SimPairWrapper(self.similarity_func)
         adapted_casebase: dict[K, tuple[V | None, S]] = {}
@@ -193,8 +234,10 @@ class build[K, V, S: Float](base_reuser[K, V, S]):
         else:
             adaptation_func = cast(AdaptPairFunc[V], self.adaptation_func)
 
-            if processes != 1:
-                pool_processes = None if processes <= 0 else processes
+            if self.case_processes != 1:
+                pool_processes = (
+                    None if self.case_processes <= 0 else self.case_processes
+                )
                 keys = list(casebase.keys())
 
                 with Pool(pool_processes) as pool:
@@ -229,48 +272,20 @@ class build[K, V, S: Float](base_reuser[K, V, S]):
                 ):
                     adapted_casebase[key] = (None, adapted_sim)
 
-        return self.postprocess(adapted_casebase)
+        return self.process(adapted_casebase)
 
 
-def apply_single[V, S: Float](
-    case: V,
-    query: V,
-    reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],
-    processes: int = 1,
-) -> Result[str, V, S]:
-    """Applies a single query to a single case using reuser functions.
-
-    Args:
-        case: The case that will be used for the query.
-        query: The query that will be applied to the case.
-        reusers: The reuser functions that will be applied to the case.
-        processes: Number of CPUs that will be used for multiprocessing.
-            If 1, a regular loop will be used.
-            If 0, the number of processes will be equal to the number of CPUs.
-            Negative values will be treated as 0.
-
-    Returns:
-        Returns an object of type Result.
-    """
-    return apply({"default": case}, query, reusers, processes)
-
-
-def apply[K, V, S: Float](
-    casebase: Casebase[K, V],
-    query: V,
-    reusers: ReuserFunc[K, V, S] | Sequence[ReuserFunc[K, V, S]],
-    processes: int = 1,
-) -> Result[K, V, S]:
+def apply_queries[Q, C, V, S: Float](
+    casebase: Mapping[C, V],
+    queries: Mapping[Q, V],
+    reusers: ReuserFunc[C, V, S] | Sequence[ReuserFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
     """Applies a single query to a casebase using reuser functions.
 
     Args:
         casebase: The casebase for the query.
-        query: The query that will be applied to the casebase.
+        queries: The queries that will be used to adapt the casebase.
         reusers: The reuser functions that will be applied to the casebase.
-        processes: Number of CPUs that will be used for multiprocessing.
-            If 1, a regular loop will be used.
-            If 0, the number of processes will be equal to the number of CPUs.
-            Negative values will be treated as 0.
 
     Returns:
         Returns an object of type Result
@@ -279,67 +294,85 @@ def apply[K, V, S: Float](
     if not isinstance(reusers, Sequence):
         reusers = [reusers]
 
-    steps: list[ResultStep[K, V, S]] = []
-    current_casebase = casebase
+    steps: list[ResultStep[Q, C, V, S]] = []
+    current_casebases: Mapping[Q, Mapping[C, V]] = {
+        query_key: casebase for query_key in queries
+    }
 
     for reuser in reusers:
-        reuse_results = reuser(current_casebase, query, processes)
-        adapted_casebase: dict[K, V] = {}
-        adapted_similarities: dict[K, S] = {}
-
-        for key, (adapted_case, adapted_sim) in reuse_results.items():
-            adapted_casebase[key] = (
-                adapted_case if adapted_case is not None else current_casebase[key]
+        if isinstance(reuser, SupportsParallelQueries) and reuser.query_processes > 1:
+            pool_processes = (
+                None if reuser.query_processes <= 0 else reuser.query_processes
             )
-            adapted_similarities[key] = adapted_sim
 
-        steps.append(
-            ResultStep(adapted_similarities, adapted_casebase, get_metadata(reuser))
-        )
+            with Pool(pool_processes) as pool:
+                reuse_results = pool.starmap(
+                    reuser,
+                    (
+                        (current_casebases[query_key], query)
+                        for query_key, query in queries.items()
+                    ),
+                )
+                step_queries = {
+                    query_key: QueryResultStep.build(
+                        reuse_result, current_casebases[query_key]
+                    )
+                    for query_key, reuse_result in zip(
+                        queries, reuse_results, strict=True
+                    )
+                }
+        else:
+            step_queries = {
+                query_key: QueryResultStep.build(
+                    reuser(current_casebases[query_key], query),
+                    current_casebases[query_key],
+                )
+                for query_key, query in queries.items()
+            }
 
-        current_casebase = adapted_casebase
+        step = ResultStep(step_queries, get_metadata(reuser))
+        steps.append(step)
+        current_casebases = {
+            query_key: step_queries[query_key].casebase for query_key in queries
+        }
 
     return Result(steps)
 
 
-def mapply[QK, CK, V, S: Float](
-    casebase: Casebase[CK, V],
-    queries: Mapping[QK, V],
-    reusers: ReuserFunc[CK, V, S] | Sequence[ReuserFunc[CK, V, S]],
-    processes: int = 1,
-    parallel: Literal["queries", "casebase"] = "queries",
-) -> Mapping[QK, Result[CK, V, S]]:
-    """Applies multiple queries to a Casebase using reuser functions.
+def apply_single[V, S: Float](
+    case: V,
+    query: V,
+    reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],
+) -> Result[str, str, V, S]:
+    """Applies a single query to a single case using reuser functions.
 
     Args:
-        casebase: The casebase for the query.
-        queries: The queries that will be applied to the casebase
-        reusers: The reuser functions that will be applied to the casebase.
-        processes: Number of CPUs that will be used for multiprocessing.
-            If 1, a regular loop will be used.
-            If 0, the number of processes will be equal to the number of CPUs.
-            Negative values will be treated as 0.
-        parallel: Strategy for parallelization.
-            If "queries", each query will be processed in parallel,
-            if "casebase" the whole casebase will be processed in parallel.
+        case: The case that will be used for the query.
+        query: The query that will be applied to the case.
+        reusers: The reuser functions that will be applied to the case.
 
     Returns:
         Returns an object of type Result.
     """
+    return apply_queries({"default": case}, {"default": query}, reusers)
 
-    if processes != 1 and parallel == "queries":
-        pool_processes = None if processes <= 0 else processes
-        keys = list(queries.keys())
 
-        with Pool(pool_processes) as pool:
-            results = pool.starmap(
-                apply,
-                ((casebase, queries[key], reusers) for key in keys),
-            )
+def apply_query[K, V, S: Float](
+    casebase: Casebase[K, V],
+    query: V,
+    reusers: ReuserFunc[K, V, S] | Sequence[ReuserFunc[K, V, S]],
+) -> Result[str, K, V, S]:
+    """Applies a single query to a casebase using reuser functions.
 
-        return dict(zip(keys, results, strict=True))
+    Args:
+        casebase: The casebase that will be used for the query.
+        query: The query that will be applied to the case.
+        reusers: The reuser functions that will be applied to the case.
 
-    return {
-        key: apply(casebase, value, reusers, processes)
-        for key, value in queries.items()
-    }
+    Returns:
+        Returns an object of type Result.
+    """
+    return apply_queries(casebase, {"default": query}, reusers)
+
+
+apply = apply_query

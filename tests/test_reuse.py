@@ -149,7 +149,7 @@ def test_reuse_nested():
         ),
     )
 
-    result = cbrkit.reuse.apply(casebase, query, reuse_func)
+    result = cbrkit.reuse.apply_query(casebase, query, reuse_func)
 
     assert len(result.casebase) == len(casebase)
     assert result.casebase[0]["model"] == {

@@ -3,7 +3,7 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 
 from ..helpers import unpack_sim
-from ..typing import Float
+from ..typing import Float, QueryCaseMatrix
 
 # https://amenra.github.io/ranx/metrics/
 
@@ -99,9 +99,9 @@ DEFAULT_METRICS = (
 CUSTOM_METRICS = ("correctness_completeness",)
 
 
-def compute[QK, CK, S: Float](
-    qrels: Mapping[QK, Mapping[CK, int]],
-    run: Mapping[QK, Mapping[CK, S]],
+def compute[Q, C, S: Float](
+    qrels: QueryCaseMatrix[Q, C, int],
+    run: QueryCaseMatrix[Q, C, S],
     metrics: Sequence[str] = DEFAULT_METRICS,
 ) -> dict[str, float]:
     import ranx

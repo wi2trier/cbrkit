@@ -30,7 +30,7 @@ def test_simple():
     )
 
     retriever = cbrkit.retrieval.build(sim_func, limit=5)
-    retrieval_result = cbrkit.retrieval.apply(casebase, query, retriever)
+    retrieval_result = cbrkit.retrieval.apply_query(casebase, query, retriever)
 
     reuse_func = cbrkit.reuse.build(
         adaptation_func=cbrkit.adapt.attribute_value(
@@ -46,6 +46,8 @@ def test_simple():
         similarity_func=sim_func,
     )
 
-    reuse_result = cbrkit.reuse.apply(retrieval_result.casebase, query, reuse_func)
+    reuse_result = cbrkit.reuse.apply_query(
+        retrieval_result.casebase, query, reuse_func
+    )
 
     assert len(retrieval_result.casebase) == len(reuse_result.casebase)

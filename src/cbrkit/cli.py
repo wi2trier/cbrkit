@@ -5,7 +5,6 @@
 import json
 import os
 import sys
-from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -28,11 +27,6 @@ def app_callback():
     pass
 
 
-class ParallelStrategy(str, Enum):
-    queries = "queries"
-    casebase = "casebase"
-
-
 @app.command()
 def retrieve(
     casebase_path: Path,
@@ -42,8 +36,6 @@ def retrieve(
     print_ranking: bool = True,
     print_similarities: bool = False,
     output_path: Path | None = None,
-    processes: int = 1,
-    parallel: ParallelStrategy = ParallelStrategy.queries,
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
@@ -52,28 +44,22 @@ def retrieve(
         retriever
     )
 
-    results = cbrkit.retrieval.mapply(
-        casebase, queries, retrievers, processes, parallel.value
-    )
+    result = cbrkit.retrieval.apply_queries(casebase, queries, retrievers)
 
     if output_path:
-        results_dict = {
-            query_name: result.as_dict() for query_name, result in results.items()
-        }
-
         with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(results_dict, fp, indent=2)
+            json.dump(result.as_dict(), fp, indent=2)
 
     if print_ranking or print_similarities:
-        for query_name, result in results.items():
-            print(f"Query: {query_name}")
+        for key, value in result.final_step.queries.items():
+            print(f"Query: {key}")
 
             if print_ranking:
-                print(f"Ranking: {", ".join(map(str, result.ranking))}")
+                print(f"Ranking: {", ".join(map(str, value.ranking))}")
 
             if print_similarities:
                 print("Similarities:")
-                for case_name, similarity in result.similarities.items():
+                for case_name, similarity in value.similarities.items():
                     print(f"  {case_name}: {cbrkit.helpers.unpack_sim(similarity)}")
 
             print()
@@ -86,23 +72,17 @@ def reuse(
     reuser: str,
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     output_path: Path | None = None,
-    processes: int = 1,
-    parallel: ParallelStrategy = ParallelStrategy.queries,
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
     reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
 
-    results = cbrkit.reuse.mapply(casebase, queries, reusers, processes, parallel.value)
+    result = cbrkit.reuse.apply_queries(casebase, queries, reusers)
 
     if output_path:
-        results_dict = {
-            query_name: result.as_dict() for query_name, result in results.items()
-        }
-
         with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(results_dict, fp, indent=2)
+            json.dump(result.as_dict(), fp, indent=2)
 
 
 @app.command()
