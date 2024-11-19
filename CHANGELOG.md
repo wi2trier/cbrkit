@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.4](https://github.com/wi2trier/cbrkit/compare/v0.20.3...v0.20.4) (2024-11-19)
+
+### Bug Fixes
+
+* **docs:** generate cli documentation automatically ([3a9fae4](https://github.com/wi2trier/cbrkit/commit/3a9fae4b2ba4b7a71c2721c391650654b53a8cbd))
+
 ## [0.20.3](https://github.com/wi2trier/cbrkit/compare/v0.20.2...v0.20.3) (2024-11-18)
 
 ### Bug Fixes

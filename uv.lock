@@ -125,7 +125,7 @@ wheels = [
 
 [[package]]
 name = "cbrkit"
-version = "0.20.3"
+version = "0.20.4"
 source = { editable = "." }
 dependencies = [
     { name = "immutables" },
