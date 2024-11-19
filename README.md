@@ -1,21 +1,20 @@
 <!-- markdownlint-disable MD033 MD041 -->
-<h2><p align="center">CBRkit</p></h2>
+<h1><p align="center">CBRkit</p></h1>
+
 <p align="center">
   <img width="256px" alt="cbrkit logo" src="https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png" />
 </p>
+
 <p align="center">
   <a href="https://pypi.org/project/cbrkit/">PyPI</a> |
   <a href="https://wi2trier.github.io/cbrkit/">Docs</a> |
   <a href="https://github.com/wi2trier/cbrkit/tree/main/tests/test_retrieve.py">Example</a>
 </p>
+
 <p align="center">
   Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI.
 </p>
-<!-- <p align="center">
-  <a href="https://youtu.be/27dG4MagDhE">
-    <img width="256px" alt="cbrkit presentation" src="https://img.youtube.com/vi/27dG4MagDhE/0.jpg" />
-  </a>
-</p> -->
+
 <p align="center">
   <a href="https://youtu.be/27dG4MagDhE">CBRkit Presentation</a>
   <br/>
@@ -24,7 +23,7 @@
 
 ---
 
-# CBRkit
+<!-- PDOC_START -->
 
 CBRkit is a customizable and modular toolkit for Case-Based Reasoning (CBR) in Python.
 It provides a set of tools for loading cases and queries, defining similarity measures, and retrieving cases based on a query.
@@ -263,7 +262,7 @@ Coming soon...
 
 ## REST API and CLI
 
-In order to use the built-in API and CLI, you need to define a retriever in a Python module using the function `cbrkit.retrieval.build()`.
+In order to use the built-in API and CLI, you need to define a retriever/reuser in a Python module using the function `cbrkit.retrieval.build()` and/or `cbrkit.reuse.build()`.
 For example, the file `./retriever_module.py` could contain the following code:
 
 ```python
@@ -279,35 +278,20 @@ Our custom retriever can then be specified for the API/CLI using standard Python
 
 ### CLI
 
-When installing with the `cli` extra, CBRkit provides a command line interface that can be started with the following command:
+When installing with the `cli` extra, CBRkit provides a command line interface:
 
 ```shell
-cbrkit retrieve PATH_TO_CASEBASE PATH_TO_QUERY retriever_module:custom_retriever
+cbrkit --help
 ```
 
-It will then print the retrieval results to the console, so you could pipe the output to a file or another command.
+Please visit the [documentation](https://wi2trier.github.io/cbrkit/cbrkit/cli.html) for more information on how to use the CLI.
 
 ### API
 
-When installing with the `api` extra, CBRkit provides a REST API server that can be started with the following command:
+When installing with the `api` extra, CBRkit provides a REST API server:
 
 ```shell
-cbrkit serve retriever_module:custom_retriever
+cbrkit serve --help
 ```
 
-It offers a single endpoint `/retrieve` that accepts POST requests with a JSON body with the following structure:
-
-```json
-{
-  "casebase": {
-    "case1": ...,
-    "case2": ...
-  },
-  "queries": {
-    "query1": ...,
-    "query2": ...
-  }
-}
-```
-
-The server will return a JSON object containing the retrieval results for each query.
+After starting the server, you can access the API documentation at `http://localhost:8000/docs`.

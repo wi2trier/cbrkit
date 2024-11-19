@@ -2,7 +2,7 @@
 **[🌟 GitHub Project 🌟](https://github.com/wi2trier/cbrkit)**
 
 .. include:: ../../README.md
-   :start-after: # CBRkit
+   :start-after: <!-- PDOC_START -->
 
 """
 

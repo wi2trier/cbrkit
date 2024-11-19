@@ -1,3 +1,7 @@
+"""
+.. include:: ../../cli.md
+"""
+
 import json
 import os
 import sys
@@ -13,6 +17,8 @@ except ModuleNotFoundError:
     raise
 
 import cbrkit
+
+__all__ = ["app"]
 
 app = typer.Typer()
 
