@@ -2,12 +2,19 @@
   lib,
   stdenv,
   callPackage,
+  fetchFromGitHub,
   uv2nix,
   pyproject-nix,
   python3,
   tbb_2021_11,
 }:
 let
+  pdocRepo = fetchFromGitHub {
+    owner = "mitmproxy";
+    repo = "pdoc";
+    rev = "v15.0.0";
+    hash = "sha256-6XEcHhaKkxY/FU748f+OsTcSgrM4iQTmJAL8rJ3EqnY=";
+  };
   workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
   projectOverlay = workspace.mkPyprojectOverlay {
     sourcePreference = "wheel";
@@ -98,7 +105,7 @@ let
 
               pdoc \
                 -d google \
-                -t pdoc-template \
+                -t ${pdocRepo}/examples/dark-mode \
                 --math \
                 --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
                 -o "$out" \
