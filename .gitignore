@@ -11,7 +11,6 @@
 # Icon must end with two \r
 Icon
 
-
 # Thumbnails
 ._*
 
@@ -235,3 +234,4 @@ pyrightconfig.json
 /data/cars-*.csv
 !/data/cars-1k.csv
 /data/private
+/data/output.json
