@@ -8,6 +8,7 @@
 
 from . import (
     adapt,
+    dumpers,
     eval,
     helpers,
     loaders,
@@ -26,4 +27,5 @@ __all__ = [
     "eval",
     "typing",
     "helpers",
+    "dumpers",
 ]
