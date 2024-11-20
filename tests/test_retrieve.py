@@ -71,7 +71,7 @@ def test_retrieve_dataframe():
     )
 
     assert len(casebase) == 999  # csv contains header
-    assert len(result.similarities) == 999
+    assert len(result.similarities) == 5
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
     assert result.similarities[query_name].value == 1.0
@@ -114,7 +114,7 @@ def test_retrieve_dataframe_custom_query():
         retriever,
     )
 
-    assert len(result.similarities) == 999
+    assert len(result.similarities) == 5
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
 

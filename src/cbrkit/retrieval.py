@@ -37,25 +37,14 @@ class QueryResultStep[K, V, S: Float]:
     ranking: Sequence[K]
     casebase: Casebase[K, V]
 
-    # TODO: Should we really store all sims here? It is inconsistent with the ranking length...
     @classmethod
     def build(
-        cls, similarities: Mapping[K, tuple[S, bool]], full_casebase: Casebase[K, V]
+        cls, similarities: Mapping[K, S], full_casebase: Casebase[K, V]
     ) -> "QueryResultStep[K, V, S]":
-        filtered_sims = {}
-        all_sims = {}
+        ranking = similarities2ranking(similarities)
+        casebase = {key: full_casebase[key] for key in similarities}
 
-        for key, value in similarities.items():
-            sim, passed_filter = value
-            all_sims[key] = sim
-
-            if passed_filter:
-                filtered_sims[key] = sim
-
-        ranking = similarities2ranking(filtered_sims)
-        casebase = {key: full_casebase[key] for key in filtered_sims}
-
-        return cls(all_sims, tuple(ranking), casebase)
+        return cls(similarities, tuple(ranking), casebase)
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
@@ -262,32 +251,26 @@ class base_retriever[K, V, S: Float](SupportsMetadata):
 
         return ranking
 
-    def postprocess_seq(self, similarities: SimSeq[S]) -> list[tuple[S, bool]]:
+    def postprocess_seq(
+        self, similarities: SimSeq[S], index: Sequence[tuple[int, K]], total_pairs: int
+    ) -> Sequence[Casebase[K, S]]:
+        result: list[dict[K, S]] = [{} for _ in range(total_pairs)]
         ranking = self.preprocess(similarities)
 
-        return [
-            (sim, True) if key in ranking else (sim, False)
-            for key, sim in enumerate(similarities)
+        filtered_sims = [
+            sim if key in ranking else None for key, sim in enumerate(similarities)
         ]
 
-    def postprocess_map(self, similarities: SimMap[K, S]) -> dict[K, tuple[S, bool]]:
-        ranking = self.preprocess(similarities)
-
-        return {
-            key: (sim, True) if sim in ranking else (sim, False)
-            for key, sim in similarities.items()
-        }
-
-    def postprocess_align(
-        self, similarities: SimSeq[S], index: Sequence[tuple[int, K]], total_pairs: int
-    ) -> Sequence[Casebase[K, tuple[S, bool]]]:
-        processed_sims = self.postprocess_seq(similarities)
-        result: list[dict[K, tuple[S, bool]]] = [{} for _ in range(total_pairs)]
-
-        for (idx, key), sim in zip(index, processed_sims, strict=True):
-            result[idx][key] = sim
+        for (idx, key), sim in zip(index, filtered_sims, strict=True):
+            if sim is not None:
+                result[idx][key] = sim
 
         return result
+
+    def postprocess_map(self, similarities: SimMap[K, S]) -> dict[K, S]:
+        ranking = self.preprocess(similarities)
+
+        return {key: sim for key, sim in similarities.items() if key in ranking}
 
 
 @dataclass(slots=True, frozen=True)
@@ -345,7 +328,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
     @override
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, tuple[S, bool]]]:
+    ) -> Sequence[Casebase[K, S]]:
         sim_func = SimSeqWrapper(self.similarity_func)
         similarities: Sequence[S] = []
         pairs_index: list[tuple[int, K]] = []
@@ -368,7 +351,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
         else:
             similarities = sim_func(flat_pairs)
 
-        return self.postprocess_align(similarities, pairs_index, len(pairs))
+        return self.postprocess_seq(similarities, pairs_index, len(pairs))
 
 
 try:
@@ -409,8 +392,8 @@ try:
         def __call__(
             self,
             pairs: Sequence[tuple[Casebase[K, V], V]],
-        ) -> Sequence[Casebase[K, tuple[float, bool]]]:
-            results: list[dict[K, tuple[float, bool]]] = []
+        ) -> Sequence[Casebase[K, float]]:
+            results: list[dict[K, float]] = []
 
             for casebase, query in pairs:
                 response = self.client.v2.rerank(
