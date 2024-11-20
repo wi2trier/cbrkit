@@ -10,6 +10,7 @@ from ..collections import (
     isolated_mapping,
 )
 
+
 def is_sequential_workflow[K, N, E, G](graph: Graph[K, N, E, G]) -> bool:
     """Check if the graph is a sequential workflow with a single directed path."""
     nodes = list(graph.nodes.values())
@@ -97,4 +98,8 @@ class SmithWatermanAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
         return smith_waterman_func()(isolated_align(x_nodes, y_nodes))
 
 
-__all__ = ["DynamicTimeWarpingAlignment", "SmithWatermanAlignment", "is_sequential_workflow"]
+__all__ = [
+    "DynamicTimeWarpingAlignment",
+    "SmithWatermanAlignment",
+    "is_sequential_workflow",
+]
