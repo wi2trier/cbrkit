@@ -1,6 +1,7 @@
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import import_module
+from inspect import getdoc
 from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
@@ -51,6 +52,7 @@ def get_metadata(obj: Any) -> JsonDict:
         metadata = obj.metadata
 
     metadata["name"] = get_name(obj)
+    metadata["doc"] = getdoc(obj)
 
     return metadata
 
