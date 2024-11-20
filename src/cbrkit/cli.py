@@ -51,7 +51,7 @@ def retrieve(
             json.dump(result.as_dict(), fp, indent=2)
 
     if print_ranking or print_similarities:
-        for query_key, query_result in result.final_step.by_query.items():
+        for query_key, query_result in result.final_step.queries.items():
             print(f"Query: {query_key}")
 
             if print_ranking:

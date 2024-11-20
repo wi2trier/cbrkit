@@ -78,15 +78,15 @@ class QueryResultStep[K, V, S: Float]:
 
 @dataclass(slots=True, frozen=True)
 class ResultStep[Q, C, V, S: Float]:
-    by_query: Mapping[Q, QueryResultStep[C, V, S]]
+    queries: Mapping[Q, QueryResultStep[C, V, S]]
     metadata: JsonDict
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
-        if len(self.by_query) != 1:
+        if len(self.queries) != 1:
             raise ValueError("The step contains multiple queries.")
 
-        return next(iter(self.by_query.values()))
+        return next(iter(self.queries.values()))
 
     @property
     def similarities(self) -> SimMap[C, S]:
@@ -118,8 +118,8 @@ class Result[Q, C, V, S: Float]:
         return self.final_step.metadata
 
     @property
-    def by_query(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
-        return self.final_step.by_query
+    def queries(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
+        return self.final_step.queries
 
     @property
     def similarities(self) -> SimMap[C, S]:
@@ -141,7 +141,7 @@ class Result[Q, C, V, S: Float]:
         x = asdict(self)
 
         for step in x["steps"]:
-            for item in step["by_query"].values():
+            for item in step["queries"].values():
                 del item["casebase"]
 
         return x

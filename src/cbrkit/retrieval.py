@@ -55,12 +55,12 @@ class QueryResultStep[K, V, S: Float]:
 
 @dataclass(slots=True, frozen=True)
 class ResultStep[Q, C, V, S: Float]:
-    by_query: Mapping[Q, QueryResultStep[C, V, S]]
+    queries: Mapping[Q, QueryResultStep[C, V, S]]
     metadata: JsonDict
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
-        return next(iter(self.by_query.values()))
+        return next(iter(self.queries.values()))
 
     @property
     def similarities(self) -> SimMap[C, S]:
@@ -88,8 +88,8 @@ class Result[Q, C, V, S: Float]:
         return self.final_step.metadata
 
     @property
-    def by_query(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
-        return self.final_step.by_query
+    def queries(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
+        return self.final_step.queries
 
     @property
     def similarities(self) -> SimMap[C, S]:
@@ -107,7 +107,7 @@ class Result[Q, C, V, S: Float]:
         x = asdict(self)
 
         for step in x["steps"]:
-            for item in step["by_query"].values():
+            for item in step["queries"].values():
                 del item["casebase"]
 
         return x
@@ -180,7 +180,7 @@ def apply_queries[Q, C, V, S: Float](
         step = ResultStep(step_queries, get_metadata(retriever_func))
         steps.append(step)
         current_casebases = {
-            query_key: step.by_query[query_key].casebase for query_key in queries
+            query_key: step.queries[query_key].casebase for query_key in queries
         }
 
     return Result(steps)
@@ -281,6 +281,8 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
 
     Args:
         similarity_func: Similarity function to compute the similarity between cases.
+        processes: Number of processes to use. If processes is less than 1, the number returned by os.cpu_count() is used.
+        similarity_chunksize: Number of pairs to process in each chunk.
         limit: Retriever function will return the top limit cases.
         min_similarity: Return only cases with a similarity greater or equal than this.
         max_similarity: Return only cases with a similarity less or equal than this.
@@ -313,7 +315,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
 
     similarity_func: AnySimFunc[V, S]
     processes: int = 1
-    chunk_size: int = 100
+    similarity_chunksize: int = 1
 
     @property
     @override
@@ -322,7 +324,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
             **super(build, self).metadata,
             "similarity_func": get_metadata(self.similarity_func),
             "processes": self.processes,
-            "chunk_size": self.chunk_size,
+            "similarity_chunksize": self.similarity_chunksize,
         }
 
     @override
@@ -341,7 +343,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
 
         if self.processes != 1:
             pool_processes = None if self.processes <= 0 else self.processes
-            pair_chunks = chunkify(flat_pairs, self.chunk_size)
+            pair_chunks = chunkify(flat_pairs, self.similarity_chunksize)
 
             with Pool(pool_processes) as pool:
                 sim_chunks = pool.map(sim_func, pair_chunks)
