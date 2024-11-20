@@ -141,7 +141,7 @@ class Result[Q, C, V, S: Float]:
         x = asdict(self)
 
         for step in x["steps"]:
-            for item in step["queries"].values():
+            for item in step["by_query"].values():
                 del item["casebase"]
 
         return x
