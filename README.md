@@ -217,7 +217,7 @@ retriever = cbrkit.retrieval.build(
 This retriever can then be applied on a casebase to retrieve cases for a given query.
 
 ```python
-result = cbrkit.retrieval.apply(casebase, query, retriever)
+result = cbrkit.retrieval.apply_query(casebase, query, retriever)
 ```
 
 Our result has the following attributes:
@@ -234,10 +234,10 @@ retriever1 = cbrkit.retrieval.build(..., min_similarity=0.5, limit=20)
 retriever2 = cbrkit.retrieval.build(..., limit=10)
 ```
 
-Then apply all of them sequentially by passing them as a list or tuple to the `apply` function:
+Then apply all of them sequentially by passing them as a list or tuple to the `apply_query` function:
 
 ```python
-result = cbrkit.retrieval.apply(casebase, query, (retriever1, retriever2))
+result = cbrkit.retrieval.apply_query(casebase, query, (retriever1, retriever2))
 ```
 
 The result has the following two attributes:

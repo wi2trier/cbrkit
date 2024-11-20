@@ -51,15 +51,15 @@ def retrieve(
             json.dump(result.as_dict(), fp, indent=2)
 
     if print_ranking or print_similarities:
-        for key, value in result.final_step.queries.items():
-            print(f"Query: {key}")
+        for query_key, query_result in result.final_step.by_query.items():
+            print(f"Query: {query_key}")
 
             if print_ranking:
-                print(f"Ranking: {", ".join(map(str, value.ranking))}")
+                print(f"Ranking: {", ".join(map(str, query_result.ranking))}")
 
             if print_similarities:
                 print("Similarities:")
-                for case_name, similarity in value.similarities.items():
+                for case_name, similarity in query_result.similarities.items():
                     print(f"  {case_name}: {cbrkit.helpers.unpack_sim(similarity)}")
 
             print()

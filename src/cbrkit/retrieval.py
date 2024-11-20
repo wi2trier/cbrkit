@@ -1,8 +1,7 @@
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from inspect import signature as inspect_signature
 from multiprocessing import Pool
-from typing import Any, cast, override
+from typing import Any, override
 
 from .helpers import (
     SimSeqWrapper,
@@ -16,12 +15,10 @@ from .typing import (
     Float,
     JsonDict,
     RetrieverFunc,
-    RetrieverPairFunc,
-    RetrieverSeqFunc,
     SimMap,
     SimSeq,
+    SimSeqOrMap,
     SupportsMetadata,
-    SupportsParallelQueries,
 )
 
 __all__ = [
@@ -40,6 +37,7 @@ class QueryResultStep[K, V, S: Float]:
     ranking: Sequence[K]
     casebase: Casebase[K, V]
 
+    # TODO: Should we really store all sims here? It is inconsistent with the ranking length...
     @classmethod
     def build(
         cls, similarities: Mapping[K, tuple[S, bool]], full_casebase: Casebase[K, V]
@@ -68,12 +66,24 @@ class QueryResultStep[K, V, S: Float]:
 
 @dataclass(slots=True, frozen=True)
 class ResultStep[Q, C, V, S: Float]:
-    queries: Mapping[Q, QueryResultStep[C, V, S]]
+    by_query: Mapping[Q, QueryResultStep[C, V, S]]
     metadata: JsonDict
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
-        return next(iter(self.queries.values()))
+        return next(iter(self.by_query.values()))
+
+    @property
+    def similarities(self) -> SimMap[C, S]:
+        return self.default_query.similarities
+
+    @property
+    def ranking(self) -> Sequence[C]:
+        return self.default_query.ranking
+
+    @property
+    def casebase(self) -> Casebase[C, V]:
+        return self.default_query.casebase
 
 
 @dataclass(slots=True, frozen=True)
@@ -89,24 +99,20 @@ class Result[Q, C, V, S: Float]:
         return self.final_step.metadata
 
     @property
-    def queries(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
-        return self.final_step.queries
-
-    @property
-    def default_query(self) -> QueryResultStep[C, V, S]:
-        return self.final_step.default_query
+    def by_query(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
+        return self.final_step.by_query
 
     @property
     def similarities(self) -> SimMap[C, S]:
-        return self.final_step.default_query.similarities
+        return self.final_step.similarities
 
     @property
     def ranking(self) -> Sequence[C]:
-        return self.final_step.default_query.ranking
+        return self.final_step.ranking
 
     @property
     def casebase(self) -> Casebase[C, V]:
-        return self.final_step.default_query.casebase
+        return self.final_step.casebase
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
@@ -138,7 +144,6 @@ def apply_queries[Q, C, V, S: Float](
         >>> import polars as pl
         >>> df = pl.read_csv("./data/cars-1k.csv")
         >>> casebase = cbrkit.loaders.polars(df)
-        >>> query = casebase[42]
         >>> retriever = cbrkit.retrieval.build(
         ...     cbrkit.sim.attribute_value(
         ...         attributes={
@@ -154,7 +159,7 @@ def apply_queries[Q, C, V, S: Float](
         ...     ),
         ...     limit=5,
         ... )
-        >>> result = cbrkit.retrieval.apply(casebase, query, retriever)
+        >>> result = cbrkit.retrieval.apply_queries(casebase, {"default": casebase[42]}, retriever)
     """
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
@@ -166,70 +171,27 @@ def apply_queries[Q, C, V, S: Float](
     }
 
     for retriever_func in retrievers:
-        retriever_signature = inspect_signature(retriever_func)
+        queries_results = retriever_func(
+            [
+                (current_casebases[query_key], query)
+                for query_key, query in queries.items()
+            ]
+        )
 
-        if len(retriever_signature.parameters) == 2:
-            retriever_func = cast(RetrieverPairFunc[C, V, S], retriever_func)
-
-            if (
-                isinstance(retriever_func, SupportsParallelQueries)
-                and retriever_func.query_processes > 1
-            ):
-                pool_processes = (
-                    None
-                    if retriever_func.query_processes <= 0
-                    else retriever_func.query_processes
-                )
-
-                with Pool(pool_processes) as pool:
-                    sim_maps = pool.starmap(
-                        retriever_func,
-                        (
-                            (current_casebases[query_key], query)
-                            for query_key, query in queries.items()
-                        ),
-                    )
-                    step_queries = {
-                        query_key: QueryResultStep.build(sim_map, casebase)
-                        for query_key, sim_map in zip(queries, sim_maps, strict=True)
-                    }
-            else:
-                step_queries = {
-                    query_key: QueryResultStep.build(
-                        retriever_func(current_casebases[query_key], query), casebase
-                    )
-                    for query_key, query in queries.items()
-                }
-
-        else:
-            retriever_func = cast(RetrieverSeqFunc[V, S], retriever_func)
-            similarities = retriever_func(
-                [
-                    (case, query)
-                    for query_key, query in queries.items()
-                    for case in current_casebases[query_key].values()
-                ]
+        step_queries = {
+            query_key: QueryResultStep.build(
+                retrieved_casebase,
+                casebase,
             )
-
-            step_queries = {
-                query_key: QueryResultStep.build(
-                    {
-                        case_key: similarities[
-                            case_idx + query_idx * len(current_casebases[query_key])
-                        ]
-                        for case_idx, case_key in enumerate(
-                            current_casebases[query_key]
-                        )
-                    },
-                    current_casebases[query_key],
-                )
-                for query_idx, query_key in enumerate(queries)
-            }
+            for query_key, retrieved_casebase in zip(
+                queries, queries_results, strict=True
+            )
+        }
 
         step = ResultStep(step_queries, get_metadata(retriever_func))
         steps.append(step)
         current_casebases = {
-            query_key: step.queries[query_key].casebase for query_key in queries
+            query_key: step.by_query[query_key].casebase for query_key in queries
         }
 
     return Result(steps)
@@ -250,37 +212,11 @@ def apply_query[K, V, S: Float](
 apply = apply_query
 
 
-def chunkify_number[V](val: Sequence[V], n: int) -> Iterator[Sequence[V]]:
-    """Yield successive n-sized chunks from val.
-
-    Args:
-        val: The sequence that will be chunked.
-        n: Number of complete chunks.
-
-    Returns:
-        An iterator that yields the chunks.
-
-    Examples:
-        >>> list(chunkify_number([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
-        [[1, 2], [3, 4], [5, 6], [7, 8], [9]]
-    """
-
-    k = len(val) // n
-    return chunkify_size(val, k)
-
-
-def chunkify_size[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
+def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
     """Yield a total of k chunks from val.
 
-    Args:
-        val: The sequence that will be chunked.
-        k: Number of chunks.
-
-    Returns:
-        An iterator that yields the chunks.
-
     Examples:
-        >>> list(chunkify_size([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
+        >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
         [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
     """
 
@@ -289,7 +225,7 @@ def chunkify_size[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class base_retriever[K, S: Float](SupportsMetadata):
+class base_retriever[K, V, S: Float](SupportsMetadata):
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
@@ -303,7 +239,10 @@ class base_retriever[K, S: Float](SupportsMetadata):
             "max_similarity": self.max_similarity,
         }
 
-    def filter_ranking(self, similarities: SimSeq[S] | SimMap[K, S]) -> list[Any]:
+    def preprocess(
+        self,
+        similarities: SimSeqOrMap[K, S],
+    ) -> list[Any]:
         ranking = similarities2ranking(similarities)
 
         if self.min_similarity is not None:
@@ -318,30 +257,41 @@ class base_retriever[K, S: Float](SupportsMetadata):
                 for key in ranking
                 if unpack_sim(similarities[key]) <= self.max_similarity
             ]
-        if self.limit is None:
+        if self.limit is not None:
             ranking = ranking[: self.limit]
 
         return ranking
 
-    def process_seq(self, similarities: SimSeq[S]) -> Sequence[tuple[S, bool]]:
-        ranking = self.filter_ranking(similarities)
+    def postprocess_seq(self, similarities: SimSeq[S]) -> list[tuple[S, bool]]:
+        ranking = self.preprocess(similarities)
 
         return [
             (sim, True) if key in ranking else (sim, False)
             for key, sim in enumerate(similarities)
         ]
 
-    def process_map(self, similarities: SimMap[K, S]) -> Mapping[K, tuple[S, bool]]:
-        ranking = self.filter_ranking(similarities)
+    def postprocess_map(self, similarities: SimMap[K, S]) -> dict[K, tuple[S, bool]]:
+        ranking = self.preprocess(similarities)
 
         return {
-            key: (sim, True) if key in ranking else (sim, False)
+            key: (sim, True) if sim in ranking else (sim, False)
             for key, sim in similarities.items()
         }
 
+    def postprocess_align(
+        self, similarities: SimSeq[S], index: Sequence[tuple[int, K]], total_pairs: int
+    ) -> Sequence[Casebase[K, tuple[S, bool]]]:
+        processed_sims = self.postprocess_seq(similarities)
+        result: list[dict[K, tuple[S, bool]]] = [{} for _ in range(total_pairs)]
+
+        for (idx, key), sim in zip(index, processed_sims, strict=True):
+            result[idx][key] = sim
+
+        return result
+
 
 @dataclass(slots=True, frozen=True)
-class build[V, S: Float](base_retriever[V, S], RetrieverSeqFunc[V, S]):
+class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -393,23 +343,32 @@ class build[V, S: Float](base_retriever[V, S], RetrieverSeqFunc[V, S]):
         }
 
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[tuple[S, bool]]:
+    def __call__(
+        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[Casebase[K, tuple[S, bool]]]:
         sim_func = SimSeqWrapper(self.similarity_func)
         similarities: Sequence[S] = []
+        pairs_index: list[tuple[int, K]] = []
+        flat_pairs: list[tuple[V, V]] = []
+
+        for idx, (casebase, query) in enumerate(pairs):
+            for key, case in casebase.items():
+                pairs_index.append((idx, key))
+                flat_pairs.append((case, query))
 
         if self.processes != 1:
             pool_processes = None if self.processes <= 0 else self.processes
-            pair_chunks = chunkify_size(pairs, self.chunk_size)
+            pair_chunks = chunkify(flat_pairs, self.chunk_size)
 
             with Pool(pool_processes) as pool:
-                sim_chunks = pool.starmap(sim_func, pair_chunks)
+                sim_chunks = pool.map(sim_func, pair_chunks)
 
             for sim_chunk in sim_chunks:
                 similarities.extend(sim_chunk)
         else:
-            similarities = sim_func(pairs)
+            similarities = sim_func(flat_pairs)
 
-        return self.process_seq(similarities)
+        return self.postprocess_align(similarities, pairs_index, len(pairs))
 
 
 try:
@@ -418,9 +377,8 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class cohere[K, V](
-        base_retriever[K, float],
-        RetrieverPairFunc[K, V, float],
-        SupportsParallelQueries,
+        base_retriever[K, V, float],
+        RetrieverFunc[K, V, float],
     ):
         """Semantic similarity using Cohere's rerank models
 
@@ -450,26 +408,31 @@ try:
         @override
         def __call__(
             self,
-            casebase: Casebase[K, V],
-            query: V,
-        ) -> Casebase[K, tuple[float, bool]]:
-            response = self.client.v2.rerank(
-                model=self.model,
-                query=self.conversion_func(query),
-                documents=[self.conversion_func(value) for value in casebase.values()],
-                return_documents=False,
-                top_n=self.top_n,
-                max_chunks_per_doc=self.max_chunks_per_doc,
-                request_options=self.request_options,
-            )
-            key_index = {idx: key for idx, key in enumerate(casebase)}
+            pairs: Sequence[tuple[Casebase[K, V], V]],
+        ) -> Sequence[Casebase[K, tuple[float, bool]]]:
+            results: list[dict[K, tuple[float, bool]]] = []
 
-            similarities: SimMap[K, float] = {
-                key_index[result.index]: result.relevance_score
-                for result in response.results
-            }
+            for casebase, query in pairs:
+                response = self.client.v2.rerank(
+                    model=self.model,
+                    query=self.conversion_func(query),
+                    documents=[
+                        self.conversion_func(value) for value in casebase.values()
+                    ],
+                    return_documents=False,
+                    top_n=self.top_n,
+                    max_chunks_per_doc=self.max_chunks_per_doc,
+                    request_options=self.request_options,
+                )
+                key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return self.process_map(similarities)
+                similarities = {
+                    key_index[result.index]: result.relevance_score
+                    for result in response.results
+                }
+                results.append(self.postprocess_map(similarities))
+
+            return results
 
     __all__ += ["cohere"]
 

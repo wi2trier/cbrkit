@@ -32,11 +32,6 @@ class SupportsMetadata(Protocol):
         return {}
 
 
-@runtime_checkable
-class SupportsParallelQueries(Protocol):
-    query_processes: int
-
-
 class SimMapFunc[K, V, S: Float](Protocol):
     def __call__(self, x_map: Mapping[K, V], y: V, /) -> SimMap[K, S]: ...
 
@@ -52,19 +47,10 @@ class SimPairFunc[V, S: Float](Protocol):
 type AnySimFunc[V, S: Float] = SimPairFunc[V, S] | SimSeqFunc[V, S]
 
 
-class RetrieverPairFunc[K, V, S: Float](Protocol):
+class RetrieverFunc[K, V, S: Float](Protocol):
     def __call__(
-        self,
-        casebase: Casebase[K, V],
-        query: V,
-    ) -> Casebase[K, tuple[S, bool]]: ...
-
-
-class RetrieverSeqFunc[V, S: Float](Protocol):
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[tuple[S, bool]]: ...
-
-
-type RetrieverFunc[K, V, S: Float] = RetrieverPairFunc[K, V, S] | RetrieverSeqFunc[V, S]
+        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[Casebase[K, tuple[S, bool]]]: ...
 
 
 class AdaptPairFunc[V](Protocol):
@@ -97,9 +83,8 @@ type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptMapFunc[K, V] | AdaptReduceFun
 class ReuserFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        casebase: Casebase[K, V],
-        query: V,
-    ) -> Casebase[K, tuple[V | None, S]]: ...
+        pairs: Sequence[tuple[Casebase[K, V], V]],
+    ) -> Sequence[Casebase[K, tuple[V | None, S]]]: ...
 
 
 class AggregatorFunc[K, S: Float](Protocol):

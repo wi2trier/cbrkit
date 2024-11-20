@@ -11,7 +11,7 @@ def retrieval_step[Q, C, S: Float](
 ) -> dict[str, float]:
     return compute(
         qrels,
-        {query: entry.similarities for query, entry in step.queries.items()},
+        {query: entry.similarities for query, entry in step.by_query.items()},
     )
 
 

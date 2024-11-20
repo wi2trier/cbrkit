@@ -32,14 +32,13 @@ def test_retrieve_multiprocessing():
         limit=5,
         processes=2,
     )
-    result = cbrkit.retrieval.apply(
+    result = cbrkit.retrieval.apply_query(
         casebase,
-        {"default": casebase[query_name]},
+        casebase[query_name],
         retriever,
     )
 
-    assert len(result.queries) == 1
-    assert len(result.queries["default"].ranking) == 5
+    assert len(result.ranking) == 5
 
 
 def test_retrieve_dataframe():
@@ -69,10 +68,10 @@ def test_retrieve_dataframe():
         casebase,
         query,
         retriever,
-    ).queries["default"]
+    )
 
     assert len(casebase) == 999  # csv contains header
-    assert len(result.similarities) == 5
+    assert len(result.similarities) == 999
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
     assert result.similarities[query_name].value == 1.0
@@ -113,9 +112,9 @@ def test_retrieve_dataframe_custom_query():
         casebase,
         query,
         retriever,
-    ).queries["default"]
+    )
 
-    assert len(result.similarities) == 5
+    assert len(result.similarities) == 999
     assert len(result.ranking) == 5
     assert len(result.casebase) == 5
 
@@ -149,7 +148,7 @@ def test_retrieve_nested():
         casebase,
         query,
         retriever,
-    ).queries["default"]
+    )
 
     assert len(casebase) == 999
     assert result.similarities[query_name].value == 1.0
