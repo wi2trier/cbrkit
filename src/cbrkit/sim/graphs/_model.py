@@ -23,6 +23,7 @@ __all__ = [
     "SerializedGraph",
     "to_dict",
     "from_dict",
+    "is_sequential",
 ]
 
 
@@ -144,6 +145,50 @@ def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> SerializedGraph[K, N, E, G]:
 
 def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
     return Graph.from_dict(g)
+
+
+def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
+    """
+    Check if a graph is a sequential workflow.
+
+    A sequential workflow is defined as a directed graph where:
+    - Each node (except the last) has exactly one outgoing edge
+    - Each node (except the first) has exactly one incoming edge
+    - The graph forms a single path with no cycles or branches
+
+    Args:
+        g: The graph to check
+
+    Returns:
+        True if the graph is a sequential workflow, False otherwise
+    """
+
+    if not g.nodes:
+        return True
+
+    # Count incoming and outgoing edges for each node
+    in_degree = {node.key: 0 for node in g.nodes.values()}
+    out_degree = {node.key: 0 for node in g.nodes.values()}
+
+    for edge in g.edges.values():
+        in_degree[edge.target.key] += 1
+        out_degree[edge.source.key] += 1
+
+    # Check degrees match sequential pattern
+    start_nodes = [k for k, count in in_degree.items() if count == 0]
+    end_nodes = [k for k, count in out_degree.items() if count == 0]
+
+    # Must have exactly one start and one end
+    if len(start_nodes) != 1 or len(end_nodes) != 1:
+        return False
+
+    # All other nodes must have exactly one in and one out edge
+    for node_key in g.nodes.keys():
+        if node_key not in start_nodes and node_key not in end_nodes:
+            if in_degree[node_key] != 1 or out_degree[node_key] != 1:
+                return False
+
+    return True
 
 
 try:
