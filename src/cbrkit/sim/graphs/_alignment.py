@@ -1,14 +1,27 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import override
+
 from cbrkit.sim.graphs._model import Graph, Node
-from cbrkit.typing import SimPairFunc, SimSeqFunc, Float
+from cbrkit.typing import Float, SimPairFunc, SimSeqFunc
+
 from ..collections import (
     dtw as dtw_func,
-    smith_waterman as smith_waterman_func,
-    mapping,
-    isolated_mapping,
 )
+from ..collections import (
+    isolated_mapping,
+    mapping,
+)
+from ..collections import (
+    smith_waterman as smith_waterman_func,
+)
+
+__all__ = [
+    "dtw",
+    "smith_waterman",
+    "is_sequential_workflow",
+]
 
 
 def is_sequential_workflow[K, N, E, G](graph: Graph[K, N, E, G]) -> bool:
@@ -25,7 +38,7 @@ def is_sequential_workflow[K, N, E, G](graph: Graph[K, N, E, G]) -> bool:
 
 
 @dataclass(slots=True, frozen=True)
-class DynamicTimeWarpingAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
+class dtw[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
     node_sim_func: SimSeqFunc[Node[K, N], Float]
     """
     Performs Dynamic Time Warping alignment on sequential workflows.
@@ -62,7 +75,7 @@ class DynamicTimeWarpingAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], flo
 
 
 @dataclass(slots=True, frozen=True)
-class SmithWatermanAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
+class smith_waterman[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
     node_sim_func: SimSeqFunc[Node[K, N], Float]
     """
     Performs Smith-Waterman alignment on sequential workflows.
@@ -80,7 +93,7 @@ class SmithWatermanAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
         >>> g2.add_edge(g2.nodes["1"], g2.nodes["2"], None)
         >>> # Create mock similarity function
         >>> def mock_sim(pairs): return [1.0 if n1.data == n2.data else 0.0 for n1, n2 in pairs]
-        >>> swa = SmithWatermanAlignment(mock_sim)
+        >>> swa = smith_waterman(mock_sim)
         >>> swa(g1, g2)
         1.0
     """
@@ -96,10 +109,3 @@ class SmithWatermanAlignment[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
 
         isolated_align = isolated_mapping(self.node_sim_func)
         return smith_waterman_func()(isolated_align(x_nodes, y_nodes))
-
-
-__all__ = [
-    "DynamicTimeWarpingAlignment",
-    "SmithWatermanAlignment",
-    "is_sequential_workflow",
-]
