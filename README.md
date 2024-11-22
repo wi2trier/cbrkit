@@ -242,23 +242,149 @@ result = cbrkit.retrieval.apply_query(casebase, query, (retriever1, retriever2))
 
 The result has the following two attributes:
 
-- `final`: Result of the last retriever in the list.
+- `final_step`: Result of the last retriever in the list.
 - `steps`: A list of results for each retriever in the list.
 
-Both `final` and each entry in `steps` have the same attributes as discussed previously.
-The returned result also has these entries which are an alias for the corresponding entries in `final` (i.e., `result.ranking == result.final.ranking`).
+Both `final_step` and each entry in `steps` have the same attributes as discussed previously.
+The returned result also has these entries which are an alias for the corresponding entries in `final_step` (i.e., `result.ranking == result.final_step.ranking`).
 
 ## Adaptation Functions
 
-Coming soon...
+Case adaptation is a crucial step in the CBR cycle that allows us to modify retrieved cases to better suit the current query.
+CBRkit offers both built-in adaptation functions for common scenarios and the flexibility to define custom adaptation logic.
+
+### Custom Adaptation Functions
+
+In CBRkit, an adaptation function is defined as a function that takes two arguments (a case and a query) and returns an adapted case: `adapted = f(case, query)`.
+For more complex scenarios, CBRkit also supports two additional types of adaptation functions:
+
+- Map functions that operate on the entire casebase: `adapted = f(casebase, query)`
+- Reduce functions that select and adapt a single case: `key, adapted = f(casebase, query)`
+
+This generic approach allows you to define custom adaptation functions for your specific use case.
+For instance, the following function replaces a case value with the query value if they differ:
+
+```python
+def replace_adapter(case: str, query: str) -> str:
+    return query if case != query else case
+```
+
+**Please note:** CBRkit inspects the signature of custom adaptation functions to determine their type.
+Make sure that the parameters are named either `case` and `query` for pair functions, or `casebase` and `query` for map/reduce functions.
+
+### Built-in Adaptation Functions
+
+CBRkit contains adaptation functions for common data types like strings and numbers in the module `cbrkit.adapt`.
+They are provided through **generator functions** that allow you to customize the behavior of the built-in functions.
+For example, a number aggregator can be obtained as follows:
+
+```python
+number_adapter = cbrkit.adapt.numbers.aggregate()
+```
+
+**Please note:** Calling the function `cbrkit.adapt.numbers.aggregate` returns an adaptation function that takes a collection of values and returns an adapted value.
+
+For the common use case of attribute-value based data, CBRkit provides a predefined global adapter that can be used as follows:
+
+```python
+cbrkit.adapt.attribute_value(
+    attributes={
+        "price": cbrkit.adapt.numbers.aggregate(),
+        "color": cbrkit.adapt.strings.regex("CASE_PATTERN", "QUERY_PATTERN", "REPLACEMENT"),
+        ...
+    }
+)
+```
+
+The `attribute_value` function lets you define adaptation functions for each attribute of the cases.
+You may even nest adaptation functions to handle object-oriented cases.
+
+An overview of all available adaptation functions can be found in the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/adapt.html).
 
 ## Reuse
 
-Coming soon...
+The reuse phase applies adaptation functions to retrieved cases. The `cbrkit.reuse` module provides utility functions for this purpose. You first build a reuse pipeline by specifying a global adaptation function:
+
+```python
+reuser = cbrkit.reuse.build(
+    cbrkit.adapt.attribute_value(...),
+)
+```
+
+This reuser can then be applied to the retrieval result to adapt cases based on a query:
+
+```python
+result = cbrkit.reuse.apply_query(retrieval_result, query, reuser)
+```
+
+Our result has the following attributes:
+
+- `adaptations`: A dictionary containing the adapted values for each case.
+- `ranking`: A list of case indices matching the retrieval result.
+- `casebase`: The casebase containing only the adapted cases.
+
+Multiple reuse pipelines can be combined by passing them as a list or tuple:
+
+```python
+reuser1 = cbrkit.reuse.build(...)
+reuser2 = cbrkit.reuse.build(...)
+result = cbrkit.reuse.apply_query(retrieval_result, query, (reuser1, reuser2))
+```
+
+The result structure follows the same pattern as the retrieval results with `final_step` and `steps` attributes.
 
 ## Evaluation
 
-Coming soon...
+CBRkit provides evaluation tools through the `cbrkit.eval` module for assessing the quality of retrieval results.
+The basic evaluation function `cbrkit.eval.compute` expects the following arguments:
+
+- `qrels`: Ground truth relevance scores for query-case pairs.
+- `run`: Retrieval similarity scores for query-case pairs.
+- `metrics`: A list of metrics to compute.
+
+You can evaluate retrieval results directly with the functions `cbrkit.eval.retrieval` and `cbrkit.eval.retrieval_step`.
+
+### Custom Metrics
+
+Users can provide custom metric functions that implement the signature defined in the `cbrkit.typing.EvalMetricFunc` protocol:
+
+```python
+def custom_metric(
+    qrels: Mapping[str, Mapping[str, int]],
+    run: Mapping[str, Mapping[str, float]],
+    k: int,
+    relevance_level: int,
+) -> float:
+    # Custom metric logic here
+    return 0.0
+```
+
+You can then pass your custom metric function to the `compute` function:
+
+```python
+results = cbrkit.eval.compute(
+    qrels,
+    run,
+    metrics=["custom_metric@5"],
+    metric_funcs={"custom_metric": custom_metric},
+)
+```
+
+### Built-in Metrics
+
+The module also supports standard Information Retrieval metrics through ranx like `precision`, `recall`, and `f1`.
+A complete list is available in the [ranx documentation](https://amenra.github.io/ranx/metrics/).
+Additionally, CBRkit provides two custom metrics not available in ranx:
+
+- `correctness`: Measures how well the ranking preserves the relevance ordering (-1 to 1).
+- `completeness`: Measures what fraction of relevance pairs are preserved (0 to 1).
+
+All of them can be computed at different cutoff points by appending `@k`, e.g., `precision@5`.
+We also offer a function to automatically generate a list of metrics for different cutoff points:
+
+```python
+metrics = cbrkit.eval.metrics_at_k(["precision", "recall", "f1"], [1, 5, 10])
+```
 
 ## REST API and CLI
 
