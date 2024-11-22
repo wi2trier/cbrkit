@@ -101,3 +101,13 @@ class PoolingFunc(Protocol):
         similarities: SimSeq[float],
         /,
     ) -> float: ...
+
+
+class EvalMetricFunc(Protocol):
+    def __call__(
+        self,
+        qrels: Mapping[str, Mapping[str, int]],
+        run: Mapping[str, Mapping[str, float]],
+        k: int,
+        relevance_level: int,
+    ) -> float: ...
