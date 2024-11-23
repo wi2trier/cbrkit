@@ -373,7 +373,6 @@ try:
 
         model: str
         conversion_func: Callable[[V], str]
-        top_n: int | None = None
         max_chunks_per_doc: int | None = None
         client: Client = field(default_factory=Client)
         request_options: RequestOptions | None = None
@@ -405,7 +404,6 @@ try:
                         self.conversion_func(value) for value in casebase.values()
                     ],
                     return_documents=False,
-                    top_n=self.top_n,
                     max_chunks_per_doc=self.max_chunks_per_doc,
                     request_options=self.request_options,
                 )
@@ -420,6 +418,67 @@ try:
             return results
 
     __all__ += ["cohere"]
+
+except ImportError:
+    pass
+
+
+try:
+    from voyageai import Client  # type: ignore
+
+    @dataclass(slots=True, frozen=True)
+    class voyageai[K, V](
+        base_retriever[K, V, float],
+        RetrieverFunc[K, V, float],
+    ):
+        """Semantic similarity using Voyage AI's rerank models
+
+        Args:
+            model: Name of the [rerank model](https://docs.voyageai.com/docs/reranker).
+        """
+
+        model: str
+        conversion_func: Callable[[V], str]
+        truncation: bool = True
+        client: Client = field(default_factory=Client)
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                **super(voyageai, self).metadata,
+                "model": self.model,
+                "conversion_func": get_metadata(self.conversion_func),
+                "truncation": self.truncation,
+            }
+
+        @override
+        def __call__(
+            self,
+            pairs: Sequence[tuple[Casebase[K, V], V]],
+        ) -> Sequence[Casebase[K, float]]:
+            results: list[dict[K, float]] = []
+
+            for casebase, query in pairs:
+                response = self.client.rerank(
+                    model=self.model,
+                    query=self.conversion_func(query),
+                    documents=[
+                        self.conversion_func(value) for value in casebase.values()
+                    ],
+                    truncation=self.truncation,
+                )
+                key_index = {idx: key for idx, key in enumerate(casebase)}
+
+                similarities = {
+                    key_index[result.index]: result.relevance_score
+                    for result in response.results
+                }
+                results.append(self.postprocess_map(similarities))
+
+            return results
+
+    __all__ += ["voyageai"]
 
 except ImportError:
     pass

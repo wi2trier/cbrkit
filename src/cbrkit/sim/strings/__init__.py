@@ -288,6 +288,61 @@ try:
 except ImportError:
     pass
 
+try:
+    import numpy as np
+    from voyageai import Client  # type: ignore
+
+    @dataclass(slots=True, frozen=True)
+    class voyageai(SimSeqFunc[str, float], SupportsMetadata):
+        """Semantic similarity using Voyage AI's embedding models
+
+        Args:
+            model: Name of the [embedding model](https://docs.voyageai.com/docs/embeddings).
+        """
+
+        model: str
+        client: Client = field(default_factory=Client)
+        truncation: bool = True
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                "model": self.model,
+                "truncation": self.truncation,
+            }
+
+        @override
+        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
+            case_texts = list({x for x, _ in pairs})
+            query_texts = list({y for _, y in pairs})
+
+            case_raw_vecs = self.client.embed(
+                model=self.model,
+                texts=case_texts,
+                input_type="document",
+                truncation=self.truncation,
+            ).embeddings
+            query_raw_vecs = self.client.embed(
+                model=self.model,
+                texts=query_texts,
+                input_type="query",
+                truncation=self.truncation,
+            ).embeddings
+
+            case_np_vecs = [np.array(x) for x in case_raw_vecs]
+            query_np_vecs = [np.array(x) for x in query_raw_vecs]
+
+            case_vecs = dict(zip(case_texts, case_np_vecs, strict=True))
+            query_vecs = dict(zip(query_texts, query_np_vecs, strict=True))
+
+            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in pairs]
+
+    __all__ += ["voyageai"]
+
+except ImportError:
+    pass
+
 
 try:
     import Levenshtein as pyLevenshtein
