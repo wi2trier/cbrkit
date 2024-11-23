@@ -47,10 +47,6 @@ def _cosine(u, v) -> float:
     return 0.0
 
 
-def _unique_items(pairs: Sequence[tuple[str, str]]) -> list[str]:
-    return [*{*itertools.chain.from_iterable(pairs)}]
-
-
 try:
     from spacy import load as spacy_load
     from spacy.language import Language
@@ -79,12 +75,12 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
-            texts = _unique_items(pairs)
+            texts = list(itertools.chain.from_iterable(pairs))
 
             with self.model.select_pipes(enable=[]):
-                _docs = self.model.pipe(texts)
+                docs_iterator = self.model.pipe(texts)
 
-            docs = dict(zip(texts, _docs, strict=True))
+            docs = dict(zip(texts, docs_iterator, strict=True))
 
             return [docs[x].similarity(docs[y]) for x, y in pairs]
 
@@ -124,11 +120,11 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
-            texts = _unique_items(pairs)
-            encoded_texts = self.model.encode(texts, convert_to_numpy=True)
-            vecs = dict(zip(texts, encoded_texts, strict=True))
+            case_texts, query_texts = zip(*pairs, strict=True)
+            case_vecs = self.model.encode(case_texts, convert_to_tensor=True)
+            query_vecs = self.model.encode(query_texts, convert_to_tensor=True)
 
-            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+            return self.model.similarity(case_vecs, query_vecs).tolist()
 
     __all__ += ["sentence_transformers"]
 
@@ -158,14 +154,14 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            texts = _unique_items(pairs)
+            texts = list(itertools.chain.from_iterable(pairs))
             res = self.client.embeddings.create(
                 input=texts,
                 model=self.model,
                 encoding_format="float",
             )
-            _vecs = [np.array(x.embedding) for x in res.data]
-            vecs = dict(zip(texts, _vecs, strict=True))
+            np_vecs = [np.array(x.embedding) for x in res.data]
+            vecs = dict(zip(texts, np_vecs, strict=True))
 
             return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
 
@@ -205,7 +201,7 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            texts = _unique_items(pairs)
+            texts = list(itertools.chain.from_iterable(pairs))
             res = self.client.embed(
                 self.model,
                 texts,
@@ -213,8 +209,8 @@ try:
                 options=self.options,
                 keep_alive=self.keep_alive,
             )
-            _vecs = [np.array(x) for x in res["embeddings"]]
-            vecs = dict(zip(texts, _vecs, strict=True))
+            np_vecs = [np.array(x) for x in res["embeddings"]]
+            vecs = dict(zip(texts, np_vecs, strict=True))
 
             return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
 
@@ -253,8 +249,7 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            case_texts = list({x for x, _ in pairs})
-            query_texts = list({y for _, y in pairs})
+            case_texts, query_texts = zip(*pairs, strict=True)
 
             case_raw_vecs = self.client.v2.embed(
                 model=self.model,
@@ -314,8 +309,7 @@ try:
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            case_texts = list({x for x, _ in pairs})
-            query_texts = list({y for _, y in pairs})
+            case_texts, query_texts = zip(*pairs, strict=True)
 
             case_raw_vecs = self.client.embed(
                 model=self.model,
