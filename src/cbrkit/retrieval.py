@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
-from typing import Any, override
+from typing import Any, cast, override
 
 from .helpers import (
     SimSeqWrapper,
@@ -478,6 +478,86 @@ try:
             return results
 
     __all__ += ["voyageai"]
+
+except ImportError:
+    pass
+
+try:
+    from sentence_transformers import SentenceTransformer, util
+
+    @dataclass(slots=True, frozen=True)
+    class sentence_transformers[K, V](
+        base_retriever[K, V, float],
+        RetrieverFunc[K, V, float],
+    ):
+        """Semantic similarity using Voyage AI's rerank models
+
+        Args:
+            model: Name of the [rerank model](https://docs.voyageai.com/docs/reranker).
+        """
+
+        model: SentenceTransformer | str
+        conversion_func: Callable[[V], str]
+        query_chunk_size: int = 100
+        corpus_chunk_size: int = 500000
+        device: str = "cpu"
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return {
+                **super(sentence_transformers, self).metadata,
+                "model": self.model if isinstance(self.model, str) else "custom",
+                "conversion_func": get_metadata(self.conversion_func),
+                "query_chunk_size": self.query_chunk_size,
+                "corpus_chunk_size": self.corpus_chunk_size,
+                "device": self.device,
+            }
+
+        @override
+        def __call__(
+            self,
+            pairs: Sequence[tuple[Casebase[K, V], V]],
+        ) -> Sequence[Casebase[K, float]]:
+            model = (
+                SentenceTransformer(self.model)
+                if isinstance(self.model, str)
+                else self.model
+            )
+            results: list[dict[K, float]] = []
+
+            for casebase, query in pairs:
+                case_texts = [
+                    self.conversion_func(value) for value in casebase.values()
+                ]
+                query_text = self.conversion_func(query)
+                embeddings = model.encode(
+                    [query_text] + case_texts, convert_to_tensor=True
+                )
+                embeddings = embeddings.to(self.device)
+                embeddings = util.normalize_embeddings(embeddings)
+                query_embeddings = embeddings[0:1]
+                case_embeddings = embeddings[1:]
+
+                response = util.semantic_search(
+                    query_embeddings,
+                    case_embeddings,
+                    top_k=len(casebase),
+                    query_chunk_size=self.query_chunk_size,
+                    corpus_chunk_size=self.corpus_chunk_size,
+                    score_function=util.dot_score,
+                )[0]
+                key_index = {idx: key for idx, key in enumerate(casebase)}
+
+                similarities = {
+                    key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
+                    for res in response
+                }
+                results.append(self.postprocess_map(similarities))
+
+            return results
+
+    __all__ += ["sentence_transformers"]
 
 except ImportError:
     pass
