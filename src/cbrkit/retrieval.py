@@ -384,7 +384,6 @@ try:
                 **super(cohere, self).metadata,
                 "model": self.model,
                 "conversion_func": get_metadata(self.conversion_func),
-                "top_n": self.top_n,
                 "max_chunks_per_doc": self.max_chunks_per_doc,
                 "request_options": str(self.request_options),
             }
