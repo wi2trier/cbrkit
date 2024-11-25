@@ -83,8 +83,8 @@ type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptMapFunc[K, V] | AdaptReduceFun
 class ReuserFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V]],
-    ) -> Sequence[Casebase[K, tuple[V | None, S]]]: ...
+        pairs: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
 
 
 class AggregatorFunc[K, S: Float](Protocol):
