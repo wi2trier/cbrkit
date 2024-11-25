@@ -50,7 +50,7 @@ type AnySimFunc[V, S: Float] = SimPairFunc[V, S] | SimSeqFunc[V, S]
 class RetrieverFunc[K, V, S: Float](Protocol):
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, S]]: ...
+    ) -> Sequence[SimMap[K, S]]: ...
 
 
 class AdaptPairFunc[V](Protocol):
