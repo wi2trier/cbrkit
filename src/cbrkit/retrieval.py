@@ -28,6 +28,7 @@ __all__ = [
     "Result",
     "ResultStep",
     "base_retriever",
+    "transpose",
 ]
 
 
