@@ -124,7 +124,7 @@ try:
             case_vecs = self.model.encode(case_texts, convert_to_tensor=True)
             query_vecs = self.model.encode(query_texts, convert_to_tensor=True)
 
-            return self.model.similarity(case_vecs, query_vecs).tolist()
+            return self.model.similarity_pairwise(case_vecs, query_vecs).tolist()
 
     __all__ += ["sentence_transformers"]
 

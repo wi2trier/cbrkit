@@ -490,10 +490,10 @@ try:
         base_retriever[K, V, float],
         RetrieverFunc[K, V, float],
     ):
-        """Semantic similarity using Voyage AI's rerank models
+        """Semantic similarity using sentence transformers
 
         Args:
-            model: Name of the [rerank model](https://docs.voyageai.com/docs/reranker).
+            model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
         model: SentenceTransformer | str
@@ -520,7 +520,7 @@ try:
             pairs: Sequence[tuple[Casebase[K, V], V]],
         ) -> Sequence[Casebase[K, float]]:
             model = (
-                SentenceTransformer(self.model)
+                SentenceTransformer(self.model, device=self.device)
                 if isinstance(self.model, str)
                 else self.model
             )
