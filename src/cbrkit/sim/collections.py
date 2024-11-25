@@ -377,8 +377,8 @@ class sequence_mapping[V, S: Float](
             return SequenceSim(
                 value=final_similarity, local_similarities=result.local_similarities
             )
-        else:
-            return result
+
+        return result
 
 
 @dataclass(slots=True, frozen=True)

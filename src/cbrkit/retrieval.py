@@ -232,30 +232,30 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[Casebase[K, S]]:
-        base_results = self.retriever_func(pairs)
-        final_results: list[dict[K, S]] = []
+        return [self._filter(entry) for entry in self.retriever_func(pairs)]
 
-        for similarities in base_results:
-            ranking = similarities2ranking(similarities)
+    def _filter(
+        self,
+        similarities: Mapping[K, S],
+    ) -> dict[K, S]:
+        ranking: list[K] = similarities2ranking(similarities)
 
-            if self.min_similarity is not None:
-                ranking = [
-                    key
-                    for key in ranking
-                    if unpack_sim(similarities[key]) >= self.min_similarity
-                ]
-            if self.max_similarity is not None:
-                ranking = [
-                    key
-                    for key in ranking
-                    if unpack_sim(similarities[key]) <= self.max_similarity
-                ]
-            if self.limit is not None:
-                ranking = ranking[: self.limit]
+        if self.min_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) >= self.min_similarity
+            ]
+        if self.max_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_sim(similarities[key]) <= self.max_similarity
+            ]
+        if self.limit is not None:
+            ranking = ranking[: self.limit]
 
-            final_results.append({key: similarities[key] for key in ranking})
-
-        return final_results
+        return {key: similarities[key] for key in ranking}
 
 
 @dataclass(slots=True, frozen=True)
@@ -546,36 +546,40 @@ try:
                 if isinstance(self.model, str)
                 else self.model
             )
-            results: list[dict[K, float]] = []
 
-            for casebase, query in pairs:
-                case_texts = list(casebase.values())
-                query_text = query
-                embeddings = model.encode(
-                    [query_text] + case_texts, convert_to_tensor=True
-                )
-                embeddings = embeddings.to(self.device)
-                embeddings = util.normalize_embeddings(embeddings)
-                query_embeddings = embeddings[0:1]
-                case_embeddings = embeddings[1:]
+            return [
+                self._retrieve_single(query, casebase, model)
+                for casebase, query in pairs
+            ]
 
-                response = util.semantic_search(
-                    query_embeddings,
-                    case_embeddings,
-                    top_k=len(casebase),
-                    query_chunk_size=self.query_chunk_size,
-                    corpus_chunk_size=self.corpus_chunk_size,
-                    score_function=util.dot_score,
-                )[0]
-                key_index = {idx: key for idx, key in enumerate(casebase)}
+        def _retrieve_single(
+            self,
+            query: str,
+            casebase: Casebase[K, str],
+            model: SentenceTransformer,
+        ) -> dict[K, float]:
+            case_texts = list(casebase.values())
+            query_text = query
+            embeddings = model.encode([query_text] + case_texts, convert_to_tensor=True)
+            embeddings = embeddings.to(self.device)
+            embeddings = util.normalize_embeddings(embeddings)
+            query_embeddings = embeddings[0:1]
+            case_embeddings = embeddings[1:]
 
-                similarities = {
-                    key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
-                    for res in response
-                }
-                results.append(similarities)
+            response = util.semantic_search(
+                query_embeddings,
+                case_embeddings,
+                top_k=len(casebase),
+                query_chunk_size=self.query_chunk_size,
+                corpus_chunk_size=self.corpus_chunk_size,
+                score_function=util.dot_score,
+            )[0]
+            key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return results
+            return {
+                key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
+                for res in response
+            }
 
     __all__ += ["sentence_transformers"]
 
