@@ -223,6 +223,7 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     @override
     def metadata(self) -> JsonDict:
         return {
+            "retriever_func": get_metadata(self.retriever_func),
             "limit": self.limit,
             "min_similarity": self.min_similarity,
             "max_similarity": self.max_similarity,
@@ -236,7 +237,7 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
     def _filter(
         self,
-        similarities: Mapping[K, S],
+        similarities: SimMap[K, S],
     ) -> dict[K, S]:
         ranking: list[K] = similarities2ranking(similarities)
 
@@ -269,6 +270,14 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
     conversion_func: Callable[[V], U]
     retriever_func: RetrieverFunc[K, U, S]
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "conversion_func": get_metadata(self.conversion_func),
+            "retriever_func": get_metadata(self.retriever_func),
+        }
 
     @override
     def __call__(
