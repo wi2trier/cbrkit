@@ -8,6 +8,7 @@
 
 from . import (
     adapt,
+    cycle,
     dumpers,
     eval,
     helpers,
@@ -24,6 +25,7 @@ __all__ = [
     "retrieval",
     "adapt",
     "reuse",
+    "cycle",
     "eval",
     "typing",
     "helpers",
