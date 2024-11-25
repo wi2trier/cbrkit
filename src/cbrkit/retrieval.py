@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from multiprocessing import Pool
@@ -373,7 +374,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
 
 try:
-    from cohere import Client
+    from cohere import AsyncClient
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
@@ -389,7 +390,7 @@ try:
 
         model: str
         max_chunks_per_doc: int | None = None
-        client: Client = field(default_factory=Client)
+        client: AsyncClient = field(default_factory=AsyncClient)
         request_options: RequestOptions | None = None
 
         @property
@@ -406,26 +407,35 @@ try:
             self,
             pairs: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            results: list[dict[K, float]] = []
+            return asyncio.run(self._retrieve(pairs))
 
-            for casebase, query in pairs:
-                response = self.client.v2.rerank(
-                    model=self.model,
-                    query=query,
-                    documents=list(casebase.values()),
-                    return_documents=False,
-                    max_chunks_per_doc=self.max_chunks_per_doc,
-                    request_options=self.request_options,
-                )
-                key_index = {idx: key for idx, key in enumerate(casebase)}
+        async def _retrieve(
+            self,
+            pairs: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[Casebase[K, float]]:
+            return await asyncio.gather(
+                *(self._retrieve_single(query, casebase) for casebase, query in pairs)
+            )
 
-                similarities = {
-                    key_index[result.index]: result.relevance_score
-                    for result in response.results
-                }
-                results.append(similarities)
+        async def _retrieve_single(
+            self,
+            query: str,
+            casebase: Casebase[K, str],
+        ) -> dict[K, float]:
+            response = await self.client.v2.rerank(
+                model=self.model,
+                query=query,
+                documents=list(casebase.values()),
+                return_documents=False,
+                max_chunks_per_doc=self.max_chunks_per_doc,
+                request_options=self.request_options,
+            )
+            key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return results
+            return {
+                key_index[result.index]: result.relevance_score
+                for result in response.results
+            }
 
     __all__ += ["cohere"]
 
@@ -434,7 +444,7 @@ except ImportError:
 
 
 try:
-    from voyageai import Client  # type: ignore
+    from voyageai.client_async import AsyncClient
 
     @dataclass(slots=True, frozen=True)
     class voyageai[K](
@@ -449,7 +459,7 @@ try:
 
         model: str
         truncation: bool = True
-        client: Client = field(default_factory=Client)
+        client: AsyncClient = field(default_factory=AsyncClient)
 
         @property
         @override
@@ -464,24 +474,33 @@ try:
             self,
             pairs: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            results: list[dict[K, float]] = []
+            return asyncio.run(self._retrieve(pairs))
 
-            for casebase, query in pairs:
-                response = self.client.rerank(
-                    model=self.model,
-                    query=query,
-                    documents=list(casebase.values()),
-                    truncation=self.truncation,
-                )
-                key_index = {idx: key for idx, key in enumerate(casebase)}
+        async def _retrieve(
+            self,
+            pairs: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[Casebase[K, float]]:
+            return await asyncio.gather(
+                *(self._retrieve_single(query, casebase) for casebase, query in pairs)
+            )
 
-                similarities = {
-                    key_index[result.index]: result.relevance_score
-                    for result in response.results
-                }
-                results.append(similarities)
+        async def _retrieve_single(
+            self,
+            query: str,
+            casebase: Casebase[K, str],
+        ) -> dict[K, float]:
+            response = await self.client.rerank(
+                model=self.model,
+                query=query,
+                documents=list(casebase.values()),
+                truncation=self.truncation,
+            )
+            key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return results
+            return {
+                key_index[result.index]: result.relevance_score
+                for result in response.results
+            }
 
     __all__ += ["voyageai"]
 
