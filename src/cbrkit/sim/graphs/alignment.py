@@ -11,15 +11,14 @@ from ..collections import (
 )
 
 # Define type variables
-K = TypeVar('K')  # Key type
-N = TypeVar('N')  # Node data type
-E = TypeVar('E')  # Edge data type
-G = TypeVar('G')  # Graph data type
+K = TypeVar("K")  # Key type
+N = TypeVar("N")  # Node data type
+E = TypeVar("E")  # Edge data type
+G = TypeVar("G")  # Graph data type
 
 
 def get_outgoing_edges(
-        graph: Graph[K, N, E, G],
-        node: Node[K, N]
+    graph: Graph[K, N, E, G], node: Node[K, N]
 ) -> List[Edge[K, N, E]]:
     """Get outgoing edges for a node in the graph.
 
@@ -81,7 +80,9 @@ def is_sequential_workflow(graph: Graph[K, N, E, G]) -> bool:
     for edge in graph.edges.values():
         incoming_edges[edge.target.key] += 1
 
-    start_nodes = [node for node_key, node in graph.nodes.items() if incoming_edges[node_key] == 0]
+    start_nodes = [
+        node for node_key, node in graph.nodes.items() if incoming_edges[node_key] == 0
+    ]
 
     if len(start_nodes) != 1:
         return False
@@ -127,7 +128,9 @@ def get_node_sequence(graph: Graph[K, N, E, G]) -> List[Node[K, N]]:
     for edge in graph.edges.values():
         incoming_edges[edge.target.key] += 1
 
-    start_nodes = [node for node_key, node in graph.nodes.items() if incoming_edges[node_key] == 0]
+    start_nodes = [
+        node for node_key, node in graph.nodes.items() if incoming_edges[node_key] == 0
+    ]
     start_node = start_nodes[0]
 
     # Traverse the graph to get the node sequence
@@ -185,6 +188,7 @@ class DynamicTimeWarpingAlignment(SimPairFunc[Graph[K, N, E, G], float]):
         >>> dtw_align(graph1, graph2)  # Returns similarity score
         0.5
     """
+
     node_sim_func: SimSeqFunc[Node[K, N], Float]
 
     def _validate_inputs(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> None:
@@ -246,6 +250,7 @@ class SmithWatermanAlignment(SimPairFunc[Graph[K, N, E, G], float]):
         >>> sw_align(graph1, graph2)  # Returns similarity score
         0.666667  # Higher score for matching subsequences A->*->C
     """
+
     node_sim_func: SimSeqFunc[Node[K, N], Float]
 
     def _validate_inputs(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> None:
@@ -263,4 +268,8 @@ class SmithWatermanAlignment(SimPairFunc[Graph[K, N, E, G], float]):
         return smith_waterman_func()(alignment)
 
 
-__all__ = ["DynamicTimeWarpingAlignment", "SmithWatermanAlignment", "is_sequential_workflow"]
+__all__ = [
+    "DynamicTimeWarpingAlignment",
+    "SmithWatermanAlignment",
+    "is_sequential_workflow",
+]
