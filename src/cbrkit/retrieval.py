@@ -16,19 +16,17 @@ from .typing import (
     JsonDict,
     RetrieverFunc,
     SimMap,
-    SimSeq,
-    SimSeqOrMap,
     SupportsMetadata,
 )
 
 __all__ = [
     "build",
+    "transpose",
+    "dropout",
     "apply_queries",
     "apply_query",
     "Result",
     "ResultStep",
-    "base_retriever",
-    "transpose",
 ]
 
 
@@ -146,8 +144,7 @@ def apply_queries[Q, C, V, S: Float](
         ...             "miles": cbrkit.sim.numbers.linear(max=1000000),
         ...         },
         ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ...     ),
-        ...     limit=5,
+        ...     )
         ... )
         >>> result = cbrkit.retrieval.apply_queries(casebase, {"default": casebase[42]}, retriever)
     """
@@ -214,8 +211,9 @@ def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
         yield val[i : i + k]
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
-class base_retriever[K, V, S: Float](SupportsMetadata):
+@dataclass(slots=True, frozen=True)
+class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+    retriever_func: RetrieverFunc[K, V, S]
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
@@ -229,53 +227,38 @@ class base_retriever[K, V, S: Float](SupportsMetadata):
             "max_similarity": self.max_similarity,
         }
 
-    def preprocess(
-        self,
-        similarities: SimSeqOrMap[K, S],
-    ) -> list[Any]:
-        ranking = similarities2ranking(similarities)
-
-        if self.min_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) >= self.min_similarity
-            ]
-        if self.max_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) <= self.max_similarity
-            ]
-        if self.limit is not None:
-            ranking = ranking[: self.limit]
-
-        return ranking
-
-    def postprocess_seq(
-        self, similarities: SimSeq[S], index: Sequence[tuple[int, K]], total_pairs: int
+    @override
+    def __call__(
+        self, pairs: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[Casebase[K, S]]:
-        result: list[dict[K, S]] = [{} for _ in range(total_pairs)]
-        ranking = self.preprocess(similarities)
+        base_results = self.retriever_func(pairs)
+        final_results: list[dict[K, S]] = []
 
-        filtered_sims = [
-            sim if key in ranking else None for key, sim in enumerate(similarities)
-        ]
+        for similarities in base_results:
+            ranking = similarities2ranking(similarities)
 
-        for (idx, key), sim in zip(index, filtered_sims, strict=True):
-            if sim is not None:
-                result[idx][key] = sim
+            if self.min_similarity is not None:
+                ranking = [
+                    key
+                    for key in ranking
+                    if unpack_sim(similarities[key]) >= self.min_similarity
+                ]
+            if self.max_similarity is not None:
+                ranking = [
+                    key
+                    for key in ranking
+                    if unpack_sim(similarities[key]) <= self.max_similarity
+                ]
+            if self.limit is not None:
+                ranking = ranking[: self.limit]
 
-        return result
+            final_results.append({key: similarities[key] for key in ranking})
 
-    def postprocess_map(self, similarities: SimMap[K, S]) -> dict[K, S]:
-        ranking = self.preprocess(similarities)
-
-        return {key: sim for key, sim in similarities.items() if key in ranking}
+        return final_results
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
+class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -284,9 +267,6 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
         similarity_func: Similarity function to compute the similarity between cases.
         processes: Number of processes to use. If processes is less than 1, the number returned by os.cpu_count() is used.
         similarity_chunksize: Number of pairs to process in each chunk.
-        limit: Retriever function will return the top limit cases.
-        min_similarity: Return only cases with a similarity greater or equal than this.
-        max_similarity: Return only cases with a similarity less or equal than this.
 
     Returns:
         Returns the retriever function.
@@ -309,8 +289,7 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
         ...             ),
         ...         },
         ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ...     ),
-        ...     limit=5,
+        ...     )
         ... )
     """
 
@@ -322,7 +301,6 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
     @override
     def metadata(self) -> JsonDict:
         return {
-            **super(build, self).metadata,
             "similarity_func": get_metadata(self.similarity_func),
             "processes": self.processes,
             "similarity_chunksize": self.similarity_chunksize,
@@ -333,13 +311,17 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[Casebase[K, S]]:
         sim_func = SimSeqWrapper(self.similarity_func)
-        similarities: Sequence[S] = []
-        pairs_index: list[tuple[int, K]] = []
+        similarities: list[dict[K, S]] = []
+
+        flat_sims: Sequence[S] = []
+        flat_pairs_index: list[tuple[int, K]] = []
         flat_pairs: list[tuple[V, V]] = []
 
         for idx, (casebase, query) in enumerate(pairs):
+            similarities.append({})
+
             for key, case in casebase.items():
-                pairs_index.append((idx, key))
+                flat_pairs_index.append((idx, key))
                 flat_pairs.append((case, query))
 
         if self.processes != 1:
@@ -350,11 +332,14 @@ class build[K, V, S: Float](base_retriever[K, V, S], RetrieverFunc[K, V, S]):
                 sim_chunks = pool.map(sim_func, pair_chunks)
 
             for sim_chunk in sim_chunks:
-                similarities.extend(sim_chunk)
+                flat_sims.extend(sim_chunk)
         else:
-            similarities = sim_func(flat_pairs)
+            flat_sims = sim_func(flat_pairs)
 
-        return self.postprocess_seq(similarities, pairs_index, len(pairs))
+        for (idx, key), sim in zip(flat_pairs_index, flat_sims, strict=True):
+            similarities[idx][key] = sim
+
+        return similarities
 
 
 try:
@@ -363,8 +348,8 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class cohere[K](
-        base_retriever[K, str, float],
         RetrieverFunc[K, str, float],
+        SupportsMetadata,
     ):
         """Semantic similarity using Cohere's rerank models
 
@@ -381,7 +366,6 @@ try:
         @override
         def metadata(self) -> JsonDict:
             return {
-                **super(cohere, self).metadata,
                 "model": self.model,
                 "max_chunks_per_doc": self.max_chunks_per_doc,
                 "request_options": str(self.request_options),
@@ -409,7 +393,7 @@ try:
                     key_index[result.index]: result.relevance_score
                     for result in response.results
                 }
-                results.append(self.postprocess_map(similarities))
+                results.append(similarities)
 
             return results
 
@@ -424,8 +408,8 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class voyageai[K](
-        base_retriever[K, str, float],
         RetrieverFunc[K, str, float],
+        SupportsMetadata,
     ):
         """Semantic similarity using Voyage AI's rerank models
 
@@ -441,7 +425,6 @@ try:
         @override
         def metadata(self) -> JsonDict:
             return {
-                **super(voyageai, self).metadata,
                 "model": self.model,
                 "truncation": self.truncation,
             }
@@ -466,7 +449,7 @@ try:
                     key_index[result.index]: result.relevance_score
                     for result in response.results
                 }
-                results.append(self.postprocess_map(similarities))
+                results.append(similarities)
 
             return results
 
@@ -480,8 +463,8 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class sentence_transformers[K](
-        base_retriever[K, str, float],
         RetrieverFunc[K, str, float],
+        SupportsMetadata,
     ):
         """Semantic similarity using sentence transformers
 
@@ -498,7 +481,6 @@ try:
         @override
         def metadata(self) -> JsonDict:
             return {
-                **super(sentence_transformers, self).metadata,
                 "model": self.model if isinstance(self.model, str) else "custom",
                 "query_chunk_size": self.query_chunk_size,
                 "corpus_chunk_size": self.corpus_chunk_size,
@@ -542,7 +524,7 @@ try:
                     key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
                     for res in response
                 }
-                results.append(self.postprocess_map(similarities))
+                results.append(similarities)
 
             return results
 

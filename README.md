@@ -210,7 +210,6 @@ You first build a retrieval pipeline by specifying a global similarity function 
 ```python
 retriever = cbrkit.retrieval.build(
     cbrkit.sim.attribute_value(...),
-    limit=10
 )
 ```
 
@@ -230,8 +229,8 @@ In some cases, it is useful to combine multiple retrieval pipelines, for example
 To use this pattern, first create the corresponding retrievers using the builder:
 
 ```python
-retriever1 = cbrkit.retrieval.build(..., min_similarity=0.5, limit=20)
-retriever2 = cbrkit.retrieval.build(..., limit=10)
+retriever1 = cbrkit.retrieval.dropout(..., min_similarity=0.5, limit=20)
+retriever2 = cbrkit.retrieval.dropout(..., limit=10)
 ```
 
 Then apply all of them sequentially by passing them as a list or tuple to the `apply_query` function:
@@ -394,9 +393,11 @@ For example, the file `./retriever_module.py` could contain the following code:
 ```python
 import cbrkit
 
-custom_retriever = cbrkit.retrieval.build(
-    cbrkit.sim.attribute_value(...),
-    limit=10
+custom_retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.build(
+        cbrkit.sim.attribute_value(...),
+    ),
+    limit=10,
 )
 ```
 

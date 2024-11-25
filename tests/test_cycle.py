@@ -29,7 +29,7 @@ def test_simple():
         aggregator=cbrkit.sim.aggregator(pooling="mean"),
     )
 
-    retriever = cbrkit.retrieval.build(sim_func, limit=5)
+    retriever = cbrkit.retrieval.dropout(cbrkit.retrieval.build(sim_func), limit=5)
     retrieval_result = cbrkit.retrieval.apply_query(casebase, query, retriever)
 
     reuse_func = cbrkit.reuse.build(
