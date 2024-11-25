@@ -361,9 +361,9 @@ try:
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
-    class cohere[K, V](
-        base_retriever[K, V, float],
-        RetrieverFunc[K, V, float],
+    class cohere[K](
+        base_retriever[K, str, float],
+        RetrieverFunc[K, str, float],
     ):
         """Semantic similarity using Cohere's rerank models
 
@@ -372,7 +372,6 @@ try:
         """
 
         model: str
-        conversion_func: Callable[[V], str]
         max_chunks_per_doc: int | None = None
         client: Client = field(default_factory=Client)
         request_options: RequestOptions | None = None
@@ -383,7 +382,6 @@ try:
             return {
                 **super(cohere, self).metadata,
                 "model": self.model,
-                "conversion_func": get_metadata(self.conversion_func),
                 "max_chunks_per_doc": self.max_chunks_per_doc,
                 "request_options": str(self.request_options),
             }
@@ -391,17 +389,15 @@ try:
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, V], V]],
+            pairs: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             results: list[dict[K, float]] = []
 
             for casebase, query in pairs:
                 response = self.client.v2.rerank(
                     model=self.model,
-                    query=self.conversion_func(query),
-                    documents=[
-                        self.conversion_func(value) for value in casebase.values()
-                    ],
+                    query=query,
+                    documents=list(casebase.values()),
                     return_documents=False,
                     max_chunks_per_doc=self.max_chunks_per_doc,
                     request_options=self.request_options,
@@ -426,9 +422,9 @@ try:
     from voyageai import Client  # type: ignore
 
     @dataclass(slots=True, frozen=True)
-    class voyageai[K, V](
-        base_retriever[K, V, float],
-        RetrieverFunc[K, V, float],
+    class voyageai[K](
+        base_retriever[K, str, float],
+        RetrieverFunc[K, str, float],
     ):
         """Semantic similarity using Voyage AI's rerank models
 
@@ -437,7 +433,6 @@ try:
         """
 
         model: str
-        conversion_func: Callable[[V], str]
         truncation: bool = True
         client: Client = field(default_factory=Client)
 
@@ -447,24 +442,21 @@ try:
             return {
                 **super(voyageai, self).metadata,
                 "model": self.model,
-                "conversion_func": get_metadata(self.conversion_func),
                 "truncation": self.truncation,
             }
 
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, V], V]],
+            pairs: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             results: list[dict[K, float]] = []
 
             for casebase, query in pairs:
                 response = self.client.rerank(
                     model=self.model,
-                    query=self.conversion_func(query),
-                    documents=[
-                        self.conversion_func(value) for value in casebase.values()
-                    ],
+                    query=query,
+                    documents=list(casebase.values()),
                     truncation=self.truncation,
                 )
                 key_index = {idx: key for idx, key in enumerate(casebase)}
@@ -486,9 +478,9 @@ try:
     from sentence_transformers import SentenceTransformer, util
 
     @dataclass(slots=True, frozen=True)
-    class sentence_transformers[K, V](
-        base_retriever[K, V, float],
-        RetrieverFunc[K, V, float],
+    class sentence_transformers[K](
+        base_retriever[K, str, float],
+        RetrieverFunc[K, str, float],
     ):
         """Semantic similarity using sentence transformers
 
@@ -497,7 +489,6 @@ try:
         """
 
         model: SentenceTransformer | str
-        conversion_func: Callable[[V], str]
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
         device: str = "cpu"
@@ -508,7 +499,6 @@ try:
             return {
                 **super(sentence_transformers, self).metadata,
                 "model": self.model if isinstance(self.model, str) else "custom",
-                "conversion_func": get_metadata(self.conversion_func),
                 "query_chunk_size": self.query_chunk_size,
                 "corpus_chunk_size": self.corpus_chunk_size,
                 "device": self.device,
@@ -517,7 +507,7 @@ try:
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, V], V]],
+            pairs: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             model = (
                 SentenceTransformer(self.model, device=self.device)
@@ -527,10 +517,8 @@ try:
             results: list[dict[K, float]] = []
 
             for casebase, query in pairs:
-                case_texts = [
-                    self.conversion_func(value) for value in casebase.values()
-                ]
-                query_text = self.conversion_func(query)
+                case_texts = list(casebase.values())
+                query_text = query
                 embeddings = model.encode(
                     [query_text] + case_texts, convert_to_tensor=True
                 )
@@ -561,3 +549,33 @@ try:
 
 except ImportError:
     pass
+
+
+@dataclass(slots=True, frozen=True)
+class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+    """Transforms a retriever function from one type to another.
+
+    Args:
+        conversion_func: A function that converts the input values from one type to another.
+        retriever_func: The retriever function to be used on the converted values.
+    """
+
+    conversion_func: Callable[[V], U]
+    retriever_func: RetrieverFunc[K, U, S]
+
+    @override
+    def __call__(
+        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[Casebase[K, S]]:
+        return self.retriever_func(
+            [
+                (
+                    {
+                        key: self.conversion_func(value)
+                        for key, value in casebase.items()
+                    },
+                    self.conversion_func(query),
+                )
+                for casebase, query in pairs
+            ]
+        )
