@@ -20,6 +20,7 @@ pydantic_dataclass_kwargs = {
 
 RetrievalResult = dataclass(cbrkit.retrieval.Result, **pydantic_dataclass_kwargs)
 ReuseResult = dataclass(cbrkit.reuse.Result, **pydantic_dataclass_kwargs)
+CycleResult = dataclass(cbrkit.cycle.Result, **pydantic_dataclass_kwargs)
 
 
 class Settings(BaseSettings):
@@ -107,4 +108,17 @@ def named_reuser(
         casebase,
         queries,
         reuser_map[name],
+    )
+
+
+@app.post("/retrieve", response_model=CycleResult)
+def cycle(
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+) -> cbrkit.cycle.Result:
+    return cbrkit.cycle.apply_queries(
+        casebase,
+        queries,
+        retriever,
+        reuser,
     )
