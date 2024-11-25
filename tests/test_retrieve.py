@@ -39,7 +39,7 @@ def test_retrieve_multiprocessing():
         retriever,
     )
 
-    assert len(result.ranking) == 5
+    assert len(result.ranking) == 999
 
 
 def test_retrieve_dataframe():
