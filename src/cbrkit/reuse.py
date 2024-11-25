@@ -25,6 +25,7 @@ from .typing import (
 )
 
 __all__ = [
+    "dropout",
     "build",
     "apply_queries",
     "apply_query",
@@ -148,7 +149,8 @@ class Result[Q, C, V, S: Float]:
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class base_reuser[K, V, S: Float](SupportsMetadata):
+class dropout[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
+    reuser_func: ReuserFunc[K, V, S]
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
@@ -157,16 +159,24 @@ class base_reuser[K, V, S: Float](SupportsMetadata):
     @override
     def metadata(self) -> JsonDict:
         return {
+            "reuser_func": get_metadata(self.reuser_func),
             "limit": self.limit,
             "min_similarity": self.min_similarity,
             "max_similarity": self.max_similarity,
         }
 
-    def postprocess(
-        self, casebase: Casebase[K, tuple[V | None, S]]
+    @override
+    def __call__(
+        self, pairs: Sequence[tuple[RetrievedCasebase[K, V, S], V]]
+    ) -> Sequence[ReusedCasebase[K, V, S]]:
+        return [self._filter(casebase) for casebase in self.reuser_func(pairs)]
+
+    def _filter(
+        self,
+        casebase: Casebase[K, tuple[V | None, S]],
     ) -> Casebase[K, tuple[V | None, S]]:
         similarities = {key: sim for key, (_, sim) in casebase.items()}
-        ranking = similarities2ranking(similarities)
+        ranking: list[K] = similarities2ranking(similarities)
 
         if self.min_similarity is not None:
             ranking = [
@@ -187,7 +197,7 @@ class base_reuser[K, V, S: Float](SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](base_reuser[K, V, S], ReuserFunc[K, V, S]):
+class build[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
     """Builds a casebase by adapting cases using an adaptation function and a similarity function.
 
     Args:
@@ -208,10 +218,10 @@ class build[K, V, S: Float](base_reuser[K, V, S], ReuserFunc[K, V, S]):
     @override
     def metadata(self) -> JsonDict:
         return {
-            **super(build, self).metadata,
             "adaptation_func": get_metadata(self.adaptation_func),
             "similarity_func": get_metadata(self.similarity_func),
             "max_similarity_decrease": self.max_similarity_decrease,
+            "processes": self.processes,
         }
 
     @override
