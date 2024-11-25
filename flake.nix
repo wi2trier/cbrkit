@@ -12,21 +12,27 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     pyproject-nix = {
-      url = "github:nix-community/pyproject.nix";
+      url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     uv2nix = {
-      url = "github:adisbladis/uv2nix";
+      url = "github:pyproject-nix/uv2nix";
       inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
   nixConfig = {
     extra-substituters = [
-      "https://nix-community.cachix.org"
+      "https://pyproject-nix.cachix.org"
     ];
     extra-trusted-public-keys = [
-      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "pyproject-nix.cachix.org-1:UNzugsOlQIu2iOz0VyZNBQm2JSrL/kwxeCcFGw+jMe0="
     ];
   };
   outputs =
@@ -84,12 +90,12 @@
             };
           };
           legacyPackages.pythonSet = pkgs.callPackage ./default.nix {
-            inherit (inputs) uv2nix pyproject-nix;
+            inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
           };
           packages = {
             inherit (pythonSet.cbrkit.passthru) docs;
             default = config.packages.cbrkit;
-            cbrkit = pythonSet.mkApp "optionals";
+            cbrkit = pythonSet.mkApp [ "all" ];
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "cbrkit";
               tag = "latest";
