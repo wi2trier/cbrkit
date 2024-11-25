@@ -14,12 +14,10 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class dtw[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
-        node_sim_func: SimSeqFunc[Node[K, N], Float]
         """
         Performs Dynamic Time Warping alignment on sequential workflows.
 
-        Example:
-            >>> from cbrkit.sim.graphs._model import Graph, Node
+        Examples:
             >>> # Create two simple sequential graphs
             >>> g1 = Graph()
             >>> g1.add_node(Node("1", "A"))
@@ -35,6 +33,8 @@ try:
             >>> dtw(g1, g2)
             2.0
         """
+
+        node_sim_func: SimSeqFunc[Node[K, N], Float]
 
         @override
         def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
@@ -63,13 +63,10 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class smith_waterman[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
-        node_sim_func: SimSeqFunc[Node[K, N], Float]
         """
         Performs Smith-Waterman alignment on sequential workflows.
 
-        Example:
-            >>> from cbrkit.sim.graphs._model import Graph, Node
-            >>> # Create two simple sequential graphs
+        Examples:
             >>> g1 = Graph()
             >>> g1.add_node(Node("1", "A"))
             >>> g1.add_node(Node("2", "B"))
@@ -84,6 +81,8 @@ try:
             >>> swa(g1, g2)
             1.0
         """
+
+        node_sim_func: SimSeqFunc[Node[K, N], Float]
 
         @override
         def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
