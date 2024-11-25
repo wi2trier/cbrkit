@@ -258,6 +258,36 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
+class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+    """Transforms a retriever function from one type to another.
+
+    Args:
+        conversion_func: A function that converts the input values from one type to another.
+        retriever_func: The retriever function to be used on the converted values.
+    """
+
+    conversion_func: Callable[[V], U]
+    retriever_func: RetrieverFunc[K, U, S]
+
+    @override
+    def __call__(
+        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[Casebase[K, S]]:
+        return self.retriever_func(
+            [
+                (
+                    {
+                        key: self.conversion_func(value)
+                        for key, value in casebase.items()
+                    },
+                    self.conversion_func(query),
+                )
+                for casebase, query in pairs
+            ]
+        )
+
+
+@dataclass(slots=True, frozen=True)
 class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     """Based on the similarity function this function creates a retriever function.
 
@@ -532,33 +562,3 @@ try:
 
 except ImportError:
     pass
-
-
-@dataclass(slots=True, frozen=True)
-class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
-    """Transforms a retriever function from one type to another.
-
-    Args:
-        conversion_func: A function that converts the input values from one type to another.
-        retriever_func: The retriever function to be used on the converted values.
-    """
-
-    conversion_func: Callable[[V], U]
-    retriever_func: RetrieverFunc[K, U, S]
-
-    @override
-    def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, S]]:
-        return self.retriever_func(
-            [
-                (
-                    {
-                        key: self.conversion_func(value)
-                        for key, value in casebase.items()
-                    },
-                    self.conversion_func(query),
-                )
-                for casebase, query in pairs
-            ]
-        )
