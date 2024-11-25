@@ -104,8 +104,5 @@ doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
 [tool.uv]
 default-groups = ["test", "docs"]
 
-[tool.ruff]
-target-version = "py312"
-
 [tool.ruff.lint.pydocstyle]
 convention = "google"
