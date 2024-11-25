@@ -15,22 +15,23 @@ def test_retrieve_multiprocessing():
 
     df = pl.read_csv(casebase_file)
     casebase = cbrkit.loaders.polars(df)
-    retriever = cbrkit.retrieval.build(
-        cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                    "./data/cars-taxonomy.yaml",
-                    measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
-                ),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": _custom_numeric_sim,
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ),
-        limit=5,
-        processes=2,
+    retriever = cbrkit.retrieval.dropout(
+        cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                        "./data/cars-taxonomy.yaml",
+                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    ),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": _custom_numeric_sim,
+                },
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            ),
+            processes=2,
+        )
     )
     result = cbrkit.retrieval.apply_query(
         casebase,
@@ -48,19 +49,21 @@ def test_retrieve_dataframe():
     df = pl.read_csv(casebase_file)
     casebase = cbrkit.loaders.polars(df)
     query = casebase[query_name]
-    retriever = cbrkit.retrieval.build(
-        cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                    "./data/cars-taxonomy.yaml",
-                    measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
-                ),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=1000000),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
+    retriever = cbrkit.retrieval.dropout(
+        cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                        "./data/cars-taxonomy.yaml",
+                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    ),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": cbrkit.sim.numbers.linear(max=1000000),
+                },
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            ),
         ),
         limit=5,
     )
@@ -92,19 +95,21 @@ def test_retrieve_dataframe_custom_query():
         "miles": 100000,
     }
 
-    retriever = cbrkit.retrieval.build(
-        cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                    "./data/cars-taxonomy.yaml",
-                    measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
-                ),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": _custom_numeric_sim,
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
+    retriever = cbrkit.retrieval.dropout(
+        cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                        "./data/cars-taxonomy.yaml",
+                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    ),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": _custom_numeric_sim,
+                },
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            ),
         ),
         limit=5,
     )
@@ -125,22 +130,24 @@ def test_retrieve_nested():
 
     casebase: dict[int, Any] = cbrkit.loaders.yaml(casebase_file)
     query = casebase[query_name]
-    retriever = cbrkit.retrieval.build(
-        cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "model": cbrkit.sim.attribute_value(
-                    attributes={
-                        "make": cbrkit.sim.strings.levenshtein(),
-                        "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                            "./data/cars-taxonomy.yaml",
-                            measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
-                        ),
-                    }
-                ),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
+    retriever = cbrkit.retrieval.dropout(
+        cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "model": cbrkit.sim.attribute_value(
+                        attributes={
+                            "make": cbrkit.sim.strings.levenshtein(),
+                            "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                                "./data/cars-taxonomy.yaml",
+                                measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                            ),
+                        }
+                    ),
+                },
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            ),
         ),
         min_similarity=0.5,
     )
