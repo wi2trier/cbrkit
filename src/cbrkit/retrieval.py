@@ -232,7 +232,7 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     @override
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, S]]:
+    ) -> Sequence[SimMap[K, S]]:
         return [self._filter(entry) for entry in self.retriever_func(pairs)]
 
     def _filter(
@@ -282,7 +282,7 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     @override
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, S]]:
+    ) -> Sequence[SimMap[K, S]]:
         return self.retriever_func(
             [
                 (
@@ -349,7 +349,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     @override
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[Casebase[K, S]]:
+    ) -> Sequence[SimMap[K, S]]:
         sim_func = SimSeqWrapper(self.similarity_func)
         similarities: list[dict[K, S]] = []
 
