@@ -5,6 +5,7 @@
   fetchFromGitHub,
   uv2nix,
   pyproject-nix,
+  pyproject-build-systems,
   python3,
   tbb_2021_11,
 }:
@@ -26,7 +27,6 @@ let
       name:
       prev.${name}.overrideAttrs (old: {
         autoPatchelfIgnoreMissingDeps = true;
-        dontUsePyprojectBytecode = true;
       })
     );
   buildSystemOverlay =
@@ -132,6 +132,7 @@ let
   };
   pythonSet = baseSet.overrideScope (
     lib.composeManyExtensions [
+      pyproject-build-systems.overlays.default
       projectOverlay
       cudaOverlay
       buildSystemOverlay
@@ -156,5 +157,11 @@ let
 in
 pythonSet
 // {
-  mkApp = depsName: addMeta (pythonSet.mkVirtualEnv "cbrkit-env" workspace.deps.${depsName});
+  mkApp =
+    cbrkitSpec:
+    addMeta (
+      pythonSet.mkVirtualEnv "cbrkit-env" {
+        cbrkit = cbrkitSpec;
+      }
+    );
 }
