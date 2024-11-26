@@ -57,7 +57,7 @@ class GraphMapping[K, N, E, G]:
 
     x: Graph[K, N, E, G]
     y: Graph[K, N, E, G]
-    # mappings are from x to y
+    # mappings are from y to x
     node_mappings: dict[K, K] = field(default_factory=dict)
     edge_mappings: dict[K, K] = field(default_factory=dict)
 
@@ -73,21 +73,6 @@ class GraphMapping[K, N, E, G]:
 
         return set(self.y.edges).difference(self.edge_mappings.keys())
 
-    def _is_node_mapped(self, x: K) -> bool:
-        """Check if given node is already mapped"""
-
-        return x in self.node_mappings
-
-    def _is_edge_mapped(self, x: K) -> bool:
-        """Check if given edge is already mapped"""
-
-        return x in self.edge_mappings
-
-    def _are_nodes_mapped(self, x: K, y: K) -> bool:
-        """Check if the two given nodes are mapped to each other"""
-
-        return x in self.node_mappings and self.node_mappings[x] == y
-
     def is_legal_mapping(self, x: K, y: K, kind: ElementKind) -> bool:
         """Check if mapping is legal"""
 
@@ -101,18 +86,18 @@ class GraphMapping[K, N, E, G]:
     def is_legal_node_mapping(self, x: K, y: K) -> bool:
         """Check if mapping is legal"""
 
-        return not (self._is_node_mapped(x) or type(x) is not type(y))
+        return not (y in self.node_mappings or type(x) is not type(y))
 
     def is_legal_edge_mapping(self, x: K, y: K) -> bool:
         """Check if mapping is legal"""
 
         return not (
-            self._is_edge_mapped(x)
+            y in self.edge_mappings
             or not self.is_legal_node_mapping(
-                self.y.edges[y].source.key, self.x.edges[x].source.key
+                self.x.edges[x].source.key, self.y.edges[y].source.key
             )
             or not self.is_legal_node_mapping(
-                self.y.edges[y].target.key, self.x.edges[x].target.key
+                self.x.edges[x].target.key, self.y.edges[y].target.key
             )
         )
 
@@ -120,20 +105,10 @@ class GraphMapping[K, N, E, G]:
         """Create a new mapping"""
 
         if kind == "node":
-            self.map_nodes(x, y)
+            self.node_mappings[y] = x
 
         elif kind == "edge":
-            self.map_edges(x, y)
-
-    def map_nodes(self, x: K, y: K) -> None:
-        """Create new node mapping"""
-
-        self.node_mappings[x] = y
-
-    def map_edges(self, x: K, y: K) -> None:
-        """Create new edge mapping"""
-
-        self.edge_mappings[x] = y
+            self.edge_mappings[y] = x
 
 
 @dataclass(slots=True)
@@ -304,11 +279,11 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
         """Function to compute the costs of all previous steps"""
 
         node_sims = self.node_sim_func(
-            [(s.x.nodes[x], s.y.nodes[y]) for x, y in s.mapping.node_mappings.items()]
+            [(s.x.nodes[x], s.y.nodes[y]) for y, x in s.mapping.node_mappings.items()]
         )
 
         edge_sims = self.edge_sim_func(
-            [(s.x.edges[x], s.y.edges[y]) for x, y in s.mapping.edge_mappings.items()]
+            [(s.x.edges[x], s.y.edges[y]) for y, x in s.mapping.edge_mappings.items()]
         )
 
         all_sims = unpack_sims(itertools.chain(node_sims, edge_sims))
