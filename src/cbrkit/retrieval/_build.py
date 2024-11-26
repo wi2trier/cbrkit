@@ -5,7 +5,6 @@ from typing import override
 
 from ..helpers import (
     SimSeqWrapper,
-    get_metadata,
     similarities2ranking,
     unpack_sim,
 )
@@ -13,10 +12,8 @@ from ..typing import (
     AnySimFunc,
     Casebase,
     Float,
-    JsonDict,
     RetrieverFunc,
     SimMap,
-    SupportsMetadata,
 )
 
 
@@ -33,21 +30,11 @@ def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
 
 
 @dataclass(slots=True, frozen=True)
-class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
     retriever_func: RetrieverFunc[K, V, S]
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "retriever_func": get_metadata(self.retriever_func),
-            "limit": self.limit,
-            "min_similarity": self.min_similarity,
-            "max_similarity": self.max_similarity,
-        }
 
     @override
     def __call__(
@@ -80,7 +67,7 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S]):
     """Transforms a retriever function from one type to another.
 
     Args:
@@ -90,14 +77,6 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
     conversion_func: Callable[[V], U]
     retriever_func: RetrieverFunc[K, U, S]
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "conversion_func": get_metadata(self.conversion_func),
-            "retriever_func": get_metadata(self.retriever_func),
-        }
 
     @override
     def __call__(
@@ -118,7 +97,7 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
+class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     """Based on the similarity function this function creates a retriever function.
 
     The given limit will be applied after filtering for min/max similarity.
@@ -156,15 +135,6 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S], SupportsMetadata):
     similarity_func: AnySimFunc[V, S]
     processes: int = 1
     similarity_chunksize: int = 1
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "similarity_func": get_metadata(self.similarity_func),
-            "processes": self.processes,
-            "similarity_chunksize": self.similarity_chunksize,
-        }
 
     @override
     def __call__(

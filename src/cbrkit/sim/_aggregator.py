@@ -3,14 +3,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, override
 
-from ..helpers import get_name, unpack_sim
+from ..helpers import unpack_sim
 from ..typing import (
     AggregatorFunc,
     Float,
-    JsonDict,
     PoolingFunc,
     SimSeqOrMap,
-    SupportsMetadata,
 )
 
 __all__ = [
@@ -50,7 +48,7 @@ pooling_funcs: dict[PoolingName, PoolingFunc] = {
 
 
 @dataclass(slots=True, frozen=True)
-class aggregator[K](AggregatorFunc[K, Float], SupportsMetadata):
+class aggregator[K](AggregatorFunc[K, Float]):
     """
     Aggregates local similarities to a global similarity using the specified pooling function.
 
@@ -74,19 +72,6 @@ class aggregator[K](AggregatorFunc[K, Float], SupportsMetadata):
     pooling: PoolingName | PoolingFunc = "mean"
     pooling_weights: SimSeqOrMap[K, float] | None = None
     default_pooling_weight: float = 1.0
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "pooling": self.pooling
-            if isinstance(self.pooling, str)
-            else get_name(self.pooling),
-            "pooling_weights": {str(k): v for k, v in self.pooling_weights.items()}
-            if isinstance(self.pooling_weights, Mapping)
-            else self.pooling_weights,
-            "default_pooling_weight": self.default_pooling_weight,
-        }
 
     @override
     def __call__(self, similarities: SimSeqOrMap[K, Float]) -> float:

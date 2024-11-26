@@ -9,7 +9,6 @@ from typing import Literal, Protocol, override
 
 from cbrkit.helpers import (
     SimSeqWrapper,
-    get_metadata,
     unpack_sim,
     unpack_sims,
 )
@@ -22,10 +21,8 @@ from cbrkit.sim.graphs._model import (
 from cbrkit.typing import (
     AnySimFunc,
     Float,
-    JsonDict,
     SimPairFunc,
     SimSeqFunc,
-    SupportsMetadata,
 )
 
 type ElementKind = Literal["node", "edge"]
@@ -187,10 +184,7 @@ class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
 
 
 @dataclass(slots=True)
-class astar[K, N, E, G](
-    SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
-    SupportsMetadata,
-):
+class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
@@ -244,18 +238,6 @@ class astar[K, N, E, G](
         self.select_func = (
             getattr(self, select_func) if isinstance(select_func, str) else select_func
         )
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "node_sim_func": get_metadata(self.node_sim_func),
-            "edge_sim_func": get_metadata(self.edge_sim_func),
-            "queue_limit": self.queue_limit,
-            "future_cost_func": get_metadata(self.future_cost_func),
-            "past_cost_func": get_metadata(self.past_cost_func),
-            "select_func": get_metadata(self.select_func),
-        }
 
     def select1(
         self,

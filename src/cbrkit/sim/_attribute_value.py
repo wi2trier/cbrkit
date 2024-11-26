@@ -2,16 +2,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import SimSeqWrapper, get_metadata
+from ..helpers import SimSeqWrapper
 from ..typing import (
     AggregatorFunc,
     AnnotatedFloat,
     AnySimFunc,
     Float,
-    JsonDict,
     SimSeq,
     SimSeqFunc,
-    SupportsMetadata,
 )
 from ._aggregator import aggregator
 
@@ -35,9 +33,7 @@ default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[V, S: Float](
-    SimSeqFunc[V, AttributeValueSim[S]], SupportsMetadata
-):
+class attribute_value[V, S: Float](SimSeqFunc[V, AttributeValueSim[S]]):
     """Similarity function that computes the attribute value similarity between two cases.
 
     Args:
@@ -64,17 +60,6 @@ class attribute_value[V, S: Float](
     attributes: Mapping[str, AnySimFunc[Any, S]]
     aggregator: AggregatorFunc[str, S] = default_aggregator
     value_getter: Callable[[Any, str], Any] = default_value_getter
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "attributes": {
-                key: get_metadata(value) for key, value in self.attributes.items()
-            },
-            "aggregator": get_metadata(self.aggregator),
-            "value_getter": get_metadata(self.value_getter),
-        }
 
     @override
     def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[AttributeValueSim[S]]:

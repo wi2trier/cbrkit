@@ -13,11 +13,11 @@ from typing import Literal, cast, override
 
 from ...typing import (
     FilePath,
+    HasMetadata,
     JsonDict,
     SimPairFunc,
     SimSeq,
     SimSeqFunc,
-    SupportsMetadata,
 )
 from ..generic import static_table
 from . import taxonomy
@@ -52,7 +52,7 @@ try:
     from spacy.language import Language
 
     @dataclass(slots=True)
-    class spacy(SimSeqFunc[str, float], SupportsMetadata):
+    class spacy(SimSeqFunc[str, float], HasMetadata):
         """Semantic similarity using [spaCy](https://spacy.io/)
 
         Args:
@@ -94,7 +94,7 @@ try:
     from sentence_transformers import SentenceTransformer
 
     @dataclass(slots=True)
-    class sentence_transformers(SimSeqFunc[str, float], SupportsMetadata):
+    class sentence_transformers(SimSeqFunc[str, float], HasMetadata):
         """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
 
         Args:
@@ -137,7 +137,7 @@ try:
     from openai import OpenAI
 
     @dataclass(slots=True, frozen=True)
-    class openai(SimSeqFunc[str, float], SupportsMetadata):
+    class openai(SimSeqFunc[str, float]):
         """Semantic similarity using OpenAI's embedding models
 
         Args:
@@ -145,12 +145,7 @@ try:
         """
 
         model: str
-        client: OpenAI = field(default_factory=OpenAI)
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {"model": self.model}
+        client: OpenAI = field(default_factory=OpenAI, repr=False)
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
@@ -176,7 +171,7 @@ try:
     from ollama import Client, Options
 
     @dataclass(slots=True, frozen=True)
-    class ollama(SimSeqFunc[str, float], SupportsMetadata):
+    class ollama(SimSeqFunc[str, float]):
         """Semantic similarity using Ollama's embedding models
 
         Args:
@@ -187,17 +182,7 @@ try:
         truncate: bool = True
         options: Options | None = None
         keep_alive: float | str | None = None
-        client: Client = field(default_factory=Client)
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "model": self.model,
-                "truncate": self.truncate,
-                "keep_alive": self.keep_alive,
-                "options": str(self.options),
-            }
+        client: Client = field(default_factory=Client, repr=False)
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
@@ -226,7 +211,7 @@ try:
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
-    class cohere(SimSeqFunc[str, float], SupportsMetadata):
+    class cohere(SimSeqFunc[str, float]):
         """Semantic similarity using Cohere's embedding models
 
         Args:
@@ -234,18 +219,9 @@ try:
         """
 
         model: str
-        client: Client = field(default_factory=Client)
+        client: Client = field(default_factory=Client, repr=False)
         truncate: Literal["NONE", "START", "END"] | None = None
         request_options: RequestOptions | None = None
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "model": self.model,
-                "truncate": self.truncate,
-                "request_options": str(self.request_options),
-            }
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
@@ -288,7 +264,7 @@ try:
     from voyageai import Client  # type: ignore
 
     @dataclass(slots=True, frozen=True)
-    class voyageai(SimSeqFunc[str, float], SupportsMetadata):
+    class voyageai(SimSeqFunc[str, float]):
         """Semantic similarity using Voyage AI's embedding models
 
         Args:
@@ -296,16 +272,8 @@ try:
         """
 
         model: str
-        client: Client = field(default_factory=Client)
+        client: Client = field(default_factory=Client, repr=False)
         truncation: bool = True
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "model": self.model,
-                "truncation": self.truncation,
-            }
 
         @override
         def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
@@ -342,7 +310,7 @@ try:
     import Levenshtein as pyLevenshtein
 
     @dataclass(slots=True, frozen=True)
-    class levenshtein(SimPairFunc[str, float], SupportsMetadata):
+    class levenshtein(SimPairFunc[str, float]):
         """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
 
         Args:
@@ -367,7 +335,7 @@ try:
             return pyLevenshtein.ratio(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
-    class jaro(SimPairFunc[str, float], SupportsMetadata):
+    class jaro(SimPairFunc[str, float]):
         """Jaro similarity function to compute similarity between two strings.
 
         Args:
@@ -388,7 +356,7 @@ try:
             return pyLevenshtein.jaro(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
-    class jaro_winkler(SimPairFunc[str, float], SupportsMetadata):
+    class jaro_winkler(SimPairFunc[str, float]):
         """Jaro-Winkler similarity function to compute similarity between two strings.
 
         Args:
@@ -422,7 +390,7 @@ try:
     from nltk.util import ngrams as nltk_ngrams
 
     @dataclass(slots=True, frozen=True)
-    class ngram(SimPairFunc[str, float], SupportsMetadata):
+    class ngram(SimPairFunc[str, float]):
         """N-gram similarity function to compute [similarity](https://procake.pages.gitlab.rlp.net/procake-wiki/sim/strings/#n-gram) between two strings.
 
         Args:
@@ -439,15 +407,6 @@ try:
         n: int
         case_sensitive: bool = False
         tokenizer: Callable[[str], Sequence[str]] | None = None
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "n": self.n,
-                "case_sensitive": self.case_sensitive,
-                "tokenizer": self.tokenizer is not None,
-            }
 
         @override
         def __call__(self, x: str, y: str) -> float:
@@ -470,7 +429,7 @@ except ImportError:
 
 
 @dataclass(slots=True, frozen=True)
-class regex(SimPairFunc[str, float], SupportsMetadata):
+class regex(SimPairFunc[str, float]):
     """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Examples:
@@ -488,7 +447,7 @@ class regex(SimPairFunc[str, float], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class glob(SimPairFunc[str, float], SupportsMetadata):
+class glob(SimPairFunc[str, float]):
     """Compares a case x to a query y, written as a glob pattern, which can contain wildcards. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Args:

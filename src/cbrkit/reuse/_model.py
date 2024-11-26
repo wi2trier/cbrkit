@@ -5,7 +5,7 @@ from typing import Any
 from ..typing import (
     Casebase,
     Float,
-    JsonDict,
+    JsonEntry,
     SimMap,
 )
 
@@ -39,7 +39,7 @@ class QueryResultStep[K, V, S: Float]:
 @dataclass(slots=True, frozen=True)
 class ResultStep[Q, C, V, S: Float]:
     queries: Mapping[Q, QueryResultStep[C, V, S]]
-    metadata: JsonDict
+    metadata: JsonEntry
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
@@ -74,7 +74,7 @@ class Result[Q, C, V, S: Float]:
         return self.steps[-1]
 
     @property
-    def metadata(self) -> JsonDict:
+    def metadata(self) -> JsonEntry:
         return self.final_step.metadata
 
     @property

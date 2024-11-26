@@ -9,7 +9,6 @@ from cbrkit.typing import (
     Float,
     SimPairFunc,
     SimSeqFunc,
-    SupportsMetadata,
 )
 
 from . import _model as model
@@ -17,10 +16,7 @@ from ._model import Graph, GraphSim, Node
 
 
 @dataclass(slots=True)
-class isomorphism[K, N, E, G](
-    SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
-    SupportsMetadata,
-):
+class isomorphism[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
     """Compute subgraph isomorphisms between two graphs.
 
     - Convert the input graphs to Rustworkx graphs.

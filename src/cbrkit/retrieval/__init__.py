@@ -3,12 +3,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
-from ..typing import (
-    Casebase,
-    JsonDict,
-    RetrieverFunc,
-    SupportsMetadata,
-)
+from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
 from ._apply import apply_queries, apply_query
 from ._build import build, dropout, transpose
 from ._model import QueryResultStep, Result, ResultStep
@@ -30,10 +25,7 @@ try:
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
-    class cohere[K](
-        RetrieverFunc[K, str, float],
-        SupportsMetadata,
-    ):
+    class cohere[K](RetrieverFunc[K, str, float]):
         """Semantic similarity using Cohere's rerank models
 
         Args:
@@ -42,17 +34,8 @@ try:
 
         model: str
         max_chunks_per_doc: int | None = None
-        client: AsyncClient = field(default_factory=AsyncClient)
-        request_options: RequestOptions | None = None
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "model": self.model,
-                "max_chunks_per_doc": self.max_chunks_per_doc,
-                "request_options": str(self.request_options),
-            }
+        client: AsyncClient = field(default_factory=AsyncClient, repr=False)
+        request_options: RequestOptions | None = field(default=None, repr=False)
 
         @override
         def __call__(
@@ -99,10 +82,7 @@ try:
     from voyageai.client_async import AsyncClient
 
     @dataclass(slots=True, frozen=True)
-    class voyageai[K](
-        RetrieverFunc[K, str, float],
-        SupportsMetadata,
-    ):
+    class voyageai[K](RetrieverFunc[K, str, float]):
         """Semantic similarity using Voyage AI's rerank models
 
         Args:
@@ -111,15 +91,7 @@ try:
 
         model: str
         truncation: bool = True
-        client: AsyncClient = field(default_factory=AsyncClient)
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "model": self.model,
-                "truncation": self.truncation,
-            }
+        client: AsyncClient = field(default_factory=AsyncClient, repr=False)
 
         @override
         def __call__(
@@ -165,7 +137,7 @@ try:
     @dataclass(slots=True, frozen=True)
     class sentence_transformers[K](
         RetrieverFunc[K, str, float],
-        SupportsMetadata,
+        HasMetadata,
     ):
         """Semantic similarity using sentence transformers
 

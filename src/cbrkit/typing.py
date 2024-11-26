@@ -1,4 +1,3 @@
-import dataclasses
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -23,13 +22,9 @@ type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
 
 
 @runtime_checkable
-class SupportsMetadata(Protocol):
+class HasMetadata(Protocol):
     @property
-    def metadata(self) -> JsonDict:
-        if dataclasses.is_dataclass(self):
-            return dataclasses.asdict(self)
-
-        return {}
+    def metadata(self) -> JsonDict: ...
 
 
 class SimMapFunc[K, V, S: Float](Protocol):

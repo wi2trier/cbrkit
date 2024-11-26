@@ -6,7 +6,6 @@ from typing import cast, override
 
 from ..helpers import (
     SimPairWrapper,
-    get_metadata,
     similarities2ranking,
     unpack_sim,
 )
@@ -18,25 +17,15 @@ from ..typing import (
     AnySimFunc,
     Casebase,
     Float,
-    JsonDict,
     ReuserFunc,
     SimMap,
-    SupportsMetadata,
 )
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class discard[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
+class discard[K, V, S: Float](ReuserFunc[K, V, S]):
     reuser_func: ReuserFunc[K, V, S]
-    similarity_delta: float
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "reuser_func": get_metadata(self.reuser_func),
-            "similarity_delta": self.similarity_delta,
-        }
+    similarity_delta: float = 0.0
 
     @override
     def __call__(
@@ -80,21 +69,11 @@ class discard[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
-class dropout[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
+class dropout[K, V, S: Float](ReuserFunc[K, V, S]):
     reuser_func: ReuserFunc[K, V, S]
     limit: int | None = None
     min_similarity: float | None = None
     max_similarity: float | None = None
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "reuser_func": get_metadata(self.reuser_func),
-            "limit": self.limit,
-            "min_similarity": self.min_similarity,
-            "max_similarity": self.max_similarity,
-        }
 
     @override
     def __call__(
@@ -134,7 +113,7 @@ class dropout[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
+class build[K, V, S: Float](ReuserFunc[K, V, S]):
     """Builds a casebase by adapting cases using an adaptation function and a similarity function.
 
     Args:
@@ -149,15 +128,6 @@ class build[K, V, S: Float](ReuserFunc[K, V, S], SupportsMetadata):
     adaptation_func: AnyAdaptFunc[K, V]
     similarity_func: AnySimFunc[V, S]
     processes: int = 1
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "adaptation_func": get_metadata(self.adaptation_func),
-            "similarity_func": get_metadata(self.similarity_func),
-            "processes": self.processes,
-        }
 
     @override
     def __call__(
