@@ -32,6 +32,7 @@ __all__ = [
     "load_object",
     "load_callables",
     "load_callables_map",
+    "sim_dropout",
 ]
 
 
@@ -268,3 +269,25 @@ def load_callables_map(
             functions.update(obj)
 
     return functions
+
+
+def sim_dropout[K, S: Float](
+    similarities: SimMap[K, S],
+    limit: int | None,
+    min_similarity: float | None,
+    max_similarity: float | None,
+) -> SimMap[K, S]:
+    ranking: list[K] = similarities2ranking(similarities)
+
+    if min_similarity is not None:
+        ranking = [
+            key for key in ranking if unpack_sim(similarities[key]) >= min_similarity
+        ]
+    if max_similarity is not None:
+        ranking = [
+            key for key in ranking if unpack_sim(similarities[key]) <= max_similarity
+        ]
+    if limit is not None:
+        ranking = ranking[:limit]
+
+    return {key: similarities[key] for key in ranking}

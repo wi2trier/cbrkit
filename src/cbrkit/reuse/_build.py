@@ -6,7 +6,7 @@ from typing import cast, override
 
 from ..helpers import (
     SimPairWrapper,
-    similarities2ranking,
+    sim_dropout,
     unpack_sim,
 )
 from ..typing import (
@@ -45,26 +45,11 @@ class dropout[K, V, S: Float](ReuserFunc[K, V, S]):
         adapted_casebase: Casebase[K, V],
         adapted_sims: SimMap[K, S],
     ) -> tuple[Casebase[K, V], SimMap[K, S]]:
-        ranking: list[K] = similarities2ranking(adapted_sims)
+        filtered_sims = sim_dropout(
+            adapted_sims, self.limit, self.min_similarity, self.max_similarity
+        )
 
-        if self.min_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(adapted_sims[key]) >= self.min_similarity
-            ]
-        if self.max_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(adapted_sims[key]) <= self.max_similarity
-            ]
-        if self.limit is not None:
-            ranking = ranking[: self.limit]
-
-        return {key: adapted_casebase[key] for key in ranking}, {
-            key: adapted_sims[key] for key in ranking
-        }
+        return {key: adapted_casebase[key] for key in filtered_sims}, filtered_sims
 
 
 @dataclass(slots=True, frozen=True)

@@ -5,8 +5,7 @@ from typing import override
 
 from ..helpers import (
     SimSeqWrapper,
-    similarities2ranking,
-    unpack_sim,
+    sim_dropout,
 )
 from ..typing import (
     AnySimFunc,
@@ -40,30 +39,10 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
     def __call__(
         self, pairs: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
-        return [self._filter(entry) for entry in self.retriever_func(pairs)]
-
-    def _filter(
-        self,
-        similarities: SimMap[K, S],
-    ) -> dict[K, S]:
-        ranking: list[K] = similarities2ranking(similarities)
-
-        if self.min_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) >= self.min_similarity
-            ]
-        if self.max_similarity is not None:
-            ranking = [
-                key
-                for key in ranking
-                if unpack_sim(similarities[key]) <= self.max_similarity
-            ]
-        if self.limit is not None:
-            ranking = ranking[: self.limit]
-
-        return {key: similarities[key] for key in ranking}
+        return [
+            sim_dropout(entry, self.limit, self.min_similarity, self.max_similarity)
+            for entry in self.retriever_func(pairs)
+        ]
 
 
 @dataclass(slots=True, frozen=True)
