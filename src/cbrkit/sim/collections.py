@@ -108,12 +108,13 @@ try:
             >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
             0.011235955056179775
         """
+
         custom_distance: Callable[[Any, Any], float] = None  # Custom distance function
 
         def __call__(
             self,
             x: Union[Collection[Any], np.ndarray],
-            y: Union[Collection[Any], np.ndarray]
+            y: Union[Collection[Any], np.ndarray],
         ) -> float:
             if not isinstance(x, np.ndarray):
                 x = np.array(x, dtype=object)  # Allow non-numeric types
@@ -135,12 +136,16 @@ try:
 
             for i in range(1, n + 1):
                 for j in range(1, m + 1):
-                    cost = self.custom_distance(x[i - 1], y[j - 1]) if self.custom_distance else abs(x[i - 1] - y[j - 1])
+                    cost = (
+                        self.custom_distance(x[i - 1], y[j - 1])
+                        if self.custom_distance
+                        else abs(x[i - 1] - y[j - 1])
+                    )
                     # Take last min from a square box
                     last_min = min(
-                        dtw_matrix[i - 1, j],    # Insertion
-                        dtw_matrix[i, j - 1],    # Deletion
-                        dtw_matrix[i - 1, j - 1] # Match
+                        dtw_matrix[i - 1, j],  # Insertion
+                        dtw_matrix[i, j - 1],  # Deletion
+                        dtw_matrix[i - 1, j - 1],  # Match
                     )
                     dtw_matrix[i, j] = cost + last_min
 
