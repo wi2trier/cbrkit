@@ -1,5 +1,6 @@
+import dataclasses
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
@@ -8,13 +9,14 @@ from typing import Any, Literal, cast, override
 from .typing import (
     AnySimFunc,
     Float,
+    HasMetadata,
     JsonDict,
+    JsonEntry,
     SimMap,
     SimMapFunc,
     SimPairFunc,
     SimSeqFunc,
     SimSeqOrMap,
-    SupportsMetadata,
 )
 
 __all__ = [
@@ -33,28 +35,58 @@ __all__ = [
 ]
 
 
-def get_name(obj: Any | None) -> str | None:
+def get_name(obj: Any) -> str | None:
     if obj is None:
         return None
+
     elif isinstance(obj, type):
         return obj.__name__
 
     return type(obj).__name__
 
 
-def get_metadata(obj: Any) -> JsonDict:
+def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, SimWrapper):
         obj = obj.func
 
-    metadata = {}
+    if isinstance(obj, HasMetadata):
+        value: JsonDict = {
+            "metadata": obj.metadata,
+        }
 
-    if isinstance(obj, SupportsMetadata):
-        metadata = obj.metadata
+        if isinstance(obj, Callable) or isinstance(obj, type):
+            value["name"] = get_name(obj)
+            value["doc"] = getdoc(obj)
 
-    metadata["name"] = get_name(obj)
-    metadata["doc"] = getdoc(obj)
+        return value
 
-    return metadata
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {
+            "name": get_name(obj),
+            "doc": getdoc(obj),
+            "metadata": {
+                field.name: get_metadata(getattr(obj, field.name))
+                for field in dataclasses.fields(obj)
+                if field.repr
+            },
+        }
+
+    if isinstance(obj, Callable) or isinstance(obj, type):
+        return {
+            "name": get_name(obj),
+            "doc": getdoc(obj),
+        }
+
+    if isinstance(obj, dict):
+        return {key: get_metadata(value) for key, value in obj.items()}
+
+    if isinstance(obj, list):
+        return [get_metadata(value) for value in obj]
+
+    if isinstance(obj, dict | list | str | int | float | bool | None):
+        return obj
+
+    return None
 
 
 def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
@@ -102,7 +134,7 @@ def dist2sim(distance: float) -> float:
 
 
 @dataclass(slots=True)
-class SimWrapper[V, S: Float](SupportsMetadata):
+class SimWrapper[V, S: Float]:
     func: AnySimFunc[V, S]
     kind: Literal["pair", "seq"] = field(init=False)
 

@@ -2,8 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal, override
 
-from ..helpers import get_metadata
-from ..typing import AdaptPairFunc, JsonDict, SupportsMetadata
+from ..typing import AdaptPairFunc
 
 __all__ = [
     "pipe",
@@ -12,7 +11,7 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class pipe[V](AdaptPairFunc[V], SupportsMetadata):
+class pipe[V](AdaptPairFunc[V]):
     """Chain multiple adaptation functions together.
 
     Args:
@@ -32,13 +31,6 @@ class pipe[V](AdaptPairFunc[V], SupportsMetadata):
 
     functions: list[AdaptPairFunc[V]]
 
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "functions": [get_metadata(func) for func in self.functions],
-        }
-
     @override
     def __call__(self, case: V, query: V) -> V:
         current_case = case
@@ -50,7 +42,7 @@ class pipe[V](AdaptPairFunc[V], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class null[V](AdaptPairFunc[V], SupportsMetadata):
+class null[V](AdaptPairFunc[V]):
     """Perform a null adaptation and return the original case or query value.
 
     Args:

@@ -11,9 +11,8 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 from dataclasses import dataclass, field
 from typing import Literal, Optional, Protocol, TypedDict, cast, override
 
-from ...helpers import get_metadata
 from ...loaders import data as load_data
-from ...typing import FilePath, JsonDict, SimPairFunc, SupportsMetadata
+from ...typing import FilePath, SimPairFunc
 
 __all__ = [
     "load",
@@ -115,7 +114,7 @@ TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
 
 
 @dataclass(slots=True, frozen=True)
-class wu_palmer(TaxonomyFunc, SupportsMetadata):
+class wu_palmer(TaxonomyFunc):
     """Wu & Palmer similarity measure of two nodes in a taxonomy.
 
     Examples:
@@ -137,7 +136,7 @@ class wu_palmer(TaxonomyFunc, SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class user_weights(TaxonomyFunc, SupportsMetadata):
+class user_weights(TaxonomyFunc):
     """User-defined weights similarity measure of two nodes in a taxonomy.
 
     The weights are defined by the user in the taxonomy file.
@@ -177,7 +176,7 @@ class user_weights(TaxonomyFunc, SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class auto_weights(TaxonomyFunc, SupportsMetadata):
+class auto_weights(TaxonomyFunc):
     """Automatic weights similarity measure of two nodes in a taxonomy.
 
     The weights are automatically calculated based on the depth of the nodes.
@@ -221,7 +220,7 @@ class auto_weights(TaxonomyFunc, SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class node_levels(TaxonomyFunc, SupportsMetadata):
+class node_levels(TaxonomyFunc):
     """Node levels similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the levels of the nodes.
@@ -260,7 +259,7 @@ class node_levels(TaxonomyFunc, SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class path_steps(TaxonomyFunc, SupportsMetadata):
+class path_steps(TaxonomyFunc):
     """Path steps similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the steps up and down from the lowest common ancestor (lca).
@@ -304,7 +303,7 @@ _taxonomy_func = wu_palmer()
 
 
 @dataclass(slots=True)
-class load(SimPairFunc[str, float], SupportsMetadata):
+class load(SimPairFunc[str, float]):
     """Load a taxonomy and return a function that measures the similarity.
 
     The taxonomy is loaded from the given path and expected to conform to the following structure:
@@ -342,15 +341,7 @@ class load(SimPairFunc[str, float], SupportsMetadata):
 
     path: FilePath
     measure: TaxonomyFunc = _taxonomy_func
-    taxonomy: Taxonomy = field(init=False)
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "path": str(self.path),
-            "measure": get_metadata(self.measure),
-        }
+    taxonomy: Taxonomy = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.taxonomy = Taxonomy(self.path)

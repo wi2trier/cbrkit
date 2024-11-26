@@ -2,12 +2,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import get_metadata
-from ..typing import (
-    AdaptPairFunc,
-    JsonDict,
-    SupportsMetadata,
-)
+from ..typing import AdaptPairFunc
 
 __all__ = ["attribute_value"]
 
@@ -27,7 +22,7 @@ def default_value_setter(obj: Any, key: Any, value: Any) -> None:
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[V](AdaptPairFunc[V], SupportsMetadata):
+class attribute_value[V](AdaptPairFunc[V]):
     """Adapt values of attributes using specified adaptation functions.
 
     This class allows for the adaptation of multiple attributes of a case by applying
@@ -59,17 +54,6 @@ class attribute_value[V](AdaptPairFunc[V], SupportsMetadata):
     attributes: Mapping[str, AdaptPairFunc[Any] | Sequence[AdaptPairFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = default_value_getter
     value_setter: Callable[[Any, str, Any], None] = default_value_setter
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "attributes": {
-                key: get_metadata(value) for key, value in self.attributes.items()
-            },
-            "value_getter": get_metadata(self.value_getter),
-            "value_setter": get_metadata(self.value_setter),
-        }
 
     @override
     def __call__(self, case: V, query: V) -> V:
