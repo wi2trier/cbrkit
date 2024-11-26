@@ -68,7 +68,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
     adaptation_funcs: AnyAdaptFunc[K, V] | Sequence[AnyAdaptFunc[K, V]]
     similarity_func: AnySimFunc[V, S]
-    similarity_delta: float = 0.0
+    similarity_delta: float = -1.0
     processes: int = 1
 
     @override
