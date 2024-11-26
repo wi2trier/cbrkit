@@ -30,10 +30,8 @@ def test_simple():
     )
 
     retriever = cbrkit.retrieval.dropout(cbrkit.retrieval.build(sim_func), limit=5)
-    retrieval_result = cbrkit.retrieval.apply_query(casebase, query, retriever)
-
-    reuse_func = cbrkit.reuse.build(
-        adaptation_func=cbrkit.adapt.attribute_value(
+    reuser = cbrkit.reuse.build(
+        cbrkit.adapt.attribute_value(
             attributes={
                 "price": cbrkit.adapt.numbers.aggregate("mean"),
                 "make": cbrkit.adapt.strings.regex("a[0-9]", "a[0-9]", "a4"),
@@ -46,8 +44,6 @@ def test_simple():
         similarity_func=sim_func,
     )
 
-    reuse_result = cbrkit.reuse.apply_query(
-        retrieval_result.casebase, query, reuse_func
-    )
+    result = cbrkit.cycle.apply_queries(casebase, {"default": query}, retriever, reuser)
 
-    assert len(retrieval_result.casebase) == len(reuse_result.casebase)
+    assert len(result.retrieval.casebase) == len(result.reuse.casebase)

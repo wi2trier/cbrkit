@@ -9,18 +9,14 @@ from cbrkit.typing import (
     Float,
     SimPairFunc,
     SimSeqFunc,
-    SupportsMetadata,
 )
 
 from . import _model as model
-from ._model import DataSimWrapper, Graph, GraphSim, Node
+from ._model import Graph, GraphSim, Node
 
 
 @dataclass(slots=True)
-class isomorphism[K, N, E, G](
-    SimPairFunc[Graph[K, N, E, G], GraphSim[K]],
-    SupportsMetadata,
-):
+class isomorphism[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
     """Compute subgraph isomorphisms between two graphs.
 
     - Convert the input graphs to Rustworkx graphs.
@@ -39,25 +35,12 @@ class isomorphism[K, N, E, G](
         node_matcher: Callable[[N, N], bool],
         edge_matcher: Callable[[E, E], bool],
         aggregator: AggregatorFunc[Any, Float],
-        node_obj_sim: AnySimFunc[Node[K, N], Float] | None = None,
-        node_data_sim: AnySimFunc[N, Float] | None = None,
+        node_sim_func: AnySimFunc[Node[K, N], Float],
     ) -> None:
-        # verify that only one of the object or data similarity functions is provided
-        if node_obj_sim and node_data_sim:
-            raise ValueError(
-                "Only one of the object or data similarity functions can be provided for nodes"
-            )
-
-        if node_data_sim:
-            self.node_sim_func = DataSimWrapper(node_data_sim)
-        elif node_obj_sim:
-            self.node_sim_func = SimSeqWrapper(node_obj_sim)
-        else:
-            raise ValueError("Either node_obj_sim or node_data_sim must be provided")
-
         self.node_matcher = node_matcher
         self.edge_matcher = edge_matcher
         self.aggregator = aggregator
+        self.node_sim_func = SimSeqWrapper(node_sim_func)
 
     @override
     def __call__(

@@ -7,11 +7,11 @@ from ..helpers import SimSeqWrapper, get_metadata
 from ..typing import (
     AnySimFunc,
     Float,
+    HasMetadata,
     JsonDict,
     SimPairFunc,
     SimSeq,
     SimSeqFunc,
-    SupportsMetadata,
 )
 
 __all__ = [
@@ -25,7 +25,7 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class static_table[V](SimPairFunc[V, float], SupportsMetadata):
+class static_table[V](SimPairFunc[V, float], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -102,7 +102,7 @@ def default_key_getter(x: Any) -> Any:
 
 
 @dataclass(slots=True)
-class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], SupportsMetadata):
+class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -204,7 +204,7 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class equality(SimPairFunc[Any, float], SupportsMetadata):
+class equality(SimPairFunc[Any, float]):
     """Equality similarity function. Returns 1.0 if the two values are equal, 0.0 otherwise.
 
     Examples:
@@ -221,7 +221,7 @@ class equality(SimPairFunc[Any, float], SupportsMetadata):
 
 
 @dataclass(slots=True, frozen=True)
-class static(SimPairFunc[Any, float], SupportsMetadata):
+class static(SimPairFunc[Any, float]):
     """Static similarity function. Returns a constant value for all pairs.
 
     Args:
@@ -243,7 +243,7 @@ class static(SimPairFunc[Any, float], SupportsMetadata):
 
 
 @dataclass(slots=True)
-class transpose[U, V, S: Float](SimSeqFunc[V, S], SupportsMetadata):
+class transpose[U, V, S: Float](SimSeqFunc[V, S]):
     """Transforms a similarity function from one type to another.
 
     Args:

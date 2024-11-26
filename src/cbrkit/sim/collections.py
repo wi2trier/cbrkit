@@ -4,7 +4,7 @@ from itertools import product
 from typing import Any, cast, override
 
 from ..helpers import dist2sim, get_metadata, unpack_sim
-from ..typing import AnnotatedFloat, Float, JsonDict, SimPairFunc, SupportsMetadata
+from ..typing import AnnotatedFloat, Float, HasMetadata, JsonDict, SimPairFunc
 
 Number = float | int
 
@@ -20,7 +20,7 @@ try:
     from nltk.metrics import jaccard_distance
 
     @dataclass(slots=True, frozen=True)
-    class jaccard[V](SimPairFunc[Collection[Any], float], SupportsMetadata):
+    class jaccard[V](SimPairFunc[Collection[Any], float]):
         """Jaccard similarity function.
 
         Examples:
@@ -48,7 +48,7 @@ try:
     from minineedle import core, smith
 
     @dataclass(slots=True, frozen=True)
-    class smith_waterman[V](SimPairFunc[Sequence[Any], float], SupportsMetadata):
+    class smith_waterman[V](SimPairFunc[Sequence[Any], float]):
         """
         Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
@@ -94,8 +94,8 @@ try:
     import numpy as np
 
     @dataclass(slots=True, frozen=True)
-    class dtw:
-        """Dynamic Time Warping similarity function with support for custom distance metrics.
+    class dtw(SimPairFunc[Collection[Number], float]):
+        """Dynamic Time Warping similarity function.
 
         Examples:
             >>> sim = dtw()
@@ -151,7 +151,7 @@ except ImportError:
 
 
 @dataclass(slots=True, frozen=True)
-class isolated_mapping[V](SimPairFunc[Sequence[V], float], SupportsMetadata):
+class isolated_mapping[V](SimPairFunc[Sequence[V], float]):
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -171,11 +171,6 @@ class isolated_mapping[V](SimPairFunc[Sequence[V], float], SupportsMetadata):
 
     element_similarity: SimPairFunc[V, float]
 
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {"element_similarity": get_metadata(self.element_similarity)}
-
     @override
     def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         total_similarity = 0.0
@@ -193,7 +188,7 @@ try:
     import heapq
 
     @dataclass(slots=True, frozen=True)
-    class mapping[V](SimPairFunc[Sequence[V], float], SupportsMetadata):
+    class mapping[V](SimPairFunc[Sequence[V], float]):
         """
         Implements an A* algorithm to find the best matching between query items and case items
         based on the provided similarity function, maximizing the overall similarity score.
@@ -216,14 +211,6 @@ try:
 
         element_similarity: SimPairFunc[V, float]
         max_queue_size: int = 1000
-
-        @property
-        @override
-        def metadata(self) -> JsonDict:
-            return {
-                "element_similarity": get_metadata(self.element_similarity),
-                "max_queue_size": self.max_queue_size,
-            }
 
         @override
         def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
@@ -292,7 +279,7 @@ class Weight:
 
 @dataclass(slots=True, frozen=True)
 class sequence_mapping[V, S: Float](
-    SimPairFunc[Sequence[V], SequenceSim[S]], SupportsMetadata
+    SimPairFunc[Sequence[V], SequenceSim[S]], HasMetadata
 ):
     """List Mapping similarity function.
 
@@ -411,7 +398,7 @@ class sequence_mapping[V, S: Float](
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_correctness[V](SimPairFunc[Sequence[Any], float], SupportsMetadata):
+class sequence_correctness[V](SimPairFunc[Sequence[Any], float]):
     """List Correctness similarity function.
 
     Parameters:

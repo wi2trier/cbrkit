@@ -2,8 +2,9 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal, override
 
-from ..helpers import get_metadata
-from ..typing import AdaptPairFunc, JsonDict, SupportsMetadata
+from cbrkit.helpers import SimPairWrapper, unpack_sim
+
+from ..typing import AdaptPairFunc, AnySimFunc, Float
 
 __all__ = [
     "pipe",
@@ -12,7 +13,7 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class pipe[V](AdaptPairFunc[V], SupportsMetadata):
+class pipe[V](AdaptPairFunc[V]):
     """Chain multiple adaptation functions together.
 
     Args:
@@ -30,27 +31,43 @@ class pipe[V](AdaptPairFunc[V], SupportsMetadata):
         15
     """
 
-    functions: list[AdaptPairFunc[V]]
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "functions": [get_metadata(func) for func in self.functions],
-        }
+    functions: AdaptPairFunc[V] | list[AdaptPairFunc[V]]
+    similarity_func: AnySimFunc[V, Float] | None = None
+    similarity_delta: float = -1.0
 
     @override
     def __call__(self, case: V, query: V) -> V:
+        functions = (
+            self.functions if isinstance(self.functions, list) else [self.functions]
+        )
         current_case = case
+        similarity_func = None
+        current_similarity = None
 
-        for func in self.functions:
-            current_case = func(current_case, query)
+        if self.similarity_func is not None:
+            similarity_func = SimPairWrapper(self.similarity_func)
+            current_similarity = similarity_func(current_case, query)
+
+        for func in functions:
+            adapted_case = func(current_case, query)
+
+            if similarity_func is not None and current_similarity is not None:
+                adapted_similarity = similarity_func(current_case, adapted_case)
+
+                if (
+                    unpack_sim(adapted_similarity)
+                    >= unpack_sim(current_similarity) + self.similarity_delta
+                ):
+                    current_case = adapted_case
+                    current_similarity = adapted_similarity
+            else:
+                current_case = adapted_case
 
         return current_case
 
 
 @dataclass(slots=True, frozen=True)
-class null[V](AdaptPairFunc[V], SupportsMetadata):
+class null[V](AdaptPairFunc[V]):
     """Perform a null adaptation and return the original case or query value.
 
     Args:
