@@ -27,7 +27,7 @@ def test_reuse_simple():
     }
 
     reuse_func = cbrkit.reuse.build(
-        adaptation_func=cbrkit.adapt.attribute_value(
+        cbrkit.adapt.attribute_value(
             attributes={
                 "price": adapt_int,
                 "make": cbrkit.adapt.strings.regex("a[0-9]", "a[0-9]", "a4"),
@@ -89,7 +89,7 @@ def test_reuse_custom():
     }
 
     reuse_func = cbrkit.reuse.build(
-        adaptation_func=custom_adapt,
+        custom_adapt,
         similarity_func=cbrkit.sim.attribute_value(
             attributes={
                 "price": cbrkit.sim.numbers.linear(max=100000),
@@ -123,7 +123,7 @@ def test_reuse_nested():
     casebase = {key: full_casebase[key] for key in list(full_casebase.keys())[:10]}
 
     reuse_func = cbrkit.reuse.build(
-        adaptation_func=cbrkit.adapt.attribute_value(
+        cbrkit.adapt.attribute_value(
             attributes={
                 "miles": cbrkit.adapt.numbers.aggregate("mean"),
                 "model": cbrkit.adapt.attribute_value(
