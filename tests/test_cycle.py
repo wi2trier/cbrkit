@@ -31,7 +31,7 @@ def test_simple():
 
     retriever = cbrkit.retrieval.dropout(cbrkit.retrieval.build(sim_func), limit=5)
     reuser = cbrkit.reuse.build(
-        adaptation_func=cbrkit.adapt.attribute_value(
+        cbrkit.adapt.attribute_value(
             attributes={
                 "price": cbrkit.adapt.numbers.aggregate("mean"),
                 "make": cbrkit.adapt.strings.regex("a[0-9]", "a[0-9]", "a4"),
