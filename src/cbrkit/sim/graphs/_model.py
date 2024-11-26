@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol, TypedDict, cast, override
+from typing import Any, Protocol, TypedDict
 
 import immutables
 
-from cbrkit.helpers import SimWrapper
 from cbrkit.typing import (
     AnnotatedFloat,
-    Float,
-    SimPairFunc,
-    SimSeqFunc,
 )
 
 __all__ = [
@@ -32,17 +28,6 @@ class GraphSim[K](AnnotatedFloat):
     value: float
     node_mappings: dict[K, K]
     edge_mappings: dict[K, K]
-
-
-class DataSimWrapper[V: HasData[Any], S: Float](SimWrapper, SimSeqFunc[V, S]):
-    @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
-        if self.kind == "pair":
-            func = cast(SimPairFunc[V, S], self.func)
-            return [func(x.data, y.data) for (x, y) in pairs]
-
-        func = cast(SimSeqFunc[V, S], self.func)
-        return func([(x.data, y.data) for x, y in pairs])
 
 
 class HasData[T](Protocol):
