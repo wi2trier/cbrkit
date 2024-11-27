@@ -78,7 +78,7 @@ type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptMapFunc[K, V] | AdaptReduceFun
 class ReuserFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
+        pairs: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
 
 
@@ -106,3 +106,10 @@ class EvalMetricFunc(Protocol):
         k: int,
         relevance_level: int,
     ) -> float: ...
+
+
+class RagFunc[K, V, S: Float, T](Protocol):
+    def __call__(
+        self,
+        pairs: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]],
+    ) -> Sequence[T]: ...
