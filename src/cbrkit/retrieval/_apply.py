@@ -3,11 +3,11 @@ from collections.abc import Mapping, Sequence
 from ..helpers import (
     get_metadata,
 )
+from ..model import QueryResultStep, Result, ResultStep
 from ..typing import (
     Float,
     RetrieverFunc,
 )
-from ._model import QueryResultStep, Result, ResultStep
 
 
 def apply_queries[Q, C, V, S: Float](

@@ -1,6 +1,6 @@
 from ._apply import apply_queries, apply_query, apply_single
 from ._build import build, dropout
-from ._model import QueryResultStep, Result, ResultStep
+from ..model import QueryResultStep, Result, ResultStep
 
 __all__ = [
     "dropout",
