@@ -1,7 +1,11 @@
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from textwrap import dedent
 from typing import cast, override
+
+import orjson
+from pydantic import BaseModel
 
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
@@ -207,6 +211,105 @@ try:
             }
 
     __all__ += ["sentence_transformers"]
+
+except ImportError:
+    pass
+
+
+try:
+    from openai import AsyncOpenAI, pydantic_function_tool
+    from openai.types.chat import ChatCompletionMessageParam
+
+    class RetrievalModel(BaseModel):
+        similarities: dict[str, float]
+
+    @dataclass(slots=True, frozen=True)
+    class openai[V](RetrieverFunc[str, V, float]):
+        model: str
+        prompt: str | Callable[[Casebase[str, V], V], str]
+        messages: Sequence[ChatCompletionMessageParam] = field(default_factory=list)
+        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
+
+        def __call__(
+            self,
+            pairs: Sequence[tuple[Casebase[str, V], V]],
+        ) -> Sequence[Casebase[str, float]]:
+            if self.messages and self.messages[-1]["role"] == "user":
+                raise ValueError("The last message cannot be from the user")
+
+            return asyncio.run(self._retrieve(pairs))
+
+        async def _retrieve(
+            self,
+            pairs: Sequence[tuple[Casebase[str, V], V]],
+        ) -> Sequence[Casebase[str, float]]:
+            return await asyncio.gather(
+                *(self._retrieve_single(*pair) for pair in pairs)
+            )
+
+        async def _retrieve_single(
+            self,
+            casebase: Casebase[str, V],
+            query: V,
+        ) -> dict[str, float]:
+            if isinstance(self.prompt, Callable):
+                prompt = self.prompt(casebase, query)
+
+            else:
+                prompt = dedent(f"""
+                    {self.prompt}
+
+                    ## Query
+
+                    ```json
+                    {str(orjson.dumps(query))}
+                    ```
+
+                    ## Cases
+                """)
+
+                for key, value in casebase.items():
+                    prompt += dedent(f"""
+                        ### {key}
+
+                        ```json
+                        {str(orjson.dumps(value))}
+                        ```
+                    """)
+
+            messages: list[ChatCompletionMessageParam] = [
+                *self.messages,
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ]
+
+            tool = pydantic_function_tool(RetrievalModel)
+
+            res = await self.client.beta.chat.completions.parse(
+                model=self.model,
+                messages=messages,
+                tools=[tool],
+                tool_choice={
+                    "type": "function",
+                    "function": {"name": tool["function"]["name"]},
+                },
+            )
+
+            tool_calls = res.choices[0].message.tool_calls
+
+            if tool_calls is None:
+                raise ValueError("The completion is empty")
+
+            parsed = tool_calls[0].function.parsed_arguments
+
+            if parsed is None:
+                raise ValueError("The tool call is empty")
+
+            return cast(RetrievalModel, parsed).similarities
+
+    __all__ += ["openai"]
 
 except ImportError:
     pass
