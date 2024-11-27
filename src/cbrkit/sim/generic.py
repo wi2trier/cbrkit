@@ -253,7 +253,7 @@ class transpose[U, V, S: Float](SimSeqFunc[V, S]):
 
     Examples:
         >>> sim = transpose(
-        ...     similarity_func=equality()
+        ...     similarity_func=equality(),
         ...     conversion_func=lambda x: x.lower(),
         ... )
         >>> sim([("A", "a"), ("b", "B")])
