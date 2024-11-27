@@ -21,6 +21,7 @@ pydantic_dataclass_kwargs = {
 RetrievalResult = dataclass(cbrkit.retrieval.Result, **pydantic_dataclass_kwargs)
 ReuseResult = dataclass(cbrkit.reuse.Result, **pydantic_dataclass_kwargs)
 CycleResult = dataclass(cbrkit.cycle.Result, **pydantic_dataclass_kwargs)
+RagResult = dataclass(cbrkit.rag.Result, **pydantic_dataclass_kwargs)
 
 
 class Settings(BaseSettings):
@@ -29,6 +30,7 @@ class Settings(BaseSettings):
     retriever_map: str | None = None
     reuser: str | None = None
     reuser_map: str | None = None
+    rag: str | None = None
 
 
 settings = Settings()
@@ -59,6 +61,10 @@ elif settings.reuser is not None:
 elif settings.reuser_map is not None:
     reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
     reuser = list(reuser_map.values())
+
+ragger: cbrkit.typing.RagFunc | None = (
+    cbrkit.helpers.load_callable(settings.rag) if settings.rag is not None else None
+)
 
 
 @app.post("/retrieve", response_model=RetrievalResult)
@@ -111,7 +117,7 @@ def named_reuser(
     )
 
 
-@app.post("/retrieve", response_model=CycleResult)
+@app.post("/cycle", response_model=CycleResult)
 def cycle(
     casebase: dict[str, Any],
     queries: dict[str, Any],
@@ -121,4 +127,25 @@ def cycle(
         queries,
         retriever,
         reuser,
+    )
+
+
+@app.post("/rag", response_model=RagResult)
+def rag(
+    casebase: dict[str, Any],
+    queries: dict[str, Any],
+) -> cbrkit.rag.Result:
+    if ragger is None:
+        raise ValueError("RAG function not provided")
+
+    result = cbrkit.cycle.apply_queries(
+        casebase,
+        queries,
+        retriever,
+        reuser,
+    )
+
+    return cbrkit.rag.apply_result(
+        result.final_step,
+        ragger,
     )
