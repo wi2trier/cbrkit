@@ -132,6 +132,13 @@
             UV_PYTHON = lib.getExe pkgs.python3;
             shellHook = ''
               uv sync --all-extras --locked
+
+              # if .env exists, export its variables
+              if [ -f .env ]; then
+                set -a
+                source .env
+                set +a
+              fi
             '';
           };
         };
