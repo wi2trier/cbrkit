@@ -13,6 +13,7 @@ import orjson
 import polars as pl
 import xmltodict
 import yaml as yamllib
+from pydantic import BaseModel
 
 from .helpers import load_object
 from .typing import Casebase, FilePath
@@ -29,6 +30,8 @@ __all__ = [
     "python",
     "txt",
     "xml",
+    "validate",
+    "validate_single",
 ]
 
 python = load_object
@@ -344,48 +347,41 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
     return cb
 
 
-try:
-    from pydantic import BaseModel
+def validate(data: Casebase[Any, Any], validation_model: BaseModel):
+    """Validates the data against a Pydantic model.
 
-    def validate(data: Casebase[Any, Any], validation_model: BaseModel):
-        """Validates the data against a Pydantic model.
+    Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
 
-        Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+    Args:
+        data: Data to validate. Can be an entire case base or a single case.
+        validation_model: Pydantic model to validate the data.
 
-        Args:
-            data: Data to validate. Can be an entire case base or a single case.
-            validation_model: Pydantic model to validate the data.
+    Examples:
+        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
+        >>> from data.cars_validation_model import Car
+        >>> from pathlib import Path
+        >>> data = path(Path("data/cars-1k.csv"))
+        >>> validate(data, Car)
+        >>> import polars as pl
+        >>> df = pl.read_csv("data/cars-1k.csv")
+        >>> data = polars(df)
+        >>> validate(data, Car)
+    """
 
-        Examples:
-            >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-            >>> from data.cars_validation_model import Car
-            >>> from pathlib import Path
-            >>> data = path(Path("data/cars-1k.csv"))
-            >>> validate(data, Car)
-            >>> import polars as pl
-            >>> df = pl.read_csv("data/cars-1k.csv")
-            >>> data = polars(df)
-            >>> validate(data, Car)
-        """
+    for item in data.values():
+        validate_single(item, validation_model)
 
-        for item in data.values():
-            validate_single(item, validation_model)
 
-    def validate_single(data: Any, validation_model: BaseModel):
-        """Validates a single case against a Pydantic model.
+def validate_single(data: Any, validation_model: BaseModel):
+    """Validates a single case against a Pydantic model.
 
-        Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+    Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
 
-        Args:
-            data: Data to validate. Can be a single case.
-            validation_model: Pydantic model to validate the data.
-        """
-        if data is None:
-            raise ValueError("Data is None")
+    Args:
+        data: Data to validate. Can be a single case.
+        validation_model: Pydantic model to validate the data.
+    """
+    if data is None:
+        raise ValueError("Data is None")
 
-        validation_model.model_validate(data)
-
-    __all__ += ["validate", "validate_single"]
-
-except ImportError:
-    pass
+    validation_model.model_validate(data)

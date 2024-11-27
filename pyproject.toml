@@ -38,6 +38,7 @@ dependencies = [
     "immutables>=0.21,<1",
     "orjson>=3,<4",
     "polars>=1,<2",
+    "pydantic>=2,<3",
     "pyyaml>=6,<7",
     "xmltodict>=0.13,<1",
 ]
@@ -49,7 +50,6 @@ all = [
     "numpy>=2,<3; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "numpy>=2,<3; sys_platform == 'linux'",
     "pandas>=2,<3",
-    "pydantic>=2,<3",
     "scipy>=1,<2",
 ]
 api = [
