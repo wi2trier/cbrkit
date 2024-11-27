@@ -89,10 +89,9 @@ try:
 except ImportError:
     pass
 
-
 try:
+    from typing import Callable, Collection, Union, Any
     import numpy as np
-    from dtaidistance.dtw import distance
 
     @dataclass(slots=True, frozen=True)
     class dtw(SimPairFunc[Collection[Number], float]):
@@ -102,20 +101,55 @@ try:
             >>> sim = dtw()
             >>> sim([1, 2, 3], [1, 2, 3, 4])
             0.5
+            >>> sim = dtw(custom_distance=lambda a, b: abs(a - b))
+            >>> sim([1, 2, 3], [3, 4, 5])
+            0.14285714285714285
+            >>> sim = dtw(custom_distance=lambda a, b: abs(len(str(a)) - len(str(b))))
+            >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
+            0.011235955056179775
         """
 
-        @override
+        custom_distance: Callable[[Any, Any], float] = None  # Custom distance function
+
         def __call__(
-            self, x: Collection[Number] | np.ndarray, y: Collection[Number] | np.ndarray
+            self,
+            x: Union[Collection[Any], np.ndarray],
+            y: Union[Collection[Any], np.ndarray],
         ) -> float:
             if not isinstance(x, np.ndarray):
-                x = np.array(x)
+                x = np.array(x, dtype=object)  # Allow non-numeric types
             if not isinstance(y, np.ndarray):
-                y = np.array(y)
+                y = np.array(y, dtype=object)
 
-            return dist2sim(distance(x, y))
+            # Compute the DTW distance manually using the custom distance
+            dtw_distance = self.compute_dtw(x, y)
 
-    __all__ += ["dtw"]
+            # Convert DTW distance to similarity
+            similarity = dist2sim(dtw_distance)
+
+            return float(similarity)
+
+        def compute_dtw(self, x: np.ndarray, y: np.ndarray) -> float:
+            n, m = len(x), len(y)
+            dtw_matrix = np.full((n + 1, m + 1), np.inf)
+            dtw_matrix[0, 0] = 0
+
+            for i in range(1, n + 1):
+                for j in range(1, m + 1):
+                    cost = (
+                        self.custom_distance(x[i - 1], y[j - 1])
+                        if self.custom_distance
+                        else abs(x[i - 1] - y[j - 1])
+                    )
+                    # Take last min from a square box
+                    last_min = min(
+                        dtw_matrix[i - 1, j],  # Insertion
+                        dtw_matrix[i, j - 1],  # Deletion
+                        dtw_matrix[i - 1, j - 1],  # Match
+                    )
+                    dtw_matrix[i, j] = cost + last_min
+
+            return dtw_matrix[n, m]
 
 except ImportError:
     pass
