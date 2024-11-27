@@ -1,4 +1,4 @@
-from collections.abc import Collection, Sequence, Set
+from collections.abc import Callable, Collection, Sequence, Set
 from dataclasses import asdict, dataclass, field
 from itertools import product
 from typing import Any, cast, override
@@ -90,31 +90,30 @@ except ImportError:
     pass
 
 try:
-    from typing import Callable, Collection, Union, Any
     import numpy as np
 
-    @dataclass(slots=True, frozen=True)
-    class dtw(SimPairFunc[Collection[Number], float]):
+    @dataclass(slots=True)
+    class dtw[V](SimPairFunc[Collection[V], float]):
         """Dynamic Time Warping similarity function.
 
         Examples:
             >>> sim = dtw()
             >>> sim([1, 2, 3], [1, 2, 3, 4])
             0.5
-            >>> sim = dtw(custom_distance=lambda a, b: abs(a - b))
+            >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
             >>> sim([1, 2, 3], [3, 4, 5])
             0.14285714285714285
-            >>> sim = dtw(custom_distance=lambda a, b: abs(len(str(a)) - len(str(b))))
+            >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
             >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
             0.011235955056179775
         """
 
-        custom_distance: Callable[[Any, Any], float] = None  # Custom distance function
+        distance_func: Callable[[V, V], float] | None = None
 
         def __call__(
             self,
-            x: Union[Collection[Any], np.ndarray],
-            y: Union[Collection[Any], np.ndarray],
+            x: Collection[Any] | np.ndarray,
+            y: Collection[Any] | np.ndarray,
         ) -> float:
             if not isinstance(x, np.ndarray):
                 x = np.array(x, dtype=object)  # Allow non-numeric types
@@ -137,8 +136,8 @@ try:
             for i in range(1, n + 1):
                 for j in range(1, m + 1):
                     cost = (
-                        self.custom_distance(x[i - 1], y[j - 1])
-                        if self.custom_distance
+                        self.distance_func(x[i - 1], y[j - 1])
+                        if self.distance_func
                         else abs(x[i - 1] - y[j - 1])
                     )
                     # Take last min from a square box
