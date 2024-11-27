@@ -101,6 +101,13 @@ class Result[Q, C, V, S: Float]:
         return self.final_step.queries
 
     @property
+    def default_query(self) -> QueryResultStep[C, V, S]:
+        if len(self.queries) != 1:
+            raise ValueError("The step contains multiple queries.")
+
+        return next(iter(self.queries.values()))
+
+    @property
     def similarities(self) -> SimMap[C, S]:
         return self.final_step.similarities
 
