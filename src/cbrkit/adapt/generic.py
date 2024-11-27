@@ -33,7 +33,8 @@ class pipe[V](AdaptPairFunc[V]):
 
     functions: AdaptPairFunc[V] | list[AdaptPairFunc[V]]
     similarity_func: AnySimFunc[V, Float] | None = None
-    similarity_delta: float = -1.0
+    similarity_delta: float = 0.0
+    strategy: Literal["continue", "break"] = "continue"
 
     @override
     def __call__(self, case: V, query: V) -> V:
@@ -60,6 +61,9 @@ class pipe[V](AdaptPairFunc[V]):
                 ):
                     current_case = adapted_case
                     current_similarity = adapted_similarity
+                elif self.strategy == "break":
+                    break
+
             else:
                 current_case = adapted_case
 
