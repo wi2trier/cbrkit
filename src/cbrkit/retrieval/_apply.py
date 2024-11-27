@@ -10,6 +10,36 @@ from ..typing import (
 )
 
 
+def apply_pairs[Q, C, V, S: Float](
+    pairs: Mapping[Q, tuple[Mapping[C, V], V]],
+    retrievers: RetrieverFunc[C, V, S] | Sequence[RetrieverFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
+    if not isinstance(retrievers, Sequence):
+        retrievers = [retrievers]
+
+    assert len(retrievers) > 0
+    steps: list[ResultStep[Q, C, V, S]] = []
+    current_pairs: Mapping[Q, tuple[Mapping[C, V], V]] = pairs
+
+    for retriever_func in retrievers:
+        queries_results = retriever_func([pair for pair in current_pairs.values()])
+
+        step_queries = {
+            query_key: QueryResultStep.build(similarities, casebase, query)
+            for (query_key, (casebase, query)), similarities in zip(
+                current_pairs.items(), queries_results, strict=True
+            )
+        }
+
+        steps.append(ResultStep(step_queries, get_metadata(retriever_func)))
+        current_pairs = {
+            query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
+            for query_key in current_pairs
+        }
+
+    return Result(steps)
+
+
 def apply_queries[Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
@@ -46,40 +76,10 @@ def apply_queries[Q, C, V, S: Float](
         ... )
         >>> result = cbrkit.retrieval.apply_queries(casebase, {"default": casebase[42]}, retriever)
     """
-    if not isinstance(retrievers, Sequence):
-        retrievers = [retrievers]
-
-    assert len(retrievers) > 0
-    steps: list[ResultStep[Q, C, V, S]] = []
-    current_casebases: Mapping[Q, Mapping[C, V]] = {
-        query_key: casebase for query_key in queries
-    }
-
-    for retriever_func in retrievers:
-        queries_results = retriever_func(
-            [
-                (current_casebases[query_key], query)
-                for query_key, query in queries.items()
-            ]
-        )
-
-        step_queries = {
-            query_key: QueryResultStep.build(
-                retrieved_casebase,
-                casebase,
-            )
-            for query_key, retrieved_casebase in zip(
-                queries, queries_results, strict=True
-            )
-        }
-
-        step = ResultStep(step_queries, get_metadata(retriever_func))
-        steps.append(step)
-        current_casebases = {
-            query_key: step.queries[query_key].casebase for query_key in queries
-        }
-
-    return Result(steps)
+    return apply_pairs(
+        {query_key: (casebase, query) for query_key, query in queries.items()},
+        retrievers,
+    )
 
 
 def apply_query[K, V, S: Float](

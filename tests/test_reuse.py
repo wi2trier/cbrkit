@@ -39,13 +39,15 @@ def test_reuse_simple():
                 "miles": cbrkit.adapt.numbers.aggregate("mean"),
             }
         ),
-        similarity_func=cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=100000),
-            }
+        retriever_func=cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": cbrkit.sim.numbers.linear(max=100000),
+                }
+            )
         ),
     )
 
@@ -90,13 +92,15 @@ def test_reuse_custom():
 
     reuse_func = cbrkit.reuse.build(
         custom_adapt,
-        similarity_func=cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=100000),
-            }
+        retriever_func=cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": cbrkit.sim.numbers.linear(max=100000),
+                }
+            )
         ),
     )
 
@@ -136,16 +140,18 @@ def test_reuse_nested():
                 ),
             }
         ),
-        similarity_func=cbrkit.sim.attribute_value(
-            attributes={
-                "miles": cbrkit.sim.numbers.linear(max=100000),
-                "model": cbrkit.sim.attribute_value(
-                    attributes={
-                        "make": cbrkit.sim.strings.levenshtein(),
-                        "manufacturer": cbrkit.sim.strings.levenshtein(),
-                    }
-                ),
-            }
+        retriever_func=cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "miles": cbrkit.sim.numbers.linear(max=100000),
+                    "model": cbrkit.sim.attribute_value(
+                        attributes={
+                            "make": cbrkit.sim.strings.levenshtein(),
+                            "manufacturer": cbrkit.sim.strings.levenshtein(),
+                        }
+                    ),
+                }
+            )
         ),
     )
 

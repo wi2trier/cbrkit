@@ -5,13 +5,14 @@ from typing import cast, override
 
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
-from ._apply import apply_queries, apply_query
+from ._apply import apply_pairs, apply_queries, apply_query
 from ._build import build, dropout, transpose
 
 __all__ = [
     "build",
     "transpose",
     "dropout",
+    "apply_pairs",
     "apply_queries",
     "apply_query",
     "Result",
