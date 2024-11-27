@@ -42,12 +42,6 @@ let
         cbor = {
           setuptools = [ ];
         };
-        dtaidistance = {
-          setuptools = [ ];
-          cython = [ ];
-          numpy = [ ];
-          wheel = [ ];
-        };
         warc3-wet-clueweb09 = {
           setuptools = [ ];
         };
