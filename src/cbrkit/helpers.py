@@ -233,6 +233,10 @@ def load_object(import_name: str) -> Any:
     return getattr(module, obj_name)
 
 
+def load_callable(import_name: str) -> Callable:
+    return load_object(import_name)
+
+
 def load_callables(
     import_names: Sequence[str] | str,
 ) -> list[Callable]:
@@ -241,8 +245,8 @@ def load_callables(
 
     functions: list[Callable] = []
 
-    for import_path in import_names:
-        obj = load_object(import_path)
+    for import_name in import_names:
+        obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in functions)
@@ -261,8 +265,8 @@ def load_callables_map(
 
     functions: dict[str, Callable] = {}
 
-    for import_path in import_names:
-        obj = load_object(import_path)
+    for import_name in import_names:
+        obj = load_object(import_name)
 
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())

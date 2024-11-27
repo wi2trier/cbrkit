@@ -110,6 +110,33 @@ def cycle(
 
 
 @app.command()
+def rag(
+    casebase_path: Path,
+    queries_path: Path,
+    retriever: str,
+    reuser: str,
+    ragger: str,
+    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    output_path: Path | None = None,
+) -> None:
+    sys.path.extend(str(x) for x in search_path)
+    casebase = cbrkit.loaders.path(casebase_path)
+    queries = cbrkit.loaders.path(queries_path)
+    retrievers: list[cbrkit.typing.RetrieverFunc] = cbrkit.helpers.load_callables(
+        retriever
+    )
+    reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
+    rag_func = cbrkit.helpers.load_callable(ragger)
+
+    cycle_result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
+    rag_result = cbrkit.rag.apply_result(cycle_result.final_step, rag_func)
+
+    if output_path:
+        with output_path.with_suffix(".json").open("w") as fp:
+            json.dump(rag_result.as_dict(), fp, indent=2)
+
+
+@app.command()
 def serve(
     retriever: Annotated[list[str], typer.Option(default_factory=list)],
     reuser: Annotated[list[str], typer.Option(default_factory=list)],
