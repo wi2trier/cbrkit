@@ -3,10 +3,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
+from ..model import QueryResultStep, Result, ResultStep
 from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
 from ._apply import apply_queries, apply_query
 from ._build import build, dropout, transpose
-from ._model import QueryResultStep, Result, ResultStep
 
 __all__ = [
     "build",
