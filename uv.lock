@@ -218,7 +218,6 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "cohere" },
-    { name = "dtaidistance" },
     { name = "fastapi" },
     { name = "levenshtein", version = "0.25.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
     { name = "levenshtein", version = "0.26.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux'" },
@@ -277,7 +276,6 @@ nlp = [
     { name = "spacy", version = "3.8.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux'" },
 ]
 timeseries = [
-    { name = "dtaidistance" },
     { name = "minineedle" },
 ]
 transformers = [
@@ -301,7 +299,6 @@ requires-dist = [
     { name = "cbrkit", extras = ["api", "cli", "eval", "graphs", "llm", "nlp", "timeseries", "transformers"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "cohere", marker = "extra == 'llm'", specifier = ">=5,<6" },
-    { name = "dtaidistance", marker = "extra == 'timeseries'", specifier = ">=2,<3" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.100,<1" },
     { name = "immutables", specifier = ">=0.21,<1" },
     { name = "levenshtein", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'nlp'", specifier = ">=0.26,<1" },
@@ -606,20 +603,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527f8a2e8885fc8015d3e6f5775df186e443e0964a11c3/distro-1.9.0.tar.gz", hash = "sha256:2fa77c6fd8940f116ee1d6b94a2f90b13b5ea8d019b98bc8bafdcabcdd9bdbed", size = 60722 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2", size = 20277 },
-]
-
-[[package]]
-name = "dtaidistance"
-version = "2.3.12"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'arm64' and sys_platform != 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')" },
-    { name = "numpy", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/66/01/6326251d8088cc11286a24a9999c8ffb5a7b0d22826ecd0e710cfb2f1028/dtaidistance-2.3.12.tar.gz", hash = "sha256:f239f83783d92f9da3a9597a79d93e3d2f3fb81d972fd4703241f9bffe7dbb3d", size = 1019473 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/95/2e1cc2cd65a9e31b8b20e78678f207e39387910a21e2769f8a163952b191/dtaidistance-2.3.12-cp312-cp312-macosx_10_9_universal2.whl", hash = "sha256:b800db8e924e8c62e1e037aa52a731bd1c1e9421bf8baf0148fb1b304a490395", size = 1567998 },
-    { url = "https://files.pythonhosted.org/packages/95/50/bcb0dc617c304f78848c0ea8de04620d1c7745d690335dc5440f14b4f26f/dtaidistance-2.3.12-cp312-cp312-win_amd64.whl", hash = "sha256:b55d0a1ca980348e4ddb81bb6992a60d4e718d52714e3bd6e27cbf9dd55c505a", size = 1085854 },
 ]
 
 [[package]]
