@@ -71,7 +71,7 @@ nlp = [
     "spacy>=3.8,<4; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "spacy>=3.8,<4; sys_platform == 'linux'",
 ]
-timeseries = ["minineedle>=3,<4", "dtaidistance>=2,<3"]
+timeseries = ["minineedle>=3,<4"]
 transformers = [
     "sentence-transformers>=3,<4",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
