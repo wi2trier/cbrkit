@@ -155,7 +155,8 @@ class GenaiModel[K, V](Protocol):
     casebase: Mapping[K, V]
 
 
-class GenaiPydanticModel[K, V](BaseModel, GenaiModel[K, V]): ...
+class GenaiPydanticModel[K, V](BaseModel):
+    casebase: Mapping[K, V]
 
 
 @dataclass(slots=True, frozen=True)
