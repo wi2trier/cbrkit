@@ -254,7 +254,8 @@ class GenaiModel[K](Protocol):
     similarities: Mapping[K, float]
 
 
-class GenaiPydanticModel[K](BaseModel, GenaiModel[K]): ...
+class GenaiPydanticModel[K](BaseModel):
+    similarities: Mapping[K, float]
 
 
 @dataclass(slots=True, frozen=True)
