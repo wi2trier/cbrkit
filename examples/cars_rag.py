@@ -20,10 +20,9 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
-rag = cbrkit.rag.openai.build(
-    "gpt-4o",
+rag = cbrkit.rag.build(
+    cbrkit.generate.openai("gpt-4o", str),
     "Give me a summary of the found cars.",
-    str,
 )
 
 retrieval = cbrkit.retrieval.apply_query(

@@ -268,7 +268,7 @@ except ImportError:
 @dataclass(slots=True, frozen=True)
 class SequenceSim[S: Float](AnnotatedFloat):
     value: float
-    local_similarities: list[S] = field(default_factory=list)
+    local_similarities: Sequence[S] = field(default_factory=tuple)
 
 
 @dataclass

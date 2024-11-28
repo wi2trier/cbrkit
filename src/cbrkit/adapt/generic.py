@@ -1,19 +1,29 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from textwrap import dedent
-from typing import Literal, cast, override
+from typing import Literal, Protocol, override
 
 import orjson
 from pydantic import BaseModel
 
-from cbrkit.helpers import SimPairWrapper, unpack_sim
+from cbrkit.helpers import GenerationSingleWrapper, SimPairWrapper, unpack_sim
 
-from ..typing import AdaptMapFunc, AdaptPairFunc, AnySimFunc, Casebase, Float
+from ..typing import (
+    AdaptMapFunc,
+    AdaptPairFunc,
+    AnyGenerationFunc,
+    AnySimFunc,
+    Casebase,
+    Float,
+)
 
 __all__ = [
     "pipe",
     "null",
+    "genai",
+    "GenaiModel",
+    "GenaiPydanticModel",
 ]
 
 
@@ -112,93 +122,55 @@ class null[V](AdaptPairFunc[V]):
         return value
 
 
-try:
-    from openai import OpenAI, pydantic_function_tool
-    from openai.types.chat import ChatCompletionMessageParam
+def default_prompt_template[K, V](
+    prompt: str,
+    casebase: Casebase[K, V],
+    query: V,
+) -> str:
+    result = dedent(f"""
+        {prompt}
 
-    @dataclass(slots=True, frozen=True)
-    class openai[V: BaseModel](AdaptMapFunc[str, V]):
-        model: str
-        prompt: str | Callable[[Casebase[str, V], V], str]
-        schema: type[V]
-        single_case: bool = False
-        messages: Sequence[ChatCompletionMessageParam] = field(default_factory=list)
-        client: OpenAI = field(default_factory=OpenAI, repr=False)
+        ## Query
 
-        def __call__(
-            self,
-            casebase: Casebase[str, V],
-            query: V,
-        ) -> Casebase[str, V]:
-            schema = self.schema
+        ```json
+        {str(orjson.dumps(query))}
+        ```
 
-            class CasebaseModel(BaseModel):
-                casebase: dict[str, schema]
+        ## Retrieved Cases
+    """)
 
-            if self.messages and self.messages[-1]["role"] == "user":
-                raise ValueError("The last message cannot be from the user")
+    for key, value in casebase.items():
+        result += dedent(f"""
+            ### {str(key)}
 
-            if isinstance(self.prompt, Callable):
-                prompt = self.prompt(casebase, query)
+            ```json
+            {str(orjson.dumps(value))}
+            ```
+        """)
 
-            else:
-                prompt = dedent(f"""
-                    {self.prompt}
+    return result
 
-                    ## Query
 
-                    ```json
-                    {str(orjson.dumps(query))}
-                    ```
+class GenaiModel[K, V](Protocol):
+    casebase: Mapping[K, V]
 
-                    ## Retrieved Cases
-                """)
 
-                for key, value in casebase.items():
-                    prompt += dedent(f"""
-                        ### {key}
+class GenaiPydanticModel[K, V](BaseModel, GenaiModel[K, V]): ...
 
-                        ```json
-                        {str(orjson.dumps(value))}
-                        ```
-                    """)
 
-            messages: list[ChatCompletionMessageParam] = [
-                *self.messages,
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
+@dataclass(slots=True, frozen=True)
+class genai[K, V: BaseModel](AdaptMapFunc[K, V]):
+    generation_func: AnyGenerationFunc[GenaiModel[K, V]]
+    prompt: str
+    prompt_template: Callable[[str, Casebase[K, V], V], str] = default_prompt_template
 
-            tool = pydantic_function_tool(schema if self.single_case else CasebaseModel)
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+    ) -> Casebase[K, V]:
+        generation_func = GenerationSingleWrapper(self.generation_func)
+        prompt = self.prompt_template(self.prompt, casebase, query)
+        generation_result = generation_func(prompt)
 
-            res = self.client.beta.chat.completions.parse(
-                model=self.model,
-                messages=messages,
-                tools=[tool],
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": tool["function"]["name"]},
-                },
-            )
-
-            tool_calls = res.choices[0].message.tool_calls
-
-            if tool_calls is None:
-                raise ValueError("The completion is empty")
-
-            parsed = tool_calls[0].function.parsed_arguments
-
-            if parsed is None:
-                raise ValueError("The tool call is empty")
-
-            if self.single_case:
-                return {"default": cast(schema, parsed)}
-
-            return cast(CasebaseModel, parsed).casebase
-
-    __all__ += ["openai"]
-
-except ImportError:
-    pass
+        return generation_result.casebase

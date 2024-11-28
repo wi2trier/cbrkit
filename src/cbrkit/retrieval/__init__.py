@@ -1,14 +1,16 @@
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from textwrap import dedent
-from typing import cast, override
+from typing import Protocol, cast, override
 
 import orjson
 from pydantic import BaseModel
 
+from cbrkit.helpers import GenerationSeqWrapper
+
 from ..model import QueryResultStep, Result, ResultStep
-from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
+from ..typing import AnyGenerationFunc, Casebase, HasMetadata, JsonDict, RetrieverFunc
 from ._apply import apply_pairs, apply_queries, apply_query
 from ._build import build, dropout, transpose
 
@@ -22,6 +24,9 @@ __all__ = [
     "Result",
     "ResultStep",
     "QueryResultStep",
+    "genai",
+    "GenaiModel",
+    "GenaiPydanticModel",
 ]
 
 
@@ -216,100 +221,54 @@ except ImportError:
     pass
 
 
-try:
-    from openai import AsyncOpenAI, pydantic_function_tool
-    from openai.types.chat import ChatCompletionMessageParam
+def default_prompt_template[K, V](
+    prompt: str,
+    casebase: Casebase[K, V],
+    query: V,
+) -> str:
+    result = dedent(f"""
+        {prompt}
 
-    class RetrievalModel(BaseModel):
-        similarities: dict[str, float]
+        ## Query
 
-    @dataclass(slots=True, frozen=True)
-    class openai[V](RetrieverFunc[str, V, float]):
-        model: str
-        prompt: str | Callable[[Casebase[str, V], V], str]
-        messages: Sequence[ChatCompletionMessageParam] = field(default_factory=list)
-        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
+        ```json
+        {str(orjson.dumps(query))}
+        ```
 
-        def __call__(
-            self,
-            pairs: Sequence[tuple[Casebase[str, V], V]],
-        ) -> Sequence[Casebase[str, float]]:
-            if self.messages and self.messages[-1]["role"] == "user":
-                raise ValueError("The last message cannot be from the user")
+        ## Cases
+    """)
 
-            return asyncio.run(self._retrieve(pairs))
+    for key, value in casebase.items():
+        prompt += dedent(f"""
+            ### {str(key)}
 
-        async def _retrieve(
-            self,
-            pairs: Sequence[tuple[Casebase[str, V], V]],
-        ) -> Sequence[Casebase[str, float]]:
-            return await asyncio.gather(
-                *(self._retrieve_single(*pair) for pair in pairs)
-            )
+            ```json
+            {str(orjson.dumps(value))}
+            ```
+        """)
 
-        async def _retrieve_single(
-            self,
-            casebase: Casebase[str, V],
-            query: V,
-        ) -> dict[str, float]:
-            if isinstance(self.prompt, Callable):
-                prompt = self.prompt(casebase, query)
+    return result
 
-            else:
-                prompt = dedent(f"""
-                    {self.prompt}
 
-                    ## Query
+class GenaiModel[K](Protocol):
+    similarities: Mapping[K, float]
 
-                    ```json
-                    {str(orjson.dumps(query))}
-                    ```
 
-                    ## Cases
-                """)
+class GenaiPydanticModel[K](BaseModel, GenaiModel[K]): ...
 
-                for key, value in casebase.items():
-                    prompt += dedent(f"""
-                        ### {key}
 
-                        ```json
-                        {str(orjson.dumps(value))}
-                        ```
-                    """)
+@dataclass(slots=True, frozen=True)
+class genai[K, V](RetrieverFunc[K, V, float]):
+    generation_func: AnyGenerationFunc[GenaiModel[K]]
+    prompt: str
+    prompt_template: Callable[[str, Casebase[K, V], V], str] = default_prompt_template
 
-            messages: list[ChatCompletionMessageParam] = [
-                *self.messages,
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ]
+    def __call__(
+        self,
+        pairs: Sequence[tuple[Casebase[K, V], V]],
+    ) -> Sequence[Casebase[K, float]]:
+        generation_func = GenerationSeqWrapper(self.generation_func)
+        prompts = [self.prompt_template(self.prompt, *pair) for pair in pairs]
+        generation_result = generation_func(prompts)
 
-            tool = pydantic_function_tool(RetrievalModel)
-
-            res = await self.client.beta.chat.completions.parse(
-                model=self.model,
-                messages=messages,
-                tools=[tool],
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": tool["function"]["name"]},
-                },
-            )
-
-            tool_calls = res.choices[0].message.tool_calls
-
-            if tool_calls is None:
-                raise ValueError("The completion is empty")
-
-            parsed = tool_calls[0].function.parsed_arguments
-
-            if parsed is None:
-                raise ValueError("The tool call is empty")
-
-            return cast(RetrievalModel, parsed).similarities
-
-    __all__ += ["openai"]
-
-except ImportError:
-    pass
+        return [x.similarities for x in generation_result]
