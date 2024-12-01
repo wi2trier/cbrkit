@@ -11,7 +11,6 @@ try:
     import numpy as np
     from ..collections import dtw
 
-
     @dataclass(slots=True)
     class GraphDTW:
         """
@@ -44,7 +43,7 @@ try:
             >>> g_dtw = GraphDTW(node_similarity, edge_similarity)
             >>> result = g_dtw(graph1, graph2)
             >>> print(result)
-            (0.2222222222222222, [('1', '1'), ('2', '2')])
+            (0.3333333333333333, [('1', '1'), ('2', '2')])
         """
 
         node_sim_func: Callable[[Any, Any], float]
@@ -105,12 +104,9 @@ try:
             else:
                 total_similarity = node_similarity
 
-            # Calculate total elements for normalization (nodes + edges)
-            total_elements = len(alignment) + (len(alignment) - 1 if len(alignment) > 1 else 0)
-
-            # Optionally normalize the similarity score by total elements
-            if self.normalize and total_elements > 0:
-                total_similarity /= total_elements
+            # Optionally normalize the similarity score by the length of the alignment path
+            if self.normalize and len(alignment) > 0:
+                total_similarity /= len(alignment)
 
             # Return node keys in the alignment for clarity
             alignment_keys = [(a.key if a else None, b.key if b else None) for a, b in alignment]
@@ -127,8 +123,6 @@ try:
             Returns:
                 A list of nodes in sequential order.
             """
-            # Assuming the graph is sequential, perform a traversal to get nodes in order
-            # Start from the node with no incoming edges
             in_degree = {node.key: 0 for node in graph.nodes.values()}
             for edge in graph.edges.values():
                 in_degree[edge.target.key] += 1
@@ -143,15 +137,13 @@ try:
             while current_node and current_node.key not in visited_nodes:
                 sequence.append(current_node)
                 visited_nodes.add(current_node.key)
-                # Get the outgoing edge from the current node
                 outgoing_edges = [edge for edge in graph.edges.values() if edge.source.key == current_node.key]
                 if len(outgoing_edges) > 1:
                     raise ValueError("Graph is not sequential (node has multiple outgoing edges)")
                 current_node = outgoing_edges[0].target if outgoing_edges else None
             return sequence
 
-        def get_sequential_edges(self, graph: Graph[K, N, E, G], node_sequence: List[Node[K, N]]) -> List[
-            Edge[K, N, E]]:
+        def get_sequential_edges(self, graph: Graph[K, N, E, G], node_sequence: List[Node[K, N]]) -> List[Edge[K, N, E]]:
             """
             Retrieves the edges of the graph in sequential order based on node sequence.
 
