@@ -90,11 +90,15 @@ except ImportError:
     pass
 
 try:
+    from dataclasses import dataclass
+    from typing import Collection, Callable, Any, List, Tuple, Union
     import numpy as np
 
+
     @dataclass(slots=True)
-    class dtw[V](SimPairFunc[Collection[V], float]):
-        """Dynamic Time Warping similarity function.
+    class dtw:
+        """
+        Dynamic Time Warping similarity function with backtracking for the best alignment.
 
         Examples:
             >>> sim = dtw()
@@ -104,31 +108,61 @@ try:
             >>> sim([1, 2, 3], [3, 4, 5])
             0.14285714285714285
             >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
-            >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
-            0.011235955056179775
+            >>> sim(["a", "bb", "ccc"], ["aa", "bbb", "c"])
+            0.25
+            >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
+            >>> sim([1, 2, 3], [1, 2, 3, 4], return_alignment=True)
+            (0.5, [(1, 1), (2, 2), (3, 3), (3, 4)])
         """
 
-        distance_func: Callable[[V, V], float] | None = None
+        distance_func: Callable[[Any, Any], float] | None = None
 
         def __call__(
-            self,
-            x: Collection[Any] | np.ndarray,
-            y: Collection[Any] | np.ndarray,
-        ) -> float:
+                self,
+                x: Collection[Any] | np.ndarray,
+                y: Collection[Any] | np.ndarray,
+                return_alignment: bool = False
+        ) -> Union[float, Tuple[float, List[Tuple[Any, Any]]]]:
+            """
+            Perform DTW and optionally return the best alignment.
+
+            Args:
+                x: The first sequence as a collection or numpy array.
+                y: The second sequence as a collection or numpy array.
+                return_alignment: Whether to return the best alignment (default: False).
+
+            Returns:
+                The similarity score as a float, or a tuple of (similarity, alignment).
+            """
             if not isinstance(x, np.ndarray):
                 x = np.array(x, dtype=object)  # Allow non-numeric types
             if not isinstance(y, np.ndarray):
                 y = np.array(y, dtype=object)
 
-            # Compute the DTW distance manually using the custom distance
-            dtw_distance = self.compute_dtw(x, y)
+            # Compute the DTW distance and alignment
+            dtw_distance, alignment = self.compute_dtw(x, y)
 
             # Convert DTW distance to similarity
             similarity = dist2sim(dtw_distance)
 
+            # Return either similarity alone or with alignment
+            if return_alignment:
+                return float(similarity), alignment
             return float(similarity)
 
-        def compute_dtw(self, x: np.ndarray, y: np.ndarray) -> float:
+        def compute_dtw(
+                self, x: np.ndarray, y: np.ndarray
+        ) -> Tuple[float, List[Tuple[Any, Any]]]:
+            """
+            Compute DTW distance and the best alignment.
+
+            Args:
+                x: The first sequence as a numpy array.
+                y: The second sequence as a numpy array.
+
+            Returns:
+                A tuple of (DTW distance, best alignment).
+            """
             n, m = len(x), len(y)
             dtw_matrix = np.full((n + 1, m + 1), np.inf)
             dtw_matrix[0, 0] = 0
@@ -148,8 +182,56 @@ try:
                     )
                     dtw_matrix[i, j] = cost + last_min
 
-            return dtw_matrix[n, m]
+            # Backtracking to find the best alignment
+            alignment = self.backtrack(dtw_matrix, x, y, n, m)
 
+            return dtw_matrix[n, m], alignment
+
+        def backtrack(
+                self, dtw_matrix: np.ndarray, x: np.ndarray, y: np.ndarray, n: int, m: int
+        ) -> List[Tuple[Any, Any]]:
+            """
+            Backtrack through the DTW matrix to find the best alignment.
+
+            Args:
+                dtw_matrix: The DTW matrix.
+                x: The first sequence as a numpy array.
+                y: The second sequence as a numpy array.
+                n: The length of the first sequence.
+                m: The length of the second sequence.
+
+            Returns:
+                A list of tuples representing the best alignment of elements.
+            """
+            i, j = n, m
+            alignment = []
+
+            while i > 0 and j > 0:
+                alignment.append((x[i - 1], y[j - 1]))  # Align elements
+                # Move in the direction of the minimum cost
+                if dtw_matrix[i - 1, j] == min(
+                        dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                ):
+                    i -= 1  # Move up
+                elif dtw_matrix[i, j - 1] == min(
+                        dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                ):
+                    j -= 1  # Move left
+                else:
+                    i -= 1  # Move diagonally
+                    j -= 1
+
+            # Handle remaining elements in i or j
+            while i > 0:
+                alignment.append((x[i - 1], None))  # Unmatched element from x
+                i -= 1
+            while j > 0:
+                alignment.append((None, y[j - 1]))  # Unmatched element from y
+                j -= 1
+
+            return alignment[::-1]  # Reverse to start from the beginning
+
+        __all__ += ["dtw"]
 except ImportError:
     pass
 
