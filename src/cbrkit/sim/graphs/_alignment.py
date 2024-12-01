@@ -1,106 +1,180 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import override
-
-from ...typing import Float, SimPairFunc, SimSeqFunc
+from typing import Callable, List, Tuple, Any
 from ._model import Graph, Node, is_sequential
+from ...helpers import dist2sim
 
 __all__ = []
 
 try:
-    from ..collections import dtw as dtw_func
-    from ..collections import mapping
+    import numpy as np
+    from ..collections import dtw
 
-    @dataclass(slots=True, frozen=True)
-    class dtw[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
+
+    @dataclass(slots=True)
+    class GraphDTW:
         """
-        Performs Dynamic Time Warping alignment on sequential workflows.
+        Graph-based Dynamic Time Warping similarity function leveraging sequence alignment.
 
         Examples:
-            >>> # Create two simple sequential graphs
-            >>> g1 = Graph()
-            >>> g1.add_node(Node("1", "A"))
-            >>> g1.add_node(Node("2", "B"))
-            >>> g1.add_edge(g1.nodes["1"], g1.nodes["2"], None)
-            >>> g2 = Graph()
-            >>> g2.add_node(Node("1", "A"))
-            >>> g2.add_node(Node("2", "B"))
-            >>> g2.add_edge(g2.nodes["1"], g2.nodes["2"], None)
-            >>> # Create mock similarity function
-            >>> def mock_sim(pairs): return [1.0 if n1.data == n2.data else 0.0 for n1, n2 in pairs]
-            >>> dtw = DynamicTimeWarpingAlignment(mock_sim)
-            >>> dtw(g1, g2)
-            2.0
+            >>> # Example node and edge similarity functions
+            >>> node_similarity = lambda n1, n2: 1.0 if n1.data == n2.data else 0.0
+            >>> edge_similarity = lambda e1, e2: 1.0 if e1.data == e2.data else 0.0
+            >>> # Create example graphs
+            >>> from src.cbrkit.sim.graphs._model import Graph, Node, Edge
+            >>> import immutables
+            >>> nodes1 = immutables.Map({
+            ...     '1': Node(key='1', data='A'),
+            ...     '2': Node(key='2', data='B'),
+            ... })
+            >>> edges1 = immutables.Map({
+            ...     'e1': Edge(key='e1', source=nodes1['1'], target=nodes1['2'], data='X'),
+            ... })
+            >>> graph1 = Graph(nodes=nodes1, edges=edges1, data=None)
+            >>> nodes2 = immutables.Map({
+            ...     '1': Node(key='1', data='A'),
+            ...     '2': Node(key='2', data='C'),
+            ... })
+            >>> edges2 = immutables.Map({
+            ...     'e1': Edge(key='e1', source=nodes2['1'], target=nodes2['2'], data='Y'),
+            ... })
+            >>> graph2 = Graph(nodes=nodes2, edges=edges2, data=None)
+            >>> # Instantiate GraphDTW
+            >>> g_dtw = GraphDTW(node_similarity, edge_similarity)
+            >>> result = g_dtw(graph1, graph2)
+            >>> print(result)
+            (0.2222222222222222, [('1', '1'), ('2', '2')])
         """
 
-        node_sim_func: SimSeqFunc[Node[K, N], Float]
+        node_sim_func: Callable[[Any, Any], float]
+        edge_sim_func: Callable[[Any, Any], float] | None = None  # Optional for edge similarity
+        normalize: bool = True  # Whether to normalize similarity by sequence length
 
-        @override
-        def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
-            """Perform DTW using mapping-based alignment."""
-            if not (is_sequential(x) and is_sequential(y)):
-                raise ValueError("Both graphs must be sequential workflows")
+        def __call__(
+                self,
+                graph1: Graph[K, N, E, G],
+                graph2: Graph[K, N, E, G]
+        ) -> Tuple[float, List[Tuple[K, K]]]:
+            """
+            Perform Graph-DTW using node and optional edge similarity functions.
 
-            x_nodes = [
-                self.node_sim_func([(node, node)])[0] for node in x.nodes.values()
-            ]
-            y_nodes = [
-                self.node_sim_func([(node, node)])[0] for node in y.nodes.values()
-            ]
+            Args:
+                graph1: The first graph.
+                graph2: The second graph.
 
-            alignment_mapping = mapping(self.node_sim_func)
-            return dtw_func()(alignment_mapping(x_nodes, y_nodes))
+            Returns:
+                A tuple of (similarity score, best alignment).
+            """
+            # Check if the graphs are sequential
+            if not (is_sequential(graph1) and is_sequential(graph2)):
+                raise ValueError("Input graphs must be sequential workflows")
 
-    __all__ += ["dtw"]
+            # Extract sequences of nodes in order
+            sequence1 = self.get_sequential_nodes(graph1)
+            sequence2 = self.get_sequential_nodes(graph2)
 
-except ImportError:
-    pass
+            # Convert similarity function to distance function
+            node_distance_func = lambda a, b: 1.0 - self.node_sim_func(a, b)
 
-try:
-    from ..collections import isolated_mapping
-    from ..collections import smith_waterman as smith_waterman_func
+            # Use the dtw module to compute alignment based on node distances
+            dtw_instance = dtw(distance_func=node_distance_func)
+            node_distance, alignment = dtw_instance(sequence1, sequence2, return_alignment=True)
 
-    @dataclass(slots=True, frozen=True)
-    class smith_waterman[K, N, E, G](SimPairFunc[Graph[K, N, E, G], float]):
-        """
-        Performs Smith-Waterman alignment on sequential workflows.
+            # Convert node distance to similarity
+            node_similarity = dist2sim(node_distance)
 
-        Examples:
-            >>> g1 = Graph()
-            >>> g1.add_node(Node("1", "A"))
-            >>> g1.add_node(Node("2", "B"))
-            >>> g1.add_edge(g1.nodes["1"], g1.nodes["2"], None)
-            >>> g2 = Graph()
-            >>> g2.add_node(Node("1", "A"))
-            >>> g2.add_node(Node("2", "C"))
-            >>> g2.add_edge(g2.nodes["1"], g2.nodes["2"], None)
-            >>> # Create mock similarity function
-            >>> def mock_sim(pairs): return [1.0 if n1.data == n2.data else 0.0 for n1, n2 in pairs]
-            >>> swa = smith_waterman(mock_sim)
-            >>> swa(g1, g2)
-            1.0
-        """
+            # Optionally compute edge similarity if edge similarity function is provided
+            if self.edge_sim_func:
+                # Extract sequences of edges in order
+                edge_sequence1 = self.get_sequential_edges(graph1, sequence1)
+                edge_sequence2 = self.get_sequential_edges(graph2, sequence2)
 
-        node_sim_func: SimSeqFunc[Node[K, N], Float]
+                # Convert similarity function to distance function
+                edge_distance_func = lambda a, b: 1.0 - self.edge_sim_func(a, b)
 
-        @override
-        def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> float:
-            """Perform Smith-Waterman using isolated_mapping alignment."""
-            if not (is_sequential(x) and is_sequential(y)):
-                raise ValueError("Both graphs must be sequential workflows")
+                # Use the dtw module to compute alignment based on edge distances
+                dtw_edge_instance = dtw(distance_func=edge_distance_func)
+                edge_distance = dtw_edge_instance(edge_sequence1, edge_sequence2, return_alignment=False)
 
-            x_nodes = [
-                self.node_sim_func([(node, node)])[0] for node in x.nodes.values()
-            ]
-            y_nodes = [
-                self.node_sim_func([(node, node)])[0] for node in y.nodes.values()
-            ]
+                # Convert edge distance to similarity
+                edge_similarity = dist2sim(edge_distance)
 
-            isolated_align = isolated_mapping(self.node_sim_func)
-            return smith_waterman_func()(isolated_align(x_nodes, y_nodes))
+                # Combine node and edge similarities (average)
+                total_similarity = (node_similarity + edge_similarity) / 2.0
+            else:
+                total_similarity = node_similarity
 
-    __all__ += ["smith_waterman"]
+            # Calculate total elements for normalization (nodes + edges)
+            total_elements = len(alignment) + (len(alignment) - 1 if len(alignment) > 1 else 0)
 
+            # Optionally normalize the similarity score by total elements
+            if self.normalize and total_elements > 0:
+                total_similarity /= total_elements
+
+            # Return node keys in the alignment for clarity
+            alignment_keys = [(a.key if a else None, b.key if b else None) for a, b in alignment]
+
+            return total_similarity, alignment_keys
+
+        def get_sequential_nodes(self, graph: Graph[K, N, E, G]) -> List[Node[K, N]]:
+            """
+            Retrieves the nodes of the graph in sequential order.
+
+            Args:
+                graph: The graph to extract nodes from.
+
+            Returns:
+                A list of nodes in sequential order.
+            """
+            # Assuming the graph is sequential, perform a traversal to get nodes in order
+            # Start from the node with no incoming edges
+            in_degree = {node.key: 0 for node in graph.nodes.values()}
+            for edge in graph.edges.values():
+                in_degree[edge.target.key] += 1
+            start_nodes = [node for node in graph.nodes.values() if in_degree[node.key] == 0]
+            if len(start_nodes) != 1:
+                raise ValueError("Graph does not have a unique start node")
+            start_node = start_nodes[0]
+
+            sequence = []
+            current_node = start_node
+            visited_nodes = set()
+            while current_node and current_node.key not in visited_nodes:
+                sequence.append(current_node)
+                visited_nodes.add(current_node.key)
+                # Get the outgoing edge from the current node
+                outgoing_edges = [edge for edge in graph.edges.values() if edge.source.key == current_node.key]
+                if len(outgoing_edges) > 1:
+                    raise ValueError("Graph is not sequential (node has multiple outgoing edges)")
+                current_node = outgoing_edges[0].target if outgoing_edges else None
+            return sequence
+
+        def get_sequential_edges(self, graph: Graph[K, N, E, G], node_sequence: List[Node[K, N]]) -> List[
+            Edge[K, N, E]]:
+            """
+            Retrieves the edges of the graph in sequential order based on node sequence.
+
+            Args:
+                graph: The graph to extract edges from.
+                node_sequence: The list of nodes in sequential order.
+
+            Returns:
+                A list of edges in sequential order.
+            """
+            edges = []
+            for i in range(len(node_sequence) - 1):
+                source_key = node_sequence[i].key
+                target_key = node_sequence[i + 1].key
+                edge = next(
+                    (edge for edge in graph.edges.values()
+                     if edge.source.key == source_key and edge.target.key == target_key),
+                    None
+                )
+                if edge:
+                    edges.append(edge)
+                else:
+                    raise ValueError(f"No edge found between {source_key} and {target_key}")
+            return edges
 except ImportError:
     pass
