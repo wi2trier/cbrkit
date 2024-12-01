@@ -1,14 +1,29 @@
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Literal, override
+from textwrap import dedent
+from typing import Literal, Protocol, override
 
-from cbrkit.helpers import SimPairWrapper, unpack_sim
+import orjson
+from pydantic import BaseModel
 
-from ..typing import AdaptPairFunc, AnySimFunc, Float
+from cbrkit.helpers import GenerationSingleWrapper, SimPairWrapper, unpack_sim
+
+from ..typing import (
+    AdaptMapFunc,
+    AdaptPairFunc,
+    AnyGenerationFunc,
+    AnySimFunc,
+    Casebase,
+    Float,
+)
 
 __all__ = [
     "pipe",
     "null",
+    "genai",
+    "GenaiModel",
+    "GenaiPydanticModel",
 ]
 
 
@@ -33,7 +48,8 @@ class pipe[V](AdaptPairFunc[V]):
 
     functions: AdaptPairFunc[V] | list[AdaptPairFunc[V]]
     similarity_func: AnySimFunc[V, Float] | None = None
-    similarity_delta: float = -1.0
+    similarity_delta: float = 0.0
+    strategy: Literal["continue", "break"] = "continue"
 
     @override
     def __call__(self, case: V, query: V) -> V:
@@ -60,6 +76,9 @@ class pipe[V](AdaptPairFunc[V]):
                 ):
                     current_case = adapted_case
                     current_similarity = adapted_similarity
+                elif self.strategy == "break":
+                    break
+
             else:
                 current_case = adapted_case
 
@@ -101,3 +120,58 @@ class null[V](AdaptPairFunc[V]):
             value = deepcopy(value)
 
         return value
+
+
+def default_prompt_template[K, V](
+    prompt: str,
+    casebase: Casebase[K, V],
+    query: V,
+) -> str:
+    result = dedent(f"""
+        {prompt}
+
+        ## Query
+
+        ```json
+        {str(orjson.dumps(query))}
+        ```
+
+        ## Retrieved Cases
+    """)
+
+    for key, value in casebase.items():
+        result += dedent(f"""
+            ### {str(key)}
+
+            ```json
+            {str(orjson.dumps(value))}
+            ```
+        """)
+
+    return result
+
+
+class GenaiModel[K, V](Protocol):
+    casebase: Mapping[K, V]
+
+
+class GenaiPydanticModel[K, V](BaseModel):
+    casebase: Mapping[K, V]
+
+
+@dataclass(slots=True, frozen=True)
+class genai[K, V: BaseModel](AdaptMapFunc[K, V]):
+    generation_func: AnyGenerationFunc[GenaiModel[K, V]]
+    prompt: str
+    prompt_template: Callable[[str, Casebase[K, V], V], str] = default_prompt_template
+
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+    ) -> Casebase[K, V]:
+        generation_func = GenerationSingleWrapper(self.generation_func)
+        prompt = self.prompt_template(self.prompt, casebase, query)
+        generation_result = generation_func(prompt)
+
+        return generation_result.casebase

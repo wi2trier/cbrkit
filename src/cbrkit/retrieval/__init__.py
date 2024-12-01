@@ -1,22 +1,32 @@
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import cast, override
+from textwrap import dedent
+from typing import Protocol, cast, override
 
-from ..typing import Casebase, HasMetadata, JsonDict, RetrieverFunc
-from ._apply import apply_queries, apply_query
+import orjson
+from pydantic import BaseModel
+
+from cbrkit.helpers import GenerationSeqWrapper
+
+from ..model import QueryResultStep, Result, ResultStep
+from ..typing import AnyGenerationFunc, Casebase, HasMetadata, JsonDict, RetrieverFunc
+from ._apply import apply_pairs, apply_queries, apply_query
 from ._build import build, dropout, transpose
-from ._model import QueryResultStep, Result, ResultStep
 
 __all__ = [
     "build",
     "transpose",
     "dropout",
+    "apply_pairs",
     "apply_queries",
     "apply_query",
     "Result",
     "ResultStep",
     "QueryResultStep",
+    "genai",
+    "GenaiModel",
+    "GenaiPydanticModel",
 ]
 
 
@@ -209,3 +219,57 @@ try:
 
 except ImportError:
     pass
+
+
+def default_prompt_template[K, V](
+    prompt: str,
+    casebase: Casebase[K, V],
+    query: V,
+) -> str:
+    result = dedent(f"""
+        {prompt}
+
+        ## Query
+
+        ```json
+        {str(orjson.dumps(query))}
+        ```
+
+        ## Cases
+    """)
+
+    for key, value in casebase.items():
+        prompt += dedent(f"""
+            ### {str(key)}
+
+            ```json
+            {str(orjson.dumps(value))}
+            ```
+        """)
+
+    return result
+
+
+class GenaiModel[K](Protocol):
+    similarities: Mapping[K, float]
+
+
+class GenaiPydanticModel[K](BaseModel):
+    similarities: Mapping[K, float]
+
+
+@dataclass(slots=True, frozen=True)
+class genai[K, V](RetrieverFunc[K, V, float]):
+    generation_func: AnyGenerationFunc[GenaiModel[K]]
+    prompt: str
+    prompt_template: Callable[[str, Casebase[K, V], V], str] = default_prompt_template
+
+    def __call__(
+        self,
+        pairs: Sequence[tuple[Casebase[K, V], V]],
+    ) -> Sequence[Casebase[K, float]]:
+        generation_func = GenerationSeqWrapper(self.generation_func)
+        prompts = [self.prompt_template(self.prompt, *pair) for pair in pairs]
+        generation_result = generation_func(prompts)
+
+        return [x.similarities for x in generation_result]

@@ -1,10 +1,11 @@
-from ._apply import apply_queries, apply_query, apply_single
-from ._build import build, dropout
-from ._model import QueryResultStep, Result, ResultStep
+from ..model import QueryResultStep, Result, ResultStep
+from ._apply import apply_pairs, apply_queries, apply_query, apply_result, apply_single
+from ._build import build
 
 __all__ = [
-    "dropout",
     "build",
+    "apply_result",
+    "apply_pairs",
     "apply_queries",
     "apply_query",
     "apply_single",

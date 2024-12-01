@@ -7,8 +7,11 @@ from inspect import signature as inspect_signature
 from typing import Any, Literal, cast, override
 
 from .typing import (
+    AnyGenerationFunc,
     AnySimFunc,
     Float,
+    GenerationSeqFunc,
+    GenerationSingleFunc,
     HasMetadata,
     JsonDict,
     JsonEntry,
@@ -25,6 +28,9 @@ __all__ = [
     "SimSeqWrapper",
     "SimMapWrapper",
     "SimPairWrapper",
+    "GenerationWrapper",
+    "GenerationSeqWrapper",
+    "GenerationSingleWrapper",
     "unpack_sim",
     "unpack_sims",
     "singleton",
@@ -184,6 +190,42 @@ class SimPairWrapper[V, S: Float](SimWrapper[V, S], SimPairFunc[V, S]):
         return func(x, y)
 
 
+@dataclass(slots=True)
+class GenerationWrapper[T]:
+    func: AnyGenerationFunc[T]
+    kind: Literal["single", "seq"] = field(init=False)
+
+    def __post_init__(self):
+        signature = inspect_signature(self.func)
+
+        if len(signature.parameters) == 2:
+            self.kind = "single"
+        else:
+            self.kind = "seq"
+
+
+class GenerationSeqWrapper[T](GenerationWrapper[T], GenerationSeqFunc[T]):
+    @override
+    def __call__(self, prompts: Sequence[str]) -> Sequence[T]:
+        if self.kind == "single":
+            func = cast(GenerationSingleFunc[T], self.func)
+            return [func(prompt) for prompt in prompts]
+
+        func = cast(GenerationSeqFunc[T], self.func)
+        return func(prompts)
+
+
+class GenerationSingleWrapper[T](GenerationWrapper[T], GenerationSingleFunc[T]):
+    @override
+    def __call__(self, prompt: str) -> T:
+        if self.kind == "seq":
+            func = cast(GenerationSeqFunc[T], self.func)
+            return func([prompt])[0]
+
+        func = cast(GenerationSingleFunc[T], self.func)
+        return func(prompt)
+
+
 def unpack_sim(sim: Float) -> float:
     if isinstance(sim, float | int | bool):
         return sim
@@ -233,6 +275,10 @@ def load_object(import_name: str) -> Any:
     return getattr(module, obj_name)
 
 
+def load_callable(import_name: str) -> Callable:
+    return load_object(import_name)
+
+
 def load_callables(
     import_names: Sequence[str] | str,
 ) -> list[Callable]:
@@ -241,8 +287,8 @@ def load_callables(
 
     functions: list[Callable] = []
 
-    for import_path in import_names:
-        obj = load_object(import_path)
+    for import_name in import_names:
+        obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in functions)
@@ -261,8 +307,8 @@ def load_callables_map(
 
     functions: dict[str, Callable] = {}
 
-    for import_path in import_names:
-        obj = load_object(import_path)
+    for import_name in import_names:
+        obj = load_object(import_name)
 
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, cast, override
 
 from ..helpers import SimSeqWrapper, get_metadata
 from ..typing import (
@@ -21,6 +21,7 @@ __all__ = [
     "equality",
     "static",
     "transpose",
+    "cache",
 ]
 
 
@@ -252,24 +253,61 @@ class transpose[U, V, S: Float](SimSeqFunc[V, S]):
 
     Examples:
         >>> sim = transpose(
+        ...     similarity_func=equality(),
         ...     conversion_func=lambda x: x.lower(),
-        ...     similarity_func=equality()
         ... )
         >>> sim([("A", "a"), ("b", "B")])
         [1.0, 1.0]
     """
 
-    conversion_func: Callable[[V], U]
     similarity_func: SimSeqFunc[U, S]
+    conversion_func: Callable[[V], U]
 
     def __init__(
-        self, conversion_func: Callable[[V], U], similarity_func: AnySimFunc[V, S]
+        self, similarity_func: AnySimFunc[V, S], conversion_func: Callable[[V], U]
     ):
-        self.conversion_func = conversion_func
         self.similarity_func = SimSeqWrapper(similarity_func)
+        self.conversion_func = conversion_func
 
     @override
     def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
         return self.similarity_func(
             [(self.conversion_func(x), self.conversion_func(y)) for x, y in pairs]
         )
+
+
+@dataclass(slots=True)
+class cache[V, U, S: Float](SimSeqFunc[V, S]):
+    similarity_func: SimSeqFunc[V, S]
+    conversion_func: Callable[[V], U] | None
+    cache: dict[tuple[U, U], S]
+
+    def __init__(
+        self,
+        similarity_func: AnySimFunc[V, S],
+        conversion_func: Callable[[V], U] | None = None,
+    ):
+        self.similarity_func = SimSeqWrapper(similarity_func)
+        self.conversion_func = conversion_func
+        self.cache = {}
+
+    @override
+    def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[S]:
+        transformed_pairs = (
+            [(self.conversion_func(x), self.conversion_func(y)) for x, y in pairs]
+            if self.conversion_func is not None
+            else cast(list[tuple[U, U]], pairs)
+        )
+        uncached_indexes = [
+            idx for idx, pair in enumerate(transformed_pairs) if pair not in self.cache
+        ]
+
+        uncached_sims = self.similarity_func([pairs[idx] for idx in uncached_indexes])
+        self.cache.update(
+            {
+                transformed_pairs[idx]: sim
+                for idx, sim in zip(uncached_indexes, uncached_sims, strict=True)
+            }
+        )
+
+        return [self.cache[pair] for pair in transformed_pairs]

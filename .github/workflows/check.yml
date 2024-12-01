@@ -2,6 +2,8 @@ name: check
 on:
   pull_request:
   workflow_call:
+  push:
+    branches: [dev]
 jobs:
   check:
     runs-on: ubuntu-latest

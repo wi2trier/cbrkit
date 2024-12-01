@@ -15,21 +15,25 @@ def test_simple():
         "miles": 100000,
     }
 
-    sim_func = cbrkit.sim.attribute_value(
-        attributes={
-            "price": cbrkit.sim.numbers.linear(max=100000),
-            "year": cbrkit.sim.numbers.linear(max=50),
-            "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                "./data/cars-taxonomy.yaml",
-                measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
-            ),
-            "make": cbrkit.sim.strings.levenshtein(),
-            "miles": cbrkit.sim.numbers.linear(max=100000),
-        },
-        aggregator=cbrkit.sim.aggregator(pooling="mean"),
+    retriever = cbrkit.retrieval.dropout(
+        cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={
+                    "price": cbrkit.sim.numbers.linear(max=100000),
+                    "year": cbrkit.sim.numbers.linear(max=50),
+                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
+                        "./data/cars-taxonomy.yaml",
+                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    ),
+                    "make": cbrkit.sim.strings.levenshtein(),
+                    "miles": cbrkit.sim.numbers.linear(max=100000),
+                },
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            )
+        ),
+        limit=5,
     )
 
-    retriever = cbrkit.retrieval.dropout(cbrkit.retrieval.build(sim_func), limit=5)
     reuser = cbrkit.reuse.build(
         cbrkit.adapt.attribute_value(
             attributes={
@@ -41,7 +45,7 @@ def test_simple():
                 "miles": cbrkit.adapt.numbers.aggregate("mean"),
             }
         ),
-        similarity_func=sim_func,
+        retriever_func=retriever,
     )
 
     result = cbrkit.cycle.apply_queries(casebase, {"default": query}, retriever, reuser)
