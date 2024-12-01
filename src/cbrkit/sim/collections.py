@@ -230,6 +230,8 @@ try:
                 j -= 1
 
             return alignment[::-1]  # Reverse to start from the beginning
+
+        __all__ += ["dtw"]
 except ImportError:
     pass
 

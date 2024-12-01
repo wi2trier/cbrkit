@@ -168,5 +168,7 @@ try:
                 else:
                     raise ValueError(f"No edge found between {source_key} and {target_key}")
             return edges
+
+        __all__ += ["graph_dtw"]
 except ImportError:
     pass
