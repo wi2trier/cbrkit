@@ -15,9 +15,28 @@ from ..typing import (
 from ._model import DocumentsPrompt
 
 __all__ = [
+    "transpose",
     "default",
     "documents_aware",
 ]
+
+
+@dataclass(slots=True, frozen=True)
+class transpose[P, K, V1, V2, S: Float](PromptFunc[P, K, V1, S]):
+    prompt_func: PromptFunc[P, K, V2, S]
+    conversion_func: ConversionFunc[V1, V2]
+
+    def __call__(
+        self,
+        casebase: Casebase[K, V1],
+        query: V1,
+        similarities: SimMap[K, S] | None,
+    ) -> P:
+        return self.prompt_func(
+            {key: self.conversion_func(value) for key, value in casebase.items()},
+            self.conversion_func(query),
+            similarities,
+        )
 
 
 @dataclass(slots=True, frozen=True)
