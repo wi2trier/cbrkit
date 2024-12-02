@@ -3,8 +3,8 @@ from dataclasses import asdict, dataclass, field
 from itertools import product
 from typing import Any, cast, override
 
-from ..helpers import dist2sim, get_metadata, unpack_sim
-from ..typing import AnnotatedFloat, Float, HasMetadata, JsonDict, SimPairFunc
+from ..helpers import dist2sim, get_metadata, unpack_float
+from ..typing import Float, HasMetadata, JsonDict, SimFunc, StructuredValue
 
 Number = float | int
 
@@ -20,7 +20,7 @@ try:
     from nltk.metrics import jaccard_distance
 
     @dataclass(slots=True, frozen=True)
-    class jaccard[V](SimPairFunc[Collection[Any], float]):
+    class jaccard[V](SimFunc[Collection[Any], float]):
         """Jaccard similarity function.
 
         Examples:
@@ -48,7 +48,7 @@ try:
     from minineedle import core, smith
 
     @dataclass(slots=True, frozen=True)
-    class smith_waterman[V](SimPairFunc[Sequence[Any], float]):
+    class smith_waterman[V](SimFunc[Sequence[Any], float]):
         """
         Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
@@ -93,7 +93,7 @@ try:
     import numpy as np
 
     @dataclass(slots=True)
-    class dtw[V](SimPairFunc[Collection[V], float]):
+    class dtw[V](SimFunc[Collection[V], float]):
         """Dynamic Time Warping similarity function.
 
         Examples:
@@ -155,7 +155,7 @@ except ImportError:
 
 
 @dataclass(slots=True, frozen=True)
-class isolated_mapping[V](SimPairFunc[Sequence[V], float]):
+class isolated_mapping[V](SimFunc[Sequence[V], float]):
     """
     Isolated Mapping similarity function that compares each element in 'x'
     with all elements in 'y'
@@ -173,7 +173,7 @@ class isolated_mapping[V](SimPairFunc[Sequence[V], float]):
         0.8333333333333334
     """
 
-    element_similarity: SimPairFunc[V, float]
+    element_similarity: SimFunc[V, float]
 
     @override
     def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
@@ -192,7 +192,7 @@ try:
     import heapq
 
     @dataclass(slots=True, frozen=True)
-    class mapping[V](SimPairFunc[Sequence[V], float]):
+    class mapping[V](SimFunc[Sequence[V], float]):
         """
         Implements an A* algorithm to find the best matching between query items and case items
         based on the provided similarity function, maximizing the overall similarity score.
@@ -213,7 +213,7 @@ try:
             Normalized Similarity Score: 0.6666666666666666
         """
 
-        element_similarity: SimPairFunc[V, float]
+        element_similarity: SimFunc[V, float]
         max_queue_size: int = 1000
 
         @override
@@ -266,7 +266,7 @@ except ImportError:
 
 
 @dataclass(slots=True, frozen=True)
-class SequenceSim[S: Float](AnnotatedFloat):
+class SequenceSim[S: Float](StructuredValue[float]):
     value: float
     local_similarities: Sequence[S] = field(default_factory=tuple)
 
@@ -282,9 +282,7 @@ class Weight:
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_mapping[V, S: Float](
-    SimPairFunc[Sequence[V], SequenceSim[S]], HasMetadata
-):
+class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceSim[S]], HasMetadata):
     """List Mapping similarity function.
 
     Parameters:
@@ -301,7 +299,7 @@ class sequence_mapping[V, S: Float](
         [1.0, 1.0, 1.0]
     """
 
-    element_similarity: SimPairFunc[V, S]
+    element_similarity: SimFunc[V, S]
     exact: bool = False
     weights: list[Weight] | None = None
 
@@ -327,7 +325,7 @@ class sequence_mapping[V, S: Float](
 
         for elem1, elem2 in zip(list1, list2, strict=False):
             sim = self.element_similarity(elem1, elem2)
-            sim_sum += unpack_sim(sim)
+            sim_sum += unpack_float(sim)
             local_similarities.append(sim)
 
         return SequenceSim(
@@ -372,7 +370,7 @@ class sequence_mapping[V, S: Float](
                 weight.normalized_weight = weight.weight / weight_range
 
             for sim in result.local_similarities:
-                sim = unpack_sim(sim)
+                sim = unpack_float(sim)
 
                 for weight in self.weights:
                     lower_bound = weight.lower_bound
@@ -402,7 +400,7 @@ class sequence_mapping[V, S: Float](
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_correctness[V](SimPairFunc[Sequence[Any], float]):
+class sequence_correctness[V](SimFunc[Sequence[Any], float]):
     """List Correctness similarity function.
 
     Parameters:

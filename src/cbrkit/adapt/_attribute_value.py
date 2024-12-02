@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..typing import AdaptPairFunc
+from ..typing import AdaptationFunc
 
 __all__ = ["attribute_value"]
 
@@ -22,7 +22,7 @@ def default_value_setter(obj: Any, key: Any, value: Any) -> None:
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[V](AdaptPairFunc[V]):
+class attribute_value[V](AdaptationFunc[V]):
     """Adapt values of attributes using specified adaptation functions.
 
     This class allows for the adaptation of multiple attributes of a case by applying
@@ -51,7 +51,7 @@ class attribute_value[V](AdaptPairFunc[V]):
         {'name': 'Peter', 'age': 30}
     """
 
-    attributes: Mapping[str, AdaptPairFunc[Any] | Sequence[AdaptPairFunc[Any]]]
+    attributes: Mapping[str, AdaptationFunc[Any] | Sequence[AdaptationFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = default_value_getter
     value_setter: Callable[[Any, str, Any], None] = default_value_setter
 

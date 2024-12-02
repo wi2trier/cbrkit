@@ -2,21 +2,20 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, override
 
-from cbrkit.helpers import SimSeqWrapper
-from cbrkit.typing import (
+from ...helpers import batchify_sim
+from ...typing import (
     AggregatorFunc,
     AnySimFunc,
+    BatchSimFunc,
     Float,
-    SimPairFunc,
-    SimSeqFunc,
+    SimFunc,
 )
-
 from . import _model as model
 from ._model import Graph, GraphSim, Node
 
 
 @dataclass(slots=True)
-class isomorphism[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
+class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """Compute subgraph isomorphisms between two graphs.
 
     - Convert the input graphs to Rustworkx graphs.
@@ -27,7 +26,7 @@ class isomorphism[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     node_matcher: Callable[[N, N], bool]
     edge_matcher: Callable[[E, E], bool]
-    node_sim_func: SimSeqFunc[Node[K, N], Float]
+    node_sim_func: BatchSimFunc[Node[K, N], Float]
     aggregator: AggregatorFunc[Any, Float]
 
     def __init__(
@@ -40,7 +39,7 @@ class isomorphism[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
         self.node_matcher = node_matcher
         self.edge_matcher = edge_matcher
         self.aggregator = aggregator
-        self.node_sim_func = SimSeqWrapper(node_sim_func)
+        self.node_sim_func = batchify_sim(node_sim_func)
 
     @override
     def __call__(

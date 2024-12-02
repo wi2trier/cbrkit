@@ -3,7 +3,7 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from typing import override
 
-from ..helpers import unpack_sim
+from ..helpers import unpack_float
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 
 # https://amenra.github.io/ranx/metrics/
@@ -165,7 +165,7 @@ def compute[Q, C, S: Float](
         str(qk): {str(ck): cv for ck, cv in qv.items()} for qk, qv in qrels.items()
     }
     parsed_run = {
-        str(qk): {str(ck): unpack_sim(cv) for ck, cv in qv.items()}
+        str(qk): {str(ck): unpack_float(cv) for ck, cv in qv.items()}
         for qk, qv in run.items()
     }
 

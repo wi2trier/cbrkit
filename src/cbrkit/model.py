@@ -2,9 +2,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from .helpers import (
-    similarities2ranking,
-)
+from .helpers import sim_map2ranking
 from .typing import (
     Casebase,
     Float,
@@ -38,7 +36,7 @@ class QueryResultStep[K, V, S: Float]:
     def build(
         cls, similarities: Mapping[K, S], full_casebase: Casebase[K, V], query: V
     ) -> "QueryResultStep[K, V, S]":
-        ranking = similarities2ranking(similarities)
+        ranking = sim_map2ranking(similarities)
         casebase = {key: full_casebase[key] for key in similarities}
 
         return cls(similarities, tuple(ranking), casebase, query)

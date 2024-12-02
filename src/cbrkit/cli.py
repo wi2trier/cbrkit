@@ -60,7 +60,7 @@ def retrieve(
             if print_similarities:
                 print("Similarities:")
                 for case_name, similarity in query_result.similarities.items():
-                    print(f"  {case_name}: {cbrkit.helpers.unpack_sim(similarity)}")
+                    print(f"  {case_name}: {cbrkit.helpers.unpack_float(similarity)}")
 
             print()
 

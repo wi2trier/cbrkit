@@ -1,54 +1,100 @@
+from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import (
+    Any,
+    Protocol,
+)
 
 
-@runtime_checkable
-class AnnotatedFloat(Protocol):
-    value: float
+class StructuredValue[T](ABC):
+    value: T
 
 
 type JsonEntry = (
     Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
 )
 type JsonDict = dict[str, JsonEntry]
-type Float = float | AnnotatedFloat
+type Float = float | StructuredValue[float]
+type Prompt[P] = P | StructuredValue[P]
 type FilePath = str | Path
 type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
-type SimSeqOrMap[K, S: Float] = SimMap[K, S] | SimSeq[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
 
 
-@runtime_checkable
-class HasMetadata(Protocol):
+class HasMetadata(ABC):
     @property
+    @abstractmethod
     def metadata(self) -> JsonDict: ...
 
 
-class SimMapFunc[K, V, S: Float](Protocol):
-    def __call__(self, x_map: Mapping[K, V], y: V, /) -> SimMap[K, S]: ...
+class ConversionFunc[U, V](Protocol):
+    def __call__(
+        self,
+        obj: U,
+        /,
+    ) -> V: ...
 
 
-class SimSeqFunc[V, S: Float](Protocol):
-    def __call__(self, pairs: Sequence[tuple[V, V]], /) -> SimSeq[S]: ...
+class PositionalFunc[T](Protocol):
+    def __call__(
+        self,
+        *args: Any,
+    ) -> T: ...
 
 
-class SimPairFunc[V, S: Float](Protocol):
-    def __call__(self, x: V, y: V, /) -> S: ...
+class BatchPositionalFunc[T](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[tuple[Any, ...]],
+    ) -> Sequence[T]: ...
 
 
-type AnySimFunc[V, S: Float] = SimPairFunc[V, S] | SimSeqFunc[V, S]
+type AnyPositionalFunc[T] = PositionalFunc[T] | BatchPositionalFunc[T]
+
+
+class NamedFunc[T](Protocol):
+    def __call__(self, **kwargs: Any) -> T: ...
+
+
+class NamedBatchFunc[T](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[dict[str, Any]],
+    ) -> Sequence[T]: ...
+
+
+type AnyNamedFunc[T] = NamedFunc[T] | NamedBatchFunc[T]
+
+
+class SimFunc[V, S: Float](Protocol):
+    def __call__(
+        self,
+        x: V,
+        y: V,
+    ) -> S: ...
+
+
+class BatchSimFunc[V, S: Float](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[tuple[V, V]],
+    ) -> SimSeq[S]: ...
+
+
+type AnySimFunc[V, S: Float] = SimFunc[V, S] | BatchSimFunc[V, S]
 
 
 class RetrieverFunc[K, V, S: Float](Protocol):
     def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+        self,
+        batches: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[SimMap[K, S]]: ...
 
 
-class AdaptPairFunc[V](Protocol):
+class AdaptationFunc[V](Protocol):
     def __call__(
         self,
         case: V,
@@ -56,7 +102,14 @@ class AdaptPairFunc[V](Protocol):
     ) -> V: ...
 
 
-class AdaptMapFunc[K, V](Protocol):
+class BatchAdaptationFunc[V](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[tuple[V, V]],
+    ) -> Sequence[V]: ...
+
+
+class AdaptationMapFunc[K, V](Protocol):
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -64,7 +117,7 @@ class AdaptMapFunc[K, V](Protocol):
     ) -> Casebase[K, V]: ...
 
 
-class AdaptReduceFunc[K, V](Protocol):
+class AdaptationReduceFunc[K, V](Protocol):
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -72,30 +125,32 @@ class AdaptReduceFunc[K, V](Protocol):
     ) -> tuple[K, V]: ...
 
 
-type AnyAdaptFunc[K, V] = AdaptPairFunc[V] | AdaptMapFunc[K, V] | AdaptReduceFunc[K, V]
+type AnyAdaptationFunc[K, V] = (
+    AdaptationFunc[V] | AdaptationMapFunc[K, V] | AdaptationReduceFunc[K, V]
+)
 
 
 class ReuserFunc[K, V, S: Float](Protocol):
     def __call__(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V]],
+        batches: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
 
 
 class AggregatorFunc[K, S: Float](Protocol):
     def __call__(
         self,
-        similarities: SimSeqOrMap[K, S],
+        similarities: SimMap[K, S] | SimSeq[S],
         /,
     ) -> float: ...
 
 
-class PoolingFunc(Protocol):
+class PoolingFunc[T](Protocol):
     def __call__(
         self,
-        similarities: SimSeq[float],
+        values: Sequence[T],
         /,
-    ) -> float: ...
+    ) -> T: ...
 
 
 class EvalMetricFunc(Protocol):
@@ -108,32 +163,34 @@ class EvalMetricFunc(Protocol):
     ) -> float: ...
 
 
-class RagFunc[K, V, S: Float, T](Protocol):
+class GenerationFunc[P, R](Protocol):
     def __call__(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]],
-    ) -> Sequence[T]: ...
+        prompt: P,
+    ) -> R: ...
 
 
-class RagAggregatorFunc[T](Protocol):
+class BatchGenerationFunc[P, R](Protocol):
     def __call__(
         self,
-        values: Sequence[T],
-    ) -> T: ...
+        batches: Sequence[P],
+    ) -> Sequence[R]: ...
 
 
-class GenerationSeqFunc[T](Protocol):
+type AnyGenerationFunc[P, R] = GenerationFunc[P, R] | BatchGenerationFunc[P, R]
+
+
+class PromptFunc[P, K, V, S: Float](Protocol):
     def __call__(
         self,
-        prompts: Sequence[str],
-    ) -> Sequence[T]: ...
+        casebase: Casebase[K, V],
+        query: V,
+        similarities: SimMap[K, S] | None,
+    ) -> P: ...
 
 
-class GenerationSingleFunc[T](Protocol):
+class RagFunc[R, K, V, S: Float](Protocol):
     def __call__(
         self,
-        prompt: str,
-    ) -> T: ...
-
-
-type AnyGenerationFunc[T] = GenerationSingleFunc[T] | GenerationSeqFunc[T]
+        batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]],
+    ) -> Sequence[R]: ...

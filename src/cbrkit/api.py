@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 
 import cbrkit
 
-pydantic_dataclass_kwargs = {
+pydantic_dataclass_kwargs: dict[str, Any] = {
     "config": ConfigDict(arbitrary_types_allowed=True),
     "frozen": True,
     "slots": True,

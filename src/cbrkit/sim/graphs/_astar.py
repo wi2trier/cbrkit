@@ -7,22 +7,22 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, override
 
-from cbrkit.helpers import (
-    SimSeqWrapper,
-    unpack_sim,
-    unpack_sims,
+from ...helpers import (
+    batchify_sim,
+    unpack_float,
+    unpack_floats,
 )
-from cbrkit.sim.graphs._model import (
+from ...typing import (
+    AnySimFunc,
+    BatchSimFunc,
+    Float,
+    SimFunc,
+)
+from ._model import (
     Edge,
     Graph,
     GraphSim,
     Node,
-)
-from cbrkit.typing import (
-    AnySimFunc,
-    Float,
-    SimPairFunc,
-    SimSeqFunc,
 )
 
 type ElementKind = Literal["node", "edge"]
@@ -142,24 +142,24 @@ class SearchNode[K, N, E, G]:
 
 
 @dataclass(slots=True, frozen=True)
-class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
-    node_sim_func: SimSeqFunc[Node[K, N], Float]
+class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
+    node_sim_func: BatchSimFunc[Node[K, N], Float]
 
     @override
     def __call__(
-        self, pairs: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
+        self, batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
     ) -> list[float]:
-        source_sims = self.node_sim_func([(x.source, y.source) for x, y in pairs])
-        target_sims = self.node_sim_func([(x.target, y.target) for x, y in pairs])
+        source_sims = self.node_sim_func([(x.source, y.source) for x, y in batches])
+        target_sims = self.node_sim_func([(x.target, y.target) for x, y in batches])
 
         return [
-            0.5 * (unpack_sim(source) + unpack_sim(target))
+            0.5 * (unpack_float(source) + unpack_float(target))
             for source, target in zip(source_sims, target_sims, strict=True)
         ]
 
 
 @dataclass(slots=True)
-class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
+class astar[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
@@ -176,8 +176,8 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    node_sim_func: SimSeqFunc[Node[K, N], Float]
-    edge_sim_func: SimSeqFunc[Edge[K, N, E], Float]
+    node_sim_func: BatchSimFunc[Node[K, N], Float]
+    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
     queue_limit: int
     future_cost_func: HeuristicFunc[K, N, E, G]
     past_cost_func: HeuristicFunc[K, N, E, G]
@@ -192,12 +192,12 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
         past_cost_func: HeuristicFunc[K, N, E, G] | Literal["g1"] = "g1",
         select_func: SelectionFunc[K, N, E, G] | Literal["select1"] = "select1",
     ) -> None:
-        self.node_sim_func = SimSeqWrapper(node_sim_func)
+        self.node_sim_func = batchify_sim(node_sim_func)
 
         if edge_sim_func is None:
             self.edge_sim_func = default_edge_sim(self.node_sim_func)
         else:
-            self.edge_sim_func = SimSeqWrapper(edge_sim_func)
+            self.edge_sim_func = batchify_sim(edge_sim_func)
 
         self.queue_limit = queue_limit
         self.future_cost_func = (
@@ -250,7 +250,7 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         for y_name in s.unmapped_nodes:
             max_sim = max(
-                unpack_sims(
+                unpack_floats(
                     self.node_sim_func(
                         [(x_node, y.nodes[y_name]) for x_node in (x.nodes.values())]
                     )
@@ -261,7 +261,7 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         for y_name in s.unmapped_edges:
             max_sim = max(
-                unpack_sims(
+                unpack_floats(
                     self.edge_sim_func(
                         [(x_edge, y.edges[y_name]) for x_edge in x.edges.values()]
                     )
@@ -286,7 +286,7 @@ class astar[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
             [(s.x.edges[x], s.y.edges[y]) for y, x in s.mapping.edge_mappings.items()]
         )
 
-        all_sims = unpack_sims(itertools.chain(node_sims, edge_sims))
+        all_sims = unpack_floats(itertools.chain(node_sims, edge_sims))
         total_elements = len(s.y.nodes) + len(s.y.edges)
 
         return sum(all_sims) / total_elements

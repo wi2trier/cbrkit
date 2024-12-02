@@ -1,32 +1,30 @@
 import asyncio
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from textwrap import dedent
-from typing import Protocol, cast, override
-
-import orjson
-from pydantic import BaseModel
-
-from cbrkit.helpers import GenerationSeqWrapper
+from typing import cast, override
 
 from ..model import QueryResultStep, Result, ResultStep
-from ..typing import AnyGenerationFunc, Casebase, HasMetadata, JsonDict, RetrieverFunc
-from ._apply import apply_pairs, apply_queries, apply_query
+from ..typing import (
+    Casebase,
+    HasMetadata,
+    JsonDict,
+    RetrieverFunc,
+)
+from . import genai
+from ._apply import apply_batches, apply_queries, apply_query
 from ._build import build, dropout, transpose
 
 __all__ = [
     "build",
     "transpose",
     "dropout",
-    "apply_pairs",
+    "genai",
+    "apply_batches",
     "apply_queries",
     "apply_query",
     "Result",
     "ResultStep",
     "QueryResultStep",
-    "genai",
-    "GenaiModel",
-    "GenaiPydanticModel",
 ]
 
 
@@ -50,16 +48,16 @@ try:
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, str], str]],
+            batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            return asyncio.run(self._retrieve(pairs))
+            return asyncio.run(self._retrieve(batches))
 
         async def _retrieve(
             self,
-            pairs: Sequence[tuple[Casebase[K, str], str]],
+            batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             return await asyncio.gather(
-                *(self._retrieve_single(query, casebase) for casebase, query in pairs)
+                *(self._retrieve_single(query, casebase) for casebase, query in batches)
             )
 
         async def _retrieve_single(
@@ -106,16 +104,16 @@ try:
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, str], str]],
+            batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            return asyncio.run(self._retrieve(pairs))
+            return asyncio.run(self._retrieve(batches))
 
         async def _retrieve(
             self,
-            pairs: Sequence[tuple[Casebase[K, str], str]],
+            batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             return await asyncio.gather(
-                *(self._retrieve_single(query, casebase) for casebase, query in pairs)
+                *(self._retrieve_single(query, casebase) for casebase, query in batches)
             )
 
         async def _retrieve_single(
@@ -173,7 +171,7 @@ try:
         @override
         def __call__(
             self,
-            pairs: Sequence[tuple[Casebase[K, str], str]],
+            batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
             model = (
                 SentenceTransformer(self.model, device=self.device)
@@ -183,7 +181,7 @@ try:
 
             return [
                 self._retrieve_single(query, casebase, model)
-                for casebase, query in pairs
+                for casebase, query in batches
             ]
 
         def _retrieve_single(
@@ -219,57 +217,3 @@ try:
 
 except ImportError:
     pass
-
-
-def default_prompt_template[K, V](
-    prompt: str,
-    casebase: Casebase[K, V],
-    query: V,
-) -> str:
-    result = dedent(f"""
-        {prompt}
-
-        ## Query
-
-        ```json
-        {str(orjson.dumps(query))}
-        ```
-
-        ## Cases
-    """)
-
-    for key, value in casebase.items():
-        prompt += dedent(f"""
-            ### {str(key)}
-
-            ```json
-            {str(orjson.dumps(value))}
-            ```
-        """)
-
-    return result
-
-
-class GenaiModel[K](Protocol):
-    similarities: Mapping[K, float]
-
-
-class GenaiPydanticModel[K](BaseModel):
-    similarities: Mapping[K, float]
-
-
-@dataclass(slots=True, frozen=True)
-class genai[K, V](RetrieverFunc[K, V, float]):
-    generation_func: AnyGenerationFunc[GenaiModel[K]]
-    prompt: str
-    prompt_template: Callable[[str, Casebase[K, V], V], str] = default_prompt_template
-
-    def __call__(
-        self,
-        pairs: Sequence[tuple[Casebase[K, V], V]],
-    ) -> Sequence[Casebase[K, float]]:
-        generation_func = GenerationSeqWrapper(self.generation_func)
-        prompts = [self.prompt_template(self.prompt, *pair) for pair in pairs]
-        generation_result = generation_func(prompts)
-
-        return [x.similarities for x in generation_result]

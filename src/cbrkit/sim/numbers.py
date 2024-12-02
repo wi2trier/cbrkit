@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 from typing import override
 
-from ..typing import SimPairFunc
+from ..typing import SimFunc
 
 type Number = float | int
 
@@ -10,7 +10,7 @@ __all__ = ["linear_interval", "linear", "threshold", "exponential", "sigmoid"]
 
 
 @dataclass(slots=True, frozen=True)
-class linear_interval(SimPairFunc[Number, float]):
+class linear_interval(SimFunc[Number, float]):
     """Linear similarity function based on the distance between two values within a range.
 
     Args:
@@ -35,7 +35,7 @@ class linear_interval(SimPairFunc[Number, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class linear(SimPairFunc[Number, float]):
+class linear(SimFunc[Number, float]):
     """Linear similarity function based on the distance between two values.
 
     Args:
@@ -66,7 +66,7 @@ class linear(SimPairFunc[Number, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class threshold(SimPairFunc[Number, float]):
+class threshold(SimFunc[Number, float]):
     """Threshold similarity function.
 
     Args:
@@ -90,7 +90,7 @@ class threshold(SimPairFunc[Number, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class exponential(SimPairFunc[Number, float]):
+class exponential(SimFunc[Number, float]):
     """Exponential similarity function.
 
     Args:
@@ -112,7 +112,7 @@ class exponential(SimPairFunc[Number, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class sigmoid(SimPairFunc[Number, float]):
+class sigmoid(SimFunc[Number, float]):
     """Sigmoid similarity function.
 
     Args:

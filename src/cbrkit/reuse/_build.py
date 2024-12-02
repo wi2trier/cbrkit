@@ -5,10 +5,10 @@ from multiprocessing import Pool
 from typing import cast, override
 
 from ..typing import (
-    AdaptMapFunc,
-    AdaptPairFunc,
-    AdaptReduceFunc,
-    AnyAdaptFunc,
+    AdaptationFunc,
+    AdaptationMapFunc,
+    AdaptationReduceFunc,
+    AnyAdaptationFunc,
     Casebase,
     Float,
     RetrieverFunc,
@@ -30,23 +30,23 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         The adapted casebases and the similarities between the adapted cases and the query.
     """
 
-    adaptation_func: AnyAdaptFunc[K, V]
+    adaptation_func: AnyAdaptationFunc[K, V]
     retriever_func: RetrieverFunc[K, V, S]
     processes: int = 1
 
     @override
     def __call__(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V]],
+        batches: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        adapted_casebases = self._adapt(pairs, self.adaptation_func)
-        adapted_pairs = [
+        adapted_casebases = self._adapt(batches, self.adaptation_func)
+        adapted_batches = [
             (adapted_casebase, query)
             for adapted_casebase, (_, query) in zip(
-                adapted_casebases, pairs, strict=True
+                adapted_casebases, batches, strict=True
             )
         ]
-        adapted_similarities = self.retriever_func(adapted_pairs)
+        adapted_similarities = self.retriever_func(adapted_batches)
 
         return [
             (adapted_casebase, adapted_sim)
@@ -57,14 +57,14 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
     def _adapt(
         self,
-        pairs: Sequence[tuple[Casebase[K, V], V]],
-        adaptation_func: AnyAdaptFunc[K, V],
+        batches: Sequence[tuple[Casebase[K, V], V]],
+        adaptation_func: AnyAdaptationFunc[K, V],
     ) -> Sequence[Casebase[K, V]]:
         adaptation_func_signature = inspect_signature(adaptation_func)
 
         if "casebase" in adaptation_func_signature.parameters:
             adapt_func = cast(
-                AdaptMapFunc[K, V] | AdaptReduceFunc[K, V],
+                AdaptationMapFunc[K, V] | AdaptationReduceFunc[K, V],
                 adaptation_func,
             )
 
@@ -72,10 +72,10 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 pool_processes = None if self.processes <= 0 else self.processes
 
                 with Pool(pool_processes) as pool:
-                    adaptation_results = pool.starmap(adaptation_func, pairs)
+                    adaptation_results = pool.starmap(adaptation_func, batches)
             else:
                 adaptation_results = [
-                    adapt_func(casebase, query) for casebase, query in pairs
+                    adapt_func(casebase, query) for casebase, query in batches
                 ]
 
             if all(isinstance(item, tuple) for item in adaptation_results):
@@ -87,14 +87,14 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
             return cast(Sequence[Casebase[K, V]], adaptation_results)
 
-        adapt_func = cast(AdaptPairFunc[V], adaptation_func)
-        pairs_index: list[tuple[int, K]] = []
-        flat_pairs: list[tuple[V, V]] = []
+        adapt_func = cast(AdaptationFunc[V], adaptation_func)
+        batches_index: list[tuple[int, K]] = []
+        flat_batches: list[tuple[V, V]] = []
 
-        for idx, (casebase, query) in enumerate(pairs):
+        for idx, (casebase, query) in enumerate(batches):
             for key, case in casebase.items():
-                pairs_index.append((idx, key))
-                flat_pairs.append((case, query))
+                batches_index.append((idx, key))
+                flat_batches.append((case, query))
 
         if self.processes != 1:
             pool_processes = None if self.processes <= 0 else self.processes
@@ -102,14 +102,14 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
             with Pool(pool_processes) as pool:
                 adapted_cases = pool.starmap(
                     adapt_func,
-                    flat_pairs,
+                    flat_batches,
                 )
         else:
-            adapted_cases = [adapt_func(case, query) for case, query in flat_pairs]
+            adapted_cases = [adapt_func(case, query) for case, query in flat_batches]
 
-        adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(pairs))]
+        adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
 
-        for (idx, key), adapted_case in zip(pairs_index, adapted_cases, strict=True):
+        for (idx, key), adapted_case in zip(batches_index, adapted_cases, strict=True):
             adapted_casebases[idx][key] = adapted_case
 
         return adapted_casebases

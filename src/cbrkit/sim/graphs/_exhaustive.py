@@ -1,44 +1,42 @@
-from __future__ import annotations
-
 import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import override
 
-from cbrkit.helpers import SimSeqWrapper, unpack_sim, unpack_sims
-from cbrkit.sim.graphs._model import (
+from ...helpers import batchify_sim, unpack_float, unpack_floats
+from ...typing import (
+    AnySimFunc,
+    BatchSimFunc,
+    Float,
+    SimFunc,
+)
+from ._model import (
     Edge,
     Graph,
     GraphSim,
     Node,
 )
-from cbrkit.typing import (
-    AnySimFunc,
-    Float,
-    SimPairFunc,
-    SimSeqFunc,
-)
 
 
 @dataclass(slots=True, frozen=True)
-class default_edge_sim[K, N, E](SimSeqFunc[Edge[K, N, E], Float]):
-    node_sim_func: SimSeqFunc[Node[K, N], Float]
+class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
+    node_sim_func: BatchSimFunc[Node[K, N], Float]
 
     @override
     def __call__(
-        self, pairs: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
+        self, batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
     ) -> list[float]:
-        source_sims = self.node_sim_func([(x.source, y.source) for x, y in pairs])
-        target_sims = self.node_sim_func([(x.target, y.target) for x, y in pairs])
+        source_sims = self.node_sim_func([(x.source, y.source) for x, y in batches])
+        target_sims = self.node_sim_func([(x.target, y.target) for x, y in batches])
 
         return [
-            0.5 * (unpack_sim(source) + unpack_sim(target))
+            0.5 * (unpack_float(source) + unpack_float(target))
             for source, target in zip(source_sims, target_sims, strict=True)
         ]
 
 
 @dataclass
-class exhaustive[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
+class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Computes the similarity between two graphs by exhaustively computing all possible mappings
     and selecting the one with the highest similarity score.
@@ -51,19 +49,19 @@ class exhaustive[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the two graphs and the best mapping.
     """
 
-    node_sim_func: SimSeqFunc[Node[K, N], Float]
-    edge_sim_func: SimSeqFunc[Edge[K, N, E], Float]
+    node_sim_func: BatchSimFunc[Node[K, N], Float]
+    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
 
     def __init__(
         self,
         node_sim_func: AnySimFunc[Node[K, N], Float],
         edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
     ) -> None:
-        self.node_sim_func = SimSeqWrapper(node_sim_func)
+        self.node_sim_func = batchify_sim(node_sim_func)
         if edge_sim_func is None:
             self.edge_sim_func = default_edge_sim(self.node_sim_func)
         else:
-            self.edge_sim_func = SimSeqWrapper(edge_sim_func)
+            self.edge_sim_func = batchify_sim(edge_sim_func)
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
         max_sim = float("-inf")
@@ -94,7 +92,7 @@ class exhaustive[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
                 ]
                 node_sims = self.node_sim_func(node_pairs)
                 total_node_sim = (
-                    sum(unpack_sims(node_sims)) / len(node_sims) if node_sims else 0.0
+                    sum(unpack_floats(node_sims)) / len(node_sims) if node_sims else 0.0
                 )
 
                 # Build edge mappings based on node mappings
@@ -121,7 +119,7 @@ class exhaustive[K, N, E, G](SimPairFunc[Graph[K, N, E, G], GraphSim[K]]):
                 # Compute edge similarities
                 edge_sims = self.edge_sim_func(edge_pairs)
                 total_edge_sim = (
-                    sum(unpack_sims(edge_sims)) / len(edge_sims) if edge_sims else 0.0
+                    sum(unpack_floats(edge_sims)) / len(edge_sims) if edge_sims else 0.0
                 )
 
                 total_sim = (total_node_sim + total_edge_sim) / 2.0

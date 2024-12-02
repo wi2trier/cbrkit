@@ -1,32 +1,37 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
-import orjson
+from .encoders import json_bytes
+from .typing import ConversionFunc, FilePath
 
-from .typing import FilePath
-
-__all__ = ["json"]
+__all__ = ["file"]
 
 
-def json(
+_default_encoder = json_bytes()
+
+
+def file(
     data: Mapping[Any, Any],
     path: FilePath,
-    default: Callable[[Any], Any] | None = None,
-    option: int | None = None,
+    encoder: ConversionFunc[Any, bytes | str] = _default_encoder,
 ) -> None:
     """Writes a dict to a json file.
 
     Args:
         data: Dict to write to the file.
         path: Path of the output file.
-        default: Function to serialize arbitrary objects, see orjson documentation.
-        option: Serialization options, see orjson documentation.
-            Multiple options can be combined using the bitwise OR operator `|`.
-
+        encoder: Encoder function to use
     """
 
     # This is a workaround to force the dict conversion of wrapper classes (e.g., for polars)
-    data_dict = {key: value for key, value in data.items()}
+    data_dict = dict(data.items())
+    encoded_data = encoder(data_dict)
 
-    with open(path, "wb") as f:
-        f.write(orjson.dumps(data_dict, default=default, option=option))
+    if isinstance(encoded_data, str):
+        with open(path, "w") as f:
+            f.write(encoded_data)
+    elif isinstance(encoded_data, bytes):
+        with open(path, "wb") as f:
+            f.write(encoded_data)
+
+    raise ValueError("Invalid encoder output type")
