@@ -1,10 +1,11 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing import Pool
 from typing import override
 
 from ..helpers import (
     batchify_sim,
+    chunkify,
     sim_map2ranking,
     unpack_float,
 )
@@ -16,18 +17,6 @@ from ..typing import (
     RetrieverFunc,
     SimMap,
 )
-
-
-def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
-    """Yield a total of k chunks from val.
-
-    Examples:
-        >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
-        [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
-    """
-
-    for i in range(0, len(val), k):
-        yield val[i : i + k]
 
 
 @dataclass(slots=True, frozen=True)
