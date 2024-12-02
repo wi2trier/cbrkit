@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Literal, cast, override
 
 from ...typing import (
+    BatchSimFunc,
     FilePath,
     HasMetadata,
     JsonDict,
-    SimPairFunc,
+    SimFunc,
     SimSeq,
-    SimSeqFunc,
 )
 from ..generic import static_table
 from . import taxonomy
@@ -52,7 +52,7 @@ try:
     from spacy.language import Language
 
     @dataclass(slots=True)
-    class spacy(SimSeqFunc[str, float], HasMetadata):
+    class spacy(BatchSimFunc[str, float], HasMetadata):
         """Semantic similarity using [spaCy](https://spacy.io/)
 
         Args:
@@ -74,15 +74,15 @@ try:
             return {"model": self.model.meta}
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
-            texts = list(itertools.chain.from_iterable(pairs))
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq[float]:
+            texts = list(itertools.chain.from_iterable(batches))
 
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 
             docs = dict(zip(texts, docs_iterator, strict=True))
 
-            return [docs[x].similarity(docs[y]) for x, y in pairs]
+            return [docs[x].similarity(docs[y]) for x, y in batches]
 
     __all__ += ["spacy"]
 
@@ -94,7 +94,7 @@ try:
     from sentence_transformers import SentenceTransformer
 
     @dataclass(slots=True)
-    class sentence_transformers(SimSeqFunc[str, float], HasMetadata):
+    class sentence_transformers(BatchSimFunc[str, float], HasMetadata):
         """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
 
         Args:
@@ -119,8 +119,8 @@ try:
             return self._metadata
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq[float]:
-            case_texts, query_texts = zip(*pairs, strict=True)
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq[float]:
+            case_texts, query_texts = zip(*batches, strict=True)
             case_vecs = self.model.encode(case_texts, convert_to_tensor=True)
             query_vecs = self.model.encode(query_texts, convert_to_tensor=True)
 
@@ -137,7 +137,7 @@ try:
     from openai import OpenAI
 
     @dataclass(slots=True, frozen=True)
-    class openai(SimSeqFunc[str, float]):
+    class openai(BatchSimFunc[str, float]):
         """Semantic similarity using OpenAI's embedding models
 
         Args:
@@ -148,8 +148,8 @@ try:
         client: OpenAI = field(default_factory=OpenAI, repr=False)
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            texts = list(itertools.chain.from_iterable(pairs))
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            texts = list(itertools.chain.from_iterable(batches))
             res = self.client.embeddings.create(
                 input=texts,
                 model=self.model,
@@ -158,7 +158,7 @@ try:
             np_vecs = [np.array(x.embedding) for x in res.data]
             vecs = dict(zip(texts, np_vecs, strict=True))
 
-            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+            return [_cosine(vecs[x], vecs[y]) for x, y in batches]
 
     __all__ += ["openai"]
 
@@ -171,7 +171,7 @@ try:
     from ollama import Client, Options
 
     @dataclass(slots=True, frozen=True)
-    class ollama(SimSeqFunc[str, float]):
+    class ollama(BatchSimFunc[str, float]):
         """Semantic similarity using Ollama's embedding models
 
         Args:
@@ -185,8 +185,8 @@ try:
         client: Client = field(default_factory=Client, repr=False)
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            texts = list(itertools.chain.from_iterable(pairs))
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            texts = list(itertools.chain.from_iterable(batches))
             res = self.client.embed(
                 self.model,
                 texts,
@@ -197,7 +197,7 @@ try:
             np_vecs = [np.array(x) for x in res["embeddings"]]
             vecs = dict(zip(texts, np_vecs, strict=True))
 
-            return [_cosine(vecs[x], vecs[y]) for x, y in pairs]
+            return [_cosine(vecs[x], vecs[y]) for x, y in batches]
 
     __all__ += ["ollama"]
 
@@ -211,7 +211,7 @@ try:
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
-    class cohere(SimSeqFunc[str, float]):
+    class cohere(BatchSimFunc[str, float]):
         """Semantic similarity using Cohere's embedding models
 
         Args:
@@ -224,8 +224,8 @@ try:
         request_options: RequestOptions | None = None
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            case_texts, query_texts = zip(*pairs, strict=True)
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            case_texts, query_texts = zip(*batches, strict=True)
 
             case_raw_vecs = self.client.v2.embed(
                 model=self.model,
@@ -252,7 +252,7 @@ try:
             case_vecs = dict(zip(case_texts, case_np_vecs, strict=True))
             query_vecs = dict(zip(query_texts, query_np_vecs, strict=True))
 
-            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in pairs]
+            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in batches]
 
     __all__ += ["cohere"]
 
@@ -264,7 +264,7 @@ try:
     from voyageai import Client  # type: ignore
 
     @dataclass(slots=True, frozen=True)
-    class voyageai(SimSeqFunc[str, float]):
+    class voyageai(BatchSimFunc[str, float]):
         """Semantic similarity using Voyage AI's embedding models
 
         Args:
@@ -276,8 +276,8 @@ try:
         truncation: bool = True
 
         @override
-        def __call__(self, pairs: Sequence[tuple[str, str]]) -> SimSeq:
-            case_texts, query_texts = zip(*pairs, strict=True)
+        def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            case_texts, query_texts = zip(*batches, strict=True)
 
             case_raw_vecs = self.client.embed(
                 model=self.model,
@@ -298,7 +298,7 @@ try:
             case_vecs = dict(zip(case_texts, case_np_vecs, strict=True))
             query_vecs = dict(zip(query_texts, query_np_vecs, strict=True))
 
-            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in pairs]
+            return [_cosine(case_vecs[x], query_vecs[y]) for x, y in batches]
 
     __all__ += ["voyageai"]
 
@@ -310,7 +310,7 @@ try:
     import Levenshtein as pyLevenshtein
 
     @dataclass(slots=True, frozen=True)
-    class levenshtein(SimPairFunc[str, float]):
+    class levenshtein(SimFunc[str, float]):
         """Similarity function that calculates a normalized indel similarity between two strings based on [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance).
 
         Args:
@@ -335,7 +335,7 @@ try:
             return pyLevenshtein.ratio(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
-    class jaro(SimPairFunc[str, float]):
+    class jaro(SimFunc[str, float]):
         """Jaro similarity function to compute similarity between two strings.
 
         Args:
@@ -356,7 +356,7 @@ try:
             return pyLevenshtein.jaro(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
-    class jaro_winkler(SimPairFunc[str, float]):
+    class jaro_winkler(SimFunc[str, float]):
         """Jaro-Winkler similarity function to compute similarity between two strings.
 
         Args:
@@ -390,7 +390,7 @@ try:
     from nltk.util import ngrams as nltk_ngrams
 
     @dataclass(slots=True, frozen=True)
-    class ngram(SimPairFunc[str, float]):
+    class ngram(SimFunc[str, float]):
         """N-gram similarity function to compute [similarity](https://procake.pages.gitlab.rlp.net/procake-wiki/sim/strings/#n-gram) between two strings.
 
         Args:
@@ -429,7 +429,7 @@ except ImportError:
 
 
 @dataclass(slots=True, frozen=True)
-class regex(SimPairFunc[str, float]):
+class regex(SimFunc[str, float]):
     """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Examples:
@@ -447,7 +447,7 @@ class regex(SimPairFunc[str, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class glob(SimPairFunc[str, float]):
+class glob(SimFunc[str, float]):
     """Compares a case x to a query y, written as a glob pattern, which can contain wildcards. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
     Args:
@@ -476,13 +476,13 @@ def table(
     | FilePath,
     symmetric: bool = True,
     default: float = 0.0,
-) -> SimPairFunc[str, float]:
+) -> SimFunc[str, float]:
     """Allows to import a similarity values from a table.
 
     Args:
         entries: Sequence[tuple[a, b, sim(a, b)]
         symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
-        default: Default similarity value for pairs not in the table
+        default: Default similarity value for batches not in the table
 
     Examples:
         >>> sim = table(

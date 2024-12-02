@@ -6,9 +6,7 @@ from typing import Any, Protocol, TypedDict
 
 import immutables
 
-from cbrkit.typing import (
-    AnnotatedFloat,
-)
+from ...typing import StructuredValue
 
 __all__ = [
     "Node",
@@ -24,7 +22,7 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class GraphSim[K](AnnotatedFloat):
+class GraphSim[K](StructuredValue[float]):
     value: float
     node_mappings: dict[K, K]
     edge_mappings: dict[K, K]

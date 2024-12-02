@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import override
 
 from ..sim._aggregator import PoolingName, pooling_funcs
-from ..typing import AdaptPairFunc, PoolingFunc
+from ..typing import AdaptationFunc, PoolingFunc
 
 type Number = float | int
 
@@ -12,7 +12,7 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class aggregate(AdaptPairFunc[Number]):
+class aggregate(AdaptationFunc[Number]):
     """Aggregate two numbers using a pooling function.
 
     Args:

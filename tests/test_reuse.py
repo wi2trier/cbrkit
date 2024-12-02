@@ -51,7 +51,7 @@ def test_reuse_simple():
         ),
     )
 
-    result = cbrkit.reuse.apply_single(case, query, reuse_func)
+    result = cbrkit.reuse.apply_pair(case, query, reuse_func)
 
     assert result.case == {
         "price": 2000,
@@ -104,7 +104,7 @@ def test_reuse_custom():
         ),
     )
 
-    result = cbrkit.reuse.apply_single(case, query, reuse_func)
+    result = cbrkit.reuse.apply_pair(case, query, reuse_func)
 
     assert result.case == {
         "price": 2000,

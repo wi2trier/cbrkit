@@ -4,41 +4,46 @@ from dataclasses import dataclass, field, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
-from typing import Any, Literal, cast, override
+from typing import Any, cast, override
 
 from .typing import (
     AnyGenerationFunc,
+    AnyNamedFunc,
+    AnyPositionalFunc,
     AnySimFunc,
+    BatchGenerationFunc,
+    BatchPositionalFunc,
+    BatchSimFunc,
     Float,
-    GenerationSeqFunc,
-    GenerationSingleFunc,
+    GenerationFunc,
     HasMetadata,
     JsonDict,
     JsonEntry,
+    NamedBatchFunc,
+    NamedFunc,
+    PositionalFunc,
+    SimFunc,
     SimMap,
-    SimMapFunc,
-    SimPairFunc,
-    SimSeqFunc,
-    SimSeqOrMap,
+    SimSeq,
+    StructuredValue,
 )
 
 __all__ = [
     "dist2sim",
-    "SimWrapper",
-    "SimSeqWrapper",
-    "SimMapWrapper",
-    "SimPairWrapper",
-    "GenerationWrapper",
-    "GenerationSeqWrapper",
-    "GenerationSingleWrapper",
-    "unpack_sim",
-    "unpack_sims",
+    "batchify_positional",
+    "unbatchify_positional",
+    "batchify_named",
+    "unbatchify_named",
+    "unpack_value",
+    "unpack_values",
+    "unpack_float",
+    "unpack_floats",
     "singleton",
-    "similarities2ranking",
+    "sim_map2ranking",
+    "sim_seq2ranking",
     "load_object",
     "load_callables",
     "load_callables_map",
-    "sim_dropout",
 ]
 
 
@@ -53,8 +58,8 @@ def get_name(obj: Any) -> str | None:
 
 
 def get_metadata(obj: Any) -> JsonEntry:
-    if isinstance(obj, SimWrapper):
-        obj = obj.func
+    if hasattr(obj, "__wrapped__"):
+        obj = obj.__wrapped__
 
     if isinstance(obj, HasMetadata):
         value: JsonDict = {
@@ -141,115 +146,140 @@ def dist2sim(distance: float) -> float:
 
 
 @dataclass(slots=True)
-class SimWrapper[V, S: Float]:
-    func: AnySimFunc[V, S]
-    kind: Literal["pair", "seq"] = field(init=False)
+class batchify_positional[T](BatchPositionalFunc[T]):
+    __wrapped__: AnyPositionalFunc[T]
+    parameters: int = field(init=False)
 
-    def __post_init__(self):
-        signature = inspect_signature(self.func)
+    def __init__(self, func: AnyPositionalFunc[T]):
+        self.__wrapped__ = func
+        signature = inspect_signature(func)
+        self.parameters = len(signature.parameters)
 
-        if len(signature.parameters) == 2:
-            self.kind = "pair"
-        else:
-            self.kind = "seq"
-
-
-class SimSeqWrapper[V, S: Float](SimWrapper[V, S], SimSeqFunc[V, S]):
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
-        if self.kind == "pair":
-            func = cast(SimPairFunc[V, S], self.func)
-            return [func(x, y) for (x, y) in pairs]
+    def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
+        if self.parameters != 1:
+            func = cast(PositionalFunc[T], self.__wrapped__)
+            return [func(*batch) for batch in batches]
 
-        func = cast(SimSeqFunc[V, S], self.func)
-        return func(pairs)
-
-
-class SimMapWrapper[V, S: Float](SimWrapper[V, S], SimMapFunc[Any, V, S]):
-    @override
-    def __call__(self, x_map: Mapping[Any, V], y: V) -> SimMap[Any, S]:
-        if self.kind == "seq":
-            func = cast(SimSeqFunc[V, S], self.func)
-            pairs = [(x, y) for x in x_map.values()]
-            return {
-                key: sim for key, sim in zip(x_map.keys(), func(pairs), strict=True)
-            }
-
-        func = cast(SimPairFunc[V, S], self.func)
-        return {key: func(x, y) for key, x in x_map.items()}
-
-
-class SimPairWrapper[V, S: Float](SimWrapper[V, S], SimPairFunc[V, S]):
-    @override
-    def __call__(self, x: V, y: V) -> S:
-        if self.kind == "seq":
-            func = cast(SimSeqFunc[V, S], self.func)
-            return func([(x, y)])[0]
-
-        func = cast(SimPairFunc[V, S], self.func)
-        return func(x, y)
+        func = cast(BatchPositionalFunc[T], self.__wrapped__)
+        return func(batches)
 
 
 @dataclass(slots=True)
-class GenerationWrapper[T]:
-    func: AnyGenerationFunc[T]
-    kind: Literal["single", "seq"] = field(init=False)
+class unbatchify_positional[T](PositionalFunc[T]):
+    __wrapped__: AnyPositionalFunc[T]
+    parameters: int = field(init=False)
 
-    def __post_init__(self):
-        signature = inspect_signature(self.func)
+    def __init__(self, func: AnyPositionalFunc[T]):
+        self.__wrapped__ = func
+        signature = inspect_signature(func)
+        self.parameters = len(signature.parameters)
 
-        if len(signature.parameters) == 2:
-            self.kind = "single"
-        else:
-            self.kind = "seq"
-
-
-class GenerationSeqWrapper[T](GenerationWrapper[T], GenerationSeqFunc[T]):
     @override
-    def __call__(self, prompts: Sequence[str]) -> Sequence[T]:
-        if self.kind == "single":
-            func = cast(GenerationSingleFunc[T], self.func)
-            return [func(prompt) for prompt in prompts]
+    def __call__(self, *args: Any) -> T:
+        if self.parameters == 1:
+            func = cast(BatchPositionalFunc[T], self.__wrapped__)
+            return func([args])[0]
 
-        func = cast(GenerationSeqFunc[T], self.func)
-        return func(prompts)
+        func = cast(PositionalFunc[T], self.__wrapped__)
+        return func(*args)
 
 
-class GenerationSingleWrapper[T](GenerationWrapper[T], GenerationSingleFunc[T]):
+@dataclass(slots=True)
+class batchify_named[T](NamedBatchFunc[T]):
+    __wrapped__: AnyNamedFunc[T]
+    parameters: int = field(init=False)
+
+    def __init__(self, func: AnyNamedFunc[T]):
+        self.__wrapped__ = func
+        signature = inspect_signature(func)
+        self.parameters = len(signature.parameters)
+
     @override
-    def __call__(self, prompt: str) -> T:
-        if self.kind == "seq":
-            func = cast(GenerationSeqFunc[T], self.func)
-            return func([prompt])[0]
+    def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
+        if self.parameters != 1:
+            func = cast(NamedFunc[T], self.__wrapped__)
+            return [func(**batch) for batch in batches]
 
-        func = cast(GenerationSingleFunc[T], self.func)
-        return func(prompt)
-
-
-def unpack_sim(sim: Float) -> float:
-    if isinstance(sim, float | int | bool):
-        return sim
-    else:
-        return sim.value
+        func = cast(NamedBatchFunc[T], self.__wrapped__)
+        return func(batches)
 
 
-def unpack_sims(sims: Iterable[Float]) -> list[float]:
-    return [unpack_sim(sim) for sim in sims]
+@dataclass(slots=True)
+class unbatchify_named[T](NamedFunc[T]):
+    __wrapped__: AnyNamedFunc[T]
+    parameters: int = field(init=False)
+
+    def __init__(self, func: AnyNamedFunc[T]):
+        self.__wrapped__ = func
+        signature = inspect_signature(func)
+        self.parameters = len(signature.parameters)
+
+    @override
+    def __call__(self, **kwargs: Any) -> T:
+        if self.parameters == 1:
+            func = cast(NamedBatchFunc[T], self.__wrapped__)
+            return func([kwargs])[0]
+
+        func = cast(NamedFunc[T], self.__wrapped__)
+        return func(**kwargs)
 
 
-def similarities2ranking[K, S: Float](similarities: SimSeqOrMap[K, S]) -> list[Any]:
-    if isinstance(similarities, Sequence):
-        return sorted(
-            range(len(similarities)),
-            key=lambda i: unpack_sim(similarities[i]),
-            reverse=True,
-        )
-    elif isinstance(similarities, Mapping):
-        return sorted(
-            similarities, key=lambda i: unpack_sim(similarities[i]), reverse=True
-        )
+def batchify_sim[V, S: Float](sim_func: AnySimFunc[V, S]) -> BatchSimFunc[V, S]:
+    return batchify_positional(cast(AnyPositionalFunc[S], sim_func))
 
-    raise TypeError(f"Expected a Sequence or Mapping, but got {type(similarities)}")
+
+def unbatchify_sim[V, S: Float](sim_func: AnySimFunc[V, S]) -> SimFunc[V, S]:
+    return cast(
+        SimFunc[V, S], unbatchify_positional(cast(AnyPositionalFunc[S], sim_func))
+    )
+
+
+def batchify_generation[P, R](
+    generation_func: AnyGenerationFunc[P, R],
+) -> BatchGenerationFunc[P, R]:
+    return cast(
+        BatchGenerationFunc[P, R],
+        batchify_positional(cast(AnyPositionalFunc[R], generation_func)),
+    )
+
+
+def unbatchify_generation[P, R](
+    generation_func: AnyGenerationFunc[P, R],
+) -> GenerationFunc[P, R]:
+    return cast(
+        GenerationFunc[P, R],
+        batchify_positional(cast(AnyPositionalFunc[R], generation_func)),
+    )
+
+
+def unpack_value[T](arg: T | StructuredValue[T]) -> T:
+    if isinstance(arg, StructuredValue):
+        return arg.value
+
+    return arg
+
+
+def unpack_values[T](args: Iterable[T | StructuredValue[T]]) -> list[T]:
+    return [unpack_value(arg) for arg in args]
+
+
+unpack_float: Callable[[Float], float] = unpack_value
+unpack_floats: Callable[[Iterable[Float]], list[float]] = unpack_values
+
+
+def sim_map2ranking[K, S: Float](similarities: SimMap[K, S]) -> list[K]:
+    return sorted(
+        similarities, key=lambda i: unpack_float(similarities[i]), reverse=True
+    )
+
+
+def sim_seq2ranking[S: Float](similarities: SimSeq[S]) -> list[int]:
+    return sorted(
+        range(len(similarities)),
+        key=lambda i: unpack_float(similarities[i]),
+        reverse=True,
+    )
 
 
 def load_object(import_name: str) -> Any:
@@ -317,23 +347,5 @@ def load_callables_map(
     return functions
 
 
-def sim_dropout[K, S: Float](
-    similarities: SimMap[K, S],
-    limit: int | None,
-    min_similarity: float | None,
-    max_similarity: float | None,
-) -> SimMap[K, S]:
-    ranking: list[K] = similarities2ranking(similarities)
-
-    if min_similarity is not None:
-        ranking = [
-            key for key in ranking if unpack_sim(similarities[key]) >= min_similarity
-        ]
-    if max_similarity is not None:
-        ranking = [
-            key for key in ranking if unpack_sim(similarities[key]) <= max_similarity
-        ]
-    if limit is not None:
-        ranking = ranking[:limit]
-
-    return {key: similarities[key] for key in ranking}
+def identity[T](x: T) -> T:
+    return x

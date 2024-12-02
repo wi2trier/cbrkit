@@ -3,15 +3,16 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast, override
 
-from ..helpers import SimSeqWrapper, get_metadata
+from ..helpers import batchify_sim, get_metadata
 from ..typing import (
     AnySimFunc,
+    BatchSimFunc,
+    ConversionFunc,
     Float,
     HasMetadata,
     JsonDict,
-    SimPairFunc,
+    SimFunc,
     SimSeq,
-    SimSeqFunc,
 )
 
 __all__ = [
@@ -26,7 +27,7 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class static_table[V](SimPairFunc[V, float], HasMetadata):
+class static_table[V](SimFunc[V, float], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -103,7 +104,7 @@ def default_key_getter(x: Any) -> Any:
 
 
 @dataclass(slots=True)
-class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
+class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -123,9 +124,9 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
     """
 
     symmetric: bool
-    default: SimSeqFunc[V, S]
+    default: BatchSimFunc[V, S]
     key_getter: Callable[[V], K]
-    table: dict[tuple[K, K], SimSeqFunc[V, S]]
+    table: dict[tuple[K, K], BatchSimFunc[V, S]]
 
     @property
     @override
@@ -152,14 +153,14 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
         symmetric: bool = True,
         key_getter: Callable[[V], K] = default_key_getter,
     ):
-        self.default = SimSeqWrapper(default)
+        self.default = batchify_sim(default)
         self.symmetric = symmetric
         self.key_getter = key_getter
         self.table = {}
 
         if isinstance(entries, Mapping):
             for (x, y), val in entries.items():
-                func = SimSeqWrapper(val)
+                func = batchify_sim(val)
                 self.table[(x, y)] = func
 
                 if self.symmetric:
@@ -167,18 +168,18 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
         else:
             for entry in entries:
                 x, y, val = entry
-                func = SimSeqWrapper(val)
+                func = batchify_sim(val)
                 self.table[(x, y)] = func
 
                 if self.symmetric:
                     self.table[(y, x)] = func
 
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[S]:
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
         # first we get the keys for each pair
-        keys = [(self.key_getter(x), self.key_getter(y)) for x, y in pairs]
+        keys = [(self.key_getter(x), self.key_getter(y)) for x, y in batches]
 
-        # then we group the pairs by key to avoid redundant computations
+        # then we group the batches by key to avoid redundant computations
         idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
 
         for idx, key in enumerate(keys):
@@ -196,16 +197,16 @@ class dynamic_table[K, V, S: Float](SimSeqFunc[V, S], HasMetadata):
             if key is not None:
                 sim_func = self.table[key]
 
-            sims = sim_func([pairs[idx] for idx in idxs])
+            sims = sim_func([batches[idx] for idx in idxs])
 
             for idx, sim in zip(idxs, sims, strict=True):
                 results[idx] = sim
 
-        return [results[idx] for idx in range(len(pairs))]
+        return [results[idx] for idx in range(len(batches))]
 
 
 @dataclass(slots=True, frozen=True)
-class equality(SimPairFunc[Any, float]):
+class equality(SimFunc[Any, float]):
     """Equality similarity function. Returns 1.0 if the two values are equal, 0.0 otherwise.
 
     Examples:
@@ -222,8 +223,8 @@ class equality(SimPairFunc[Any, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class static(SimPairFunc[Any, float]):
-    """Static similarity function. Returns a constant value for all pairs.
+class static(SimFunc[Any, float]):
+    """Static similarity function. Returns a constant value for all batches.
 
     Args:
         value: The constant similarity value
@@ -244,7 +245,7 @@ class static(SimPairFunc[Any, float]):
 
 
 @dataclass(slots=True)
-class transpose[U, V, S: Float](SimSeqFunc[V, S]):
+class transpose[U, V, S: Float](BatchSimFunc[V, S]):
     """Transforms a similarity function from one type to another.
 
     Args:
@@ -260,54 +261,56 @@ class transpose[U, V, S: Float](SimSeqFunc[V, S]):
         [1.0, 1.0]
     """
 
-    similarity_func: SimSeqFunc[U, S]
-    conversion_func: Callable[[V], U]
+    similarity_func: BatchSimFunc[U, S]
+    conversion_func: ConversionFunc[V, U]
 
     def __init__(
-        self, similarity_func: AnySimFunc[V, S], conversion_func: Callable[[V], U]
+        self, similarity_func: AnySimFunc[V, S], conversion_func: ConversionFunc[V, U]
     ):
-        self.similarity_func = SimSeqWrapper(similarity_func)
+        self.similarity_func = batchify_sim(similarity_func)
         self.conversion_func = conversion_func
 
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> Sequence[S]:
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[S]:
         return self.similarity_func(
-            [(self.conversion_func(x), self.conversion_func(y)) for x, y in pairs]
+            [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
         )
 
 
 @dataclass(slots=True)
-class cache[V, U, S: Float](SimSeqFunc[V, S]):
-    similarity_func: SimSeqFunc[V, S]
-    conversion_func: Callable[[V], U] | None
+class cache[V, U, S: Float](BatchSimFunc[V, S]):
+    similarity_func: BatchSimFunc[V, S]
+    conversion_func: ConversionFunc[V, U] | None
     cache: dict[tuple[U, U], S]
 
     def __init__(
         self,
         similarity_func: AnySimFunc[V, S],
-        conversion_func: Callable[[V], U] | None = None,
+        conversion_func: ConversionFunc[V, U] | None = None,
     ):
-        self.similarity_func = SimSeqWrapper(similarity_func)
+        self.similarity_func = batchify_sim(similarity_func)
         self.conversion_func = conversion_func
         self.cache = {}
 
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[S]:
-        transformed_pairs = (
-            [(self.conversion_func(x), self.conversion_func(y)) for x, y in pairs]
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
+        transformed_batches = (
+            [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
             if self.conversion_func is not None
-            else cast(list[tuple[U, U]], pairs)
+            else cast(list[tuple[U, U]], batches)
         )
         uncached_indexes = [
-            idx for idx, pair in enumerate(transformed_pairs) if pair not in self.cache
+            idx
+            for idx, pair in enumerate(transformed_batches)
+            if pair not in self.cache
         ]
 
-        uncached_sims = self.similarity_func([pairs[idx] for idx in uncached_indexes])
+        uncached_sims = self.similarity_func([batches[idx] for idx in uncached_indexes])
         self.cache.update(
             {
-                transformed_pairs[idx]: sim
+                transformed_batches[idx]: sim
                 for idx, sim in zip(uncached_indexes, uncached_sims, strict=True)
             }
         )
 
-        return [self.cache[pair] for pair in transformed_pairs]
+        return [self.cache[pair] for pair in transformed_batches]

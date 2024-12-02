@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import override
 
 from ..helpers import HasMetadata, get_metadata
-from ..typing import AdaptPairFunc, JsonDict
+from ..typing import AdaptationFunc, JsonDict
 
 __all__ = [
     "regex",
@@ -13,7 +13,7 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class regex(AdaptPairFunc[str], HasMetadata):
+class regex(AdaptationFunc[str], HasMetadata):
     """Replace parts of a string using regular expressions.
 
     Args:

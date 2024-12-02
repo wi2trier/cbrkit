@@ -3,12 +3,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, override
 
-from ..helpers import unpack_sim
+from ..helpers import unpack_float
 from ..typing import (
     AggregatorFunc,
     Float,
     PoolingFunc,
-    SimSeqOrMap,
+    SimMap,
+    SimSeq,
 )
 
 __all__ = [
@@ -70,11 +71,11 @@ class aggregator[K](AggregatorFunc[K, Float]):
     """
 
     pooling: PoolingName | PoolingFunc = "mean"
-    pooling_weights: SimSeqOrMap[K, float] | None = None
+    pooling_weights: SimMap[K, float] | SimSeq[float] | None = None
     default_pooling_weight: float = 1.0
 
     @override
-    def __call__(self, similarities: SimSeqOrMap[K, Float]) -> float:
+    def __call__(self, similarities: SimMap[K, Float] | SimSeq[Float]) -> float:
         pooling_func = (
             pooling_funcs[self.pooling]
             if isinstance(self.pooling, str)
@@ -91,7 +92,7 @@ class aggregator[K](AggregatorFunc[K, Float]):
             self.pooling_weights, Mapping
         ):
             sims = [
-                unpack_sim(sim)
+                unpack_float(sim)
                 * self.pooling_weights.get(key, self.default_pooling_weight)
                 for key, sim in similarities.items()
             ]
@@ -103,14 +104,14 @@ class aggregator[K](AggregatorFunc[K, Float]):
             self.pooling_weights, Sequence
         ):
             sims = [
-                unpack_sim(s) * w
+                unpack_float(s) * w
                 for s, w in zip(similarities, self.pooling_weights, strict=True)
             ]
             pooling_factor = len(similarities) / sum(self.pooling_weights)
         elif isinstance(similarities, Sequence) and self.pooling_weights is None:
-            sims = [unpack_sim(s) for s in similarities]
+            sims = [unpack_float(s) for s in similarities]
         elif isinstance(similarities, Mapping) and self.pooling_weights is None:
-            sims = [unpack_sim(s) for s in similarities.values()]
+            sims = [unpack_float(s) for s in similarities.values()]
         else:
             raise NotImplementedError()
 

@@ -61,7 +61,13 @@ api = [
 cli = ["rich>=13,<14", "typer>=0.9,<1"]
 eval = ["ranx>=0.3,<1"]
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
-llm = ["cohere>=5,<6", "voyageai>=0.3,<1", "ollama>=0.3,<1", "openai>=1,<2"]
+llm = [
+    "cohere>=5,<6",
+    "voyageai>=0.3,<1",
+    "ollama>=0.3,<1",
+    "openai>=1,<2",
+    "anthropic>=0.40,<1",
+]
 nlp = [
     "levenshtein>=0.23,<0.26; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "levenshtein>=0.26,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",

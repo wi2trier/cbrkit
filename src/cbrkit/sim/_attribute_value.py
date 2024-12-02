@@ -2,14 +2,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import SimSeqWrapper
+from ..helpers import batchify_sim
 from ..typing import (
     AggregatorFunc,
-    AnnotatedFloat,
     AnySimFunc,
+    BatchSimFunc,
     Float,
     SimSeq,
-    SimSeqFunc,
+    StructuredValue,
 )
 from ._aggregator import aggregator
 
@@ -24,7 +24,7 @@ def default_value_getter(obj: Any, key: Any) -> Any:
 
 
 @dataclass(slots=True, frozen=True)
-class AttributeValueSim[S: Float](AnnotatedFloat):
+class AttributeValueSim[S: Float](StructuredValue[float]):
     value: float
     attributes: Mapping[str, S]
 
@@ -33,7 +33,7 @@ default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
-class attribute_value[V, S: Float](SimSeqFunc[V, AttributeValueSim[S]]):
+class attribute_value[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]]):
     """Similarity function that computes the attribute value similarity between two cases.
 
     Args:
@@ -62,18 +62,18 @@ class attribute_value[V, S: Float](SimSeqFunc[V, AttributeValueSim[S]]):
     value_getter: Callable[[Any, str], Any] = default_value_getter
 
     @override
-    def __call__(self, pairs: Sequence[tuple[V, V]]) -> SimSeq[AttributeValueSim[S]]:
-        if len(pairs) == 0:
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[AttributeValueSim[S]]:
+        if len(batches) == 0:
             return []
 
-        local_sims: list[dict[str, S]] = [dict() for _ in range(len(pairs))]
+        local_sims: list[dict[str, S]] = [dict() for _ in range(len(batches))]
 
         for attr_name in self.attributes:
             attribute_values = [
                 (self.value_getter(x, attr_name), self.value_getter(y, attr_name))
-                for x, y in pairs
+                for x, y in batches
             ]
-            sim_func = SimSeqWrapper(self.attributes[attr_name])
+            sim_func = batchify_sim(self.attributes[attr_name])
             sim_func_result = sim_func(attribute_values)
 
             for idx, sim in enumerate(sim_func_result):

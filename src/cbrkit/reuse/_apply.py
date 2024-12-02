@@ -24,7 +24,7 @@ def apply_result[Q, C, V, S: Float](
     Returns:
         Returns an object of type Result.
     """
-    return apply_pairs(
+    return apply_batches(
         {
             query_key: (entry.casebase, entry.query)
             for query_key, entry in result.queries.items()
@@ -33,33 +33,33 @@ def apply_result[Q, C, V, S: Float](
     )
 
 
-def apply_pairs[Q, C, V, S: Float](
-    pairs: Mapping[Q, tuple[Mapping[C, V], V]],
+def apply_batches[Q, C, V, S: Float](
+    batch: Mapping[Q, tuple[Mapping[C, V], V]],
     reusers: ReuserFunc[C, V, S] | Sequence[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     if not isinstance(reusers, Sequence):
         reusers = [reusers]
 
     steps: list[ResultStep[Q, C, V, S]] = []
-    current_pairs: Mapping[Q, tuple[Mapping[C, V], V]] = pairs
+    current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batch
 
     for reuser in reusers:
-        queries_results = reuser([pair for pair in current_pairs.values()])
+        queries_results = reuser(list(current_batches.values()))
         step_queries = {
             query_key: QueryResultStep.build(
                 adapted_sims,
                 adapted_casebase,
-                current_pairs[query_key][1],
+                current_batches[query_key][1],
             )
             for query_key, (adapted_casebase, adapted_sims) in zip(
-                current_pairs.keys(), queries_results, strict=True
+                current_batches.keys(), queries_results, strict=True
             )
         }
 
         steps.append(ResultStep(step_queries, get_metadata(reuser)))
-        current_pairs = {
+        current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
-            for query_key in current_pairs.keys()
+            for query_key in current_batches.keys()
         }
 
     return Result(steps)
@@ -80,13 +80,13 @@ def apply_queries[Q, C, V, S: Float](
     Returns:
         Returns an object of type Result
     """
-    return apply_pairs(
+    return apply_batches(
         {query_key: (casebase, query) for query_key, query in queries.items()},
         reusers,
     )
 
 
-def apply_single[V, S: Float](
+def apply_pair[V, S: Float](
     case: V,
     query: V,
     reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],

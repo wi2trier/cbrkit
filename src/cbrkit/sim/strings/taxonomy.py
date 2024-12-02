@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional, Protocol, TypedDict, cast, override
 
 from ...loaders import data as load_data
-from ...typing import FilePath, SimPairFunc
+from ...typing import FilePath, SimFunc
 
 __all__ = [
     "load",
@@ -303,7 +303,7 @@ _taxonomy_func = wu_palmer()
 
 
 @dataclass(slots=True)
-class load(SimPairFunc[str, float]):
+class load(SimFunc[str, float]):
     """Load a taxonomy and return a function that measures the similarity.
 
     The taxonomy is loaded from the given path and expected to conform to the following structure:

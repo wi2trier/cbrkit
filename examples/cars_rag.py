@@ -6,23 +6,26 @@ import cbrkit
 df = pl.read_csv("data/cars-1k.csv")
 casebase = cbrkit.loaders.polars(df)
 
+sim_func = cbrkit.sim.attribute_value(
+    attributes={
+        "year": cbrkit.sim.numbers.linear(max=50),
+        "make": cbrkit.sim.strings.levenshtein(),
+        "miles": cbrkit.sim.numbers.linear(max=1000000),
+    },
+    aggregator=cbrkit.sim.aggregator(pooling="mean"),
+)
+
 retriever = cbrkit.retrieval.dropout(
-    cbrkit.retrieval.build(
-        cbrkit.sim.attribute_value(
-            attributes={
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=1000000),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ),
-    ),
+    cbrkit.retrieval.build(sim_func),
     limit=5,
 )
 
 rag = cbrkit.rag.build(
-    cbrkit.generate.openai("gpt-4o", str),
-    "Give me a summary of the found cars.",
+    cbrkit.genai.providers.openai("gpt-4o", str),
+    cbrkit.genai.prompts.default(
+        "Give me a summary of the found cars.",
+        metadata=cbrkit.helpers.get_metadata(sim_func),
+    ),
 )
 
 retrieval = cbrkit.retrieval.apply_query(

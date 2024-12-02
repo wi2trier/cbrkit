@@ -1,61 +1,29 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from textwrap import dedent
 
-import orjson
-from pydantic import BaseModel
+from ..helpers import batchify_generation
+from ..typing import AnyGenerationFunc, Casebase, Float, PromptFunc, RagFunc, SimMap
+from ._apply import apply_batches, apply_result
+from ._model import QueryResultStep, Result, ResultStep
 
-from cbrkit.helpers import GenerationSeqWrapper, similarities2ranking, unpack_sim
-
-from ..typing import AnyGenerationFunc, Casebase, Float, RagFunc, SimMap
-
-__all__ = []
-
-
-def default_prompt_template[K, V, S: Float](
-    prompt: str,
-    casebase: Casebase[K, V],
-    query: V,
-    similarities: SimMap[K, S],
-) -> str:
-    ranking: list[K] = similarities2ranking(similarities)
-
-    result = dedent(f"""
-        {prompt}
-
-        ## Query
-
-        ```json
-        {str(orjson.dumps(query))}
-        ```
-
-        ## Retrieved Cases
-    """)
-
-    for rank, key in enumerate(ranking, start=1):
-        result += dedent(f"""
-            ### {rank}. {key} (Similarity: {unpack_sim(similarities[key])})
-
-            ```json
-            {str(orjson.dumps(casebase[key]))}
-            ```
-        """)
-
-    return result
+__all__ = [
+    "apply_batches",
+    "apply_result",
+    "build",
+    "QueryResultStep",
+    "ResultStep",
+    "Result",
+]
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, V, S: Float, T: BaseModel | str](RagFunc[K, V, S, T]):
-    generation_func: AnyGenerationFunc[T]
-    prompt: str
-    prompt_template: Callable[[str, Casebase[K, V], V, SimMap[K, S]], str] = (
-        default_prompt_template
-    )
+class build[P, R, K, V, S: Float](RagFunc[R, K, V, S]):
+    generation_func: AnyGenerationFunc[P, R]
+    prompt_func: PromptFunc[P, K, V, S]
 
     def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]]
-    ) -> Sequence[T]:
-        func = GenerationSeqWrapper(self.generation_func)
-        prompts = [self.prompt_template(self.prompt, *pair) for pair in pairs]
+        self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]]
+    ) -> Sequence[R]:
+        func = batchify_generation(self.generation_func)
 
-        return func(prompts)
+        return func([self.prompt_func(*batch) for batch in batches])

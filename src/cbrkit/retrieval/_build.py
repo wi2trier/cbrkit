@@ -1,15 +1,17 @@
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from multiprocessing import Pool
 from typing import override
 
 from ..helpers import (
-    SimSeqWrapper,
-    sim_dropout,
+    batchify_sim,
+    sim_map2ranking,
+    unpack_float,
 )
 from ..typing import (
     AnySimFunc,
     Casebase,
+    ConversionFunc,
     Float,
     RetrieverFunc,
     SimMap,
@@ -37,12 +39,29 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
 
     @override
     def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
-        return [
-            sim_dropout(entry, self.limit, self.min_similarity, self.max_similarity)
-            for entry in self.retriever_func(pairs)
-        ]
+        return [self._call_single(entry) for entry in self.retriever_func(batches)]
+
+    def _call_single(self, similarities: SimMap[K, S]) -> SimMap[K, S]:
+        ranking = sim_map2ranking(similarities)
+
+        if self.min_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_float(similarities[key]) >= self.min_similarity
+            ]
+        if self.max_similarity is not None:
+            ranking = [
+                key
+                for key in ranking
+                if unpack_float(similarities[key]) <= self.max_similarity
+            ]
+        if self.limit is not None:
+            ranking = ranking[: self.limit]
+
+        return {key: similarities[key] for key in ranking}
 
 
 @dataclass(slots=True, frozen=True)
@@ -54,12 +73,12 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S]):
         retriever_func: The retriever function to be used on the converted values.
     """
 
-    conversion_func: Callable[[V], U]
+    conversion_func: ConversionFunc[V, U]
     retriever_func: RetrieverFunc[K, U, S]
 
     @override
     def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
         return self.retriever_func(
             [
@@ -70,7 +89,7 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S]):
                     },
                     self.conversion_func(query),
                 )
-                for casebase, query in pairs
+                for casebase, query in batches
             ]
         )
 
@@ -84,7 +103,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     Args:
         similarity_func: Similarity function to compute the similarity between cases.
         processes: Number of processes to use. If processes is less than 1, the number returned by os.cpu_count() is used.
-        similarity_chunksize: Number of pairs to process in each chunk.
+        similarity_chunksize: Number of batches to process in each chunk.
 
     Returns:
         Returns the retriever function.
@@ -117,25 +136,25 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
 
     @override
     def __call__(
-        self, pairs: Sequence[tuple[Casebase[K, V], V]]
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
-        sim_func = SimSeqWrapper(self.similarity_func)
+        sim_func = batchify_sim(self.similarity_func)
         similarities: list[dict[K, S]] = []
 
         flat_sims: Sequence[S] = []
-        flat_pairs_index: list[tuple[int, K]] = []
-        flat_pairs: list[tuple[V, V]] = []
+        flat_batches_index: list[tuple[int, K]] = []
+        flat_batches: list[tuple[V, V]] = []
 
-        for idx, (casebase, query) in enumerate(pairs):
+        for idx, (casebase, query) in enumerate(batches):
             similarities.append({})
 
             for key, case in casebase.items():
-                flat_pairs_index.append((idx, key))
-                flat_pairs.append((case, query))
+                flat_batches_index.append((idx, key))
+                flat_batches.append((case, query))
 
         if self.processes != 1:
             pool_processes = None if self.processes <= 0 else self.processes
-            pair_chunks = chunkify(flat_pairs, self.similarity_chunksize)
+            pair_chunks = chunkify(flat_batches, self.similarity_chunksize)
 
             with Pool(pool_processes) as pool:
                 sim_chunks = pool.map(sim_func, pair_chunks)
@@ -143,9 +162,9 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
             for sim_chunk in sim_chunks:
                 flat_sims.extend(sim_chunk)
         else:
-            flat_sims = sim_func(flat_pairs)
+            flat_sims = sim_func(flat_batches)
 
-        for (idx, key), sim in zip(flat_pairs_index, flat_sims, strict=True):
+        for (idx, key), sim in zip(flat_batches_index, flat_sims, strict=True):
             similarities[idx][key] = sim
 
         return similarities
