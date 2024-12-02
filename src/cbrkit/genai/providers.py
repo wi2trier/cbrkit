@@ -25,8 +25,8 @@ try:
     class openai[R: BaseModel | str](BatchGenerationFunc[OpenaiPrompt, R]):
         model: str
         response_type: type[R]
-        system: str | None = None
-        examples: Sequence[ChatMessage] = field(default_factory=tuple)
+        system_message: str | None = None
+        messages: Sequence[ChatMessage] = field(default_factory=tuple)
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         frequency_penalty: float | None = None
         logit_bias: dict[str, int] | None = None
@@ -54,32 +54,37 @@ try:
             )
 
         async def _generate_single(self, prompt: OpenaiPrompt) -> R:
-            if self.examples and self.examples[-1]["role"] == "user":
-                raise ValueError("The last message cannot be from the user")
-
             messages: list[ChatCompletionMessageParam] = []
 
-            if self.system:
+            if self.system_message:
                 messages.append(
                     {
                         "role": "system",
-                        "content": self.system,
+                        "content": self.system_message,
                     }
                 )
 
-            messages.extend(cast(Sequence[ChatCompletionMessageParam], self.examples))
+            messages.extend(cast(Sequence[ChatCompletionMessageParam], self.messages))
 
             if isinstance(prompt, ChatPrompt):
                 messages.extend(
                     cast(Sequence[ChatCompletionMessageParam], prompt.messages)
                 )
 
-            messages.append(
-                {
-                    "role": "user",
-                    "content": unpack_value(prompt),
-                }
-            )
+            if self.messages and self.messages[-1]["role"] == "user":
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": unpack_value(prompt),
+                    }
+                )
+            else:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": unpack_value(prompt),
+                    }
+                )
 
             result: R | None = None
 

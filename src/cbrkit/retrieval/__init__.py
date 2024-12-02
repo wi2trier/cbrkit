@@ -41,7 +41,7 @@ try:
         """
 
         model: str
-        max_chunks_per_doc: int | None = None
+        max_tokens_per_doc: int | None = None
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
         request_options: RequestOptions | None = field(default=None, repr=False)
 
@@ -70,7 +70,7 @@ try:
                 query=query,
                 documents=list(casebase.values()),
                 return_documents=False,
-                max_chunks_per_doc=self.max_chunks_per_doc,
+                max_tokens_per_doc=self.max_tokens_per_doc,
                 request_options=self.request_options,
             )
             key_index = {idx: key for idx, key in enumerate(casebase)}

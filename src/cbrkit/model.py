@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from .helpers import sim_map2ranking
+from .helpers import sim_map2ranking, singleton
 from .typing import (
     Casebase,
     Float,
@@ -20,17 +20,11 @@ class QueryResultStep[K, V, S: Float]:
 
     @property
     def similarity(self) -> S:
-        if len(self.similarities) != 1:
-            raise ValueError("The step contains multiple similarities.")
-
-        return next(iter(self.similarities.values()))
+        return singleton(self.similarities.values())
 
     @property
     def case(self) -> V:
-        if len(self.casebase) != 1:
-            raise ValueError("The step contains multiple cases.")
-
-        return next(iter(self.casebase.values()))
+        return singleton(self.casebase.values())
 
     @classmethod
     def build(
@@ -56,10 +50,7 @@ class ResultStep[Q, C, V, S: Float]:
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
-        if len(self.queries) != 1:
-            raise ValueError("The step contains multiple queries.")
-
-        return next(iter(self.queries.values()))
+        return singleton(self.queries.values())
 
     @property
     def similarities(self) -> SimMap[C, S]:
@@ -100,10 +91,7 @@ class Result[Q, C, V, S: Float]:
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
-        if len(self.queries) != 1:
-            raise ValueError("The step contains multiple queries.")
-
-        return next(iter(self.queries.values()))
+        return singleton(self.queries.values())
 
     @property
     def similarities(self) -> SimMap[C, S]:

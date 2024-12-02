@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from ..helpers import singleton
 from ..typing import (
     JsonEntry,
 )
@@ -22,10 +23,7 @@ class ResultStep[Q, T]:
 
     @property
     def default_query(self) -> QueryResultStep[T]:
-        if len(self.queries) != 1:
-            raise ValueError("The step contains multiple queries.")
-
-        return next(iter(self.queries.values()))
+        return singleton(self.queries.values())
 
     @property
     def response(self) -> T:
@@ -50,10 +48,7 @@ class Result[Q, T]:
 
     @property
     def default_query(self) -> QueryResultStep[T]:
-        if len(self.queries) != 1:
-            raise ValueError("The step contains multiple queries.")
-
-        return next(iter(self.queries.values()))
+        return singleton(self.queries.values())
 
     @property
     def response(self) -> T:

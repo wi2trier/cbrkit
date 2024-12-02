@@ -1,5 +1,5 @@
 import dataclasses
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, is_dataclass
 from importlib import import_module
 from inspect import getdoc
@@ -39,6 +39,7 @@ __all__ = [
     "unpack_float",
     "unpack_floats",
     "singleton",
+    "chunkify",
     "sim_map2ranking",
     "sim_seq2ranking",
     "load_object",
@@ -128,8 +129,20 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
         return next(iter(x.values()))
     elif isinstance(x, Collection):
         return next(iter(x))
-    else:
-        raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
+
+    raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
+
+
+def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
+    """Yield a total of k chunks from val.
+
+    Examples:
+        >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
+        [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
+    """
+
+    for i in range(0, len(val), k):
+        yield val[i : i + k]
 
 
 def dist2sim(distance: float) -> float:
