@@ -1,7 +1,7 @@
 from collections.abc import Callable, Collection, Sequence, Set
 from dataclasses import asdict, dataclass, field
 from itertools import product
-from typing import Any, cast, override
+from typing import cast, override
 
 from ..helpers import dist2sim, get_metadata, unpack_float
 from ..typing import Float, HasMetadata, JsonDict, SimFunc, StructuredValue
@@ -20,7 +20,7 @@ try:
     from nltk.metrics import jaccard_distance
 
     @dataclass(slots=True, frozen=True)
-    class jaccard[V](SimFunc[Collection[Any], float]):
+    class jaccard[V](SimFunc[Collection[V], float]):
         """Jaccard similarity function.
 
         Examples:
@@ -48,7 +48,7 @@ try:
     from minineedle import core, smith
 
     @dataclass(slots=True, frozen=True)
-    class smith_waterman[V](SimFunc[Sequence[Any], float]):
+    class smith_waterman[V](SimFunc[Sequence[V], float]):
         """
         Performs the Smith-Waterman alignment with configurable scoring parameters. If no element matches it returns 0.0.
 
@@ -93,7 +93,7 @@ try:
     import numpy as np
 
     @dataclass(slots=True)
-    class dtw[V](SimFunc[Collection[V], float]):
+    class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):
         """Dynamic Time Warping similarity function.
 
         Examples:
@@ -112,8 +112,8 @@ try:
 
         def __call__(
             self,
-            x: Collection[Any] | np.ndarray,
-            y: Collection[Any] | np.ndarray,
+            x: Collection[V] | np.ndarray,
+            y: Collection[V] | np.ndarray,
         ) -> float:
             if not isinstance(x, np.ndarray):
                 x = np.array(x, dtype=object)  # Allow non-numeric types
@@ -205,7 +205,7 @@ try:
             A similarity function for sequences.
 
         Examples:
-            >>> def example_similarity_function(x: Any, y: Any) -> float:
+            >>> def example_similarity_function(x, y) -> float:
             ...     return 1.0 if x == y else 0.0
             >>> sim_func = mapping(example_similarity_function)
             >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
@@ -400,7 +400,7 @@ class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceSim[S]], HasMet
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_correctness[V](SimFunc[Sequence[Any], float]):
+class sequence_correctness[V](SimFunc[Sequence[V], float]):
     """List Correctness similarity function.
 
     Parameters:
