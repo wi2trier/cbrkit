@@ -10,7 +10,7 @@ from ..typing import (
     JsonDict,
     RetrieverFunc,
 )
-from . import genai
+from . import rag
 from ._apply import apply_batches, apply_queries, apply_query
 from ._build import build, dropout, transpose
 
@@ -18,7 +18,7 @@ __all__ = [
     "build",
     "transpose",
     "dropout",
-    "genai",
+    "rag",
     "apply_batches",
     "apply_queries",
     "apply_query",

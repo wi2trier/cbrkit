@@ -1,23 +1,26 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from textwrap import dedent
 from typing import Any
 
 from ..encoders import json_markdown
+from ..genai._model import DocumentsPrompt
 from ..helpers import sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
     ConversionFunc,
     Float,
     JsonEntry,
+    PoolingPromptFunc,
     PromptFunc,
     SimMap,
 )
-from ._model import DocumentsPrompt
 
 __all__ = [
     "transpose",
     "default",
     "documents_aware",
+    "pooling",
 ]
 
 
@@ -145,3 +148,37 @@ class documents_aware[V](PromptFunc[DocumentsPrompt[str], Any, V, Any]):
                 for rank, key in enumerate(ranking)
             },
         )
+
+
+@dataclass(slots=True, frozen=True)
+class pooling[V](PoolingPromptFunc[str, V]):
+    instructions: str | None = None
+    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
+    metadata: JsonEntry | None = None
+
+    def __call__(
+        self,
+        values: Sequence[V],
+    ) -> str:
+        result = ""
+
+        if self.instructions is not None:
+            result += self.instructions
+
+        result = dedent("""
+            ## Documents Collection
+        """)
+
+        for value in values:
+            result += dedent(f"""
+                {self.encoder(value)}
+            """)
+
+        if self.metadata is not None:
+            result += dedent(f"""
+                ## Metadata
+
+                {self.encoder(self.metadata)}
+            """)
+
+        return result

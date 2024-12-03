@@ -7,7 +7,7 @@ and generic data (`cbrkit.adapt.generic`),
 there is also a function for attribute-value data.
 """
 
-from . import generic, numbers, strings
+from . import generic, numbers, rag, strings
 from ._attribute_value import attribute_value
 
 __all__ = [
@@ -15,4 +15,5 @@ __all__ = [
     "strings",
     "numbers",
     "attribute_value",
+    "rag",
 ]

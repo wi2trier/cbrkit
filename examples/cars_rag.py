@@ -22,7 +22,7 @@ retriever = cbrkit.retrieval.dropout(
 
 rag = cbrkit.rag.build(
     cbrkit.genai.providers.openai("gpt-4o", str),
-    cbrkit.genai.prompts.default(
+    cbrkit.rag.prompts.default(
         "Give me a summary of the found cars.",
         metadata=cbrkit.helpers.get_metadata(sim_func),
     ),
