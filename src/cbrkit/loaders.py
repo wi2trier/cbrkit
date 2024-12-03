@@ -28,7 +28,8 @@ __all__ = [
     "toml",
     "yaml",
     "python",
-    "txt",
+    "text",
+    "texts",
     "xml",
     "validate",
     "validate_single",
@@ -174,7 +175,7 @@ def yaml(path: FilePath) -> dict[Any, Any]:
     return data
 
 
-def txt(path: FilePath) -> str:
+def text(path: FilePath) -> str:
     """Reads a text file and converts it into a string
 
     Args:
@@ -189,6 +190,19 @@ def txt(path: FilePath) -> str:
     """
     with open(path) as fp:
         return fp.read()
+
+
+def texts(path: FilePath) -> dict[str, str]:
+    """Reads a directory of text files and converts them into a dict representation"""
+
+    data: dict[str, str] = {}
+    if isinstance(path, str):
+        path = Path(path)
+
+    for file in path.glob("*.txt"):
+        data[file.stem] = text(file)
+
+    return data
 
 
 def xml(path: FilePath) -> dict[str, Any]:
@@ -236,7 +250,7 @@ _batch_loaders: dict[str, BatchLoader] = {
 # Since structured formats may also be used for single cases, they are also included here
 _single_loaders: dict[str, SingleLoader] = {
     **_batch_loaders,
-    ".txt": txt,
+    ".txt": text,
 }
 
 
