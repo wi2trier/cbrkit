@@ -103,9 +103,11 @@ try:
         """
 
         model: SentenceTransformer
-        _metadata: JsonDict = field(default_factory=dict, init=False)
+        _metadata: JsonDict
 
         def __init__(self, model: str | SentenceTransformer):
+            self._metadata = {}
+
             if isinstance(model, str):
                 self.model = SentenceTransformer(model)
                 self._metadata["model"] = model
