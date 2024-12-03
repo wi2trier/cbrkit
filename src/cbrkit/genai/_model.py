@@ -20,4 +20,4 @@ class ChatPrompt[P](StructuredValue[P]):
 @dataclass(slots=True, frozen=True)
 class DocumentsPrompt[P](StructuredValue[P]):
     value: P
-    documents: Mapping[str, str | Mapping[str, str]]
+    documents: Mapping[str, Mapping[str, str]]

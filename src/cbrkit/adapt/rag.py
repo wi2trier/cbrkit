@@ -12,36 +12,30 @@ from ..typing import (
 )
 
 __all__ = [
-    "build",
-    "PydanticModel",
-    "unpack_pydantic_model",
+    "structured_response",
+    "StructuredModel",
 ]
 
 
-class PydanticModel[K, V](BaseModel):
+class StructuredModel[K, V](BaseModel):
     casebase: Mapping[K, V]
 
 
-def _unpack_pydantic_model[K, V](obj: PydanticModel[K, V]) -> Mapping[K, V]:
+def _from_pydantic[K, V](obj: StructuredModel[K, V]) -> Mapping[K, V]:
     return obj.casebase
 
 
-def unpack_pydantic_model[K, V, S: Float](
-    rag_func: RagFunc[PydanticModel[K, V], K, V, S],
-) -> RagFunc[Mapping[K, V], K, V, S]:
-    return transpose(
-        rag_func,
-        conversion_func=_unpack_pydantic_model,
-    )
-
-
 @dataclass(slots=True, frozen=True)
-class build[K, V](AdaptationMapFunc[K, V]):
-    rag_func: RagFunc[Mapping[K, V], K, V, Float]
+class structured_response[K, V](AdaptationMapFunc[K, V]):
+    rag_func: RagFunc[StructuredModel[K, V], K, V, Float]
 
     def __call__(
         self,
         casebase: Casebase[K, V],
         query: V,
     ) -> Casebase[K, V]:
-        return self.rag_func([(casebase, query, None)])[0]
+        func = transpose(
+            self.rag_func,
+            conversion_func=_from_pydantic,
+        )
+        return func([(casebase, query, None)])[0]
