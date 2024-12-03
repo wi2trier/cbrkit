@@ -45,6 +45,7 @@ try:
 
     @dataclass(slots=True, frozen=True)
     class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
+        structured_outputs: bool = True
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         frequency_penalty: float | None = None
         logit_bias: dict[str, int] | None = None
@@ -99,12 +100,16 @@ try:
             tool = (
                 pydantic_function_tool(self.response_type)
                 if issubclass(self.response_type, BaseModel)
+                and not self.structured_outputs
                 else None
             )
 
             res = await self.client.beta.chat.completions.parse(
                 model=self.model,
                 messages=messages,
+                response_format=self.response_type
+                if issubclass(self.response_type, BaseModel) and self.structured_outputs
+                else NOT_GIVEN,
                 tools=[tool] if tool is not None else NOT_GIVEN,
                 tool_choice={
                     "type": "function",
@@ -130,15 +135,23 @@ try:
                 **self.extra_kwargs,
             )
 
-            if tool is not None:
-                if (tool_calls := res.choices[0].message.tool_calls) is not None and (
-                    parsed := tool_calls[0].function.parsed_arguments
-                ) is not None:
-                    return cast(R, parsed)
+            if (
+                issubclass(self.response_type, BaseModel)
+                and (parsed := res.choices[0].message.parsed) is not None
+            ):
+                return parsed
 
-                raise ValueError("The completion is empty")
+            elif (
+                issubclass(self.response_type, BaseModel)
+                and (tool_calls := res.choices[0].message.tool_calls) is not None
+                and (parsed := tool_calls[0].function.parsed_arguments) is not None
+            ):
+                return cast(R, parsed)
 
-            elif (content := res.choices[0].message.content) is not None:
+            elif (
+                issubclass(self.response_type, str)
+                and (content := res.choices[0].message.content) is not None
+            ):
                 return cast(R, content)
 
             raise ValueError("The completion is empty")
