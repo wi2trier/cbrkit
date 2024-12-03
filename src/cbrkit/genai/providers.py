@@ -12,9 +12,6 @@ from ._model import ChatMessage, ChatPrompt
 __all__ = []
 
 
-# class StructuredOpenaiPrompt(ChatPrompt[str]): ...
-
-
 type OpenaiPrompt = str | ChatPrompt[str]
 
 try:

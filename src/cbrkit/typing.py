@@ -153,6 +153,14 @@ class PoolingFunc[T](Protocol):
     ) -> T: ...
 
 
+class BatchPoolingFunc[T](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[Sequence[T]],
+        /,
+    ) -> Sequence[T]: ...
+
+
 class EvalMetricFunc(Protocol):
     def __call__(
         self,
@@ -180,17 +188,25 @@ class BatchGenerationFunc[P, R](Protocol):
 type AnyGenerationFunc[P, R] = GenerationFunc[P, R] | BatchGenerationFunc[P, R]
 
 
-class PromptFunc[P, K, V, S: Float](Protocol):
+class PromptFunc[T, K, V, S: Float](Protocol):
     def __call__(
         self,
         casebase: Casebase[K, V],
         query: V,
         similarities: SimMap[K, S] | None,
+    ) -> T: ...
+
+
+class PoolingPromptFunc[P, V](Protocol):
+    def __call__(
+        self,
+        values: Sequence[V],
+        /,
     ) -> P: ...
 
 
-class RagFunc[R, K, V, S: Float](Protocol):
+class RagFunc[T, K, V, S: Float](Protocol):
     def __call__(
         self,
-        batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S]]],
-    ) -> Sequence[R]: ...
+        batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
+    ) -> Sequence[T]: ...
