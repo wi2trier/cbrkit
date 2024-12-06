@@ -1,7 +1,6 @@
 import statistics
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import override
 
 from ..helpers import unpack_float
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
@@ -30,9 +29,9 @@ def parse_metric(spec: str) -> tuple[str, int, int]:
 
 def generate_metrics(
     metrics: Iterable[str],
-    ks: Iterable[int],
+    ks: Iterable[int | None],
 ) -> list[str]:
-    return [f"{metric}@{k}" for metric in metrics for k in ks]
+    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]
 
 
 def concordances(
@@ -84,7 +83,6 @@ def _correctness_single(
     )
 
 
-@override
 def correctness(
     qrels: Mapping[str, Mapping[str, int]],
     run: Mapping[str, Mapping[str, float]],
@@ -127,6 +125,28 @@ def completeness(
         return float("nan")
 
 
+def mean_score(
+    qrels: Mapping[str, Mapping[str, int]],
+    run: Mapping[str, Mapping[str, float]],
+    k: int,
+    relevance_level: int,
+) -> float:
+    keys = set(qrels.keys()).intersection(set(run.keys()))
+
+    scores: list[float] = []
+
+    for key in keys:
+        sorted_run = sorted(run[key].items(), key=lambda x: x[1], reverse=True)
+        run_k = {x[0]: x[1] for x in sorted_run[: k if k > 0 else len(sorted_run)]}
+
+        scores.append(statistics.mean(run_k.values()))
+
+    try:
+        return statistics.mean(scores)
+    except statistics.StatisticsError:
+        return float("nan")
+
+
 DEFAULT_METRICS = (
     "precision",
     "recall",
@@ -140,6 +160,7 @@ DEFAULT_METRICS = (
 CBRKIT_METRICS: dict[str, EvalMetricFunc] = {
     "correctness": correctness,
     "completeness": completeness,
+    "mean_score": mean_score,
 }
 
 
