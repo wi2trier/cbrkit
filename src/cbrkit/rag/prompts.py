@@ -76,7 +76,7 @@ class default[V](PromptFunc[str, Any, V, Float]):
         for rank, key in enumerate(ranking, start=1):
             if similarities is not None:
                 result += dedent(f"""
-                    ### {rank}. {key} (Similarity: {unpack_float(similarities[key]):.3f})
+                    ### {key} (Rank: {rank}, Similarity: {unpack_float(similarities[key]):.3f})
                 """)
             else:
                 result += dedent(f"""

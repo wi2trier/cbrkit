@@ -130,6 +130,7 @@
               "/run/opengl-driver"
             ];
             UV_PYTHON = lib.getExe pkgs.python3;
+            TOKENIZERS_PARALLELISM = true;
             shellHook = ''
               uv sync --all-extras --locked
 

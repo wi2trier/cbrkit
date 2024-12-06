@@ -1,4 +1,4 @@
-from . import _model as model
+from . import model
 from ._astar import astar
 from ._exhaustive import exhaustive
 from ._isomorphism import isomorphism

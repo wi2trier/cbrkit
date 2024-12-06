@@ -147,8 +147,7 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
 
     def __init__(
         self,
-        entries: Sequence[tuple[K, K, AnySimFunc[V, S]]]
-        | Mapping[tuple[K, K], AnySimFunc[V, S]],
+        entries: Mapping[tuple[K, K], AnySimFunc[V, S]],
         default: AnySimFunc[V, S],
         symmetric: bool = True,
         key_getter: Callable[[V], K] = default_key_getter,
@@ -158,21 +157,12 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         self.key_getter = key_getter
         self.table = {}
 
-        if isinstance(entries, Mapping):
-            for (x, y), val in entries.items():
-                func = batchify_sim(val)
-                self.table[(x, y)] = func
+        for (x, y), val in entries.items():
+            func = batchify_sim(val)
+            self.table[(x, y)] = func
 
-                if self.symmetric:
-                    self.table[(y, x)] = func
-        else:
-            for entry in entries:
-                x, y, val = entry
-                func = batchify_sim(val)
-                self.table[(x, y)] = func
-
-                if self.symmetric:
-                    self.table[(y, x)] = func
+            if self.symmetric:
+                self.table[(y, x)] = func
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
@@ -245,7 +235,7 @@ class static(SimFunc[Any, float]):
 
 
 @dataclass(slots=True)
-class transpose[U, V, S: Float](BatchSimFunc[V, S]):
+class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
     """Transforms a similarity function from one type to another.
 
     Args:
@@ -261,17 +251,19 @@ class transpose[U, V, S: Float](BatchSimFunc[V, S]):
         [1.0, 1.0]
     """
 
-    similarity_func: BatchSimFunc[U, S]
-    conversion_func: ConversionFunc[V, U]
+    similarity_func: BatchSimFunc[V2, S]
+    conversion_func: ConversionFunc[V1, V2]
 
     def __init__(
-        self, similarity_func: AnySimFunc[V, S], conversion_func: ConversionFunc[V, U]
+        self,
+        similarity_func: AnySimFunc[V2, S],
+        conversion_func: ConversionFunc[V1, V2],
     ):
         self.similarity_func = batchify_sim(similarity_func)
         self.conversion_func = conversion_func
 
     @override
-    def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[S]:
+    def __call__(self, batches: Sequence[tuple[V1, V1]]) -> Sequence[S]:
         return self.similarity_func(
             [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
         )

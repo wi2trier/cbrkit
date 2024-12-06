@@ -10,8 +10,8 @@ from ...typing import (
     Float,
     SimFunc,
 )
-from . import _model as model
-from ._model import Graph, GraphSim, Node
+from . import model as model
+from .model import Graph, GraphSim, Node
 
 
 @dataclass(slots=True)

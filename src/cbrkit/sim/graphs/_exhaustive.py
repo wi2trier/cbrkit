@@ -10,7 +10,7 @@ from ...typing import (
     Float,
     SimFunc,
 )
-from ._model import (
+from .model import (
     Edge,
     Graph,
     GraphSim,

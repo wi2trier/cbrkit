@@ -19,6 +19,12 @@ class QueryResultStep[K, V, S: Float]:
     query: V
 
     @property
+    def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
+        return {
+            key: (self.casebase[key], self.similarities[key]) for key in self.ranking
+        }
+
+    @property
     def similarity(self) -> S:
         return singleton(self.similarities.values())
 
