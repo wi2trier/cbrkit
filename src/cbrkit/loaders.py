@@ -19,23 +19,21 @@ from .helpers import load_object
 from .typing import Casebase, FilePath
 
 __all__ = [
-    "csv",
-    "polars",
-    "file",
-    "folder",
-    "json",
     "path",
-    "toml",
-    "yaml",
-    "python",
-    "text",
-    "texts",
-    "xml",
+    "file",
+    "directory",
     "validate",
-    "validate_single",
+    "csv",
+    "json",
+    "polars",
+    "py",
+    "toml",
+    "txt",
+    "xml",
+    "yaml",
 ]
 
-python = load_object
+py = load_object
 
 try:
     import pandas as pd
@@ -47,10 +45,8 @@ try:
         def __getitem__(self, key: int | str) -> pd.Series:
             if isinstance(key, str):
                 return cast(pd.Series, self.df.loc[key])
-            elif isinstance(key, int):
-                return self.df.iloc[key]
 
-            raise TypeError(f"Invalid key type: {type(key)}")
+            return self.df.iloc[key]
 
         def __iter__(self) -> Iterator[int]:
             return iter(range(self.df.shape[0]))
@@ -175,7 +171,7 @@ def yaml(path: FilePath) -> dict[Any, Any]:
     return data
 
 
-def text(path: FilePath) -> str:
+def txt(path: FilePath) -> str:
     """Reads a text file and converts it into a string
 
     Args:
@@ -190,19 +186,6 @@ def text(path: FilePath) -> str:
     """
     with open(path) as fp:
         return fp.read()
-
-
-def texts(path: FilePath) -> dict[str, str]:
-    """Reads a directory of text files and converts them into a dict representation"""
-
-    data: dict[str, str] = {}
-    if isinstance(path, str):
-        path = Path(path)
-
-    for file in path.glob("*.txt"):
-        data[file.stem] = text(file)
-
-    return data
 
 
 def xml(path: FilePath) -> dict[str, Any]:
@@ -250,7 +233,7 @@ _batch_loaders: dict[str, BatchLoader] = {
 # Since structured formats may also be used for single cases, they are also included here
 _single_loaders: dict[str, SingleLoader] = {
     **_batch_loaders,
-    ".txt": text,
+    ".txt": txt,
 }
 
 
@@ -278,7 +261,7 @@ def data(path: FilePath) -> Mapping[str, Any]:
 
 
 def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
-    """Converts a path into a Casebase. The path can be a folder or a file.
+    """Converts a path into a Casebase. The path can be a directory or a file.
 
     Args:
         path: Path of the file.
@@ -293,22 +276,15 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    cb: Casebase[Any, Any] | None = None
-
     if path.is_file():
-        cb = file(path)
+        return file(path)
     elif path.is_dir():
-        cb = folder(path, pattern or "**/*")
-    else:
-        raise FileNotFoundError(path)
+        return directory(path, pattern or "**/*")
 
-    if cb is None:
-        raise NotImplementedError()
-
-    return cb
+    raise FileNotFoundError(path)
 
 
-def file(path: Path) -> Casebase[Any, Any] | None:
+def file(path: FilePath) -> Casebase[Any, Any]:
     """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
 
     Args:
@@ -323,8 +299,11 @@ def file(path: Path) -> Casebase[Any, Any] | None:
         >>> result = file(file_path)
 
     """
+    if isinstance(path, str):
+        path = Path(path)
+
     if path.suffix not in _batch_loaders:
-        return None
+        raise ValueError(f"Unsupported file type: {path.suffix}")
 
     loader = _batch_loaders[path.suffix]
     cb = loader(path)
@@ -332,11 +311,11 @@ def file(path: Path) -> Casebase[Any, Any] | None:
     return cb
 
 
-def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
-    """Converts the files of a folder into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
+def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
+    """Converts the files of a directory into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
 
     Args:
-        path: Path of the folder.
+        path: Path of the directory.
         pattern: Relative pattern for the files.
 
     Returns:
@@ -344,37 +323,45 @@ def folder(path: Path, pattern: str) -> Casebase[Any, Any] | None:
 
     Examples:
         >>> from pathlib import Path
-        >>> folder_path = Path("./data")
-        >>> result = folder(folder_path, "*.csv")
+        >>> directory_path = Path("./data")
+        >>> result = directory(directory_path, "*.csv")
         >>> assert result is not None
     """
     cb: Casebase[Any, Any] = {}
+
+    if isinstance(path, str):
+        path = Path(path)
 
     for file in path.glob(pattern):
         if file.is_file() and file.suffix in _single_loaders:
             loader = _single_loaders[file.suffix]
             cb[file.name] = loader(file)
 
-    if len(cb) == 0:
-        return None
-
     return cb
 
 
-def validate(data: Casebase[Any, Any], validation_model: BaseModel):
-    """Validates the data against a Pydantic model.
-
-    Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
+def validate[K, V: BaseModel](casebase: Casebase[K, Any], model: V) -> Casebase[K, V]:
+    """Validates the casebase against a Pydantic model.
 
     Args:
-        data: Data to validate. Can be an entire case base or a single case.
-        validation_model: Pydantic model to validate the data.
+        casebase: Casebase where the values are the data to validate.
+        model: Pydantic model to validate the data.
 
     Examples:
-        >>> from pydantic import BaseModel, PositiveInt, NonNegativeInt
-        >>> from data.cars_validation_model import Car
-        >>> from pathlib import Path
-        >>> data = path(Path("data/cars-1k.csv"))
+        >>> from pydantic import BaseModel, NonNegativeInt
+        >>> class Car(BaseModel):
+        ...     price: NonNegativeInt
+        ...     year: NonNegativeInt
+        ...     manufacturer: str
+        ...     make: str
+        ...     fuel: Literal["gas", "diesel"]
+        ...     miles: NonNegativeInt
+        ...     title_status: Literal["clean", "rebuilt"]
+        ...     transmission: Literal["automatic", "manual"]
+        ...     drive: Literal["fwd", "rwd", "4wd"]
+        ...     type: str
+        ...     paint_color: str
+        >>> data = file("data/cars-1k.csv")
         >>> validate(data, Car)
         >>> import polars as pl
         >>> df = pl.read_csv("data/cars-1k.csv")
@@ -382,20 +369,4 @@ def validate(data: Casebase[Any, Any], validation_model: BaseModel):
         >>> validate(data, Car)
     """
 
-    for item in data.values():
-        validate_single(item, validation_model)
-
-
-def validate_single(data: Any, validation_model: BaseModel):
-    """Validates a single case against a Pydantic model.
-
-    Throws a ValueError if data is None or a Pydantic ValidationError if the data does not match the model.
-
-    Args:
-        data: Data to validate. Can be a single case.
-        validation_model: Pydantic model to validate the data.
-    """
-    if data is None:
-        raise ValueError("Data is None")
-
-    validation_model.model_validate(data)
+    return {key: model.model_validate(value) for key, value in casebase.items()}

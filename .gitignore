@@ -235,3 +235,4 @@ pyrightconfig.json
 !/data/cars-1k.csv
 /data/private
 /data/output.json
+/data/fritz-meyer/

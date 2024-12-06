@@ -16,6 +16,7 @@ from .typing import (
     BatchSimFunc,
     Float,
     GenerationFunc,
+    HasData,
     HasMetadata,
     JsonDict,
     JsonEntry,
@@ -36,6 +37,8 @@ __all__ = [
     "unbatchify_named",
     "unpack_value",
     "unpack_values",
+    "unpack_data",
+    "unpack_datas",
     "unpack_float",
     "unpack_floats",
     "singleton",
@@ -275,6 +278,17 @@ def unpack_value[T](arg: T | StructuredValue[T]) -> T:
 
 def unpack_values[T](args: Iterable[T | StructuredValue[T]]) -> list[T]:
     return [unpack_value(arg) for arg in args]
+
+
+def unpack_data[T](arg: T | HasData[T]) -> T:
+    if isinstance(arg, HasData):
+        return arg.data
+
+    return arg
+
+
+def unpack_datas[T](args: Iterable[T | HasData[T]]) -> list[T]:
+    return [unpack_data(arg) for arg in args]
 
 
 unpack_float: Callable[[Float], float] = unpack_value

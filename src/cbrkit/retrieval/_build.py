@@ -54,7 +54,7 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
 
 
 @dataclass(slots=True, frozen=True)
-class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S]):
+class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
     """Transforms a retriever function from one type to another.
 
     Args:
@@ -62,12 +62,12 @@ class transpose[K, U, V, S: Float](RetrieverFunc[K, V, S]):
         retriever_func: The retriever function to be used on the converted values.
     """
 
-    conversion_func: ConversionFunc[V, U]
-    retriever_func: RetrieverFunc[K, U, S]
+    conversion_func: ConversionFunc[V1, V2]
+    retriever_func: RetrieverFunc[K, V2, S]
 
     @override
     def __call__(
-        self, batches: Sequence[tuple[Casebase[K, V], V]]
+        self, batches: Sequence[tuple[Casebase[K, V1], V1]]
     ) -> Sequence[SimMap[K, S]]:
         return self.retriever_func(
             [

@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol, TypedDict
+from typing import Any, TypedDict
 
 import immutables
 
-from ...typing import StructuredValue
+from ...typing import HasData, StructuredValue
 
 __all__ = [
     "Node",
     "Edge",
     "Graph",
+    "GraphSim",
     "SerializedNode",
     "SerializedEdge",
     "SerializedGraph",
@@ -26,10 +27,6 @@ class GraphSim[K](StructuredValue[float]):
     value: float
     node_mappings: dict[K, K]
     edge_mappings: dict[K, K]
-
-
-class HasData[T](Protocol):
-    data: T
 
 
 class SerializedNode[N](TypedDict):
@@ -120,6 +117,18 @@ class Graph[K, N, E, G](HasData[G]):
             for key, value in g["edges"].items()
         )
         return cls(nodes, edges, g["data"])
+
+    @classmethod
+    def build(
+        cls,
+        nodes: Iterable[Node[K, N]],
+        edges: Iterable[Edge[K, N, E]],
+        data: G,
+    ) -> Graph[K, N, E, G]:
+        node_map = immutables.Map((node.key, node) for node in nodes)
+        edge_map = immutables.Map((edge.key, edge) for edge in edges)
+
+        return cls(node_map, edge_map, data)
 
 
 def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> SerializedGraph[K, N, E, G]:

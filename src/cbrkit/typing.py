@@ -6,15 +6,26 @@ from typing import (
     Protocol,
 )
 
+type JsonEntry = (
+    Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
+)
+type JsonDict = dict[str, JsonEntry]
+
 
 class StructuredValue[T](ABC):
     value: T
 
 
-type JsonEntry = (
-    Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
-)
-type JsonDict = dict[str, JsonEntry]
+class HasData[T](ABC):
+    data: T
+
+
+class HasMetadata(ABC):
+    @property
+    @abstractmethod
+    def metadata(self) -> JsonDict: ...
+
+
 type Float = float | StructuredValue[float]
 type Prompt[P] = P | StructuredValue[P]
 type FilePath = str | Path
@@ -22,12 +33,6 @@ type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
-
-
-class HasMetadata(ABC):
-    @property
-    @abstractmethod
-    def metadata(self) -> JsonDict: ...
 
 
 class ConversionFunc[U, V](Protocol):
