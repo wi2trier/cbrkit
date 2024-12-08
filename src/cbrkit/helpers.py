@@ -1,26 +1,34 @@
 import dataclasses
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Generator,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
+from contextlib import contextmanager
 from dataclasses import dataclass, field, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
-from typing import Any, cast, override
+from typing import Any, Literal, cast, override
 
 from .typing import (
-    AnyGenerationFunc,
+    AnyConversionFunc,
     AnyNamedFunc,
     AnyPositionalFunc,
     AnySimFunc,
-    BatchGenerationFunc,
+    BatchConversionFunc,
+    BatchNamedFunc,
     BatchPositionalFunc,
     BatchSimFunc,
+    ConversionFunc,
     Float,
-    GenerationFunc,
-    HasData,
     HasMetadata,
     JsonDict,
     JsonEntry,
-    NamedBatchFunc,
     NamedFunc,
     PositionalFunc,
     SimFunc,
@@ -30,6 +38,7 @@ from .typing import (
 )
 
 __all__ = [
+    "optional_dependencies",
     "dist2sim",
     "batchify_positional",
     "unbatchify_positional",
@@ -37,8 +46,6 @@ __all__ = [
     "unbatchify_named",
     "unpack_value",
     "unpack_values",
-    "unpack_data",
-    "unpack_datas",
     "unpack_float",
     "unpack_floats",
     "singleton",
@@ -49,6 +56,29 @@ __all__ = [
     "load_callables",
     "load_callables_map",
 ]
+
+
+@contextmanager
+def optional_dependencies(
+    error_handling: Literal["ignore", "warn", "raise"] = "ignore",
+    extras_name: str | None = None,
+) -> Generator[None, Any, None]:
+    try:
+        yield None
+    except (ImportError, ModuleNotFoundError) as e:
+        match error_handling:
+            case "raise":
+                if extras_name is not None:
+                    print(f"Please install `cbrkit[{extras_name}]`")
+
+                raise e
+            case "warn":
+                print(f"Missing optional dependency: `{e.name}`")
+
+                if extras_name is not None:
+                    print(f"Please install `cbrkit[{extras_name}]`")
+            case "ignore":
+                pass
 
 
 def get_name(obj: Any) -> str | None:
@@ -63,7 +93,7 @@ def get_name(obj: Any) -> str | None:
 
 def get_metadata(obj: Any) -> JsonEntry:
     if hasattr(obj, "__wrapped__"):
-        obj = obj.__wrapped__
+        return get_metadata(obj.__wrapped__)
 
     if isinstance(obj, HasMetadata):
         value: JsonDict = {
@@ -99,7 +129,7 @@ def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, list):
         return [get_metadata(value) for value in obj]
 
-    if isinstance(obj, dict | list | str | int | float | bool | None):
+    if isinstance(obj, str | int | float | bool):
         return obj
 
     return None
@@ -202,7 +232,7 @@ class unbatchify_positional[T](PositionalFunc[T]):
 
 
 @dataclass(slots=True)
-class batchify_named[T](NamedBatchFunc[T]):
+class batchify_named[T](BatchNamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
     parameters: int = field(init=False)
 
@@ -217,7 +247,7 @@ class batchify_named[T](NamedBatchFunc[T]):
             func = cast(NamedFunc[T], self.__wrapped__)
             return [func(**batch) for batch in batches]
 
-        func = cast(NamedBatchFunc[T], self.__wrapped__)
+        func = cast(BatchNamedFunc[T], self.__wrapped__)
         return func(batches)
 
 
@@ -234,38 +264,36 @@ class unbatchify_named[T](NamedFunc[T]):
     @override
     def __call__(self, **kwargs: Any) -> T:
         if self.parameters == 1:
-            func = cast(NamedBatchFunc[T], self.__wrapped__)
+            func = cast(BatchNamedFunc[T], self.__wrapped__)
             return func([kwargs])[0]
 
         func = cast(NamedFunc[T], self.__wrapped__)
         return func(**kwargs)
 
 
-def batchify_sim[V, S: Float](sim_func: AnySimFunc[V, S]) -> BatchSimFunc[V, S]:
-    return batchify_positional(cast(AnyPositionalFunc[S], sim_func))
+def batchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> BatchSimFunc[V, S]:
+    return batchify_positional(cast(AnyPositionalFunc[S], func))
 
 
-def unbatchify_sim[V, S: Float](sim_func: AnySimFunc[V, S]) -> SimFunc[V, S]:
+def unbatchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> SimFunc[V, S]:
+    return cast(SimFunc[V, S], unbatchify_positional(cast(AnyPositionalFunc[S], func)))
+
+
+def batchify_conversion[P, R](
+    func: AnyConversionFunc[P, R],
+) -> BatchConversionFunc[P, R]:
     return cast(
-        SimFunc[V, S], unbatchify_positional(cast(AnyPositionalFunc[S], sim_func))
+        BatchConversionFunc[P, R],
+        batchify_positional(cast(AnyPositionalFunc[R], func)),
     )
 
 
-def batchify_generation[P, R](
-    generation_func: AnyGenerationFunc[P, R],
-) -> BatchGenerationFunc[P, R]:
+def unbatchify_conversion[P, R](
+    func: AnyConversionFunc[P, R],
+) -> ConversionFunc[P, R]:
     return cast(
-        BatchGenerationFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], generation_func)),
-    )
-
-
-def unbatchify_generation[P, R](
-    generation_func: AnyGenerationFunc[P, R],
-) -> GenerationFunc[P, R]:
-    return cast(
-        GenerationFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], generation_func)),
+        ConversionFunc[P, R],
+        batchify_positional(cast(AnyPositionalFunc[R], func)),
     )
 
 
@@ -278,17 +306,6 @@ def unpack_value[T](arg: T | StructuredValue[T]) -> T:
 
 def unpack_values[T](args: Iterable[T | StructuredValue[T]]) -> list[T]:
     return [unpack_value(arg) for arg in args]
-
-
-def unpack_data[T](arg: T | HasData[T]) -> T:
-    if isinstance(arg, HasData):
-        return arg.data
-
-    return arg
-
-
-def unpack_datas[T](args: Iterable[T | HasData[T]]) -> list[T]:
-    return [unpack_data(arg) for arg in args]
 
 
 unpack_float: Callable[[Float], float] = unpack_value

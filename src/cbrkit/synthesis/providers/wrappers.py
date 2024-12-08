@@ -1,26 +1,25 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
-from ..helpers import (
-    batchify_generation,
-    unbatchify_generation,
+from ...helpers import (
+    batchify_conversion,
+    unbatchify_conversion,
 )
-from ..typing import (
-    AnyGenerationFunc,
-    BatchGenerationFunc,
+from ...typing import (
+    AnyConversionFunc,
+    BatchConversionFunc,
     ConversionFunc,
-    GenerationFunc,
 )
-from ._model import ChatMessage, ChatPrompt
+from .model import ChatMessage, ChatPrompt
 
 
 @dataclass(slots=True, frozen=True)
-class conversation[R](GenerationFunc[Iterable[str], R]):
-    generation_func: AnyGenerationFunc[ChatPrompt[str], R]
+class conversation[R](ConversionFunc[Iterable[str], R]):
+    generation_func: AnyConversionFunc[ChatPrompt[str], R]
     conversion_func: ConversionFunc[R, str]
 
     def __call__(self, prompts: Iterable[str]) -> R:
-        func = unbatchify_generation(self.generation_func)
+        func = unbatchify_conversion(self.generation_func)
 
         messages: list[ChatMessage] = []
         last_assistant_message: R | None = None
@@ -48,20 +47,8 @@ class conversation[R](GenerationFunc[Iterable[str], R]):
 
 
 @dataclass(slots=True, frozen=True)
-class transpose[P1, P2, R1, R2](BatchGenerationFunc[P1, R1]):
-    generation_func: AnyGenerationFunc[P2, R2]
-    prompt_conversion_func: ConversionFunc[P1, P2]
-    response_conversion_func: ConversionFunc[R2, R1]
-
-    def __call__(self, batches: Sequence[P1]) -> Sequence[R1]:
-        func = batchify_generation(self.generation_func)
-        responses = func([self.prompt_conversion_func(batch) for batch in batches])
-        return [self.response_conversion_func(batch) for batch in responses]
-
-
-@dataclass(slots=True, frozen=True)
-class pipe[P, R](BatchGenerationFunc[P, R]):
-    generation_funcs: Sequence[AnyGenerationFunc[P, R]] | AnyGenerationFunc[P, R]
+class pipe[P, R](BatchConversionFunc[P, R]):
+    generation_funcs: Sequence[AnyConversionFunc[P, R]] | AnyConversionFunc[P, R]
     conversion_func: ConversionFunc[R, P]
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
@@ -75,7 +62,7 @@ class pipe[P, R](BatchGenerationFunc[P, R]):
         current_output: Sequence[R] = []
 
         for func in funcs:
-            wrapped_func = batchify_generation(func)
+            wrapped_func = batchify_conversion(func)
             current_output = wrapped_func(current_input)
             current_input = [self.conversion_func(output) for output in current_output]
 

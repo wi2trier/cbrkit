@@ -8,14 +8,12 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
-try:
+import cbrkit
+
+with cbrkit.helpers.optional_dependencies("raise", "cli"):
     import typer
     from rich import print
-except ModuleNotFoundError:
-    print("Please install with the [cli] extra to use the command line interface.")
-    raise
 
-import cbrkit
 
 __all__ = ["app"]
 
@@ -110,12 +108,12 @@ def cycle(
 
 
 @app.command()
-def rag(
+def synthesis(
     casebase_path: Path,
     queries_path: Path,
     retriever: str,
     reuser: str,
-    ragger: str,
+    synthesizer: str,
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     output_path: Path | None = None,
 ) -> None:
@@ -126,14 +124,16 @@ def rag(
         retriever
     )
     reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
-    rag_func = cbrkit.helpers.load_callable(ragger)
+    synthesis_func = cbrkit.helpers.load_callable(synthesizer)
 
     cycle_result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
-    rag_result = cbrkit.rag.apply_result(cycle_result.final_step, rag_func)
+    synthesis_result = cbrkit.synthesis.apply_result(
+        cycle_result.final_step, synthesis_func
+    )
 
     if output_path:
         with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(rag_result.as_dict(), fp, indent=2)
+            json.dump(synthesis_result.as_dict(), fp, indent=2)
 
 
 @app.command()

@@ -1,23 +1,23 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ..helpers import batchify_generation, chunkify
+from ..helpers import batchify_conversion, chunkify
 from ..typing import (
-    AnyGenerationFunc,
+    AnyConversionFunc,
     BatchPoolingFunc,
     Casebase,
     ConversionFunc,
+    ConversionPoolingFunc,
     Float,
-    PoolingPromptFunc,
-    PromptFunc,
-    RagFunc,
     SimMap,
+    SynthesizerFunc,
+    SynthesizerPromptFunc,
 )
 
 
 @dataclass(slots=True, frozen=True)
-class chunks[R, K, V, S: Float](RagFunc[R, K, V, S]):
-    rag_func: RagFunc[R, K, V, S]
+class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
+    synthesis_func: SynthesizerFunc[R, K, V, S]
     pooling_func: BatchPoolingFunc[R]
     chunk_size: int
 
@@ -28,7 +28,7 @@ class chunks[R, K, V, S: Float](RagFunc[R, K, V, S]):
 
         for casebase, query, similarities in batches:
             key_chunks = chunkify(list(casebase.keys()), self.chunk_size)
-            rag_batches = [
+            synthesis_batches = [
                 (
                     {key: casebase[key] for key in chunk},
                     query,
@@ -39,42 +39,42 @@ class chunks[R, K, V, S: Float](RagFunc[R, K, V, S]):
                 for chunk in key_chunks
             ]
 
-            result_chunks.append(self.rag_func(rag_batches))
+            result_chunks.append(self.synthesis_func(synthesis_batches))
 
         return self.pooling_func(result_chunks)
 
 
 @dataclass(slots=True, frozen=True)
 class pooling[P, R](BatchPoolingFunc[R]):
-    prompt_func: PoolingPromptFunc[P, R]
-    generation_func: AnyGenerationFunc[P, R]
+    prompt_func: ConversionPoolingFunc[R, P]
+    generation_func: AnyConversionFunc[P, R]
 
     def __call__(self, batches: Sequence[Sequence[R]]) -> Sequence[R]:
-        func = batchify_generation(self.generation_func)
+        func = batchify_conversion(self.generation_func)
         prompts = [self.prompt_func(batch) for batch in batches]
 
         return func(prompts)
 
 
 @dataclass(slots=True, frozen=True)
-class transpose[R1, R2, K, V, S: Float](RagFunc[R1, K, V, S]):
-    rag_func: RagFunc[R2, K, V, S]
+class transpose[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
+    synthesis_func: SynthesizerFunc[R2, K, V, S]
     conversion_func: ConversionFunc[R2, R1]
 
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]]
     ) -> Sequence[R1]:
-        return [self.conversion_func(batch) for batch in self.rag_func(batches)]
+        return [self.conversion_func(batch) for batch in self.synthesis_func(batches)]
 
 
 @dataclass(slots=True, frozen=True)
-class build[P, R, K, V, S: Float](RagFunc[R, K, V, S]):
-    generation_func: AnyGenerationFunc[P, R]
-    prompt_func: PromptFunc[P, K, V, S]
+class build[P, R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
+    generation_func: AnyConversionFunc[P, R]
+    prompt_func: SynthesizerPromptFunc[P, K, V, S]
 
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]]
     ) -> Sequence[R]:
-        func = batchify_generation(self.generation_func)
+        func = batchify_conversion(self.generation_func)
 
         return func([self.prompt_func(*batch) for batch in batches])

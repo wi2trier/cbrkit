@@ -3,14 +3,12 @@ from typing import Any
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
-try:
+import cbrkit
+
+with cbrkit.helpers.optional_dependencies("raise", "api"):
     from fastapi import FastAPI
     from pydantic_settings import BaseSettings, SettingsConfigDict
-except ModuleNotFoundError:
-    print("Please install cbrkit with the [api] extra to use the REST API server.")
-    raise
 
-import cbrkit
 
 pydantic_dataclass_kwargs: dict[str, Any] = {
     "config": ConfigDict(arbitrary_types_allowed=True),
@@ -21,7 +19,7 @@ pydantic_dataclass_kwargs: dict[str, Any] = {
 RetrievalResult = dataclass(cbrkit.retrieval.Result, **pydantic_dataclass_kwargs)
 ReuseResult = dataclass(cbrkit.reuse.Result, **pydantic_dataclass_kwargs)
 CycleResult = dataclass(cbrkit.cycle.Result, **pydantic_dataclass_kwargs)
-RagResult = dataclass(cbrkit.rag.Result, **pydantic_dataclass_kwargs)
+SynthesisResult = dataclass(cbrkit.synthesis.Result, **pydantic_dataclass_kwargs)
 
 
 class Settings(BaseSettings):
@@ -30,7 +28,7 @@ class Settings(BaseSettings):
     retriever_map: str | None = None
     reuser: str | None = None
     reuser_map: str | None = None
-    rag: str | None = None
+    synthesizer: str | None = None
 
 
 settings = Settings()
@@ -62,8 +60,10 @@ elif settings.reuser_map is not None:
     reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
     reuser = list(reuser_map.values())
 
-ragger: cbrkit.typing.RagFunc | None = (
-    cbrkit.helpers.load_callable(settings.rag) if settings.rag is not None else None
+synthesizer: cbrkit.typing.SynthesizerFunc | None = (
+    cbrkit.helpers.load_callable(settings.synthesizer)
+    if settings.synthesizer is not None
+    else None
 )
 
 
@@ -130,13 +130,13 @@ def cycle(
     )
 
 
-@app.post("/rag", response_model=RagResult)
-def rag(
+@app.post("/synthesize", response_model=SynthesisResult)
+def synthesize(
     casebase: dict[str, Any],
     queries: dict[str, Any],
-) -> cbrkit.rag.Result:
-    if ragger is None:
-        raise ValueError("RAG function not provided")
+) -> cbrkit.synthesis.Result:
+    if synthesizer is None:
+        raise ValueError("Synthesis function not provided")
 
     result = cbrkit.cycle.apply_queries(
         casebase,
@@ -145,7 +145,7 @@ def rag(
         reuser,
     )
 
-    return cbrkit.rag.apply_result(
+    return cbrkit.synthesis.apply_result(
         result.final_step,
-        ragger,
+        synthesizer,
     )

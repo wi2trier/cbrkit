@@ -6,20 +6,8 @@ from typing import Any, TypedDict
 
 import immutables
 
-from ...typing import HasData, StructuredValue
-
-__all__ = [
-    "Node",
-    "Edge",
-    "Graph",
-    "GraphSim",
-    "SerializedNode",
-    "SerializedEdge",
-    "SerializedGraph",
-    "to_dict",
-    "from_dict",
-    "is_sequential",
-]
+from ...helpers import optional_dependencies
+from ...typing import StructuredValue
 
 
 @dataclass(slots=True, frozen=True)
@@ -46,12 +34,12 @@ class SerializedGraph[K, N, E, G](TypedDict):
 
 
 @dataclass(slots=True, frozen=True)
-class Node[K, N](HasData[N]):
+class Node[K, N](StructuredValue[N]):
     key: K
-    data: N
+    value: N
 
     def to_dict(self) -> SerializedNode[N]:
-        return {"data": self.data}
+        return {"data": self.value}
 
     @classmethod
     def from_dict(
@@ -63,17 +51,17 @@ class Node[K, N](HasData[N]):
 
 
 @dataclass(slots=True, frozen=True)
-class Edge[K, N, E](HasData[E]):
+class Edge[K, N, E](StructuredValue[E]):
     key: K
     source: Node[K, N]
     target: Node[K, N]
-    data: E
+    value: E
 
     def to_dict(self) -> SerializedEdge[K, E]:
         return {
             "source": self.source.key,
             "target": self.target.key,
-            "data": self.data,
+            "data": self.value,
         }
 
     @classmethod
@@ -92,16 +80,16 @@ class Edge[K, N, E](HasData[E]):
 
 
 @dataclass(slots=True, frozen=True)
-class Graph[K, N, E, G](HasData[G]):
+class Graph[K, N, E, G](StructuredValue[G]):
     nodes: immutables.Map[K, Node[K, N]]
     edges: immutables.Map[K, Edge[K, N, E]]
-    data: G
+    value: G
 
     def to_dict(self) -> SerializedGraph[K, N, E, G]:
         return {
             "nodes": {key: node.to_dict() for key, node in self.nodes.items()},
             "edges": {key: edge.to_dict() for key, edge in self.edges.items()},
-            "data": self.data,
+            "data": self.value,
         }
 
     @classmethod
@@ -183,13 +171,13 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
     return True
 
 
-try:
+with optional_dependencies():
     import rustworkx
 
     def to_rustworkx_with_lookup[K, N, E](
         g: Graph[K, N, E, Any],
     ) -> tuple[rustworkx.PyDiGraph[N, E], dict[int, K]]:
-        ng = rustworkx.PyDiGraph(attrs=g.data)
+        ng = rustworkx.PyDiGraph(attrs=g.value)
         new_ids = ng.add_nodes_from(list(g.nodes.values()))
         id_map = {
             old_id: new_id
@@ -200,7 +188,7 @@ try:
                 (
                     id_map[edge.source.key],
                     id_map[edge.target.key],
-                    edge.data,
+                    edge.value,
                 )
                 for edge in g.edges.values()
             ]
@@ -222,24 +210,24 @@ try:
 
         return Graph(nodes, edges, g.attrs)
 
-    __all__ += ["to_rustworkx", "from_rustworkx"]
 
-except ImportError:
-    pass
-
-try:
+with optional_dependencies():
     import networkx as nx
 
-    def to_networkx(g: Graph) -> nx.DiGraph:
+    def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> nx.DiGraph:
         ng = nx.DiGraph()
-        ng.graph = g.data
+        ng.graph = g.value
 
         ng.add_nodes_from(
             (
                 node.key,
-                (node.data if isinstance(node.data, Mapping) else {"data": node.data}),
+                (
+                    node.value
+                    if isinstance(node.value, Mapping)
+                    else {"data": node.value}
+                ),
             )
-            for node in g.nodes
+            for node in g.nodes.values()
         )
 
         ng.add_edges_from(
@@ -247,9 +235,9 @@ try:
                 edge.source.key,
                 edge.target.key,
                 (
-                    {**edge.data, "key": edge.key}
-                    if isinstance(edge.data, Mapping)
-                    else {"data": edge.data, "key": edge.key}
+                    {**edge.value, "key": edge.key}
+                    if isinstance(edge.value, Mapping)
+                    else {"data": edge.value, "key": edge.key}
                 ),
             )
             for edge in g.edges.values()
@@ -257,7 +245,7 @@ try:
 
         return ng
 
-    def from_networkx(g: nx.DiGraph) -> Graph:
+    def from_networkx(g: nx.DiGraph) -> Graph[Any, Any, Any, Any]:
         nodes = immutables.Map(
             (idx, Node(idx, data)) for idx, data in g.nodes(data=True)
         )
@@ -268,8 +256,3 @@ try:
         )
 
         return Graph(nodes, edges, g.graph)
-
-    __all__ += ["to_networkx", "from_networkx"]
-
-except ImportError:
-    pass

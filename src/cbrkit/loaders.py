@@ -4,19 +4,20 @@ This module provides several loaders to read data from different file formats an
 
 import csv as csvlib
 import tomllib
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import IO, Any, cast
 
 import orjson
+import pandas as pd
 import polars as pl
 import xmltodict
 import yaml as yamllib
 from pydantic import BaseModel
 
 from .helpers import load_object
-from .typing import Casebase, FilePath
+from .typing import Casebase, ConversionFunc, FilePath
 
 __all__ = [
     "path",
@@ -26,6 +27,7 @@ __all__ = [
     "csv",
     "json",
     "polars",
+    "pandas",
     "py",
     "toml",
     "txt",
@@ -33,34 +35,30 @@ __all__ = [
     "yaml",
 ]
 
-py = load_object
 
-try:
-    import pandas as pd
+@dataclass(slots=True, frozen=True)
+class pandas(Mapping[int, pd.Series]):
+    """A wrapper around a pandas DataFrame to provide a dict-like interface"""
 
-    @dataclass(slots=True, frozen=True)
-    class pandas(Mapping[int, pd.Series]):
-        df: pd.DataFrame
+    df: pd.DataFrame
 
-        def __getitem__(self, key: int | str) -> pd.Series:
-            if isinstance(key, str):
-                return cast(pd.Series, self.df.loc[key])
+    def __getitem__(self, key: int | str) -> pd.Series:
+        if isinstance(key, str):
+            return cast(pd.Series, self.df.loc[key])
 
-            return self.df.iloc[key]
+        return self.df.iloc[key]
 
-        def __iter__(self) -> Iterator[int]:
-            return iter(range(self.df.shape[0]))
+    def __iter__(self) -> Iterator[int]:
+        return iter(range(self.df.shape[0]))
 
-        def __len__(self) -> int:
-            return self.df.shape[0]
-
-    __all__ += ["pandas"]
-except ImportError:
-    pass
+    def __len__(self) -> int:
+        return self.df.shape[0]
 
 
 @dataclass(slots=True, frozen=True)
 class polars(Mapping[int, dict[str, Any]]):
+    """A wrapper around a polars DataFrame to provide a dict-like interface"""
+
     df: pl.DataFrame
 
     def __getitem__(self, key: int) -> dict[str, Any]:
@@ -73,23 +71,24 @@ class polars(Mapping[int, dict[str, Any]]):
         return self.df.shape[0]
 
 
-def csv(path: FilePath) -> dict[int, dict[str, str]]:
-    """Reads a csv file and converts it into a dict representation
+@dataclass(slots=True, frozen=True)
+class py(ConversionFunc[str | IO, Any]):
+    """Reads a Python file and loads the object from it."""
 
-    Args:
-        path: File path of the csv file
+    def __call__(self, source: str | IO) -> Any:
+        if isinstance(source, IO):
+            return load_object(source.read())
 
-    Returns:
-        Dict representation of the csv file.
+        return load_object(source)
 
-    Examples:
-        >>> file_path = "./data/cars-1k.csv"
-        >>> result = csv(file_path)
-    """
-    data: dict[int, dict[str, str]] = {}
 
-    with open(path) as fp:
-        reader = csvlib.DictReader(fp)
+@dataclass(slots=True, frozen=True)
+class csv(ConversionFunc[Iterable[str] | IO, dict[int, dict[str, str]]]):
+    """Reads a csv file and converts it into a dict representation"""
+
+    def __call__(self, source: Iterable[str] | IO) -> dict[int, dict[str, str]]:
+        data: dict[int, dict[str, str]] = {}
+        reader = csvlib.DictReader(source)
         row: dict[str, str]
 
         for idx, row in enumerate(reader):
@@ -98,68 +97,40 @@ def csv(path: FilePath) -> dict[int, dict[str, str]]:
         return data
 
 
-def _csv_polars(path: FilePath) -> Mapping[int, dict[str, Any]]:
-    return polars(pl.read_csv(path))
+@dataclass(slots=True, frozen=True)
+class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
+    """Reads a json file and converts it into a dict representation"""
 
-
-def json(path: FilePath) -> dict[Any, Any]:
-    """Reads a json file and converts it into a dict representation
-
-    Args:
-        path: File path of the json file
-
-    Returns:
-        Dict representation of the json file.
-
-    Examples:
-        >>> file_path = "data/cars-1k.json"     # doctest: +SKIP
-        >>> json(file_path)                     # doctest: +SKIP
-    """
-    with open(path, "rb") as fp:
-        data = orjson.loads(fp.read())
+    def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
+        data = orjson.loads(source.read() if isinstance(source, IO) else source)
 
         if isinstance(data, list):
             return dict(enumerate(data))
         elif isinstance(data, dict):
             return data
-        else:
-            raise TypeError(f"Invalid data type: {type(data)}")
+
+        raise TypeError(f"Invalid data type: {type(data)}")
 
 
-def toml(path: FilePath) -> dict[str, Any]:
-    """Reads a toml file and parses it into a dict representation
+@dataclass(slots=True, frozen=True)
+class toml(ConversionFunc[str | IO, dict[str, Any]]):
+    """Reads a toml file and converts it into a dict representation"""
 
-    Args:
-        path: File path of the toml file
+    def __call__(self, source: str | IO) -> dict[str, Any]:
+        if isinstance(source, IO):
+            return tomllib.load(source)
 
-    Returns:
-        Dict representation of the toml file.
-
-    Examples:
-        >>> file_path = "./data/file.toml"      # doctest: +SKIP
-        >>> toml(file_path)                     # doctest: +SKIP
-    """
-    with open(path, "rb") as fp:
-        return tomllib.load(fp)
+        return tomllib.loads(source)
 
 
-def yaml(path: FilePath) -> dict[Any, Any]:
-    """Reads a yaml file and parses it into a dict representation
+@dataclass(slots=True, frozen=True)
+class yaml(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
+    """Reads a yaml file and converts it into a dict representation"""
 
-    Args:
-        path: File path of the yaml file
+    def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
+        data: dict[Any, Any] = {}
 
-    Returns:
-        Dict representation of the yaml file.
-
-    Examples:
-        >>> file_path = "./data/cars-1k.yaml"
-        >>> result = yaml(file_path)
-    """
-    data: dict[Any, Any] = {}
-
-    with open(path, "rb") as fp:
-        for doc_idx, doc in enumerate(yamllib.safe_load_all(fp)):
+        for doc_idx, doc in enumerate(yamllib.safe_load_all(source)):
             if isinstance(doc, list):
                 for idx, item in enumerate(doc):
                     data[doc_idx + idx] = item
@@ -168,96 +139,59 @@ def yaml(path: FilePath) -> dict[Any, Any]:
             else:
                 raise TypeError(f"Invalid document type: {type(doc)}")
 
-    return data
+        return data
 
 
-def txt(path: FilePath) -> str:
-    """Reads a text file and converts it into a string
+@dataclass(slots=True, frozen=True)
+class xml(ConversionFunc[str | IO, dict[str, Any]]):
+    """Reads a xml file and converts it into a dict representation"""
 
-    Args:
-        path: File path of the text file
+    def __call__(self, source: str | IO) -> dict[str, Any]:
+        if isinstance(source, str):
+            data = xmltodict.parse(source)
+        else:
+            data = xmltodict.parse(source.read())
 
-    Returns:
-        String representation of the text file.
+        if len(data) == 1:
+            data_without_root = data[next(iter(data))]
 
-    Examples:
-        >>> file_path = "data/file.txt"      # doctest: +SKIP
-        >>> txt(file_path)                   # doctest: +SKIP
-    """
-    with open(path) as fp:
-        return fp.read()
+            return data_without_root
 
-
-def xml(path: FilePath) -> dict[str, Any]:
-    """Reads a xml file and parses it into a dict representation
-
-    Args:
-        path: File path of the xml file
-
-    Returns:
-        Dict representation of the xml file.
-
-    Examples:
-        >>> file_path = "data/file.xml"      # doctest: +SKIP
-        >>> result = xml(file_path)          # doctest: +SKIP
-    """
-    with open(path, "rb") as fp:
-        data = xmltodict.parse(fp.read())
-
-    if len(data) == 1:
-        data_without_root = data[next(iter(data))]
-
-        return data_without_root
-
-    return data
+        return data
 
 
-DataLoader = Callable[[FilePath], Mapping[str, Any]]
-SingleLoader = Callable[[FilePath], Any]
-BatchLoader = Callable[[FilePath], Mapping[Any, Any]]
+@dataclass(slots=True, frozen=True)
+class txt(ConversionFunc[str | bytes | IO, str]):
+    """Reads a text file and converts it into a string"""
 
-_data_loaders: dict[str, DataLoader] = {
-    ".json": json,
-    ".toml": toml,
-    ".yaml": yaml,
-    ".yml": yaml,
-}
+    def __call__(self, source: str | bytes | IO) -> str:
+        if isinstance(source, IO):
+            return source.read()
 
-# They contain the whole casebase in one file
-_batch_loaders: dict[str, BatchLoader] = {
-    **_data_loaders,
+        return str(source)
+
+
+def _csv_polars(source: IO | Path | str | bytes) -> Mapping[int, dict[str, Any]]:
+    return polars(pl.read_csv(source))
+
+
+StructuredLoader = Callable[[IO], Mapping[Any, Any]]
+AnyLoader = Callable[[IO], Any]
+
+structured_loaders: dict[str, StructuredLoader] = {
+    ".json": json(),
+    ".toml": toml(),
+    ".yaml": yaml(),
+    ".yml": yaml(),
+    ".xml": xml(),
     ".csv": _csv_polars,
 }
 
-# They contain one case per file
-# Since structured formats may also be used for single cases, they are also included here
-_single_loaders: dict[str, SingleLoader] = {
-    **_batch_loaders,
-    ".txt": txt,
+any_loaders: dict[str, AnyLoader] = {
+    **structured_loaders,
+    ".txt": txt(),
+    ".py": py(),
 }
-
-
-def data(path: FilePath) -> Mapping[str, Any]:
-    """Reads files of types json, toml, yaml, and yml and parses it into a dict representation
-
-    Args:
-        path: Path of the file
-
-    Returns:
-        Dict representation of the file.
-
-    Examples:
-        >>> yaml_file = "./data/cars-1k.yaml"
-        >>> result = data(yaml_file)
-    """
-    if isinstance(path, str):
-        path = Path(path)
-
-    if path.suffix not in _data_loaders:
-        raise NotImplementedError()
-
-    loader = _data_loaders[path.suffix]
-    return loader(path)
 
 
 def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
@@ -284,7 +218,7 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     raise FileNotFoundError(path)
 
 
-def file(path: FilePath) -> Casebase[Any, Any]:
+def file(path: FilePath, loader: AnyLoader | None = None) -> Casebase[Any, Any]:
     """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
 
     Args:
@@ -302,13 +236,14 @@ def file(path: FilePath) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    if path.suffix not in _batch_loaders:
+    if loader is None and path.suffix not in structured_loaders:
         raise ValueError(f"Unsupported file type: {path.suffix}")
 
-    loader = _batch_loaders[path.suffix]
-    cb = loader(path)
+    if loader is None:
+        loader = structured_loaders[path.suffix]
 
-    return cb
+    with path.open("rb") as fp:
+        return loader(fp)
 
 
 def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
@@ -332,15 +267,16 @@ def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    for file in path.glob(pattern):
-        if file.is_file() and file.suffix in _single_loaders:
-            loader = _single_loaders[file.suffix]
-            cb[file.name] = loader(file)
+    for elem in path.glob(pattern):
+        if elem.is_file() and elem.suffix in any_loaders:
+            cb[elem.stem] = file(elem)
 
     return cb
 
 
-def validate[K, V: BaseModel](casebase: Casebase[K, Any], model: V) -> Casebase[K, V]:
+def validate[K, V: BaseModel](
+    casebase: Casebase[K, Any], model: type[V]
+) -> Casebase[K, V]:
     """Validates the casebase against a Pydantic model.
 
     Args:
@@ -349,6 +285,7 @@ def validate[K, V: BaseModel](casebase: Casebase[K, Any], model: V) -> Casebase[
 
     Examples:
         >>> from pydantic import BaseModel, NonNegativeInt
+        >>> from typing import Literal
         >>> class Car(BaseModel):
         ...     price: NonNegativeInt
         ...     year: NonNegativeInt
@@ -362,11 +299,9 @@ def validate[K, V: BaseModel](casebase: Casebase[K, Any], model: V) -> Casebase[
         ...     type: str
         ...     paint_color: str
         >>> data = file("data/cars-1k.csv")
-        >>> validate(data, Car)
-        >>> import polars as pl
-        >>> df = pl.read_csv("data/cars-1k.csv")
-        >>> data = polars(df)
-        >>> validate(data, Car)
+        >>> casebase = validate(data, Car)
+        >>> data = polars(pl.read_csv("data/cars-1k.csv"))
+        >>> casebase = validate(data, Car)
     """
 
     return {key: model.model_validate(value) for key, value in casebase.items()}

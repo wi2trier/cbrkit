@@ -3,18 +3,18 @@ from dataclasses import dataclass, field
 from textwrap import dedent
 from typing import Any
 
-from ..encoders import json_markdown
-from ..genai._model import DocumentsPrompt
+from ..dumpers import json_markdown
 from ..helpers import sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
     ConversionFunc,
+    ConversionPoolingFunc,
     Float,
     JsonEntry,
-    PoolingPromptFunc,
-    PromptFunc,
     SimMap,
+    SynthesizerPromptFunc,
 )
+from .providers.model import DocumentsPrompt
 
 __all__ = [
     "transpose",
@@ -25,8 +25,8 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class transpose[P, K, V1, V2, S: Float](PromptFunc[P, K, V1, S]):
-    prompt_func: PromptFunc[P, K, V2, S]
+class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
+    prompt_func: SynthesizerPromptFunc[P, K, V2, S]
     conversion_func: ConversionFunc[V1, V2]
 
     def __call__(
@@ -43,7 +43,7 @@ class transpose[P, K, V1, V2, S: Float](PromptFunc[P, K, V1, S]):
 
 
 @dataclass(slots=True, frozen=True)
-class default[V](PromptFunc[str, Any, V, Float]):
+class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -98,7 +98,7 @@ class default[V](PromptFunc[str, Any, V, Float]):
 
 
 @dataclass(slots=True, frozen=True)
-class documents_aware[V](PromptFunc[DocumentsPrompt[str], Any, V, Any]):
+class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any]):
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -151,7 +151,7 @@ class documents_aware[V](PromptFunc[DocumentsPrompt[str], Any, V, Any]):
 
 
 @dataclass(slots=True, frozen=True)
-class pooling[V](PoolingPromptFunc[str, V]):
+class pooling[V](ConversionPoolingFunc[V, str]):
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None

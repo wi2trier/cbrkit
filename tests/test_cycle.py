@@ -21,9 +21,8 @@ def test_simple():
                 attributes={
                     "price": cbrkit.sim.numbers.linear(max=100000),
                     "year": cbrkit.sim.numbers.linear(max=50),
-                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                        "./data/cars-taxonomy.yaml",
-                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    "manufacturer": cbrkit.sim.strings.wu_palmer(
+                        cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
                     ),
                     "make": cbrkit.sim.strings.levenshtein(),
                     "miles": cbrkit.sim.numbers.linear(max=100000),

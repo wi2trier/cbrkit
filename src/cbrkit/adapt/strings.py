@@ -28,7 +28,7 @@ class regex(AdaptationFunc[str], HasMetadata):
         The modified string.
 
     Examples:
-        >>> func = regex("\\d+", "\\d+", "NUMBER")
+        >>> func = regex("25", "30", "NUMBER")
         >>> func("Alice is 25 years old.", "Peter is 30 years old.")
         'Alice is NUMBER years old.'
     """

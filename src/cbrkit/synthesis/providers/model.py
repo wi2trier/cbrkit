@@ -1,0 +1,46 @@
+import asyncio
+from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Literal, TypedDict
+
+from ...typing import BatchConversionFunc, StructuredValue
+
+
+class ChatMessage(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+@dataclass(slots=True, frozen=True)
+class ChatPrompt[P](StructuredValue[P]):
+    value: P
+    messages: Sequence[ChatMessage]
+
+
+@dataclass(slots=True, frozen=True)
+class DocumentsPrompt[P](StructuredValue[P]):
+    value: P
+    documents: Mapping[str, Mapping[str, str]]
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
+    model: str
+    response_type: type[R]
+    extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
+
+    def __call__(self, batches: Sequence[P]) -> Sequence[R]:
+        return asyncio.run(self.__call_batches__(batches))
+
+    async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
+        return await asyncio.gather(*(self.__call_batch__(batch) for batch in batches))
+
+    @abstractmethod
+    async def __call_batch__(self, prompt: P) -> R: ...
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class ChatProvider[P, R](BaseProvider[P, R], ABC):
+    system_message: str | None = None
+    messages: Sequence[ChatMessage] = field(default_factory=tuple)

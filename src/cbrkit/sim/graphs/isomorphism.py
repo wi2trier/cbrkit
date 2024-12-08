@@ -10,7 +10,6 @@ from ...typing import (
     Float,
     SimFunc,
 )
-from . import model as model
 from .model import Graph, GraphSim, Node
 
 
@@ -49,8 +48,10 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> GraphSim[K]:
         import rustworkx
 
-        x_rw, x_lookup = model.to_rustworkx_with_lookup(x)
-        y_rw, y_lookup = model.to_rustworkx_with_lookup(y)
+        from .model import to_rustworkx_with_lookup
+
+        x_rw, x_lookup = to_rustworkx_with_lookup(x)
+        y_rw, y_lookup = to_rustworkx_with_lookup(y)
 
         rw_mappings = rustworkx.vf2_mapping(
             y_rw,

@@ -1,12 +1,12 @@
 from ..model import QueryResultStep, Result, ResultStep
-from ._apply import (
+from .apply import (
     apply_batches,
     apply_pair,
     apply_queries,
     apply_query,
     apply_result,
 )
-from ._build import build
+from .build import build
 
 __all__ = [
     "build",
