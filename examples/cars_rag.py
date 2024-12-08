@@ -20,9 +20,9 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
-rag = cbrkit.rag.build(
-    cbrkit.genai.providers.openai(model="gpt-4o", response_type=str),
-    cbrkit.rag.prompts.default(
+synthesizer = cbrkit.synthesis.build(
+    cbrkit.synthesis.providers.openai(model="gpt-4o", response_type=str),
+    cbrkit.synthesis.prompts.default(
         "Give me a summary of the found cars.",
         metadata=cbrkit.helpers.get_metadata(sim_func),
     ),
@@ -34,7 +34,7 @@ retrieval = cbrkit.retrieval.apply_query(
     retriever,
 )
 
-response = cbrkit.rag.apply_result(retrieval, rag).response
+response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
 
 print(response)
 

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import override
 
-from ..sim._aggregator import PoolingName, pooling_funcs
+from ..sim.aggregator import PoolingName, pooling_funcs
 from ..typing import AdaptationFunc, PoolingFunc
 
 type Number = float | int

@@ -1,9 +1,12 @@
+import heapq
 from collections.abc import Callable, Collection, Sequence, Set
 from dataclasses import asdict, dataclass, field
 from itertools import product
 from typing import cast, override
 
-from ..helpers import dist2sim, get_metadata, unpack_float
+import numpy as np
+
+from ..helpers import dist2sim, get_metadata, optional_dependencies, unpack_float
 from ..typing import Float, HasMetadata, JsonDict, SimFunc, StructuredValue
 
 Number = float | int
@@ -14,9 +17,12 @@ __all__ = [
     "sequence_correctness",
     "SequenceSim",
     "Weight",
+    "jaccard",
+    "smith_waterman",
+    "dtw",
 ]
 
-try:
+with optional_dependencies():
     from nltk.metrics import jaccard_distance
 
     @dataclass(slots=True, frozen=True)
@@ -38,13 +44,8 @@ try:
 
             return dist2sim(jaccard_distance(x, y))
 
-    __all__ += ["jaccard"]
 
-except ImportError:
-    pass
-
-
-try:
+with optional_dependencies():
     from minineedle import core, smith
 
     @dataclass(slots=True, frozen=True)
@@ -84,74 +85,64 @@ try:
             except ZeroDivisionError:
                 return 0.0
 
-    __all__ += ["smith_waterman"]
 
-except ImportError:
-    pass
+@dataclass(slots=True)
+class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):
+    """Dynamic Time Warping similarity function.
 
-try:
-    import numpy as np
+    Examples:
+        >>> sim = dtw()
+        >>> sim([1, 2, 3], [1, 2, 3, 4])
+        0.5
+        >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
+        >>> sim([1, 2, 3], [3, 4, 5])
+        0.14285714285714285
+        >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
+        >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
+        0.011235955056179775
+    """
 
-    @dataclass(slots=True)
-    class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):
-        """Dynamic Time Warping similarity function.
+    distance_func: Callable[[V, V], float] | None = None
 
-        Examples:
-            >>> sim = dtw()
-            >>> sim([1, 2, 3], [1, 2, 3, 4])
-            0.5
-            >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
-            >>> sim([1, 2, 3], [3, 4, 5])
-            0.14285714285714285
-            >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
-            >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
-            0.011235955056179775
-        """
+    def __call__(
+        self,
+        x: Collection[V] | np.ndarray,
+        y: Collection[V] | np.ndarray,
+    ) -> float:
+        if not isinstance(x, np.ndarray):
+            x = np.array(x, dtype=object)  # Allow non-numeric types
+        if not isinstance(y, np.ndarray):
+            y = np.array(y, dtype=object)
 
-        distance_func: Callable[[V, V], float] | None = None
+        # Compute the DTW distance manually using the custom distance
+        dtw_distance = self.compute_dtw(x, y)
 
-        def __call__(
-            self,
-            x: Collection[V] | np.ndarray,
-            y: Collection[V] | np.ndarray,
-        ) -> float:
-            if not isinstance(x, np.ndarray):
-                x = np.array(x, dtype=object)  # Allow non-numeric types
-            if not isinstance(y, np.ndarray):
-                y = np.array(y, dtype=object)
+        # Convert DTW distance to similarity
+        similarity = dist2sim(dtw_distance)
 
-            # Compute the DTW distance manually using the custom distance
-            dtw_distance = self.compute_dtw(x, y)
+        return float(similarity)
 
-            # Convert DTW distance to similarity
-            similarity = dist2sim(dtw_distance)
+    def compute_dtw(self, x: np.ndarray, y: np.ndarray) -> float:
+        n, m = len(x), len(y)
+        dtw_matrix = np.full((n + 1, m + 1), np.inf)
+        dtw_matrix[0, 0] = 0
 
-            return float(similarity)
+        for i in range(1, n + 1):
+            for j in range(1, m + 1):
+                cost = (
+                    self.distance_func(x[i - 1], y[j - 1])
+                    if self.distance_func
+                    else abs(x[i - 1] - y[j - 1])
+                )
+                # Take last min from a square box
+                last_min = min(
+                    dtw_matrix[i - 1, j],  # Insertion
+                    dtw_matrix[i, j - 1],  # Deletion
+                    dtw_matrix[i - 1, j - 1],  # Match
+                )
+                dtw_matrix[i, j] = cost + last_min
 
-        def compute_dtw(self, x: np.ndarray, y: np.ndarray) -> float:
-            n, m = len(x), len(y)
-            dtw_matrix = np.full((n + 1, m + 1), np.inf)
-            dtw_matrix[0, 0] = 0
-
-            for i in range(1, n + 1):
-                for j in range(1, m + 1):
-                    cost = (
-                        self.distance_func(x[i - 1], y[j - 1])
-                        if self.distance_func
-                        else abs(x[i - 1] - y[j - 1])
-                    )
-                    # Take last min from a square box
-                    last_min = min(
-                        dtw_matrix[i - 1, j],  # Insertion
-                        dtw_matrix[i, j - 1],  # Deletion
-                        dtw_matrix[i - 1, j - 1],  # Match
-                    )
-                    dtw_matrix[i, j] = cost + last_min
-
-            return dtw_matrix[n, m]
-
-except ImportError:
-    pass
+        return dtw_matrix[n, m]
 
 
 @dataclass(slots=True, frozen=True)
@@ -188,81 +179,71 @@ class isolated_mapping[V](SimFunc[Sequence[V], float]):
         return average_similarity
 
 
-try:
-    import heapq
+@dataclass(slots=True, frozen=True)
+class mapping[V](SimFunc[Sequence[V], float]):
+    """
+    Implements an A* algorithm to find the best matching between query items and case items
+    based on the provided similarity function, maximizing the overall similarity score.
 
-    @dataclass(slots=True, frozen=True)
-    class mapping[V](SimFunc[Sequence[V], float]):
-        """
-        Implements an A* algorithm to find the best matching between query items and case items
-        based on the provided similarity function, maximizing the overall similarity score.
+    Args:
+        similarity_function: A function that calculates the similarity between two elements.
+        max_queue_size: Maximum size of the priority queue. Defaults to 1000.
 
-        Args:
-            similarity_function: A function that calculates the similarity between two elements.
-            max_queue_size: Maximum size of the priority queue. Defaults to 1000.
+    Returns:
+        A similarity function for sequences.
 
-        Returns:
-            A similarity function for sequences.
+    Examples:
+        >>> def example_similarity_function(x, y) -> float:
+        ...     return 1.0 if x == y else 0.0
+        >>> sim_func = mapping(example_similarity_function)
+        >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
+        >>> print(f"Normalized Similarity Score: {result}")
+        Normalized Similarity Score: 0.6666666666666666
+    """
 
-        Examples:
-            >>> def example_similarity_function(x, y) -> float:
-            ...     return 1.0 if x == y else 0.0
-            >>> sim_func = mapping(example_similarity_function)
-            >>> result = sim_func(["Monday", "Tuesday", "Wednesday"], ["Monday", "Tuesday", "Sunday"])
-            >>> print(f"Normalized Similarity Score: {result}")
-            Normalized Similarity Score: 0.6666666666666666
-        """
+    element_similarity: SimFunc[V, float]
+    max_queue_size: int = 1000
 
-        element_similarity: SimFunc[V, float]
-        max_queue_size: int = 1000
+    @override
+    def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
+        # Priority queue to store potential solutions with their scores
+        pq = []
+        initial_solution = (0.0, set(), frozenset(query), frozenset(case))
+        heapq.heappush(pq, initial_solution)
 
-        @override
-        def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
-            # Priority queue to store potential solutions with their scores
-            pq = []
-            initial_solution = (0.0, set(), frozenset(query), frozenset(case))
-            heapq.heappush(pq, initial_solution)
+        best_score = 0.0
 
-            best_score = 0.0
+        while pq:
+            current_score, current_mapping, remaining_query, remaining_case = (
+                heapq.heappop(pq)
+            )
 
-            while pq:
-                current_score, current_mapping, remaining_query, remaining_case = (
-                    heapq.heappop(pq)
-                )
+            if not remaining_query:  # All query items are mapped
+                best_score = max(best_score, current_score / len(query))
+                continue  # Continue to process remaining potential mappings
 
-                if not remaining_query:  # All query items are mapped
-                    best_score = max(best_score, current_score / len(query))
-                    continue  # Continue to process remaining potential mappings
+            for query_item in remaining_query:
+                for case_item in remaining_case:
+                    sim_score = self.element_similarity(query_item, case_item)
+                    new_mapping = current_mapping | {(query_item, case_item)}
+                    new_score = current_score + sim_score  # Accumulate score correctly
+                    new_remaining_query = remaining_query - {query_item}
+                    new_remaining_case = remaining_case - {case_item}
 
-                for query_item in remaining_query:
-                    for case_item in remaining_case:
-                        sim_score = self.element_similarity(query_item, case_item)
-                        new_mapping = current_mapping | {(query_item, case_item)}
-                        new_score = (
-                            current_score + sim_score
-                        )  # Accumulate score correctly
-                        new_remaining_query = remaining_query - {query_item}
-                        new_remaining_case = remaining_case - {case_item}
+                    heapq.heappush(
+                        pq,
+                        (
+                            new_score,
+                            new_mapping,
+                            new_remaining_query,
+                            new_remaining_case,
+                        ),
+                    )
 
-                        heapq.heappush(
-                            pq,
-                            (
-                                new_score,
-                                new_mapping,
-                                new_remaining_query,
-                                new_remaining_case,
-                            ),
-                        )
+                    if len(pq) > self.max_queue_size:
+                        heapq.heappop(pq)
 
-                        if len(pq) > self.max_queue_size:
-                            heapq.heappop(pq)
-
-            return best_score
-
-    __all__ += ["mapping"]
-
-except ImportError:
-    pass
+        return best_score
 
 
 @dataclass(slots=True, frozen=True)

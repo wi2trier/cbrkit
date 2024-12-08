@@ -10,10 +10,13 @@ Additionally, the module contains an aggregator to combine multiple local measur
 """
 
 from . import collections, generic, graphs, numbers, strings
-from ._aggregator import PoolingName, aggregator
-from ._attribute_value import AttributeValueSim, attribute_value
+from .aggregator import PoolingName, aggregator
+from .attribute_value import AttributeValueSim, attribute_value
+from .wrappers import cache, transpose
 
 __all__ = [
+    "transpose",
+    "cache",
     "collections",
     "generic",
     "numbers",

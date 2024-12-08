@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 import polars as pl
@@ -21,9 +22,8 @@ def test_retrieve_multiprocessing():
                 attributes={
                     "price": cbrkit.sim.numbers.linear(max=100000),
                     "year": cbrkit.sim.numbers.linear(max=50),
-                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                        "./data/cars-taxonomy.yaml",
-                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    "manufacturer": cbrkit.sim.strings.wu_palmer(
+                        cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
                     ),
                     "make": cbrkit.sim.strings.levenshtein(),
                     "miles": _custom_numeric_sim,
@@ -55,9 +55,8 @@ def test_retrieve_dataframe():
                 attributes={
                     "price": cbrkit.sim.numbers.linear(max=100000),
                     "year": cbrkit.sim.numbers.linear(max=50),
-                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                        "./data/cars-taxonomy.yaml",
-                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    "manufacturer": cbrkit.sim.strings.wu_palmer(
+                        cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
                     ),
                     "make": cbrkit.sim.strings.levenshtein(),
                     "miles": cbrkit.sim.numbers.linear(max=1000000),
@@ -101,9 +100,8 @@ def test_retrieve_dataframe_custom_query():
                 attributes={
                     "price": cbrkit.sim.numbers.linear(max=100000),
                     "year": cbrkit.sim.numbers.linear(max=50),
-                    "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                        "./data/cars-taxonomy.yaml",
-                        measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                    "manufacturer": cbrkit.sim.strings.wu_palmer(
+                        cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
                     ),
                     "make": cbrkit.sim.strings.levenshtein(),
                     "miles": _custom_numeric_sim,
@@ -128,7 +126,7 @@ def test_retrieve_nested():
     query_name = 42
     casebase_file = "data/cars-1k.yaml"
 
-    casebase: dict[int, Any] = cbrkit.loaders.yaml(casebase_file)
+    casebase: Mapping[int, Any] = cbrkit.loaders.path(casebase_file)
     query = casebase[query_name]
     retriever = cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
@@ -139,9 +137,8 @@ def test_retrieve_nested():
                     "model": cbrkit.sim.attribute_value(
                         attributes={
                             "make": cbrkit.sim.strings.levenshtein(),
-                            "manufacturer": cbrkit.sim.strings.taxonomy.load(
-                                "./data/cars-taxonomy.yaml",
-                                measure=cbrkit.sim.strings.taxonomy.wu_palmer(),
+                            "manufacturer": cbrkit.sim.strings.wu_palmer(
+                                cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
                             ),
                         }
                     ),

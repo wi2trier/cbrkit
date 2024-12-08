@@ -9,24 +9,10 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 """
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional, Protocol, TypedDict, cast, override
+from typing import Literal, TypedDict, cast, override
 
-from ...loaders import data as load_data
+from ...loaders import path as load_path
 from ...typing import FilePath, SimFunc
-
-__all__ = [
-    "load",
-    "wu_palmer",
-    "user_weights",
-    "auto_weights",
-    "node_levels",
-    "path_steps",
-    "Taxonomy",
-    "TaxonomyNode",
-    "SerializedTaxonomyNode",
-    "TaxonomyFunc",
-    "TaxonomyStrategy",
-]
 
 
 class SerializedTaxonomyNode(TypedDict, total=False):
@@ -40,7 +26,7 @@ class TaxonomyNode:
     name: str
     weight: float
     depth: int
-    parent: Optional["TaxonomyNode"]
+    parent: "TaxonomyNode | None"
     children: dict[str, "TaxonomyNode"] = field(default_factory=dict)
 
     @property
@@ -48,262 +34,8 @@ class TaxonomyNode:
         return self.depth + 1
 
 
-class Taxonomy:
-    __slots__ = ("root", "nodes")
-
-    root: TaxonomyNode
-    nodes: dict[str, TaxonomyNode]
-
-    def __init__(self, path: FilePath) -> None:
-        root_data = cast(SerializedTaxonomyNode, load_data(path))
-        self.nodes = {}
-        self.root = self._load(root_data)
-
-    @property
-    def max_depth(self) -> int:
-        return max(node.depth for node in self.nodes.values())
-
-    @property
-    def max_level(self) -> int:
-        return max(node.level for node in self.nodes.values())
-
-    def _load(
-        self,
-        data: SerializedTaxonomyNode | str,
-        parent: TaxonomyNode | None = None,
-        depth: int = 0,
-    ) -> TaxonomyNode:
-        if isinstance(data, str):
-            data = {"name": data}
-
-        assert "name" in data, "Missing name in some node"
-
-        node = TaxonomyNode(
-            name=data["name"],
-            weight=data.get("weight", 1.0),
-            depth=depth,
-            parent=parent,
-        )
-
-        for child in data.get("children", []):
-            child_node = self._load(child, node, depth + 1)
-            node.children[child_node.name] = child_node
-
-        self.nodes[node.name] = node
-
-        return node
-
-    def lca(self, node1: TaxonomyNode, node2: TaxonomyNode) -> TaxonomyNode:
-        while node1 != node2:
-            if node1.parent is None or node2.parent is None:
-                return self.root
-
-            if node1.depth > node2.depth:
-                node1 = node1.parent
-            else:
-                node2 = node2.parent
-
-        return node1
-
-
-class TaxonomyFunc(Protocol):
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float: ...
-
-
-TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
-
-
-@dataclass(slots=True, frozen=True)
-class wu_palmer(TaxonomyFunc):
-    """Wu & Palmer similarity measure of two nodes in a taxonomy.
-
-    Examples:
-        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
-        >>> sim = wu_palmer()
-        >>> sim(taxonomy, "audi", "porsche")
-        0.5
-        >>> sim(taxonomy, "audi", "bmw")
-        0.0
-    """
-
-    @override
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
-        lca = taxonomy.lca(node1, node2)
-
-        return (2 * lca.depth) / (node1.depth + node2.depth)
-
-
-@dataclass(slots=True, frozen=True)
-class user_weights(TaxonomyFunc):
-    """User-defined weights similarity measure of two nodes in a taxonomy.
-
-    The weights are defined by the user in the taxonomy file.
-
-    Args:
-        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
-            One of "optimistic", "pessimistic", or "average".
-
-    ![user weights](../../../../assets/taxonomy/user-weights.png)
-
-    Examples:
-        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
-        >>> sim = user_weights("optimistic")
-        >>> sim(taxonomy, "audi", "Volkswagen AG")
-        1.0
-        >>> sim(taxonomy, "audi", "bmw")
-        0.0
-    """
-
-    strategy: TaxonomyStrategy
-
-    @override
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
-        lca = taxonomy.lca(node1, node2)
-        weight = lca.weight
-
-        if lca == node1 or lca == node2:
-            # pessimistic not needed: weight of lca already used
-            if self.strategy == "optimistic":
-                weight = 1.0
-            elif self.strategy == "average":
-                weight = (node1.weight + node2.weight) / 2
-
-        return weight
-
-
-@dataclass(slots=True, frozen=True)
-class auto_weights(TaxonomyFunc):
-    """Automatic weights similarity measure of two nodes in a taxonomy.
-
-    The weights are automatically calculated based on the depth of the nodes.
-
-    Args:
-        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
-            One of "optimistic", "pessimistic", or "average".
-
-    ![auto weights](../../../../assets/taxonomy/auto-weights.png)
-
-    Examples:
-        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
-        >>> sim = auto_weights("optimistic")
-        >>> sim(taxonomy, "audi", "Volkswagen AG")
-        1.0
-        >>> sim(taxonomy, "audi", "bmw")
-        0.0
-    """
-
-    strategy: TaxonomyStrategy
-
-    @override
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
-        lca = taxonomy.lca(node1, node2)
-        max_depth = taxonomy.max_depth
-
-        weight = lca.depth / max_depth
-
-        if lca == node1 or lca == node2:
-            # pessimistic not needed: weight of lca already used
-            if self.strategy == "optimistic":
-                weight = 1.0
-            elif self.strategy == "average":
-                weight1 = node1.depth / max_depth
-                weight2 = node2.depth / max_depth
-                weight = (weight1 + weight2) / 2
-
-        return weight
-
-
-@dataclass(slots=True, frozen=True)
-class node_levels(TaxonomyFunc):
-    """Node levels similarity measure of two nodes in a taxonomy.
-
-    The similarity is calculated based on the levels of the nodes.
-
-    Args:
-        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
-            One of "optimistic", "pessimistic", or "average".
-
-    ![node levels](../../../../assets/taxonomy/node-levels.png)
-
-    Examples:
-        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
-        >>> sim = node_levels("optimistic")
-        >>> sim(taxonomy, "audi", "Volkswagen AG")
-        1.0
-        >>> sim(taxonomy, "audi", "bmw")
-        0.3333333333333333
-    """
-
-    strategy: TaxonomyStrategy
-
-    @override
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
-        lca = taxonomy.lca(node1, node2)
-
-        if self.strategy == "optimistic":
-            return lca.level / min(node1.level, node2.level)
-        elif self.strategy == "pessimistic":
-            return lca.level / max(node1.level, node2.level)
-        elif self.strategy == "average":
-            return lca.level / ((node1.level + node2.level) / 2)
-        else:
-            return 0.0
-
-
-@dataclass(slots=True, frozen=True)
-class path_steps(TaxonomyFunc):
-    """Path steps similarity measure of two nodes in a taxonomy.
-
-    The similarity is calculated based on the steps up and down from the lowest common ancestor (lca).
-
-    Args:
-        weight_up: The weight to use for the steps up.
-        weight_down: The weight to use for the steps down.
-
-    ![path steps](../../../../assets/taxonomy/path.png)
-
-    Examples:
-        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
-        >>> sim = path_steps()
-        >>> sim(taxonomy, "audi", "Volkswagen AG")
-        0.8333333333333334
-        >>> sim(taxonomy, "audi", "bmw")
-        0.3333333333333333
-    """
-
-    weight_up: float = 1.0
-    weight_down: float = 1.0
-
-    @override
-    def __call__(self, taxonomy: Taxonomy, x: str, y: str) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
-        lca = taxonomy.lca(node1, node2)
-
-        steps_up = node1.depth - lca.depth
-        steps_down = node2.depth - lca.depth
-
-        weighted_steps = (steps_up * self.weight_up) + (steps_down * self.weight_down)
-        max_weighted_steps = (taxonomy.max_depth * self.weight_up) + (
-            taxonomy.max_depth * self.weight_down
-        )
-
-        return (max_weighted_steps - weighted_steps) / max_weighted_steps
-
-
-_taxonomy_func = wu_palmer()
-
-
 @dataclass(slots=True)
-class load(SimFunc[str, float]):
+class Taxonomy:
     """Load a taxonomy and return a function that measures the similarity.
 
     The taxonomy is loaded from the given path and expected to conform to the following structure:
@@ -332,20 +64,261 @@ class load(SimFunc[str, float]):
     The `weight` is only used by the measure `user_weights` and ignored otherwise.
 
     Examples:
-        >>> sim = load("./data/cars-taxonomy.yaml", measure=wu_palmer())
+        >>> sim = wu_palmer(Taxonomy("./data/cars-taxonomy.yaml"))
         >>> sim("audi", "porsche")
         0.5
         >>> sim("audi", "bmw")
         0.0
     """
 
-    path: FilePath
-    measure: TaxonomyFunc = _taxonomy_func
-    taxonomy: Taxonomy = field(init=False, repr=False)
+    root_name: str
+    nodes: dict[str, TaxonomyNode]
 
-    def __post_init__(self) -> None:
-        self.taxonomy = Taxonomy(self.path)
+    def __init__(self, path: FilePath) -> None:
+        root_data = cast(SerializedTaxonomyNode, load_path(path))
+        self.nodes = {}
+        self.root_name = self.parse(root_data).name
+
+    @property
+    def root(self) -> TaxonomyNode:
+        return self.nodes[self.root_name]
+
+    @property
+    def max_depth(self) -> int:
+        return max(node.depth for node in self.nodes.values())
+
+    @property
+    def max_level(self) -> int:
+        return max(node.level for node in self.nodes.values())
+
+    def parse(
+        self,
+        data: SerializedTaxonomyNode | str,
+        parent: TaxonomyNode | None = None,
+        depth: int = 0,
+    ) -> TaxonomyNode:
+        if isinstance(data, str):
+            data = {"name": data}
+
+        assert "name" in data, "Missing name in some node"
+
+        node = TaxonomyNode(
+            name=data["name"],
+            weight=data.get("weight", 1.0),
+            depth=depth,
+            parent=parent,
+        )
+
+        for child in data.get("children", []):
+            child_node = self.parse(child, node, depth + 1)
+            node.children[child_node.name] = child_node
+
+        self.nodes[node.name] = node
+
+        return node
+
+    def lca(self, node1: TaxonomyNode, node2: TaxonomyNode) -> TaxonomyNode:
+        while node1 != node2:
+            if node1.parent is None or node2.parent is None:
+                return self.root
+
+            if node1.depth > node2.depth:
+                node1 = node1.parent
+            else:
+                node2 = node2.parent
+
+        return node1
+
+
+TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
+
+
+@dataclass(slots=True, frozen=True)
+class TaxonomySimFunc(SimFunc[str, float]):
+    taxonomy: Taxonomy = field(repr=False)
+
+
+@dataclass(slots=True, frozen=True)
+class wu_palmer(TaxonomySimFunc):
+    """Wu & Palmer similarity measure of two nodes in a taxonomy.
+
+    Examples:
+        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+        >>> sim = wu_palmer(taxonomy)
+        >>> sim("audi", "porsche")
+        0.5
+        >>> sim("audi", "bmw")
+        0.0
+    """
 
     @override
     def __call__(self, x: str, y: str) -> float:
-        return self.measure(self.taxonomy, x, y)
+        node1 = self.taxonomy.nodes[x]
+        node2 = self.taxonomy.nodes[y]
+        lca = self.taxonomy.lca(node1, node2)
+
+        return (2 * lca.depth) / (node1.depth + node2.depth)
+
+
+@dataclass(slots=True, frozen=True)
+class taxonomy_weights(TaxonomySimFunc):
+    """User-defined weights similarity measure of two nodes in a taxonomy.
+
+    The weights are defined by the user in the taxonomy file.
+
+    Args:
+        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
+            One of "optimistic", "pessimistic", or "average".
+
+    ![user weights](../../../../assets/taxonomy/user-weights.png)
+
+    Examples:
+        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+        >>> sim = taxonomy_weights(taxonomy, "optimistic")
+        >>> sim("audi", "Volkswagen AG")
+        1.0
+        >>> sim("audi", "bmw")
+        0.0
+    """
+
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        node1 = self.taxonomy.nodes[x]
+        node2 = self.taxonomy.nodes[y]
+        lca = self.taxonomy.lca(node1, node2)
+        weight = lca.weight
+
+        if lca == node1 or lca == node2:
+            # pessimistic not needed: weight of lca already used
+            if self.strategy == "optimistic":
+                weight = 1.0
+            elif self.strategy == "average":
+                weight = (node1.weight + node2.weight) / 2
+
+        return weight
+
+
+@dataclass(slots=True, frozen=True)
+class taxonomy_auto_weights(TaxonomySimFunc):
+    """Automatic weights similarity measure of two nodes in a taxonomy.
+
+    The weights are automatically calculated based on the depth of the nodes.
+
+    Args:
+        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
+            One of "optimistic", "pessimistic", or "average".
+
+    ![auto weights](../../../../assets/taxonomy/auto-weights.png)
+
+    Examples:
+        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+        >>> sim = taxonomy_auto_weights(taxonomy, "optimistic")
+        >>> sim("audi", "Volkswagen AG")
+        1.0
+        >>> sim("audi", "bmw")
+        0.0
+    """
+
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        node1 = self.taxonomy.nodes[x]
+        node2 = self.taxonomy.nodes[y]
+        lca = self.taxonomy.lca(node1, node2)
+        max_depth = self.taxonomy.max_depth
+
+        weight = lca.depth / max_depth
+
+        if lca == node1 or lca == node2:
+            # pessimistic not needed: weight of lca already used
+            if self.strategy == "optimistic":
+                weight = 1.0
+            elif self.strategy == "average":
+                weight1 = node1.depth / max_depth
+                weight2 = node2.depth / max_depth
+                weight = (weight1 + weight2) / 2
+
+        return weight
+
+
+@dataclass(slots=True, frozen=True)
+class taxonomy_levels(TaxonomySimFunc):
+    """Node levels similarity measure of two nodes in a taxonomy.
+
+    The similarity is calculated based on the levels of the nodes.
+
+    Args:
+        strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
+            One of "optimistic", "pessimistic", or "average".
+
+    ![node levels](../../../../assets/taxonomy/node-levels.png)
+
+    Examples:
+        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+        >>> sim = taxonomy_levels(taxonomy, "optimistic")
+        >>> sim("audi", "Volkswagen AG")
+        1.0
+        >>> sim("audi", "bmw")
+        0.3333333333333333
+    """
+
+    strategy: TaxonomyStrategy
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        node1 = self.taxonomy.nodes[x]
+        node2 = self.taxonomy.nodes[y]
+        lca = self.taxonomy.lca(node1, node2)
+
+        if self.strategy == "optimistic":
+            return lca.level / min(node1.level, node2.level)
+        elif self.strategy == "pessimistic":
+            return lca.level / max(node1.level, node2.level)
+        elif self.strategy == "average":
+            return lca.level / ((node1.level + node2.level) / 2)
+        else:
+            return 0.0
+
+
+@dataclass(slots=True, frozen=True)
+class taxonomy_paths(TaxonomySimFunc):
+    """Path steps similarity measure of two nodes in a taxonomy.
+
+    The similarity is calculated based on the steps up and down from the lowest common ancestor (lca).
+
+    Args:
+        weight_up: The weight to use for the steps up.
+        weight_down: The weight to use for the steps down.
+
+    ![path steps](../../../../assets/taxonomy/path.png)
+
+    Examples:
+        >>> taxonomy = Taxonomy("./data/cars-taxonomy.yaml")
+        >>> sim = taxonomy_paths(taxonomy)
+        >>> sim("audi", "Volkswagen AG")
+        0.8333333333333334
+        >>> sim("audi", "bmw")
+        0.3333333333333333
+    """
+
+    weight_up: float = 1.0
+    weight_down: float = 1.0
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        node1 = self.taxonomy.nodes[x]
+        node2 = self.taxonomy.nodes[y]
+        lca = self.taxonomy.lca(node1, node2)
+
+        steps_up = node1.depth - lca.depth
+        steps_down = node2.depth - lca.depth
+
+        weighted_steps = (steps_up * self.weight_up) + (steps_down * self.weight_down)
+        max_weighted_steps = (self.taxonomy.max_depth * self.weight_up) + (
+            self.taxonomy.max_depth * self.weight_down
+        )
+
+        return (max_weighted_steps - weighted_steps) / max_weighted_steps

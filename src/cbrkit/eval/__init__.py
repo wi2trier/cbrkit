@@ -1,5 +1,5 @@
-from ._common import compute, generate_metrics, parse_metric
-from ._retrieval import retrieval, retrieval_step
+from .common import compute, generate_metrics, parse_metric
+from .retrieval import retrieval, retrieval_step
 
 __all__ = [
     "compute",

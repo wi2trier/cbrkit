@@ -11,7 +11,7 @@ from ..typing import (
     SimSeq,
     StructuredValue,
 )
-from ._aggregator import aggregator
+from .aggregator import aggregator
 
 __all__ = ["attribute_value", "AttributeValueSim"]
 

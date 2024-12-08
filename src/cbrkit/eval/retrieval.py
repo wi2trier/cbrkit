@@ -3,7 +3,7 @@ from typing import Any
 
 from ..retrieval import Result, ResultStep
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
-from ._common import DEFAULT_METRICS, compute
+from .common import DEFAULT_METRICS, compute
 
 
 def retrieval_step[Q, C, S: Float](

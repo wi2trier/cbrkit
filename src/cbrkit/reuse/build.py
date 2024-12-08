@@ -6,11 +6,11 @@ from typing import cast, override
 
 from ..typing import (
     AdaptationFunc,
-    AdaptationMapFunc,
-    AdaptationReduceFunc,
     AnyAdaptationFunc,
     Casebase,
     Float,
+    MapAdaptationFunc,
+    ReduceAdaptationFunc,
     RetrieverFunc,
     ReuserFunc,
     SimMap,
@@ -64,7 +64,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
         if "casebase" in adaptation_func_signature.parameters:
             adapt_func = cast(
-                AdaptationMapFunc[K, V] | AdaptationReduceFunc[K, V],
+                MapAdaptationFunc[K, V] | ReduceAdaptationFunc[K, V],
                 adaptation_func,
             )
 

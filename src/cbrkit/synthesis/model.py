@@ -3,9 +3,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from ..helpers import singleton
-from ..typing import (
-    JsonEntry,
-)
+from ..typing import JsonEntry
 
 
 @dataclass(slots=True, frozen=True)

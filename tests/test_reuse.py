@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 import cbrkit
@@ -123,7 +124,7 @@ def test_reuse_nested():
             "make": "a4",
         },
     }
-    full_casebase: dict[int, Any] = cbrkit.loaders.yaml("data/cars-1k.yaml")
+    full_casebase: Mapping[int, Any] = cbrkit.loaders.path("data/cars-1k.yaml")
     casebase = {key: full_casebase[key] for key in list(full_casebase.keys())[:10]}
 
     reuse_func = cbrkit.reuse.build(
