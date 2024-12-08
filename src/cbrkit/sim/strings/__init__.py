@@ -1,7 +1,3 @@
-"""
-**Please note:** Taxonomy-based similarities are available in the `cbrkit.sim.strings.taxonomy` module.
-"""
-
 from ...helpers import optional_dependencies
 from .patterns import glob, regex, table
 from .taxonomy import (
