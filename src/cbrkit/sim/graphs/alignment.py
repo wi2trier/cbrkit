@@ -10,6 +10,7 @@ from ..collections import dtw as dtwmodule
 __all__ = ["dtw"]
 
 try:
+
     @dataclass(slots=True, frozen=True)
     class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         """
@@ -67,7 +68,9 @@ try:
             sequence_y = self.get_sequential_nodes(y)
 
             # Use the dtwmodule for node distances
-            node_result = dtwmodule(distance_func=self.node_sim_func)(sequence_x, sequence_y, return_alignment=True)
+            node_result = dtwmodule(distance_func=self.node_sim_func)(
+                sequence_x, sequence_y, return_alignment=True
+            )
 
             # Extract node distance (value) and alignment (local_similarities)
             node_distance = node_result.value
@@ -89,7 +92,9 @@ try:
                 edge_sequence_y = self.get_sequential_edges(y, sequence_y)
 
                 # Use the dtwmodule for edge distances
-                edge_result = dtwmodule(distance_func=self.edge_sim_func)(edge_sequence_x, edge_sequence_y, return_alignment=False)
+                edge_result = dtwmodule(distance_func=self.edge_sim_func)(
+                    edge_sequence_x, edge_sequence_y, return_alignment=False
+                )
 
                 # Extract edge distance (value)
                 edge_distance = edge_result.value
@@ -117,7 +122,9 @@ try:
                 edge_mappings=edge_mappings,
             )
 
-        def get_sequential_nodes(self, graph: Graph[K, Any, Any, Any]) -> list[Node[K, Any]]:
+        def get_sequential_nodes(
+            self, graph: Graph[K, Any, Any, Any]
+        ) -> list[Node[K, Any]]:
             """
             Retrieves the nodes of the graph in sequential order.
 
@@ -130,7 +137,9 @@ try:
             in_degree = {node.key: 0 for node in graph.nodes.values()}
             for edge in graph.edges.values():
                 in_degree[edge.target.key] += 1
-            start_nodes = [node for node in graph.nodes.values() if in_degree[node.key] == 0]
+            start_nodes = [
+                node for node in graph.nodes.values() if in_degree[node.key] == 0
+            ]
             if len(start_nodes) != 1:
                 raise ValueError("Graph does not have a unique start node")
             start_node = start_nodes[0]
@@ -141,9 +150,15 @@ try:
             while current_node and current_node.key not in visited_nodes:
                 sequence.append(current_node)
                 visited_nodes.add(current_node.key)
-                outgoing_edges = [edge for edge in graph.edges.values() if edge.source.key == current_node.key]
+                outgoing_edges = [
+                    edge
+                    for edge in graph.edges.values()
+                    if edge.source.key == current_node.key
+                ]
                 if len(outgoing_edges) > 1:
-                    raise ValueError("Graph is not sequential (node has multiple outgoing edges)")
+                    raise ValueError(
+                        "Graph is not sequential (node has multiple outgoing edges)"
+                    )
                 current_node = outgoing_edges[0].target if outgoing_edges else None
             return sequence
 
@@ -165,14 +180,20 @@ try:
                 source_key = node_sequence[i].key
                 target_key = node_sequence[i + 1].key
                 edge = next(
-                    (edge for edge in graph.edges.values()
-                     if edge.source.key == source_key and edge.target.key == target_key),
-                    None
+                    (
+                        edge
+                        for edge in graph.edges.values()
+                        if edge.source.key == source_key
+                        and edge.target.key == target_key
+                    ),
+                    None,
                 )
                 if edge:
                     edges.append(edge)
                 else:
-                    raise ValueError(f"No edge found between {source_key} and {target_key}")
+                    raise ValueError(
+                        f"No edge found between {source_key} and {target_key}"
+                    )
             return edges
 
 except ImportError:

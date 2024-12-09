@@ -91,7 +91,9 @@ class SequenceSim[S: Float](StructuredValue[float]):
     value: float
     local_similarities: Sequence[S] = field(default_factory=tuple)
 
+
 try:
+
     @dataclass(slots=True)
     class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics usage
         """
@@ -237,6 +239,7 @@ try:
         __all__ += ["dtw"]
 except ImportError:
     pass
+
 
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
