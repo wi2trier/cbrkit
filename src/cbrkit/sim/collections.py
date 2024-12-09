@@ -86,64 +86,157 @@ with optional_dependencies():
                 return 0.0
 
 
-@dataclass(slots=True)
-class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):
-    """Dynamic Time Warping similarity function.
+@dataclass(slots=True, frozen=True)
+class SequenceSim[S: Float](StructuredValue[float]):
+    value: float
+    local_similarities: Sequence[S] = field(default_factory=tuple)
 
-    Examples:
-        >>> sim = dtw()
-        >>> sim([1, 2, 3], [1, 2, 3, 4])
-        0.5
-        >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
-        >>> sim([1, 2, 3], [3, 4, 5])
-        0.14285714285714285
-        >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
-        >>> sim(["a", "bb", "ccc", "ddd", "ee", "fff"], ["cffffffffffcj", "dfffffffffffffffffffffffffffffffffded"])
-        0.011235955056179775
-    """
+try:
+    @dataclass(slots=True)
+    class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics usage
+        """
+        Dynamic Time Warping similarity function with optional backtracking for alignment.
 
-    distance_func: Callable[[V, V], float] | None = None
+        Examples:
+            >>> sim = dtw()
+            >>> sim([1, 2, 3], [1, 2, 3, 4])
+            SequenceSim(value=0.5, local_similarities=None)
+            >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
+            >>> sim([1, 2, 3], [3, 4, 5])
+            SequenceSim(value=0.14285714285714285, local_similarities=None)
+            >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
+            >>> sim(["a", "bb", "ccc"], ["aa", "bbb", "c"], return_alignment=True)
+            SequenceSim(value=0.25, local_similarities=[('a', 'aa'), ('bb', 'aa'), ('ccc', 'bbb'), ('ccc', 'c')])
+            >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
+            >>> sim([1, 2, 3], [1, 2, 3, 4], return_alignment=True)
+            SequenceSim(value=0.5, local_similarities=[(1, 1), (2, 2), (3, 3), (3, 4)])
+        """
 
-    def __call__(
-        self,
-        x: Collection[V] | np.ndarray,
-        y: Collection[V] | np.ndarray,
-    ) -> float:
-        if not isinstance(x, np.ndarray):
-            x = np.array(x, dtype=object)  # Allow non-numeric types
-        if not isinstance(y, np.ndarray):
-            y = np.array(y, dtype=object)
+        distance_func: Callable[[V, V], float] | None = None
 
-        # Compute the DTW distance manually using the custom distance
-        dtw_distance = self.compute_dtw(x, y)
+        def __call__(
+            self,
+            x: Collection[V] | np.ndarray,
+            y: Collection[V] | np.ndarray,
+            return_alignment: bool = False,
+        ) -> SequenceSim[tuple[V, V]]:
+            """
+            Perform DTW and optionally return alignment information.
 
-        # Convert DTW distance to similarity
-        similarity = dist2sim(dtw_distance)
+            Args:
+                x: The first sequence as a collection or numpy array.
+                y: The second sequence as a collection or numpy array.
+                return_alignment: Whether to compute and return the alignment (default: False).
 
-        return float(similarity)
+            Returns:
+                A SequenceSim object containing the similarity value and optional alignment.
+            """
+            if not isinstance(x, np.ndarray):
+                x = np.array(x, dtype=object)  # Allow non-numeric types
+            if not isinstance(y, np.ndarray):
+                y = np.array(y, dtype=object)
 
-    def compute_dtw(self, x: np.ndarray, y: np.ndarray) -> float:
-        n, m = len(x), len(y)
-        dtw_matrix = np.full((n + 1, m + 1), np.inf)
-        dtw_matrix[0, 0] = 0
+            # Compute the DTW distance
+            dtw_distance, alignment = self.compute_dtw(x, y, return_alignment)
 
-        for i in range(1, n + 1):
-            for j in range(1, m + 1):
-                cost = (
-                    self.distance_func(x[i - 1], y[j - 1])
-                    if self.distance_func
-                    else abs(x[i - 1] - y[j - 1])
-                )
-                # Take last min from a square box
-                last_min = min(
-                    dtw_matrix[i - 1, j],  # Insertion
-                    dtw_matrix[i, j - 1],  # Deletion
-                    dtw_matrix[i - 1, j - 1],  # Match
-                )
-                dtw_matrix[i, j] = cost + last_min
+            # Convert DTW distance to similarity
+            similarity = dist2sim(dtw_distance)
 
-        return dtw_matrix[n, m]
+            # Return SequenceSim with or without alignment
+            return SequenceSim(
+                value=float(similarity),
+                local_similarities=alignment if return_alignment else None,
+            )
 
+        def compute_dtw(
+            self, x: np.ndarray, y: np.ndarray, return_alignment: bool
+        ) -> tuple[float, list[tuple[V, V]] | None]:
+            """
+            Compute DTW distance and optionally compute the best alignment.
+
+            Args:
+                x: The first sequence as a numpy array.
+                y: The second sequence as a numpy array.
+                return_alignment: Whether to compute the alignment.
+
+            Returns:
+                A tuple of (DTW distance, best alignment or None).
+            """
+            n, m = len(x), len(y)
+            dtw_matrix = np.full((n + 1, m + 1), np.inf)
+            dtw_matrix[0, 0] = 0
+
+            for i in range(1, n + 1):
+                for j in range(1, m + 1):
+                    cost = (
+                        self.distance_func(x[i - 1], y[j - 1])
+                        if self.distance_func
+                        else abs(x[i - 1] - y[j - 1])
+                    )
+                    # Take last min from a square box
+                    last_min = min(
+                        dtw_matrix[i - 1, j],  # Insertion
+                        dtw_matrix[i, j - 1],  # Deletion
+                        dtw_matrix[i - 1, j - 1],  # Match
+                    )
+                    dtw_matrix[i, j] = cost + last_min
+
+            # If alignment is not requested, skip backtracking
+            if not return_alignment:
+                return dtw_matrix[n, m], None
+
+            # Backtracking to find the best alignment
+            alignment = self.backtrack(dtw_matrix, x, y, n, m)
+
+            return dtw_matrix[n, m], alignment
+
+        def backtrack(
+            self, dtw_matrix: np.ndarray, x: np.ndarray, y: np.ndarray, n: int, m: int
+        ) -> list[tuple[V, V]]:
+            """
+            Backtrack through the DTW matrix to find the best alignment.
+
+            Args:
+                dtw_matrix: The DTW matrix.
+                x: The first sequence as a numpy array.
+                y: The second sequence as a numpy array.
+                n: The length of the first sequence.
+                m: The length of the second sequence.
+
+            Returns:
+                A list of tuples representing the best alignment of elements.
+            """
+            i, j = n, m
+            alignment = []
+
+            while i > 0 and j > 0:
+                alignment.append((x[i - 1], y[j - 1]))  # Align elements
+                # Move in the direction of the minimum cost
+                if dtw_matrix[i - 1, j] == min(
+                    dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                ):
+                    i -= 1  # Move up
+                elif dtw_matrix[i, j - 1] == min(
+                    dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                ):
+                    j -= 1  # Move left
+                else:
+                    i -= 1  # Move diagonally
+                    j -= 1
+
+            # Handle remaining elements in i or j
+            while i > 0:
+                alignment.append((x[i - 1], None))  # Unmatched element from x
+                i -= 1
+            while j > 0:
+                alignment.append((None, y[j - 1]))  # Unmatched element from y
+                j -= 1
+
+            return alignment[::-1]  # Reverse to start from the beginning
+
+        __all__ += ["dtw"]
+except ImportError:
+    pass
 
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
