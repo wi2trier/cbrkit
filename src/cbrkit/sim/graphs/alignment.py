@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Any, Collection, Tuple, Mapping, Iterable
+from typing import Callable, Any
 from .model import Graph, Node, Edge, is_sequential, GraphSim
 from ...helpers import dist2sim
 from ...typing import SimFunc
@@ -10,9 +10,6 @@ from ..collections import dtw as dtwmodule
 __all__ = ["dtw"]
 
 try:
-    import numpy as np
-    import immutables
-
     @dataclass(slots=True, frozen=True)
     class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         """
@@ -21,6 +18,7 @@ try:
         Examples:
             >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
             >>> edge_similarity = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
+            >>> import immutables
             >>> nodes_x = immutables.Map({
             ...     '1': Node(key='1', value='A'),
             ...     '2': Node(key='2', value='B'),
