@@ -115,10 +115,10 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics us
     distance_func: Callable[[V, V], float] | None = None
 
     def __call__(
-            self,
-            x: Collection[V] | np.ndarray,
-            y: Collection[V] | np.ndarray,
-            return_alignment: bool = False,
+        self,
+        x: Collection[V] | np.ndarray,
+        y: Collection[V] | np.ndarray,
+        return_alignment: bool = False,
     ) -> SequenceSim[tuple[V, V]]:
         """
         Perform DTW and optionally return alignment information.
@@ -149,7 +149,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics us
         )
 
     def compute_dtw(
-            self, x: np.ndarray, y: np.ndarray, return_alignment: bool
+        self, x: np.ndarray, y: np.ndarray, return_alignment: bool
     ) -> tuple[float, list[tuple[V, V]] | None]:
         """
         Compute DTW distance and optionally compute the best alignment.
@@ -191,7 +191,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics us
         return dtw_matrix[n, m], alignment
 
     def backtrack(
-            self, dtw_matrix: np.ndarray, x: np.ndarray, y: np.ndarray, n: int, m: int
+        self, dtw_matrix: np.ndarray, x: np.ndarray, y: np.ndarray, n: int, m: int
     ) -> list[tuple[V, V]]:
         """
         Backtrack through the DTW matrix to find the best alignment.
@@ -213,11 +213,11 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics us
             alignment.append((x[i - 1], y[j - 1]))  # Align elements
             # Move in the direction of the minimum cost
             if dtw_matrix[i - 1, j] == min(
-                    dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
             ):
                 i -= 1  # Move up
             elif dtw_matrix[i, j - 1] == min(
-                    dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+                dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
             ):
                 j -= 1  # Move left
             else:
@@ -235,6 +235,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics us
         return alignment[::-1]  # Reverse to start from the beginning
 
     __all__ += ["dtw"]
+
 
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
