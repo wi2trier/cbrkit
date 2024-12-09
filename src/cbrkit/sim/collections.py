@@ -91,9 +91,6 @@ class SequenceSim[S: Float](StructuredValue[float]):
     value: float
     local_similarities: Sequence[S] = field(default_factory=tuple)
 
-
-try:
-
     @dataclass(slots=True)
     class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics usage
         """
@@ -237,8 +234,6 @@ try:
             return alignment[::-1]  # Reverse to start from the beginning
 
         __all__ += ["dtw"]
-except ImportError:
-    pass
 
 
 @dataclass(slots=True, frozen=True)

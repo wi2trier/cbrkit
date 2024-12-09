@@ -9,8 +9,6 @@ from ..collections import dtw as dtwmodule
 
 __all__ = ["dtw"]
 
-try:
-
     @dataclass(slots=True, frozen=True)
     class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         """
@@ -195,6 +193,3 @@ try:
                         f"No edge found between {source_key} and {target_key}"
                     )
             return edges
-
-except ImportError:
-    pass
