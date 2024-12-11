@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import orjson
+import pytomlpp
+import polars as pl
+import yaml as yamllib
 
 from .typing import ConversionFunc, FilePath
 
@@ -13,7 +16,64 @@ __all__ = [
     "file",
     "directory",
     "path",
+    "toml",
+    "csv",
+    "yaml",
 ]
+
+@dataclass(slots=True, frozen=True)
+class toml(ConversionFunc[Any, str]):
+    """Writes an object to toml.
+    """
+
+    def __call__(self, obj: Any) -> str:
+        return pytomlpp.dumps(obj)
+    
+    
+@dataclass(slots=True, frozen=True)
+class csv(ConversionFunc[Any, str]):
+    """Writes an object to a csv file.
+    """
+
+    @staticmethod
+    def __flatten_dict(nested_dict) -> list[dict[str, Any]]:
+        flattened = []
+
+        # Handle both dict with numeric keys and list inputs
+        items = nested_dict.values() if isinstance(nested_dict, dict) else nested_dict
+
+        for d in items:
+            flat_item = {}
+
+            def flatten_recursive(obj, prefix=''):
+                if isinstance(obj, dict):
+                    for key, value in obj.items():
+                        new_prefix = f"{prefix}.{key}" if prefix else key
+                        flatten_recursive(value, new_prefix)
+                else:
+                    flat_item[prefix] = obj
+
+            flatten_recursive(d)
+            flattened.append(flat_item)
+
+        return flattened
+            
+
+    def __call__(self, obj: Any) -> str:
+        # remove nested dicts
+        if not isinstance(obj, dict):
+            raise ValueError("Object must be a dictionary")
+        obj = self.__flatten_dict(obj)
+        df = pl.DataFrame(obj)
+        return df.write_csv()
+    
+@dataclass(slots=True, frozen=True)
+class yaml(ConversionFunc[Any, str]):
+    """Writes an object to a csv file.
+    """
+
+    def __call__(self, obj: Any) -> str:
+        return yamllib.dump(obj)
 
 
 @dataclass(slots=True, frozen=True)
@@ -56,6 +116,9 @@ Dumper = Callable[[Any], str | bytes]
 
 dumpers: dict[str, Dumper] = {
     ".json": json(),
+    ".toml": toml(),
+    ".csv": csv(),
+    ".yaml": yaml(),
 }
 
 
@@ -90,7 +153,8 @@ def file(
         with open(path, "wb") as f:
             f.write(encoded_data)
 
-    raise ValueError("Invalid dumper output type")
+    else:
+        raise ValueError("Invalid dumper output type")
 
 
 def directory(

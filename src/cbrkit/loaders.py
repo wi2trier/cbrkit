@@ -3,7 +3,7 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
-import tomllib
+import pytomlpp
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,10 +117,9 @@ class toml(ConversionFunc[str | IO, dict[str, Any]]):
     """Reads a toml file and converts it into a dict representation"""
 
     def __call__(self, source: str | IO) -> dict[str, Any]:
-        if isinstance(source, IO):
-            return tomllib.load(source)
-
-        return tomllib.loads(source)
+        if isinstance(source, str):
+            return pytomlpp.loads(source)
+        return pytomlpp.load(source)
 
 
 @dataclass(slots=True, frozen=True)
