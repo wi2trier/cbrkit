@@ -194,7 +194,9 @@ any_loaders: dict[str, AnyLoader] = {
 }
 
 
-def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
+def path(
+    path: FilePath, pattern: str | None = None, loader: AnyLoader | None = None
+) -> Casebase[Any, Any]:
     """Converts a path into a Casebase. The path can be a directory or a file.
 
     Args:
@@ -211,9 +213,9 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
         path = Path(path)
 
     if path.is_file():
-        return file(path)
+        return file(path, loader)
     elif path.is_dir():
-        return directory(path, pattern or "**/*")
+        return directory(path, pattern)
 
     raise FileNotFoundError(path)
 
@@ -246,7 +248,7 @@ def file(path: FilePath, loader: AnyLoader | None = None) -> Casebase[Any, Any]:
         return loader(fp)
 
 
-def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
+def directory(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     """Converts the files of a directory into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
 
     Args:
@@ -267,9 +269,12 @@ def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    for elem in path.glob(pattern):
+    for elem in path.glob(pattern or "*"):
         if elem.is_file() and elem.suffix in any_loaders:
-            cb[elem.stem] = file(elem)
+            loader = any_loaders[elem.suffix]
+
+            with elem.open("rb") as fp:
+                cb[elem.stem] = loader(fp)
 
     return cb
 
