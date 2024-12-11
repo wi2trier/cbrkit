@@ -83,10 +83,10 @@ df = pl.read_csv("path/to/cases.csv")
 casebase = cbrkit.loaders.polars(df)
 ```
 
-When dealing with formats like JSON, the files can be loaded directly:
+When dealing with formats like json, toml, yaml, or xml, the files can be loaded using
 
 ```python
-casebase = cbrkit.loaders.json("path/to/cases.json")
+casebase = cbrkit.loaders.file("path/to/cases.<json,toml,yaml,xml,csv>")
 ```
 
 ## Defining Queries
