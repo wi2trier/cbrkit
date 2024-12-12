@@ -100,6 +100,9 @@ with optional_dependencies():
 
         @override
         def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq[float]:
+            if not batches:
+                return []
+
             case_texts, query_texts = zip(*batches, strict=True)
             case_vecs = self.model.encode(case_texts, convert_to_tensor=True)
             query_vecs = self.model.encode(query_texts, convert_to_tensor=True)
@@ -187,6 +190,9 @@ with optional_dependencies():
 
         @override
         def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            if not batches:
+                return []
+
             case_texts, query_texts = zip(*batches, strict=True)
 
             case_raw_vecs = self.client.v2.embed(
@@ -234,6 +240,9 @@ with optional_dependencies():
 
         @override
         def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+            if not batches:
+                return []
+
             case_texts, query_texts = zip(*batches, strict=True)
 
             case_raw_vecs = self.client.embed(
