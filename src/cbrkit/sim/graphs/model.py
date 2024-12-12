@@ -13,8 +13,8 @@ from ...typing import StructuredValue
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
     value: float
-    node_mappings: dict[K, K]
-    edge_mappings: dict[K, K]
+    node_mappings: Mapping[K, K]
+    edge_mappings: Mapping[K, K]
 
 
 class SerializedNode[N](TypedDict):
