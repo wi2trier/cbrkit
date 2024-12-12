@@ -33,7 +33,7 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "immutables>=0.21,<1",
     "numpy>=1,<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
