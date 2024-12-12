@@ -13,6 +13,10 @@ from ...typing import (
 from .model import Graph, GraphSim, Node
 
 
+def default_edge_matcher[T](x: T, y: T) -> bool:
+    return True
+
+
 @dataclass(slots=True)
 class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """Compute subgraph isomorphisms between two graphs.
@@ -31,12 +35,12 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     def __init__(
         self,
         node_matcher: Callable[[N, N], bool],
-        edge_matcher: Callable[[E, E], bool],
         aggregator: AggregatorFunc[Any, Float],
         node_sim_func: AnySimFunc[Node[K, N], Float],
+        edge_matcher: Callable[[E, E], bool] | None = None,
     ) -> None:
         self.node_matcher = node_matcher
-        self.edge_matcher = edge_matcher
+        self.edge_matcher = edge_matcher or default_edge_matcher
         self.aggregator = aggregator
         self.node_sim_func = batchify_sim(node_sim_func)
 
