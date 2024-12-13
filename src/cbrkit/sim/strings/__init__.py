@@ -1,4 +1,5 @@
 from ...helpers import optional_dependencies
+from .embeddings import EmbedFunc, VectorDB, numpy_db
 from .patterns import glob, regex, table
 from .taxonomy import (
     SerializedTaxonomyNode,
@@ -12,6 +13,9 @@ from .taxonomy import (
     taxonomy_weights,
     wu_palmer,
 )
+
+with optional_dependencies():
+    from .embeddings import torch_db
 
 with optional_dependencies():
     from .edit import jaro, jaro_winkler, levenshtein
@@ -48,6 +52,10 @@ __all__ = [
     "openai",
     "ollama",
     "voyageai",
+    "numpy_db",
+    "torch_db",
+    "VectorDB",
+    "EmbedFunc",
     "wu_palmer",
     "taxonomy_weights",
     "taxonomy_auto_weights",

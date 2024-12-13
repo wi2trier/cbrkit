@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -41,6 +41,7 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
+    "KeyValueStore",
 ]
 
 type JsonEntry = (
@@ -254,3 +255,18 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
         self,
         batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
     ) -> Sequence[T]: ...
+
+
+class KeyValueStore[K, V](Protocol):
+    store: dict[K, V]
+    path: FilePath | None
+    frozen: bool
+
+    def dump(self) -> None: ...
+
+    def __call__(
+        self,
+        keys: Sequence[str],
+        key2value: Callable[[Sequence[K]], dict[K, V]],
+        /,
+    ) -> dict[K, V]: ...
