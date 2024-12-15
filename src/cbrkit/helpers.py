@@ -1,4 +1,4 @@
-import dataclasses
+import logging
 from collections.abc import (
     Callable,
     Collection,
@@ -9,11 +9,11 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import contextmanager
-from dataclasses import dataclass, field, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
-from typing import Any, Literal, cast, override
+from typing import Any, ClassVar, Literal, cast, override
 
 from .typing import (
     AnyConversionFunc,
@@ -55,6 +55,8 @@ __all__ = [
     "load_object",
     "load_callables",
     "load_callables_map",
+    "identity",
+    "get_logger",
 ]
 
 
@@ -112,7 +114,7 @@ def get_metadata(obj: Any) -> JsonEntry:
             "doc": getdoc(obj),
             "metadata": {
                 field.name: get_metadata(getattr(obj, field.name))
-                for field in dataclasses.fields(obj)
+                for field in fields(obj)
                 if field.repr
             },
         }
@@ -191,30 +193,46 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class batchify_positional[T](BatchPositionalFunc[T]):
     __wrapped__: AnyPositionalFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
+    logger: logging.Logger | None = None
+    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
+        logger = get_logger(self.__wrapped__)
+
+        if logger.isEnabledFor(self.logger_level):
+            self.logger = logger
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
         if self.parameters != 1:
             func = cast(PositionalFunc[T], self.__wrapped__)
-            return [func(*batch) for batch in batches]
+            values: list[T] = []
+
+            for i, batch in enumerate(batches, start=1):
+                if self.logger is not None:
+                    self.logger.log(
+                        self.logger_level, f"Processing batch {i}/{len(batches)}"
+                    )
+
+                values.append(func(*batch))
+
+            return values
 
         func = cast(BatchPositionalFunc[T], self.__wrapped__)
         return func(batches)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class unbatchify_positional[T](PositionalFunc[T]):
     __wrapped__: AnyPositionalFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
@@ -231,21 +249,37 @@ class unbatchify_positional[T](PositionalFunc[T]):
         return func(*args)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class batchify_named[T](BatchNamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
+    logger: logging.Logger | None = None
+    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyNamedFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
+        logger = get_logger(self.__wrapped__)
+
+        if logger.isEnabledFor(self.logger_level):
+            self.logger = logger
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
         if self.parameters != 1:
             func = cast(NamedFunc[T], self.__wrapped__)
-            return [func(**batch) for batch in batches]
+            values: list[T] = []
+
+            for i, batch in enumerate(batches, start=1):
+                if self.logger is not None:
+                    self.logger.log(
+                        self.logger_level, f"Processing batch {i}/{len(batches)}"
+                    )
+
+                values.append(func(**batch))
+
+            return values
 
         func = cast(BatchNamedFunc[T], self.__wrapped__)
         return func(batches)
@@ -393,3 +427,36 @@ def load_callables_map(
 
 def identity[T](x: T) -> T:
     return x
+
+
+def get_logger(obj: Any) -> logging.Logger:
+    if isinstance(obj, str):
+        return logging.getLogger(obj)
+
+    if hasattr(obj, "__class__"):
+        obj = obj.__class__
+
+    name = obj.__module__
+
+    if not name.endswith(obj.__qualname__):
+        name += f".{obj.__qualname__}"
+
+    return logging.getLogger(name)
+
+
+# def get_loguru(obj: Any) -> "loguru.Logger":
+#     if isinstance(obj, str):
+#         name = obj
+#     else:
+#         if hasattr(obj, "__class__"):
+#             obj = obj.__class__
+
+#         name = obj.__module__
+
+#         if not name.endswith(obj.__qualname__):
+#             name += f".{obj.__qualname__}"
+
+#     def patcher(record) -> None:
+#         record["extra"]["name"] = name
+
+#     return loguru.logger.patch(patcher)
