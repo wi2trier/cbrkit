@@ -1,9 +1,11 @@
 from collections.abc import Mapping
 
 from .. import model
-from ..helpers import get_metadata
+from ..helpers import get_logger, get_metadata
 from ..typing import Float, SynthesizerFunc
 from .model import QueryResultStep, Result, ResultStep
+
+logger = get_logger(__name__)
 
 
 def apply_result[R, Q, C, V, S: Float](
@@ -23,6 +25,7 @@ def apply_batches[R, Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V, Mapping[C, S]]],
     synthesis_func: SynthesizerFunc[R, C, V, S],
 ) -> Result[Q, R]:
+    logger.info(f"Processing {len(batches)} batches")
     synthesis_results = synthesis_func(list(batches.values()))
 
     return Result(

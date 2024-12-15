@@ -1,14 +1,14 @@
 from collections.abc import Mapping, Sequence
 
-from ..helpers import (
-    get_metadata,
-)
+from ..helpers import get_logger, get_metadata
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import (
     Casebase,
     Float,
     ReuserFunc,
 )
+
+logger = get_logger(__name__)
 
 
 def apply_result[Q, C, V, S: Float](
@@ -43,7 +43,8 @@ def apply_batches[Q, C, V, S: Float](
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batch
 
-    for reuser in reusers:
+    for i, reuser in enumerate(reusers, start=1):
+        logger.info(f"Processing reuser {i}/{len(reusers)}")
         queries_results = reuser(list(current_batches.values()))
         step_queries = {
             query_key: QueryResultStep.build(
