@@ -1,6 +1,5 @@
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, Protocol, override
 
 from ...helpers import batchify_sim
 from ...typing import (
@@ -17,6 +16,10 @@ def default_edge_matcher[T](x: T, y: T) -> bool:
     return True
 
 
+class ElementMatcher[T](Protocol):
+    def __call__(self, x: T, y: T, /) -> bool: ...
+
+
 @dataclass(slots=True)
 class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """Compute subgraph isomorphisms between two graphs.
@@ -27,17 +30,17 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     - Return the isomorphism mapping with the highest similarity.
     """
 
-    node_matcher: Callable[[N, N], bool]
-    edge_matcher: Callable[[E, E], bool]
+    node_matcher: ElementMatcher[N]
+    edge_matcher: ElementMatcher[E]
     node_sim_func: BatchSimFunc[Node[K, N], Float]
     aggregator: AggregatorFunc[Any, Float]
 
     def __init__(
         self,
-        node_matcher: Callable[[N, N], bool],
+        node_matcher: ElementMatcher[N],
         aggregator: AggregatorFunc[Any, Float],
         node_sim_func: AnySimFunc[Node[K, N], Float],
-        edge_matcher: Callable[[E, E], bool] | None = None,
+        edge_matcher: ElementMatcher[E] | None = None,
     ) -> None:
         self.node_matcher = node_matcher
         self.edge_matcher = edge_matcher or default_edge_matcher
@@ -71,7 +74,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         ]
 
         if len(node_mappings) == 0:
-            return GraphSim(0.0, node_mappings={}, edge_mappings={})
+            return GraphSim(0.0, {}, {})
 
         mapping_similarities: list[float] = []
 
@@ -89,4 +92,4 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         )
         best_mapping = node_mappings[best_mapping_id]
 
-        return GraphSim(best_sim, node_mappings=best_mapping, edge_mappings={})
+        return GraphSim(best_sim, best_mapping, {})

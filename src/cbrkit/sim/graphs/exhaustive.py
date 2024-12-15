@@ -64,9 +64,9 @@ class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             self.edge_sim_func = batchify_sim(edge_sim_func)
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
-        max_sim = float("-inf")
-        best_node_mappings: dict[K, K] = {}
-        best_edge_mappings: dict[K, K] = {}
+        best_sim = 0.0
+        best_node_mapping: dict[K, K] = {}
+        best_edge_mapping: dict[K, K] = {}
 
         x_nodes = list(x.nodes.values())
         y_nodes = list(y.nodes.values())
@@ -80,8 +80,10 @@ class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # Generate all possible injective mappings from y_nodes to subsets of x_nodes
         x_node_combinations = itertools.combinations(x_node_keys, len(y_nodes))
+
         for x_combination in x_node_combinations:
             x_permutations = itertools.permutations(x_combination)
+
             for x_perm in x_permutations:
                 node_mapping = dict(zip(y_node_keys, x_perm, strict=False))
 
@@ -97,9 +99,11 @@ class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
                 # Build edge mappings based on node mappings
                 edge_pairs = []
+
                 for y_edge in y.edges.values():
                     y_source_key = y_edge.source.key
                     y_target_key = y_edge.target.key
+
                     if y_source_key in node_mapping and y_target_key in node_mapping:
                         x_source_key = node_mapping[y_source_key]
                         x_target_key = node_mapping[y_target_key]
@@ -113,6 +117,7 @@ class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                             ),
                             None,
                         )
+
                         if x_edge is not None:
                             edge_pairs.append((y_edge, x_edge))
 
@@ -124,15 +129,15 @@ class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
                 total_sim = (total_node_sim + total_edge_sim) / 2.0
 
-                if total_sim > max_sim:
-                    max_sim = total_sim
-                    best_node_mappings = node_mapping.copy()
-                    best_edge_mappings = {
+                if total_sim > best_sim:
+                    best_sim = total_sim
+                    best_node_mapping = {**node_mapping}
+                    best_edge_mapping = {
                         y_edge.key: x_edge.key for y_edge, x_edge in edge_pairs
                     }
 
         return GraphSim(
-            value=max_sim,
-            node_mappings=best_node_mappings,
-            edge_mappings=best_edge_mappings,
+            best_sim,
+            best_node_mapping,
+            best_edge_mapping,
         )
