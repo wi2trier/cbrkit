@@ -86,7 +86,7 @@ casebase = cbrkit.loaders.polars(df)
 When dealing with formats like json, toml, yaml, or xml, the files can be loaded using
 
 ```python
-casebase = cbrkit.loaders.file("path/to/cases.<json,toml,yaml,xml,csv>")
+casebase = cbrkit.loaders.file("path/to/cases.[json,toml,yaml,xml,csv]")
 ```
 
 ## Defining Queries
@@ -103,8 +103,8 @@ If you have a collection of queries, you can load them using the same loader fun
 ```python
  # for polars
 queries = cbrkit.loaders.polars(pl.read_csv("path/to/queries.csv"))
-# for json
-queries = cbrkit.loaders.json("path/to/queries.json")
+# for any other file format
+queries = cbrkit.loaders.file("path/to/queries.[json,toml,yaml,xml,csv]")
 ```
 
 In case your query collection only contains a single entry, you can use the `singleton` function to extract it.
@@ -337,7 +337,7 @@ The result structure follows the same pattern as the retrieval results with `fin
 CBRkit provides evaluation tools through the `cbrkit.eval` module for assessing the quality of retrieval results.
 The basic evaluation function `cbrkit.eval.compute` expects the following arguments:
 
-- `qrels`: Ground truth relevance scores for query-case pairs.
+- `qrels`: Ground truth relevance scores for query-case pairs. A higher value means a higher relevance.
 - `run`: Retrieval similarity scores for query-case pairs.
 - `metrics`: A list of metrics to compute.
 
@@ -384,6 +384,22 @@ We also offer a function to automatically generate a list of metrics for differe
 ```python
 metrics = cbrkit.eval.metrics_at_k(["precision", "recall", "f1"], [1, 5, 10])
 ```
+
+## Synthesis
+
+In the context of CBRkit, synthesis refers to creating new insights from the cases which were retrieved in a previous retrieval step, for example in a RAG context. CBRkit builds a synthesizer using the function `cbrkit.synthesis.build()` with a provider and a prompt. A synthesizer maps a `Result` (obtained through `cbrkit.retrieval.apply_query`) to an LLM output (can be a string or structurized). An example can be found in `examples/cars_rag.py`.
+
+The following **providers** are currently supported if a valid API key is stored the respective environment variable:
+- OpenAI (OPENAI_API_KEY)
+- Anthropic (ANTHROPIC_API_KEY)
+- Cohere (CO_API_KEY)
+- Ollama
+
+The respective provider class in `cbrkit.synthesis.providers` has to be initialized with the model name and a response type (either `str` or a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)). Further model options like `temperature`, `seed` or `max_tokens` can also be specified here.
+
+A **prompt** produces an LLM input based on the specified `instructions`, an optional `encoder` (which maps a case or query to a string) and optional `metadata`. Supported prompt types can be found in `cbrkit.synthesis.prompts`. Internally, the prompt functions defined there also enrich the LLM input with context about the casebase, the query and the results of the retrieval. 
+
+Using `result = cbrkit.synthesis.apply_result(result, synthesizer)`, the LLM specified in the provider can be queried, causing its response to be found in `result.response`.
 
 ## REST API and CLI
 
