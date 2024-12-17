@@ -66,9 +66,6 @@ def apply_queries[Q, C, V, S: Float](
         ...         attributes={
         ...             "price": cbrkit.sim.numbers.linear(max=100000),
         ...             "year": cbrkit.sim.numbers.linear(max=50),
-        ...             "manufacturer": cbrkit.sim.strings.wu_palmer(
-        ...                 cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
-        ...             ),
         ...             "miles": cbrkit.sim.numbers.linear(max=1000000),
         ...         },
         ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),

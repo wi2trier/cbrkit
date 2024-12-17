@@ -107,9 +107,6 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         ...             "model": cbrkit.sim.attribute_value(
         ...                 attributes={
         ...                     "make": cbrkit.sim.generic.equality(),
-        ...                     "manufacturer": cbrkit.sim.strings.wu_palmer(
-        ...                         cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
-        ...                     ),
         ...                 }
         ...             ),
         ...         },
