@@ -9,6 +9,7 @@ from ..collections import dtw as dtwmodule
 
 __all__ = ["dtw"]
 
+
 @dataclass(slots=True, frozen=True)
 class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
     """
@@ -45,9 +46,9 @@ class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
     normalize: bool = True
 
     def __call__(
-            self,
-            x: Graph[K, Any, Any, Any],
-            y: Graph[K, Any, Any, Any],
+        self,
+        x: Graph[K, Any, Any, Any],
+        y: Graph[K, Any, Any, Any],
     ) -> GraphSim[K]:
         """
         Perform Graph-DTW using node and optional edge similarity functions.
@@ -77,9 +78,7 @@ class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         node_similarity = dist2sim(node_distance)
 
         node_mappings = {
-            y_node.key: x_node.key
-            for x_node, y_node in alignment
-            if x_node and y_node
+            y_node.key: x_node.key for x_node, y_node in alignment if x_node and y_node
         }
 
         edge_similarity = None
@@ -121,7 +120,7 @@ class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         )
 
     def get_sequential_nodes(
-            self, graph: Graph[K, Any, Any, Any]
+        self, graph: Graph[K, Any, Any, Any]
     ) -> list[Node[K, Any]]:
         """
         Retrieves the nodes of the graph in sequential order.
@@ -161,7 +160,7 @@ class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
         return sequence
 
     def get_sequential_edges(
-            self, graph: Graph[K, Any, Any, Any], node_sequence: list[Node[K, Any]]
+        self, graph: Graph[K, Any, Any, Any], node_sequence: list[Node[K, Any]]
     ) -> list[Edge[K, Any, Any]]:
         """
         Retrieves the edges of the graph in sequential order based on node sequence.
@@ -181,17 +180,12 @@ class dtw[K](SimFunc[Graph[K, Any, Any, Any], GraphSim[K]]):
                 (
                     edge
                     for edge in graph.edges.values()
-                    if edge.source.key == source_key
-                       and edge.target.key == target_key
+                    if edge.source.key == source_key and edge.target.key == target_key
                 ),
                 None,
             )
             if edge:
                 edges.append(edge)
             else:
-                raise ValueError(
-                    f"No edge found between {source_key} and {target_key}"
-                )
+                raise ValueError(f"No edge found between {source_key} and {target_key}")
         return edges
-
-
