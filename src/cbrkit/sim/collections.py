@@ -92,7 +92,6 @@ class SequenceSim[S](StructuredValue[float]):
     local_similarities: Sequence[S] | None = field(default_factory=tuple)
 
 
-
 @dataclass(slots=True)
 class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[tuple[V, V]]]):
     """
