@@ -87,13 +87,14 @@ with optional_dependencies():
 
 
 @dataclass(slots=True, frozen=True)
-class SequenceSim[S: Float](StructuredValue[float]):
+class SequenceSim[S](StructuredValue[float]):
     value: float
-    local_similarities: Sequence[S] = field(default_factory=tuple)
+    local_similarities: Sequence[S] | None = field(default_factory=tuple)
+
 
 
 @dataclass(slots=True)
-class dtw[V](SimFunc[Collection[V] | np.ndarray, float]):  # Updated generics usage
+class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[tuple[V, V]]]):
     """
     Dynamic Time Warping similarity function with optional backtracking for alignment.
 
