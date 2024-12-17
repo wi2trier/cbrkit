@@ -6,6 +6,7 @@ from ..collections import dtw as dtwmodule
 
 __all__ = ["dtw"]
 
+
 @dataclass(slots=True, frozen=True)
 class dtw:
     """
