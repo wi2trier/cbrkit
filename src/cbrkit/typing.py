@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
+
+import numpy as np
+import numpy.typing as npt
 
 __all__ = [
     "JsonEntry",
     "JsonDict",
+    "NumpyArray",
     "AdaptationFunc",
     "AggregatorFunc",
     "AnyAdaptationFunc",
@@ -15,6 +19,7 @@ __all__ = [
     "AnySimFunc",
     "BatchAdaptationFunc",
     "BatchConversionFunc",
+    "MapConversionFunc",
     "BatchNamedFunc",
     "BatchPoolingFunc",
     "BatchPositionalFunc",
@@ -42,16 +47,22 @@ __all__ = [
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
     "KeyValueStore",
+    "WrappedObject",
 ]
 
 type JsonEntry = (
     Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
 )
 type JsonDict = dict[str, JsonEntry]
+type NumpyArray = npt.NDArray[np.float_]
 
 
 class StructuredValue[T](ABC):
     value: T
+
+
+class WrappedObject[T](ABC):
+    __wrapped__: T
 
 
 class HasMetadata(ABC):
@@ -86,6 +97,14 @@ class BatchConversionFunc[U, V](Protocol):
 
 
 type AnyConversionFunc[U, V] = ConversionFunc[U, V] | BatchConversionFunc[U, V]
+
+
+class MapConversionFunc[U, V](Protocol):
+    def __call__(
+        self,
+        batches: Sequence[U],
+        /,
+    ) -> Mapping[U, V]: ...
 
 
 class PositionalFunc[T](Protocol):
@@ -258,6 +277,7 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
 
 
 class KeyValueStore[K, V](Protocol):
+    func: MapConversionFunc[K, V]
     store: dict[K, V]
     path: FilePath | None
     frozen: bool
@@ -266,7 +286,6 @@ class KeyValueStore[K, V](Protocol):
 
     def __call__(
         self,
-        keys: Sequence[str],
-        key2value: Callable[[Sequence[K]], dict[K, V]],
+        batches: Sequence[K],
         /,
-    ) -> dict[K, V]: ...
+    ) -> Mapping[K, V]: ...

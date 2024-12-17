@@ -27,7 +27,6 @@ from .typing import (
     ConversionFunc,
     Float,
     HasMetadata,
-    JsonDict,
     JsonEntry,
     NamedFunc,
     PositionalFunc,
@@ -35,6 +34,7 @@ from .typing import (
     SimMap,
     SimSeq,
     StructuredValue,
+    WrappedObject,
 )
 
 __all__ = [
@@ -94,21 +94,17 @@ def get_name(obj: Any) -> str | None:
 
 
 def get_metadata(obj: Any) -> JsonEntry:
-    if hasattr(obj, "__wrapped__"):
+    if isinstance(obj, WrappedObject):
         return get_metadata(obj.__wrapped__)
 
     if isinstance(obj, HasMetadata):
-        value: JsonDict = {
+        return {
+            "name": get_name(obj),
+            "doc": getdoc(obj),
             "metadata": obj.metadata,
         }
 
-        if isinstance(obj, Callable) or isinstance(obj, type):
-            value["name"] = get_name(obj)
-            value["doc"] = getdoc(obj)
-
-        return value
-
-    if is_dataclass(obj) and not isinstance(obj, type):
+    if is_dataclass(obj):
         return {
             "name": get_name(obj),
             "doc": getdoc(obj),
@@ -119,7 +115,7 @@ def get_metadata(obj: Any) -> JsonEntry:
             },
         }
 
-    if isinstance(obj, Callable) or isinstance(obj, type):
+    if isinstance(obj, Callable):
         return {
             "name": get_name(obj),
             "doc": getdoc(obj),
@@ -194,10 +190,12 @@ def dist2sim(distance: float) -> float:
 
 
 @dataclass(slots=True, init=False)
-class batchify_positional[T](BatchPositionalFunc[T]):
+class batchify_positional[T](
+    WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
+):
     __wrapped__: AnyPositionalFunc[T]
     parameters: int
-    logger: logging.Logger | None = None
+    logger: logging.Logger | None
     logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyPositionalFunc[T]):
@@ -205,9 +203,7 @@ class batchify_positional[T](BatchPositionalFunc[T]):
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
         logger = get_logger(self.__wrapped__)
-
-        if logger.isEnabledFor(self.logger_level):
-            self.logger = logger
+        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
@@ -230,7 +226,7 @@ class batchify_positional[T](BatchPositionalFunc[T]):
 
 
 @dataclass(slots=True, init=False)
-class unbatchify_positional[T](PositionalFunc[T]):
+class unbatchify_positional[T](WrappedObject[AnyPositionalFunc[T]], PositionalFunc[T]):
     __wrapped__: AnyPositionalFunc[T]
     parameters: int
 
@@ -250,10 +246,10 @@ class unbatchify_positional[T](PositionalFunc[T]):
 
 
 @dataclass(slots=True, init=False)
-class batchify_named[T](BatchNamedFunc[T]):
+class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
     parameters: int
-    logger: logging.Logger | None = None
+    logger: logging.Logger | None
     logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyNamedFunc[T]):
@@ -261,9 +257,7 @@ class batchify_named[T](BatchNamedFunc[T]):
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
         logger = get_logger(self.__wrapped__)
-
-        if logger.isEnabledFor(self.logger_level):
-            self.logger = logger
+        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
@@ -286,7 +280,7 @@ class batchify_named[T](BatchNamedFunc[T]):
 
 
 @dataclass(slots=True)
-class unbatchify_named[T](NamedFunc[T]):
+class unbatchify_named[T](WrappedObject[AnyNamedFunc[T]], NamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
     parameters: int = field(init=False)
 
@@ -442,21 +436,3 @@ def get_logger(obj: Any) -> logging.Logger:
         name += f".{obj.__qualname__}"
 
     return logging.getLogger(name)
-
-
-# def get_loguru(obj: Any) -> "loguru.Logger":
-#     if isinstance(obj, str):
-#         name = obj
-#     else:
-#         if hasattr(obj, "__class__"):
-#             obj = obj.__class__
-
-#         name = obj.__module__
-
-#         if not name.endswith(obj.__qualname__):
-#             name += f".{obj.__qualname__}"
-
-#     def patcher(record) -> None:
-#         record["extra"]["name"] = name
-
-#     return loguru.logger.patch(patcher)
