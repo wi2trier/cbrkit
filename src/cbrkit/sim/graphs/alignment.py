@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
 from .model import Graph, to_sequence, GraphSim
 from ...helpers import dist2sim
 from ...typing import AnySimFunc
