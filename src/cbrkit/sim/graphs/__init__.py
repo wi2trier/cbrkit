@@ -1,5 +1,5 @@
 from ...helpers import optional_dependencies
-from .astar import astar
+from . import astar
 from .exhaustive import exhaustive
 from .isomorphism import isomorphism
 from .model import (
