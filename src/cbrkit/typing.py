@@ -53,7 +53,7 @@ type JsonEntry = (
     Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
 )
 type JsonDict = dict[str, JsonEntry]
-type NumpyArray = npt.NDArray[np.float_]
+type NumpyArray = npt.NDArray[np.float64]
 
 
 class StructuredValue[T](ABC):
