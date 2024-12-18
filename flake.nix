@@ -47,9 +47,9 @@
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = import systems;
-      imports = [
-        inputs.flake-parts.flakeModules.easyOverlay
-        inputs.treefmt-nix.flakeModule
+      imports = with inputs; [
+        flake-parts.flakeModules.easyOverlay
+        treefmt-nix.flakeModule
       ];
       perSystem =
         {

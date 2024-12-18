@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -19,7 +19,6 @@ __all__ = [
     "AnySimFunc",
     "BatchAdaptationFunc",
     "BatchConversionFunc",
-    "MapConversionFunc",
     "BatchNamedFunc",
     "BatchPoolingFunc",
     "BatchPositionalFunc",
@@ -97,14 +96,6 @@ class BatchConversionFunc[U, V](Protocol):
 
 
 type AnyConversionFunc[U, V] = ConversionFunc[U, V] | BatchConversionFunc[U, V]
-
-
-class MapConversionFunc[U, V](Protocol):
-    def __call__(
-        self,
-        batches: Sequence[U],
-        /,
-    ) -> Mapping[U, V]: ...
 
 
 class PositionalFunc[T](Protocol):
@@ -276,9 +267,9 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
     ) -> Sequence[T]: ...
 
 
-class KeyValueStore[K, V](Protocol):
-    func: MapConversionFunc[K, V]
-    store: dict[K, V]
+class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
+    func: BatchConversionFunc[K, V]
+    store: MutableMapping[K, V]
     path: FilePath | None
     frozen: bool
 
@@ -288,4 +279,4 @@ class KeyValueStore[K, V](Protocol):
         self,
         batches: Sequence[K],
         /,
-    ) -> Mapping[K, V]: ...
+    ) -> Sequence[V]: ...

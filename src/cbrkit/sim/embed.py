@@ -1,26 +1,28 @@
 import itertools
-from collections.abc import Sequence
+from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Protocol, cast, override
+from typing import Literal, cast, override
 
 import numpy as np
 from scipy.spatial.distance import cosine as scipy_cosine
 
-from ..helpers import optional_dependencies
+from ..helpers import batchify_conversion, batchify_sim, optional_dependencies
 from ..typing import (
+    AnyConversionFunc,
+    AnySimFunc,
+    BatchConversionFunc,
     BatchSimFunc,
     FilePath,
+    Float,
     HasMetadata,
     JsonDict,
     KeyValueStore,
-    MapConversionFunc,
     NumpyArray,
+    SimFunc,
     SimSeq,
 )
 
 __all__ = [
-    "EmbedFunc",
-    "ScoreFunc",
     "cosine",
     "dot",
     "angular",
@@ -38,15 +40,8 @@ __all__ = [
 ]
 
 
-class EmbedFunc(MapConversionFunc[str, NumpyArray], Protocol): ...
-
-
-class ScoreFunc(Protocol):
-    def __call__(self, u: NumpyArray, v: NumpyArray) -> float: ...
-
-
 @dataclass(slots=True, frozen=True)
-class cosine(ScoreFunc):
+class cosine(SimFunc[NumpyArray, float]):
     weight: NumpyArray | None = None
 
     @override
@@ -58,14 +53,14 @@ class cosine(ScoreFunc):
 
 
 @dataclass(slots=True, frozen=True)
-class dot(ScoreFunc):
+class dot(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         return np.dot(u, v).astype(float)
 
 
 @dataclass(slots=True, frozen=True)
-class angular(ScoreFunc):
+class angular(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if u.any() and v.any():
@@ -82,60 +77,85 @@ class angular(ScoreFunc):
 
 
 @dataclass(slots=True, frozen=True)
-class euclidean(ScoreFunc):
+class euclidean(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         return 1 / (1 + np.linalg.norm(u - v)).astype(float)
 
 
 @dataclass(slots=True, frozen=True)
-class manhattan(ScoreFunc):
+class manhattan(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         return 1 / (1 + np.sum(np.abs(u - v)))
 
 
-default_score_func: ScoreFunc = cosine()
+default_score_func: SimFunc[NumpyArray, float] = cosine()
 
 
-@dataclass(slots=True, frozen=True)
-class build(BatchSimFunc[str, float]):
+@dataclass(slots=True, init=False)
+class build[V, S: Float](BatchSimFunc[V, S]):
     """Embedding-based semantic similarity
 
     Args:
-        embed_func: Embedding function
-        score_func: Similarity score function
-        query_embed_func: Optional query embedding function
+        conversion_func: Embedding function
+        sim_func: Similarity score function
+        query_conversion_func: Optional query embedding function
     """
 
-    embed_func: EmbedFunc
-    score_func: ScoreFunc = default_score_func
-    query_embed_func: EmbedFunc | None = None
+    conversion_func: BatchConversionFunc[V, NumpyArray]
+    sim_func: BatchSimFunc[NumpyArray, S]
+    query_conversion_func: BatchConversionFunc[V, NumpyArray] | None
+
+    def __init__(
+        self,
+        conversion_func: AnyConversionFunc[V, NumpyArray],
+        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,
+        query_conversion_func: AnyConversionFunc[V, NumpyArray] | None = None,
+    ):
+        self.conversion_func = batchify_conversion(conversion_func)
+        self.sim_func = batchify_sim(sim_func)
+        self.query_conversion_func = (
+            batchify_conversion(query_conversion_func)
+            if query_conversion_func
+            else None
+        )
 
     @override
-    def __call__(self, batches: Sequence[tuple[str, str]]) -> SimSeq:
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
         if not batches:
             return []
 
-        if self.query_embed_func:
+        if self.query_conversion_func:
             case_texts, query_texts = zip(*batches, strict=True)
-            case_vecs = self.embed_func(case_texts)
-            query_vecs = self.query_embed_func(query_texts)
+            case_vecs = self.conversion_func(case_texts)
+            query_vecs = self.query_conversion_func(query_texts)
 
-            return [self.score_func(case_vecs[x], query_vecs[y]) for x, y in batches]
+            return self.sim_func(list(zip(case_vecs, query_vecs, strict=True)))
 
         texts = list(itertools.chain.from_iterable(batches))
-        vecs = self.embed_func(texts)
+        vecs = self.conversion_func(texts)
 
-        return [self.score_func(vecs[x], vecs[y]) for x, y in batches]
+        return self.sim_func([(vecs[i], vecs[i + 1]) for i in range(0, len(vecs), 2)])
 
 
-@dataclass(slots=True)
-class cache(KeyValueStore[str, NumpyArray], EmbedFunc):
-    func: MapConversionFunc[str, NumpyArray]
-    path: FilePath | None = None
-    frozen: bool = False
-    store: dict[str, NumpyArray] = field(default_factory=dict, init=False, repr=False)
+@dataclass(slots=True, init=False)
+class cache(KeyValueStore[str, NumpyArray]):
+    func: BatchConversionFunc[str, NumpyArray]
+    path: FilePath | None
+    frozen: bool
+    store: MutableMapping[str, NumpyArray] = field(repr=False)
+
+    def __init__(
+        self,
+        func: AnyConversionFunc[str, NumpyArray],
+        path: FilePath | None = None,
+        frozen: bool = False,
+    ):
+        self.func = batchify_conversion(func)
+        self.path = path
+        self.frozen = frozen
+        self.store = {}
 
     def __post_init__(self) -> None:
         if self.path:
@@ -150,29 +170,33 @@ class cache(KeyValueStore[str, NumpyArray], EmbedFunc):
 
         np.savez_compressed(self.path, **self.store)
 
-    def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+    def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
         if not self.frozen:
             new_texts = [text for text in texts if text not in self.store]
-            self.store.update(self.func(new_texts))
+            self.store.update(zip(new_texts, self.func(new_texts), strict=True))
 
-        return self.store
+        return [self.store[text] for text in texts]
 
 
-@dataclass(slots=True, frozen=True)
-class concat(EmbedFunc):
+@dataclass(slots=True, init=False)
+class concat[V](BatchConversionFunc[V, NumpyArray]):
     """Concatenated embeddings of multiple models
 
     Args:
         models: List of embedding models
     """
 
-    embed_funcs: list[EmbedFunc]
+    embed_funcs: Sequence[BatchConversionFunc[V, NumpyArray]]
 
-    def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
-        vecs = [func(texts) for func in self.embed_funcs]
-        return {
-            text: np.concatenate([vec[text] for vec in vecs], axis=0) for text in texts
-        }
+    def __init__(
+        self,
+        funcs: Sequence[AnyConversionFunc[V, NumpyArray]],
+    ):
+        self.embed_funcs = [batchify_conversion(func) for func in funcs]
+
+    def __call__(self, texts: Sequence[V]) -> Sequence[NumpyArray]:
+        nested_vecs = [func(texts) for func in self.embed_funcs]
+        return [np.concatenate(vecs, axis=0) for vecs in nested_vecs]
 
 
 with optional_dependencies():
@@ -180,7 +204,7 @@ with optional_dependencies():
     from spacy.language import Language
 
     @dataclass(slots=True)
-    class spacy(EmbedFunc, HasMetadata):
+    class spacy(BatchConversionFunc[str, NumpyArray], HasMetadata):
         """Semantic similarity using [spaCy](https://spacy.io/)
 
         Args:
@@ -202,21 +226,18 @@ with optional_dependencies():
             return {"model": self.model.meta}
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 
-            return {
-                text: cast(NumpyArray, doc.vector)
-                for text, doc in zip(texts, docs_iterator, strict=True)
-            }
+            return [cast(NumpyArray, doc.vector) for doc in docs_iterator]
 
 
 with optional_dependencies():
     from sentence_transformers import SentenceTransformer
 
     @dataclass(slots=True)
-    class sentence_transformers(EmbedFunc, HasMetadata):
+    class sentence_transformers(BatchConversionFunc[str, NumpyArray], HasMetadata):
         """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
 
         Args:
@@ -243,20 +264,20 @@ with optional_dependencies():
             return self._metadata
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             if not texts:
-                return {}
+                return []
 
-            vecs = self.model.encode(cast(list[str], texts), convert_to_numpy=True)
-
-            return dict(zip(texts, vecs, strict=True))
+            return self.model.encode(
+                cast(list[str], texts), convert_to_numpy=True
+            ).tolist()
 
 
 with optional_dependencies():
     from openai import OpenAI
 
     @dataclass(slots=True, frozen=True)
-    class openai(EmbedFunc):
+    class openai(BatchConversionFunc[str, NumpyArray]):
         """Semantic similarity using OpenAI's embedding models
 
         Args:
@@ -267,27 +288,24 @@ with optional_dependencies():
         client: OpenAI = field(default_factory=OpenAI, repr=False)
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             res = self.client.embeddings.create(
                 input=cast(list[str], texts),
                 model=self.model,
                 encoding_format="float",
             )
-            return {
-                text: np.array(x.embedding)
-                for text, x in zip(texts, res.data, strict=True)
-            }
+            return [np.array(x.embedding) for x in res.data]
 
 
 with optional_dependencies():
     from ollama import Client, Options
 
     @dataclass(slots=True, frozen=True)
-    class ollama(EmbedFunc):
+    class ollama(BatchConversionFunc[str, NumpyArray]):
         """Semantic similarity using Ollama's embedding models
 
         Args:
-            model: Name of the [embedding model](https://ollama.com/blog/embedding-models).
+            model: Name of the [embedding model]().https://ollama.com/blog/embedding-models
         """
 
         model: str
@@ -297,7 +315,7 @@ with optional_dependencies():
         client: Client = field(default_factory=Client, repr=False)
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             res = self.client.embed(
                 self.model,
                 texts,
@@ -305,9 +323,7 @@ with optional_dependencies():
                 options=self.options,
                 keep_alive=self.keep_alive,
             )
-            vecs = [np.array(x) for x in res["embeddings"]]
-
-            return dict(zip(texts, vecs, strict=True))
+            return [np.array(x) for x in res["embeddings"]]
 
 
 with optional_dependencies():
@@ -315,7 +331,7 @@ with optional_dependencies():
     from cohere.core import RequestOptions
 
     @dataclass(slots=True, frozen=True)
-    class cohere(EmbedFunc):
+    class cohere(BatchConversionFunc[str, NumpyArray]):
         """Semantic similarity using Cohere's embedding models
 
         Args:
@@ -329,7 +345,7 @@ with optional_dependencies():
         request_options: RequestOptions | None = None
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             res = self.client.v2.embed(
                 model=self.model,
                 texts=texts,
@@ -342,14 +358,14 @@ with optional_dependencies():
             if not res:
                 raise ValueError("No embeddings returned")
 
-            return dict(zip(texts, [np.array(x) for x in res], strict=True))
+            return [np.array(x) for x in res]
 
 
 with optional_dependencies():
     from voyageai import Client  # type: ignore
 
     @dataclass(slots=True, frozen=True)
-    class voyageai(EmbedFunc):
+    class voyageai(BatchConversionFunc[str, NumpyArray]):
         """Semantic similarity using Voyage AI's embedding models
 
         Args:
@@ -362,7 +378,7 @@ with optional_dependencies():
         truncation: bool = True
 
         @override
-        def __call__(self, texts: Sequence[str]) -> dict[str, NumpyArray]:
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             res = self.client.embed(
                 model=self.model,
                 texts=cast(list[str], texts),
@@ -370,4 +386,4 @@ with optional_dependencies():
                 truncation=self.truncation,
             ).embeddings
 
-            return dict(zip(texts, [np.array(x) for x in res], strict=True))
+            return [np.array(x) for x in res]
