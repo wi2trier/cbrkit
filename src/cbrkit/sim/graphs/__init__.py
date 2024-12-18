@@ -1,6 +1,6 @@
 from ...helpers import optional_dependencies
 from . import astar
-from .exhaustive import exhaustive
+from .brute_force import brute_force
 from .isomorphism import isomorphism
 from .model import (
     Edge,
@@ -23,7 +23,7 @@ with optional_dependencies():
 
 __all__ = [
     "astar",
-    "exhaustive",
+    "brute_force",
     "isomorphism",
     "Node",
     "Edge",

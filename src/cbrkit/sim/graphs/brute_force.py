@@ -36,7 +36,7 @@ class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
 
 
 @dataclass
-class exhaustive[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+class brute_force[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Computes the similarity between two graphs by exhaustively computing all possible mappings
     and selecting the one with the highest similarity score.
