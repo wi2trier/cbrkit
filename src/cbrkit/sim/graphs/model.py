@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 import immutables
 
 from ...helpers import optional_dependencies
 from ...typing import StructuredValue
+
+type ElementType = Literal["node", "edge"]
 
 
 @dataclass(slots=True, frozen=True)

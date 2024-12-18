@@ -1,87 +1,65 @@
 from __future__ import annotations
 
-import bisect
+import heapq
 import itertools
-import random
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
-from typing import Literal, Protocol, override
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Any, Protocol, override
 
 import immutables
 
-from ...helpers import (
-    batchify_sim,
-    unpack_float,
-    unpack_floats,
-)
-from ...typing import (
-    AnySimFunc,
-    BatchSimFunc,
-    Float,
-    SimFunc,
-)
-from .model import (
-    Edge,
-    Graph,
-    GraphSim,
-    Node,
-)
+from ...helpers import batchify_sim, unpack_float, unpack_floats
+from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc
+from .model import Edge, ElementType, Graph, GraphSim, Node
 
-type ElementKind = Literal["node", "edge"]
-
-
-@dataclass(slots=True, frozen=True)
-class SelectionResult[K]:
-    query_element: K
-    case_candidates: Iterable[K]
-    kind: ElementKind
-
-
-class SelectionFunc[K, N, E, G](Protocol):
-    def __call__(
-        self,
-        s: SearchNode[K, N, E, G],
-        /,
-    ) -> SelectionResult[K] | None: ...
+__all__ = [
+    "HeuristicFunc",
+    "SelectionFunc",
+    "ElementMatcher",
+    "h1",
+    "h2",
+    "g1",
+    "select1",
+    "build",
+]
 
 
 class HeuristicFunc[K, N, E, G](Protocol):
     def __call__(
         self,
-        s: SearchNode[K, N, E, G],
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
         /,
     ) -> float: ...
 
 
-@dataclass(slots=True, frozen=True)
-class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
-    def __call__(self, s: SearchNode[K, N, E, G]) -> None | SelectionResult[K]:
-        if s.unmapped_nodes:
-            return SelectionResult(
-                query_element=random.choice(tuple(s.unmapped_nodes)),
-                case_candidates=s.x.nodes.keys(),
-                kind="node",
-            )
-        elif s.unmapped_edges:
-            return SelectionResult(
-                query_element=random.choice(tuple(s.unmapped_edges)),
-                case_candidates=s.x.edges.keys(),
-                kind="edge",
-            )
+class SelectionFunc[K, N, E, G](Protocol):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
+        /,
+    ) -> None | tuple[K, ElementType]: ...
 
-        return None
+
+class ElementMatcher[T](Protocol):
+    def __call__(self, x: T, y: T, /) -> bool: ...
 
 
 @dataclass(slots=True, frozen=True)
 class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
     def __call__(
         self,
-        s: SearchNode[K, N, E, G],
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
     ) -> float:
         """Heuristic to compute future costs"""
 
-        return (len(s.unmapped_nodes) + len(s.unmapped_edges)) / (
-            len(s.y.nodes) + len(s.y.edges)
+        return (len(s.remaining_nodes) + len(s.remaining_edges)) / (
+            len(y.nodes) + len(y.edges)
         )
 
 
@@ -104,33 +82,35 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
     def __call__(
         self,
-        s: SearchNode[K, N, E, G],
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
     ) -> float:
         h_val = 0
 
-        for y_name in s.unmapped_nodes:
+        for y_name in s.remaining_nodes:
             max_sim = max(
                 unpack_floats(
                     self.node_sim_func(
-                        [(x_node, s.y.nodes[y_name]) for x_node in (s.x.nodes.values())]
+                        [(x_node, y.nodes[y_name]) for x_node in (x.nodes.values())]
                     )
                 )
             )
 
             h_val += max_sim
 
-        for y_name in s.unmapped_edges:
+        for y_name in s.remaining_edges:
             max_sim = max(
                 unpack_floats(
                     self.edge_sim_func(
-                        [(x_edge, s.y.edges[y_name]) for x_edge in s.x.edges.values()]
+                        [(x_edge, y.edges[y_name]) for x_edge in x.edges.values()]
                     )
                 )
             )
 
             h_val += max_sim
 
-        return h_val / (len(s.y.nodes) + len(s.y.edges))
+        return h_val / (len(y.nodes) + len(y.edges))
 
 
 @dataclass(slots=True)
@@ -152,64 +132,63 @@ class g1[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
     def __call__(
         self,
-        s: SearchNode[K, N, E, G],
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
     ) -> float:
         """Function to compute the costs of all previous steps"""
 
         node_sims = self.node_sim_func(
-            [(s.x.nodes[x], s.y.nodes[y]) for y, x in s.node_mappings.items()]
+            [
+                (x.nodes[x_key], y.nodes[y_key])
+                for y_key, x_key in s.mapped_nodes.items()
+            ]
         )
 
         edge_sims = self.edge_sim_func(
-            [(s.x.edges[x], s.y.edges[y]) for y, x in s.edge_mappings.items()]
+            [
+                (x.edges[x_key], y.edges[y_key])
+                for y_key, x_key in s.mapped_edges.items()
+            ]
         )
 
         all_sims = unpack_floats(itertools.chain(node_sims, edge_sims))
-        total_elements = len(s.y.nodes) + len(s.y.edges)
+        total_elements = len(y.nodes) + len(y.edges)
 
         return sum(all_sims) / total_elements
 
 
+class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: State[K],
+    ) -> None | tuple[K, ElementType]:
+        """Select the next node or edge to be mapped"""
+
+        if s.remaining_nodes:
+            return next(iter(s.remaining_nodes)), "node"
+
+        if s.remaining_edges:
+            return next(iter(s.remaining_edges)), "edge"
+
+        return None
+
+
 @dataclass(slots=True, frozen=True)
-class SearchNode[K, N, E, G]:
-    """Specific search node"""
-
-    x: Graph[K, N, E, G]
-    y: Graph[K, N, E, G]
+class State[K]:
     # mappings are from y to x
-    node_mappings: immutables.Map[K, K]
-    edge_mappings: immutables.Map[K, K]
-    unmapped_nodes: frozenset[K]
-    unmapped_edges: frozenset[K]
-
-    def is_legal_mapping(self, x: K, y: K, kind: ElementKind) -> bool:
-        """Check if mapping is legal"""
-
-        if kind == "node":
-            return self.is_legal_node_mapping(x, y)
-        elif kind == "edge":
-            return self.is_legal_edge_mapping(x, y)
-
-    def is_legal_node_mapping(self, x: K, y: K) -> bool:
-        """Check if mapping is legal"""
-
-        return not (y in self.node_mappings or type(x) is not type(y))
-
-    def is_legal_edge_mapping(self, x: K, y: K) -> bool:
-        """Check if mapping is legal"""
-
-        return not (
-            y in self.edge_mappings
-            or not self.is_legal_node_mapping(
-                self.x.edges[x].source.key, self.y.edges[y].source.key
-            )
-            or not self.is_legal_node_mapping(
-                self.x.edges[x].target.key, self.y.edges[y].target.key
-            )
-        )
+    mapped_nodes: immutables.Map[K, K]
+    mapped_edges: immutables.Map[K, K]
+    remaining_nodes: frozenset[K]
+    remaining_edges: frozenset[K]
 
 
-type ScoredSearchNode[K, N, E, G] = tuple[SearchNode[K, N, E, G], float]
+@dataclass(slots=True, frozen=True, order=True)
+class PriorityState[K]:
+    priority: float
+    state: State[K] = field(compare=False)
 
 
 @dataclass(slots=True, frozen=True)
@@ -229,15 +208,21 @@ class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
         ]
 
 
+def default_element_matcher(x: Any, y: Any) -> bool:
+    return type(x) is type(y)
+
+
 @dataclass(slots=True)
-class astar[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
     Args:
         past_cost_func: A heuristic function to compute the costs of all previous steps.
         future_cost_func: A heuristic function to compute the future costs.
-        select_func: A function to select the next element to map.
+        selection_func: A function to select the next node or edge to be mapped.
+        node_matcher: A function that returns true if two nodes can be mapped legally.
+        edge_matcher: A function that returns true if two edges can be mapped legally.
         queue_limit: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
 
@@ -247,68 +232,144 @@ class astar[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     past_cost_func: HeuristicFunc[K, N, E, G]
     future_cost_func: HeuristicFunc[K, N, E, G]
-    select_func: SelectionFunc[K, N, E, G]
+    selection_func: SelectionFunc[K, N, E, G]
+    node_matcher: ElementMatcher[N] = default_element_matcher
+    edge_matcher: ElementMatcher[E] = default_element_matcher
     queue_limit: int = 10000
 
-    def _expand(
+    def expand_node(
         self,
-        q: list[ScoredSearchNode[K, N, E, G]],
-    ) -> list[ScoredSearchNode[K, N, E, G]]:
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+        y_key: K,
+    ) -> list[State[K]]:
         """Expand a given node and its queue"""
 
-        s, s_score = q.pop(-1)
-        selection = self.select_func(s)
-        mapped: bool = False
+        next_states: list[State[K]] = []
+        y_value = y.nodes[y_key]
 
-        if selection:
-            for case_element in selection.case_candidates:
-                if s.is_legal_mapping(
-                    selection.query_element, case_element, selection.kind
+        for x_key in x.nodes.keys():
+            x_value = x.nodes[x_key]
+
+            if (
+                y_key not in state.mapped_nodes.keys()
+                and x_key not in state.mapped_nodes.values()
+                and self.node_matcher(x_value.value, y_value.value)
+            ):
+                next_states.append(
+                    State(
+                        state.mapped_nodes.set(y_key, x_key),
+                        state.mapped_edges,
+                        state.remaining_nodes - {y_key},
+                        state.remaining_edges,
+                    )
+                )
+
+        if not next_states:
+            next_states.append(
+                State(
+                    state.mapped_nodes,
+                    state.mapped_edges,
+                    state.remaining_nodes - {y_key},
+                    state.remaining_edges,
+                )
+            )
+
+        return next_states
+
+    def expand_edge(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+        y_key: K,
+    ) -> list[State[K]]:
+        """Expand a given edge and its queue"""
+
+        next_states: list[State[K]] = []
+        y_value = y.edges[y_key]
+
+        for x_key in x.edges.keys():
+            x_value = x.edges[x_key]
+
+            if (
+                y_key not in state.mapped_edges.keys()
+                and x_key not in state.mapped_edges.values()
+                and self.edge_matcher(x_value.value, y_value.value)
+            ):
+                mapped_x_source_key = state.mapped_nodes.get(y_value.source.key)
+                mapped_x_target_key = state.mapped_nodes.get(y_value.target.key)
+
+                # if the nodes are already mapped, check if they are mapped legally
+                if (
+                    mapped_x_source_key is not None
+                    and x_value.source.key != mapped_x_source_key
+                ) or (
+                    mapped_x_target_key is not None
+                    and x_value.target.key != mapped_x_target_key
                 ):
-                    s_new = SearchNode(
-                        s.x,
-                        s.y,
-                        s.node_mappings.set(selection.query_element, case_element)
-                        if selection.kind == "node"
-                        else s.node_mappings,
-                        s.edge_mappings.set(selection.query_element, case_element)
-                        if selection.kind == "edge"
-                        else s.edge_mappings,
-                        s.unmapped_nodes - {selection.query_element}
-                        if selection.kind == "node"
-                        else s.unmapped_nodes,
-                        s.unmapped_edges - {selection.query_element}
-                        if selection.kind == "edge"
-                        else s.unmapped_edges,
+                    continue
+
+                # optimization: if the nodes are not mapped yet, map them since this is required for a legal mapping
+                mapped_nodes = state.mapped_nodes
+                remaining_nodes = state.remaining_nodes
+
+                if y_value.source.key not in mapped_nodes:
+                    mapped_nodes = mapped_nodes.set(
+                        y_value.source.key, x_value.source.key
                     )
+                    remaining_nodes -= {y_value.source.key}
 
-                    s_new_scored = (
-                        s_new,
-                        self.past_cost_func(s_new) + self.future_cost_func(s_new),
+                if y_value.target.key not in mapped_nodes:
+                    mapped_nodes = mapped_nodes.set(
+                        y_value.target.key, x_value.target.key
                     )
-                    bisect.insort(q, s_new_scored, key=lambda x: x[1])
-                    mapped = True
+                    remaining_nodes -= {y_value.target.key}
 
-            if not mapped:
-                s_new = SearchNode(
-                    s.x,
-                    s.y,
-                    s.node_mappings,
-                    s.edge_mappings,
-                    s.unmapped_nodes - {selection.query_element}
-                    if selection.kind == "node"
-                    else s.unmapped_nodes,
-                    s.unmapped_edges - {selection.query_element}
-                    if selection.kind == "edge"
-                    else s.unmapped_edges,
+                next_states.append(
+                    State(
+                        mapped_nodes,
+                        state.mapped_edges.set(y_key, x_key),
+                        remaining_nodes,
+                        state.remaining_edges - {y_key},
+                    )
                 )
-                s_new_scored = (
-                    s_new,
-                    self.past_cost_func(s_new) + self.future_cost_func(s_new),
-                )
-                bisect.insort(q, s_new_scored, key=lambda x: x[1])
 
-        return q[len(q) - self.queue_limit :] if self.queue_limit > 0 else q
+        if not next_states:
+            next_states.append(
+                State(
+                    state.mapped_nodes,
+                    state.mapped_edges,
+                    state.remaining_nodes,
+                    state.remaining_edges - {y_key},
+                )
+            )
+
+        return next_states
+
+    def expand(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+    ) -> list[State[K]]:
+        """Expand a given node and its queue"""
+
+        selection = self.selection_func(x, y, state)
+
+        if selection is None:
+            return []
+
+        y_key, y_type = selection
+
+        if y_type == "node":
+            return self.expand_node(x, y, state, y_key)
+
+        if y_type == "edge":
+            return self.expand_edge(x, y, state, y_key)
+
+        raise ValueError(f"Unknown element type: {y_type}")
 
     @override
     def __call__(
@@ -318,26 +379,36 @@ class astar[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> GraphSim[K]:
         """Perform an A* analysis of the x base and the y"""
 
-        s0: ScoredSearchNode[K, N, E, G] = (
-            SearchNode(
-                x,
-                y,
-                immutables.Map(),
-                immutables.Map(),
-                frozenset(x.nodes.keys()),
-                frozenset(x.edges.keys()),
-            ),
-            1.0,
+        open_set: list[PriorityState[K]] = []
+        best_sim = 0.0
+        best_state = State(
+            immutables.Map(),
+            immutables.Map(),
+            frozenset(y.nodes.keys()),
+            frozenset(y.edges.keys()),
         )
-        q = [s0]
+        heapq.heappush(open_set, PriorityState(1 - best_sim, best_state))
 
-        while q[-1][0].unmapped_nodes or q[-1][0].unmapped_edges:
-            q = self._expand(q)
+        while open_set:
+            first_elem = heapq.heappop(open_set)
+            current_sim = 1 - first_elem.priority
+            current_state = first_elem.state
 
-        result, _ = q[-1]
+            if current_sim > best_sim:
+                best_sim = current_sim
+                best_state = current_state
+
+            for next_state in self.expand(x, y, current_state):
+                next_sim = self.past_cost_func(
+                    x, y, next_state
+                ) + self.future_cost_func(x, y, next_state)
+                heapq.heappush(open_set, PriorityState(1 - next_sim, next_state))
+
+            if self.queue_limit > 0 and len(open_set) > self.queue_limit:
+                open_set = open_set[: self.queue_limit]
 
         return GraphSim(
-            self.past_cost_func(result),
-            result.node_mappings,
-            result.edge_mappings,
+            best_sim,
+            best_state.mapped_nodes,
+            best_state.mapped_edges,
         )
