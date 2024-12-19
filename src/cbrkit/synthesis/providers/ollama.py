@@ -12,7 +12,7 @@ with optional_dependencies():
 
     type OllamaPrompt = str | ChatPrompt[str]
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class ollama[R: str | BaseModel](ChatProvider[OllamaPrompt, R]):
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
         options: Options | None = None

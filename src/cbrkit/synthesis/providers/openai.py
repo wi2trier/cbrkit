@@ -14,7 +14,7 @@ with optional_dependencies():
 
     type OpenaiPrompt = str | ChatPrompt[str]
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
         structured_outputs: bool = True
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
