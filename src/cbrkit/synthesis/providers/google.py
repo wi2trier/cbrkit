@@ -17,12 +17,10 @@ with optional_dependencies():
         system_message: str | None = None
         client: Client = field(default_factory=Client, repr=False)
         config: GenerateContentConfig = field(init=False)
-        base_config: InitVar[GenerateContentConfig] = field(
-            default_factory=GenerateContentConfig
-        )
+        base_config: InitVar[GenerateContentConfig | None] = None
 
-        def __post_init__(self, base_config: GenerateContentConfig) -> None:
-            self.config = base_config
+        def __post_init__(self, base_config: GenerateContentConfig | None) -> None:
+            self.config = base_config or GenerateContentConfig()
 
             if issubclass(self.response_type, BaseModel):
                 self.config.response_schema = self.response_type
