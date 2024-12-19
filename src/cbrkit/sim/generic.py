@@ -1,7 +1,7 @@
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, cast, override
 
 from ..helpers import batchify_sim, get_metadata
 from ..typing import (
@@ -147,7 +147,7 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
 
     def __init__(
         self,
-        entries: Mapping[tuple[K, K], AnySimFunc[V, S]],
+        entries: Mapping[tuple[K, K], AnySimFunc[V, S]] | Mapping[K, AnySimFunc[V, S]],
         default: AnySimFunc[V, S],
         symmetric: bool = True,
         key_getter: Callable[[V], K] = default_key_getter,
@@ -157,8 +157,14 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         self.key_getter = key_getter
         self.table = {}
 
-        for (x, y), val in entries.items():
+        for key, val in entries.items():
             func = batchify_sim(val)
+
+            if isinstance(key, tuple):
+                x, y = cast(tuple[K, K], key)
+            else:
+                x = y = cast(K, key)
+
             self.table[(x, y)] = func
 
             if self.symmetric:
