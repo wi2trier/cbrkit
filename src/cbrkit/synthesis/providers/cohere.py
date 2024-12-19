@@ -23,7 +23,7 @@ with optional_dependencies():
 
     type CoherePrompt = str | ChatPrompt[str] | DocumentsPrompt[str]
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class cohere[R: str | BaseModel](ChatProvider[CoherePrompt, R]):
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
         request_options: RequestOptions | None = None
