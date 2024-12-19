@@ -136,8 +136,4 @@ class brute_force[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                         y_edge.key: x_edge.key for y_edge, x_edge in edge_pairs
                     }
 
-        return GraphSim(
-            best_sim,
-            best_node_mapping,
-            best_edge_mapping,
-        )
+        return GraphSim(best_sim, best_node_mapping, best_edge_mapping, {}, {})
