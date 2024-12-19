@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Protocol, TypedDict
 
 import immutables
 
@@ -17,6 +17,16 @@ class GraphSim[K](StructuredValue[float]):
     value: float
     node_mapping: Mapping[K, K]
     edge_mapping: Mapping[K, K]
+    node_similarities: Mapping[K, float]
+    edge_similarities: Mapping[K, float]
+
+
+class ElementMatcher[T](Protocol):
+    def __call__(self, x: T, y: T, /) -> bool: ...
+
+
+def default_element_matcher(x: Any, y: Any) -> bool:
+    return type(x) is type(y)
 
 
 class SerializedNode[N](TypedDict):
