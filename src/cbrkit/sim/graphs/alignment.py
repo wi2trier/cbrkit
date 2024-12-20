@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from .model import Graph, to_sequence, GraphSim
 from ...helpers import dist2sim
-from ...typing import AnySimFunc, BatchSimFunc,SimFunc
+from ...typing import AnySimFunc, BatchSimFunc, SimFunc
 from ..collections import dtw as dtwmodule
 from collections.abc import Sequence
 
@@ -64,8 +64,9 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        sequence_x, edges_x = to_sequence(x)
-        sequence_y, edges_y = to_sequence(y)
+        # Use the updated to_sequence function
+        sequence_x, edges_x = to_sequence(x)  # sequence_x: list[N], edges_x: list[E]
+        sequence_y, edges_y = to_sequence(y)  # sequence_y: list[N], edges_y: list[E]
 
         # Wrap BatchSimFunc if necessary
         wrapped_node_sim_func = self._wrap_batch_func(self.node_sim_func)
