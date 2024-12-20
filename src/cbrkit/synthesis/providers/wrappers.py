@@ -25,19 +25,14 @@ class conversation[R](ConversionFunc[Iterable[str], R]):
         last_assistant_message: R | None = None
 
         for prompt in prompts:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            )
+            messages.append(ChatMessage(role="user", content=prompt))
             last_assistant_message = func(ChatPrompt(prompt, messages))
 
             messages.append(
-                {
-                    "role": "assistant",
-                    "content": self.conversion_func(last_assistant_message),
-                }
+                ChatMessage(
+                    role="assistant",
+                    content=self.conversion_func(last_assistant_message),
+                )
             )
 
         if last_assistant_message is None:

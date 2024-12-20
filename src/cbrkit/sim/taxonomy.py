@@ -9,9 +9,11 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 """
 
 from dataclasses import dataclass, field
-from typing import Literal, Protocol, TypedDict, cast, override
+from typing import Literal, Protocol, override
 
-from ..loaders import path as load_path
+from pydantic import BaseModel, Field
+
+from ..loaders import file as load_file
 
 __all__ = [
     "SerializedTaxonomyNode",
@@ -27,10 +29,13 @@ __all__ = [
 ]
 
 
-class SerializedTaxonomyNode(TypedDict, total=False):
+class SerializedTaxonomyNode(BaseModel):
     name: str
-    weight: float
-    children: list["SerializedTaxonomyNode | str"]
+    weight: float = 1.0
+    children: list["SerializedTaxonomyNode | str"] = Field(default_factory=list)
+
+
+SerializedTaxonomyNode.model_rebuild()
 
 
 @dataclass(slots=True)
@@ -102,18 +107,16 @@ class Taxonomy:
         depth: int = 0,
     ) -> TaxonomyNode:
         if isinstance(data, str):
-            data = {"name": data}
-
-        assert "name" in data, "Missing name in some node"
+            data = SerializedTaxonomyNode(name=data)
 
         node = TaxonomyNode(
-            name=data["name"],
-            weight=data.get("weight", 1.0),
+            name=data.name,
+            weight=data.weight,
             depth=depth,
             parent=parent,
         )
 
-        for child in data.get("children", []):
+        for child in data.children:
             child_node = self.parse(child, node, depth + 1)
             node.children[child_node.name] = child_node
 
@@ -320,7 +323,9 @@ class build:
         if isinstance(taxonomy, Taxonomy):
             self.taxonomy = taxonomy
         elif isinstance(taxonomy, str):
-            self.taxonomy = Taxonomy(cast(SerializedTaxonomyNode, load_path(taxonomy)))
+            loaded_content = load_file(taxonomy)
+            serialized_taxonomy = SerializedTaxonomyNode.model_validate(loaded_content)
+            self.taxonomy = Taxonomy(serialized_taxonomy)
         else:
             self.taxonomy = Taxonomy(taxonomy)
 
