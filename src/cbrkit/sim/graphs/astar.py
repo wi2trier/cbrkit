@@ -151,7 +151,8 @@ class h2[K, N, E, G](FutureCostFunc[K, N, E, G]):
                     self.node_sim_func(
                         [(x_node, y.nodes[y_name]) for x_node in x.nodes.values()]
                     )
-                )
+                ),
+                default=0,
             )
 
             h_val += max_sim
@@ -162,7 +163,8 @@ class h2[K, N, E, G](FutureCostFunc[K, N, E, G]):
                     self.edge_sim_func(
                         [(x_edge, y.edges[y_name]) for x_edge in x.edges.values()]
                     )
-                )
+                ),
+                default=0,
             )
 
             h_val += max_sim
@@ -206,7 +208,8 @@ class h3[K, N, E, G](FutureCostFunc[K, N, E, G]):
                             if x_name not in s.mapped_nodes.values()
                         ]
                     )
-                )
+                ),
+                default=0,
             )
 
             h_val += max_sim
@@ -226,7 +229,8 @@ class h3[K, N, E, G](FutureCostFunc[K, N, E, G]):
                             and x_edge.target.key not in s.mapped_nodes.values()
                         ]
                     )
-                )
+                ),
+                default=0,
             )
 
             h_val += max_sim
