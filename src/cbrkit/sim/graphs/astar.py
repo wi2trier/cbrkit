@@ -506,6 +506,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         past_cost_func: A heuristic function to compute the costs of all previous steps.
         future_cost_func: A heuristic function to compute the future costs.
         selection_func: A function to select the next node or edge to be mapped.
+        init_func: A function to initialize the state.
         node_matcher: A function that returns true if two nodes can be mapped legally.
         edge_matcher: A function that returns true if two edges can be mapped legally.
         queue_limit: Limits the queue size which prunes the search space.
