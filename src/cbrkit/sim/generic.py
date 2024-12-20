@@ -18,6 +18,7 @@ __all__ = [
     "table",
     "static_table",
     "dynamic_table",
+    "type_table",
     "equality",
     "static",
 ]
@@ -44,7 +45,7 @@ class static_table[V](SimFunc[V, float], HasMetadata):
         0.0
     """
 
-    default: float
+    default: float | None
     symmetric: bool
     table: dict[tuple[V, V], float]
 
@@ -67,7 +68,7 @@ class static_table[V](SimFunc[V, float], HasMetadata):
     def __init__(
         self,
         entries: Sequence[tuple[V, V, float]] | Mapping[tuple[V, V], float],
-        default: float = 0.0,
+        default: float | None = None,
         symmetric: bool = True,
     ):
         self.default = default
@@ -90,14 +91,15 @@ class static_table[V](SimFunc[V, float], HasMetadata):
 
     @override
     def __call__(self, x: V, y: V) -> float:
-        return self.table.get((x, y), self.default)
+        sim = self.table.get((x, y), self.default)
+
+        if sim is None:
+            raise ValueError(f"Pair ({x}, {y}) not in the table")
+
+        return sim
 
 
 table = static_table
-
-
-def default_key_getter(x: Any) -> Any:
-    return x
 
 
 @dataclass(slots=True)
@@ -124,7 +126,7 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
     """
 
     symmetric: bool
-    default: BatchSimFunc[V, S]
+    default: BatchSimFunc[V, S] | None
     key_getter: Callable[[V], K]
     table: dict[tuple[K, K], BatchSimFunc[V, S]]
 
@@ -147,12 +149,13 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
 
     def __init__(
         self,
-        entries: Mapping[tuple[K, K], AnySimFunc[V, S]] | Mapping[K, AnySimFunc[V, S]],
-        default: AnySimFunc[V, S],
+        entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
+        | Mapping[K, AnySimFunc[..., S]],
+        key_getter: Callable[[V], K],
+        default: AnySimFunc[Any, S] | None = None,
         symmetric: bool = True,
-        key_getter: Callable[[V], K] = default_key_getter,
     ):
-        self.default = batchify_sim(default)
+        self.default = batchify_sim(default) if default is not None else None
         self.symmetric = symmetric
         self.key_getter = key_getter
         self.table = {}
@@ -167,18 +170,17 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
 
             self.table[(x, y)] = func
 
-            if self.symmetric:
+            if self.symmetric and x != y:
                 self.table[(y, x)] = func
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
-        # first we get the keys for each pair
-        keys = [(self.key_getter(x), self.key_getter(y)) for x, y in batches]
-
         # then we group the batches by key to avoid redundant computations
         idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
 
-        for idx, key in enumerate(keys):
+        for idx, (x, y) in enumerate(batches):
+            key = (self.key_getter(x), self.key_getter(y))
+
             if key in self.table:
                 idx_map[key].append(idx)
             else:
@@ -188,10 +190,15 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         results: dict[int, S] = {}
 
         for key, idxs in idx_map.items():
-            sim_func = self.default
+            sim_func = self.table.get(key) if key is not None else self.default
 
-            if key is not None:
-                sim_func = self.table[key]
+            if sim_func is None:
+                missing_entries = [batches[idx] for idx in idxs]
+                missing_keys = {
+                    (self.key_getter(x), self.key_getter(y)) for x, y in missing_entries
+                }
+
+                raise ValueError(f"Pairs {missing_keys} not in the table")
 
             sims = sim_func([batches[idx] for idx in idxs])
 
@@ -199,6 +206,18 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
                 results[idx] = sim
 
         return [results[idx] for idx in range(len(batches))]
+
+
+def type_table[V, S: Float](
+    entries: Mapping[type[V], AnySimFunc[..., S]],
+    default: AnySimFunc[Any, S] | None = None,
+) -> BatchSimFunc[V, S]:
+    return dynamic_table(
+        entries=entries,
+        key_getter=type,
+        default=default,
+        symmetric=False,
+    )
 
 
 @dataclass(slots=True, frozen=True)
