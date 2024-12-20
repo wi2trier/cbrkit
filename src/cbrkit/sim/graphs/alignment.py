@@ -42,7 +42,7 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         >>> g_dtw = dtw(node_similarity, edge_similarity)
         >>> result = g_dtw(graph_x, graph_y)
         >>> print(result)
-        GraphSim(value=0.05555555555555555, node_mappings={'1': '1', '2': '2'}, edge_mappings={'e1': 'e1'})
+        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'})
 
         >>> # Example with BatchSimFunc
         >>> def batch_node_similarity(pairs):
@@ -52,7 +52,7 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         >>> g_dtw_batch = dtw(batch_node_similarity, batch_edge_similarity)
         >>> result_batch = g_dtw_batch(graph_x, graph_y)
         >>> print(result_batch)
-        GraphSim(value=0.05555555555555555, node_mappings={'1': '1', '2': '2'}, edge_mappings={'e1': 'e1'})
+        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'})
     """
 
     node_sim_func: AnySimFunc
@@ -88,12 +88,12 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             self.node_sim_func, alignment
         )
 
-        node_mappings = {
+        node_mapping = {
             y_node.key: x_node.key for x_node, y_node in alignment if x_node and y_node
         }
 
         edge_similarity = None
-        edge_mappings = {}
+        edge_mapping = {}
 
         if self.edge_sim_func:
             # Use the dtwmodule for edge distances
@@ -106,7 +106,7 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 self.edge_sim_func, zip(edges_x, edges_y)
             )
 
-            edge_mappings = {
+            edge_mapping = {
                 y_edge.key: x_edge.key
                 for x_edge, y_edge in zip(edges_x, edges_y)
                 if x_edge and y_edge
@@ -123,8 +123,8 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         return GraphSim(
             value=total_similarity,
-            node_mappings=node_mappings,
-            edge_mappings=edge_mappings,
+            node_mapping=node_mapping,
+            edge_mapping=edge_mapping,
         )
 
     def _wrap_batch_func(self, func: AnySimFunc) -> AnySimFunc:
