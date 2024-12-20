@@ -86,6 +86,7 @@ with optional_dependencies():
             except ZeroDivisionError:
                 return 0.0
 
+
 @dataclass(slots=True, frozen=True)
 class SequenceSim[V, S: Float](StructuredValue[float]):
     """
@@ -96,6 +97,7 @@ class SequenceSim[V, S: Float](StructuredValue[float]):
         similarities: Optional local similarity scores as a sequence of floats.
         mapping: Optional alignment information as a sequence of tuples.
     """
+
     value: float
     similarities: Sequence[S] | None = field(default=None)
     mapping: Sequence[tuple[V, V]] | None = field(default=None)
@@ -146,7 +148,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             y = np.array(y, dtype=object)
 
         # Compute the DTW distance
-        dtw_distance, alignment, local_similarities = self.compute_dtw(x, y, return_alignment)
+        dtw_distance, alignment, local_similarities = self.compute_dtw(
+            x, y, return_alignment
+        )
 
         # Convert DTW distance to similarity
         similarity = dist2sim(dtw_distance)
@@ -251,7 +255,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             local_similarities.append(0.0)  # No similarity for unmatched
             j -= 1
 
-        return alignment[::-1], local_similarities[::-1]  # Reverse to start from the beginning
+        return alignment[::-1], local_similarities[
+            ::-1
+        ]  # Reverse to start from the beginning
 
     __all__ += ["dtw"]
 
@@ -374,7 +380,9 @@ class Weight:
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceLocalSim[S]], HasMetadata):
+class sequence_mapping[V, S: Float](
+    SimFunc[Sequence[V], SequenceLocalSim[S]], HasMetadata
+):
     """List Mapping similarity function.
 
     Parameters:
