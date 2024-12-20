@@ -25,12 +25,17 @@ with optional_dependencies():
             if self.system_message is not None:
                 messages.append(Message(role="system", content=self.system_message))
 
-            messages.extend(Message(**msg) for msg in self.messages)
+            messages.extend(
+                Message(role=msg.role, content=msg.content) for msg in self.messages
+            )
 
             if isinstance(prompt, ChatPrompt):
-                messages.extend(Message(**msg) for msg in prompt.messages)
+                messages.extend(
+                    Message(role=msg.role, content=msg.content)
+                    for msg in prompt.messages
+                )
 
-            if self.messages and self.messages[-1]["role"] == "user":
+            if self.messages and self.messages[-1].role == "user":
                 messages.append(Message(role="assistant", content=unpack_value(prompt)))
             else:
                 messages.append(Message(role="user", content=unpack_value(prompt)))

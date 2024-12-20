@@ -2,12 +2,13 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 from ...typing import BatchConversionFunc, StructuredValue
 
 
-class ChatMessage(TypedDict):
+@dataclass(slots=True, frozen=True)
+class ChatMessage:
     role: Literal["user", "assistant"]
     content: str
 

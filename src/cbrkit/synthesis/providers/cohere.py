@@ -55,13 +55,13 @@ with optional_dependencies():
 
             if isinstance(prompt, ChatPrompt):
                 messages.extend(
-                    UserChatMessageV2(content=msg["content"])
-                    if msg["role"] == "user"
-                    else AssistantChatMessageV2(content=msg["content"])
+                    UserChatMessageV2(content=msg.content)
+                    if msg.role == "user"
+                    else AssistantChatMessageV2(content=msg.content)
                     for msg in prompt.messages
                 )
 
-            if self.messages and self.messages[-1]["role"] == "user":
+            if self.messages and self.messages[-1].role == "user":
                 messages.append(AssistantChatMessageV2(content=unpack_value(prompt)))
             else:
                 messages.append(UserChatMessageV2(content=unpack_value(prompt)))
