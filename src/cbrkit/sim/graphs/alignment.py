@@ -62,9 +62,10 @@ class dtw:
 
         # Extract node distance and alignment
         node_distance = node_result.value
-        alignment = node_result.local_similarities
+        alignment = node_result.mapping  # Updated from local_similarities to mapping
         node_similarity = dist2sim(node_distance)
 
+        # Generate node mappings from alignment
         node_mappings = {
             y_node.key: x_node.key for x_node, y_node in alignment if x_node and y_node
         }
@@ -81,19 +82,22 @@ class dtw:
             edge_distance = edge_result.value
             edge_similarity = dist2sim(edge_distance)
 
+            # Generate edge mappings (assuming aligned edges)
             edge_mappings = {
                 y_edge.key: x_edge.key
                 for x_edge, y_edge in zip(edges_x, edges_y)
                 if x_edge and y_edge
             }
 
+        # Combine node and edge similarity scores
         total_similarity = (
             (node_similarity + edge_similarity) / 2.0
             if edge_similarity is not None
             else node_similarity
         )
 
-        if self.normalize and len(alignment) > 0:
+        # Normalize by alignment length if required
+        if self.normalize and alignment and len(alignment) > 0:
             total_similarity /= len(alignment)
 
         return GraphSim(
