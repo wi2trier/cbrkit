@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from .model import Graph, to_sequence, GraphSim
 from ...helpers import dist2sim
-from ...typing import AnySimFunc, BatchSimFunc
+from ...typing import AnySimFunc, BatchSimFunc,SimFunc
 from ..collections import dtw as dtwmodule
 from collections.abc import Sequence
 
@@ -9,7 +9,7 @@ __all__ = ["dtw"]
 
 
 @dataclass(slots=True, frozen=True)
-class dtw:
+class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Graph-based Dynamic Time Warping similarity function leveraging sequence alignment.
 
@@ -43,6 +43,7 @@ class dtw:
         >>> result = g_dtw(graph_x, graph_y)
         >>> print(result)
         GraphSim(value=0.05555555555555555, node_mappings={'1': '1', '2': '2'}, edge_mappings={'e1': 'e1'})
+
         >>> # Example with BatchSimFunc
         >>> def batch_node_similarity(pairs):
         ...     return [1.0 if n1.value == n2.value else 0.0 for n1, n2 in pairs]
@@ -60,9 +61,9 @@ class dtw:
 
     def __call__(
         self,
-        x: Graph,
-        y: Graph,
-    ) -> GraphSim:
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> GraphSim[K]:
         sequence_x, edges_x = to_sequence(x)
         sequence_y, edges_y = to_sequence(y)
 
