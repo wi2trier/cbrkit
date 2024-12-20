@@ -113,13 +113,15 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         key_getter: A function that extracts the the key for lookup from the input values
 
     Examples:
+        >>> from cbrkit.helpers import identity
         >>> sim = dynamic_table(
         ...     {
         ...         ("a", "b"): static(0.5),
         ...         ("b", "c"): static(0.7)
         ...     },
         ...     symmetric=True,
-        ...     default=static(0.0)
+        ...     default=static(0.0),
+        ...     key_getter=identity,
         ... )
         >>> sim([("b", "a"), ("a", "c")])
         [0.5, 0.0]
