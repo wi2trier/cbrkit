@@ -659,23 +659,15 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         open_set: list[PriorityState[K]] = []
         best_state = self.init_func(x, y)
-        best_sim = unpack_float(
-            self.past_cost_func(x, y, best_state)
-        ) + self.future_cost_func(x, y, best_state)
-        heapq.heappush(open_set, PriorityState(1 - best_sim, best_state))
+        heapq.heappush(open_set, PriorityState(0, best_state))
 
         while open_set:
             first_elem = heapq.heappop(open_set)
-            current_sim = 1 - first_elem.priority
             current_state = first_elem.state
 
-            if (
-                not current_state.remaining_nodes
-                and not current_state.remaining_edges
-                and current_sim > best_sim
-            ):
-                best_sim = current_sim
+            if not current_state.remaining_nodes and not current_state.remaining_edges:
                 best_state = current_state
+                break
 
             for next_state in self.expand(x, y, current_state):
                 next_sim = unpack_float(
@@ -686,12 +678,12 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             if self.queue_limit > 0 and len(open_set) > self.queue_limit:
                 open_set = open_set[: self.queue_limit]
 
-        actual_cost = self.past_cost_func(x, y, best_state)
+        sim = self.past_cost_func(x, y, best_state)
 
         return GraphSim(
-            unpack_float(actual_cost),
+            unpack_float(sim),
             best_state.mapped_nodes,
             best_state.mapped_edges,
-            actual_cost.node_similarities if isinstance(actual_cost, PastCost) else {},
-            actual_cost.edge_similarities if isinstance(actual_cost, PastCost) else {},
+            sim.node_similarities if isinstance(sim, PastCost) else {},
+            sim.edge_similarities if isinstance(sim, PastCost) else {},
         )
