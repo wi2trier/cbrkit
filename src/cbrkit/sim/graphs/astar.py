@@ -335,6 +335,9 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         if s.remaining_nodes:
             return next(iter(s.remaining_nodes)), "node"
 
+        if s.remaining_edges:
+            return next(iter(s.remaining_edges)), "edge"
+
         return None
 
 
