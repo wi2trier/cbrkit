@@ -170,6 +170,7 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
 
     return True
 
+
 def to_sequence(graph: Graph) -> tuple[list[Node], list[Edge]]:
     """
     Extract nodes and edges of a graph in sequential order.
@@ -199,13 +200,16 @@ def to_sequence(graph: Graph) -> tuple[list[Node], list[Edge]]:
             edge for edge in graph.edges.values() if edge.source.key == current_node.key
         ]
         if len(outgoing_edges) > 1:
-            raise ValueError("Graph is not sequential (node has multiple outgoing edges)")
+            raise ValueError(
+                "Graph is not sequential (node has multiple outgoing edges)"
+            )
         if outgoing_edges:
             edges.append(outgoing_edges[0])
             current_node = outgoing_edges[0].target
         else:
             current_node = None
     return nodes, edges
+
 
 with optional_dependencies():
     import rustworkx
