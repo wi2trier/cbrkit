@@ -566,37 +566,16 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> list[State[K]]:
         """Expand a given edge and its queue"""
 
-        next_states: list[State[K]] = []
-        y_value = y.edges[y_key]
-
-        for x_key in x.edges.keys():
-            x_value = x.edges[x_key]
-
-            if is_legal_edge_mapping(x, y, state, x_key, y_key, self.edge_matcher):
-                # optimization: if the nodes are not mapped yet, map them since this is required for a legal mapping
-                mapped_nodes = state.mapped_nodes
-                remaining_nodes = state.remaining_nodes
-
-                if y_value.source.key not in mapped_nodes:
-                    mapped_nodes = mapped_nodes.set(
-                        y_value.source.key, x_value.source.key
-                    )
-                    remaining_nodes -= {y_value.source.key}
-
-                if y_value.target.key not in mapped_nodes:
-                    mapped_nodes = mapped_nodes.set(
-                        y_value.target.key, x_value.target.key
-                    )
-                    remaining_nodes -= {y_value.target.key}
-
-                next_states.append(
-                    State(
-                        mapped_nodes,
-                        state.mapped_edges.set(y_key, x_key),
-                        remaining_nodes,
-                        state.remaining_edges - {y_key},
-                    )
-                )
+        next_states: list[State[K]] = [
+            State(
+                state.mapped_nodes,
+                state.mapped_edges.set(y_key, x_key),
+                state.remaining_nodes,
+                state.remaining_edges - {y_key},
+            )
+            for x_key in x.edges.keys()
+            if is_legal_edge_mapping(x, y, state, x_key, y_key, self.edge_matcher)
+        ]
 
         if not next_states:
             next_states.append(
