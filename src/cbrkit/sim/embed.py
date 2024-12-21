@@ -141,20 +141,17 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 @dataclass(slots=True, init=False)
 class cache(KeyValueStore[str, NumpyArray]):
-    func: BatchConversionFunc[str, NumpyArray]
+    func: BatchConversionFunc[str, NumpyArray] | None
     path: FilePath | None
-    frozen: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
     def __init__(
         self,
-        func: AnyConversionFunc[str, NumpyArray],
+        func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
-        frozen: bool = False,
     ):
-        self.func = batchify_conversion(func)
+        self.func = batchify_conversion(func) if func is not None else None
         self.path = path
-        self.frozen = frozen
         self.store = {}
 
     def __post_init__(self) -> None:
@@ -171,7 +168,7 @@ class cache(KeyValueStore[str, NumpyArray]):
         np.savez_compressed(self.path, **self.store)
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if not self.frozen:
+        if self.func:
             new_texts = [text for text in texts if text not in self.store]
             self.store.update(zip(new_texts, self.func(new_texts), strict=True))
 
