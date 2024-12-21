@@ -31,7 +31,7 @@ def test_retrieve_multiprocessing():
                 },
                 aggregator=cbrkit.sim.aggregator(pooling="mean"),
             ),
-            processes=2,
+            multiprocessing=2,
         )
     )
     result = cbrkit.retrieval.apply_query(

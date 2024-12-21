@@ -1,13 +1,15 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from multiprocessing import Pool
+from multiprocessing.pool import Pool
 from typing import override
 
 from ..helpers import (
     batchify_sim,
     chunkify,
+    mp_map,
     sim_map2ranking,
     unpack_float,
+    use_mp,
 )
 from ..typing import (
     AnySimFunc,
@@ -116,8 +118,8 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     """
 
     similarity_func: AnySimFunc[V, S]
-    processes: int = 1
-    similarity_chunksize: int = 1
+    multiprocessing: Pool | int | None = None
+    chunksize: int = 10
 
     @override
     def __call__(
@@ -137,15 +139,13 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
                 flat_batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        if self.processes != 1:
-            pool_processes = None if self.processes <= 0 else self.processes
-            pair_chunks = chunkify(flat_batches, self.similarity_chunksize)
-
-            with Pool(pool_processes) as pool:
-                sim_chunks = pool.map(sim_func, pair_chunks)
+        if use_mp(self.multiprocessing):
+            pair_chunks = chunkify(flat_batches, self.chunksize)
+            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing)
 
             for sim_chunk in sim_chunks:
                 flat_sims.extend(sim_chunk)
+
         else:
             flat_sims = sim_func(flat_batches)
 
