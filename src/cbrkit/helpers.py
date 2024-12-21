@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
+from multiprocessing.pool import Pool
 from typing import Any, ClassVar, Literal, cast, override
 
 from .typing import (
@@ -436,3 +437,41 @@ def get_logger(obj: Any) -> logging.Logger:
         name += f".{obj.__qualname__}"
 
     return logging.getLogger(name)
+
+
+def use_mp(pool_or_processes: Pool | int | None) -> bool:
+    return pool_or_processes is not None and pool_or_processes != 1
+
+
+def mp_map[U, V](
+    func: Callable[[U], V],
+    batches: Iterable[U],
+    pool_or_processes: Pool | int | None,
+) -> list[V]:
+    if isinstance(pool_or_processes, int):
+        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
+        pool = Pool(pool_processes)
+    elif isinstance(pool_or_processes, Pool):
+        pool = pool_or_processes
+    else:
+        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+    with pool as p:
+        return p.map(func, batches)
+
+
+def mp_starmap[*Us, V](
+    func: Callable[[*Us], V],
+    batches: Iterable[tuple[*Us]],
+    pool_or_processes: Pool | int | None,
+) -> list[V]:
+    if isinstance(pool_or_processes, int):
+        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
+        pool = Pool(pool_processes)
+    elif isinstance(pool_or_processes, Pool):
+        pool = pool_or_processes
+    else:
+        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+    with pool as p:
+        return p.starmap(func, batches)

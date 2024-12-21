@@ -1,9 +1,10 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from inspect import signature as inspect_signature
-from multiprocessing import Pool
+from multiprocessing.pool import Pool
 from typing import cast, override
 
+from ..helpers import mp_starmap, use_mp
 from ..typing import (
     AdaptationFunc,
     AnyAdaptationFunc,
@@ -32,7 +33,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
     adaptation_func: AnyAdaptationFunc[K, V]
     retriever_func: RetrieverFunc[K, V, S]
-    processes: int = 1
+    multiprocessing: Pool | int | None = None
 
     @override
     def __call__(
@@ -68,11 +69,12 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 adaptation_func,
             )
 
-            if self.processes != 1:
-                pool_processes = None if self.processes <= 0 else self.processes
-
-                with Pool(pool_processes) as pool:
-                    adaptation_results = pool.starmap(adaptation_func, batches)
+            if use_mp(self.multiprocessing):
+                adaptation_results = mp_starmap(
+                    adapt_func,
+                    batches,
+                    self.multiprocessing,
+                )
             else:
                 adaptation_results = [
                     adapt_func(casebase, query) for casebase, query in batches
@@ -96,14 +98,12 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        if self.processes != 1:
-            pool_processes = None if self.processes <= 0 else self.processes
-
-            with Pool(pool_processes) as pool:
-                adapted_cases = pool.starmap(
-                    adapt_func,
-                    flat_batches,
-                )
+        if use_mp(self.multiprocessing):
+            adapted_cases = mp_starmap(
+                adapt_func,
+                flat_batches,
+                self.multiprocessing,
+            )
         else:
             adapted_cases = [adapt_func(case, query) for case, query in flat_batches]
 
