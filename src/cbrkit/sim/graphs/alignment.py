@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from .model import Graph, to_sequence, GraphSim
-from ...helpers import dist2sim
+from ...helpers import dist2sim, batchify_sim, unbatchify_sim
 from ...typing import AnySimFunc, BatchSimFunc, SimFunc
 from ..collections import dtw as dtwmodule
 from collections.abc import Sequence
@@ -68,12 +68,10 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         sequence_x, edges_x = to_sequence(x)  # sequence_x: list[N], edges_x: list[E]
         sequence_y, edges_y = to_sequence(y)  # sequence_y: list[N], edges_y: list[E]
 
-        # Wrap BatchSimFunc if necessary
-        wrapped_node_sim_func = self._wrap_batch_func(self.node_sim_func)
+        # Convert sim funcs into normal (pairwise) calls
+        wrapped_node_sim_func = unbatchify_sim(self.node_sim_func)
         wrapped_edge_sim_func = (
-            self._wrap_batch_func(self.edge_sim_func)
-            if self.edge_sim_func is not None
-            else None
+            unbatchify_sim(self.edge_sim_func) if self.edge_sim_func is not None else None
         )
 
         # Use the dtwmodule for node distances
@@ -84,9 +82,12 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         # Extract alignment and node distance
         alignment = node_result.mapping
         node_distance = node_result.value
-        node_similarity = self._compute_similarity_from_func(
-            self.node_sim_func, alignment
-        )
+
+        # Batchify for node similarity calculation over alignment pairs
+        batch_node_sim_func = batchify_sim(self.node_sim_func)
+        node_pairs = [(x_node, y_node) for x_node, y_node in alignment if x_node and y_node]
+        node_sims = batch_node_sim_func(node_pairs)
+        node_similarity = sum(node_sims) / len(node_sims) if node_sims else 0.0
 
         node_mapping = {
             y_node.key: x_node.key for x_node, y_node in alignment if x_node and y_node
@@ -102,9 +103,12 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             )
 
             edge_distance = edge_result.value
-            edge_similarity = self._compute_similarity_from_func(
-                self.edge_sim_func, zip(edges_x, edges_y)
-            )
+
+            # Batchify for edge similarity
+            batch_edge_sim_func = batchify_sim(self.edge_sim_func)
+            edge_pairs = list(zip(edges_x, edges_y))
+            edge_sims = batch_edge_sim_func(edge_pairs)
+            edge_similarity = sum(edge_sims) / len(edge_sims) if edge_sims else 0.0
 
             edge_mapping = {
                 y_edge.key: x_edge.key
@@ -126,43 +130,3 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             node_mapping=node_mapping,
             edge_mapping=edge_mapping,
         )
-
-    def _wrap_batch_func(self, func: AnySimFunc) -> AnySimFunc:
-        """
-        Wrap a BatchSimFunc to behave like a SimFunc for pairwise comparisons.
-
-        Args:
-            func: The similarity function (SimFunc or BatchSimFunc).
-
-        Returns:
-            A function that can handle pairwise comparisons.
-        """
-        def wrapper(a, b):
-            try:
-                return func([(a, b)])[0]  # Call the batch function with one pair
-            except TypeError:
-                return func(a, b)  # Treat as SimFunc if batch fails
-        return wrapper
-
-    def _compute_similarity_from_func(
-        self, sim_func: AnySimFunc, pairs: Sequence[tuple]
-    ) -> float:
-        """
-        Compute the similarity from either a SimFunc or BatchSimFunc.
-
-        Args:
-            sim_func: The similarity function (SimFunc or BatchSimFunc).
-            pairs: A sequence of pairs to compare.
-
-        Returns:
-            The combined similarity score as a float.
-        """
-        try:
-            # Try treating it as a BatchSimFunc by passing the whole batch
-            similarities = sim_func(pairs)
-            if isinstance(similarities, Sequence):  # If it returns a sequence, treat it as BatchSimFunc
-                return sum(similarities) / len(similarities) if similarities else 0.0
-        except TypeError:
-            # Fallback to treating it as a SimFunc
-            similarities = [sim_func(a, b) for a, b in pairs]
-            return sum(similarities) / len(similarities) if similarities else 0.0

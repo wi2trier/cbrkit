@@ -16,7 +16,6 @@ __all__ = [
     "sequence_mapping",
     "sequence_correctness",
     "SequenceSim",
-    "SequenceLocalSim",
     "Weight",
     "jaccard",
     "smith_waterman",
@@ -260,6 +259,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         ]  # Reverse to start from the beginning
 
     __all__ += ["dtw"]
+    __all__ += ["dtw"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -363,12 +363,6 @@ class mapping[V](SimFunc[Sequence[V], float]):
         return best_score
 
 
-@dataclass(slots=True, frozen=True)
-class SequenceLocalSim[S: Float](StructuredValue[float]):
-    value: float
-    local_similarities: Sequence[S] = field(default_factory=tuple)
-
-
 @dataclass
 class Weight:
     weight: float
@@ -380,22 +374,21 @@ class Weight:
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_mapping[V, S: Float](
-    SimFunc[Sequence[V], SequenceLocalSim[S]], HasMetadata
-):
-    """List Mapping similarity function.
+class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata):
+    """
+    List Mapping similarity function.
 
     Parameters:
-    element_similarity: The similarity function to use for comparing elements.
-    exact: Whether to use exact or inexact comparison. Default is False (inexact).
-    weights: Optional list of weights for weighted similarity calculation.
+        element_similarity: The similarity function to use for comparing elements.
+        exact: Whether to use exact or inexact comparison. Default is False (inexact).
+        weights: Optional list of weights for weighted similarity calculation.
 
     Examples:
         >>> sim = sequence_mapping(lambda x, y: 1.0 if x == y else 0.0, True)
         >>> result = sim(["a", "b", "c"], ["a", "b", "c"])
         >>> result.value
         1.0
-        >>> result.local_similarities
+        >>> result.similarities
         [1.0, 1.0, 1.0]
     """
 
@@ -404,7 +397,6 @@ class sequence_mapping[V, S: Float](
     weights: list[Weight] | None = None
 
     @property
-    @override
     def metadata(self) -> JsonDict:
         return {
             "element_similarity": get_metadata(self.element_similarity),
@@ -416,9 +408,9 @@ class sequence_mapping[V, S: Float](
 
     def compute_contains_exact(
         self, list1: Sequence[V], list2: Sequence[V]
-    ) -> SequenceLocalSim[S]:
+    ) -> SequenceSim[V, S]:
         if len(list1) != len(list2):
-            return SequenceLocalSim(value=0.0)
+            return SequenceSim(value=0.0, similarities=None, mapping=None)
 
         sim_sum = 0.0
         local_similarities: list[S] = []
@@ -428,15 +420,17 @@ class sequence_mapping[V, S: Float](
             sim_sum += unpack_float(sim)
             local_similarities.append(sim)
 
-        return SequenceLocalSim(
-            value=sim_sum / len(list1), local_similarities=local_similarities
+        return SequenceSim(
+            value=sim_sum / len(list1),
+            similarities=local_similarities,
+            mapping=None,
         )
 
     def compute_contains_inexact(
         self, larger_list: Sequence[V], smaller_list: Sequence[V]
-    ) -> SequenceLocalSim[S]:
+    ) -> SequenceSim[V, S]:
         max_similarity = -1.0
-        best_local_similarities = []
+        best_local_similarities: list[S] = []
 
         for i in range(len(larger_list) - len(smaller_list) + 1):
             sublist = larger_list[i : i + len(smaller_list)]
@@ -444,14 +438,13 @@ class sequence_mapping[V, S: Float](
 
             if sim_result.value > max_similarity:
                 max_similarity = sim_result.value
-                best_local_similarities = sim_result.local_similarities
+                best_local_similarities = sim_result.similarities or []
 
-        return SequenceLocalSim(
-            value=max_similarity, local_similarities=best_local_similarities
+        return SequenceSim(
+            value=max_similarity, similarities=best_local_similarities, mapping=None
         )
 
-    @override
-    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceLocalSim[S]:
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
         if self.exact:
             result = self.compute_contains_exact(x, y)
         else:
@@ -460,7 +453,7 @@ class sequence_mapping[V, S: Float](
             else:
                 result = self.compute_contains_inexact(y, x)
 
-        if self.weights:
+        if self.weights and result.similarities:
             total_weighted_sim = 0.0
             total_weight = 0.0
 
@@ -469,8 +462,8 @@ class sequence_mapping[V, S: Float](
                 weight_range = weight.upper_bound - weight.lower_bound
                 weight.normalized_weight = weight.weight / weight_range
 
-            for sim in result.local_similarities:
-                sim = unpack_float(sim)
+            for sim in result.similarities:
+                sim_val = unpack_float(sim)
 
                 for weight in self.weights:
                     lower_bound = weight.lower_bound
@@ -478,12 +471,13 @@ class sequence_mapping[V, S: Float](
                     inclusive_lower = weight.inclusive_lower
                     inclusive_upper = weight.inclusive_upper
 
+                    # Check if sim_val falls within weight's bounds
                     if (
-                        (inclusive_lower and lower_bound <= sim <= upper_bound)
-                        or (not inclusive_lower and lower_bound < sim <= upper_bound)
-                    ) and (inclusive_upper or sim < upper_bound):
+                        (inclusive_lower and lower_bound <= sim_val <= upper_bound)
+                        or (not inclusive_lower and lower_bound < sim_val <= upper_bound)
+                    ) and (inclusive_upper or sim_val < upper_bound):
                         assert weight.normalized_weight is not None
-                        weighted_sim = weight.normalized_weight * sim
+                        weighted_sim = weight.normalized_weight * sim_val
                         total_weighted_sim += weighted_sim
                         total_weight += weight.normalized_weight
 
@@ -492,8 +486,10 @@ class sequence_mapping[V, S: Float](
             else:
                 final_similarity = result.value
 
-            return SequenceLocalSim(
-                value=final_similarity, local_similarities=result.local_similarities
+            return SequenceSim(
+                value=final_similarity,
+                similarities=result.similarities,
+                mapping=result.mapping,
             )
 
         return result
