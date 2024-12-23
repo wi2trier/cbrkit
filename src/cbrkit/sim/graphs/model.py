@@ -211,7 +211,6 @@ def to_sequence[K, N, E, G](graph: Graph[K, N, E, G]) -> tuple[list[N], list[E]]
     return nodes, edges
 
 
-
 with optional_dependencies():
     import rustworkx
 

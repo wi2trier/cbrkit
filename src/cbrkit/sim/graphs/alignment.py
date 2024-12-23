@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from .model import Graph, to_sequence, GraphSim
 from ...helpers import batchify_sim, unbatchify_sim
-from ...typing import AnySimFunc, BatchSimFunc, SimFunc
+from ...typing import AnySimFunc, SimFunc
 from ..collections import dtw as dtwmodule
 
 __all__ = ["dtw"]
@@ -80,7 +80,9 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # Batchify for node similarity calculation over alignment pairs
         batch_node_sim_func = batchify_sim(self.node_sim_func)
-        node_pairs = [(x_node, y_node) for x_node, y_node in alignment if x_node and y_node]
+        node_pairs = [
+            (x_node, y_node) for x_node, y_node in alignment if x_node and y_node
+        ]
         node_sims = batch_node_sim_func(node_pairs)
         node_similarity = sum(node_sims) / len(node_sims) if node_sims else 0.0
 

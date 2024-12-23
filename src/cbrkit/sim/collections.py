@@ -374,7 +374,9 @@ class Weight:
 
 
 @dataclass(slots=True, frozen=True)
-class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata):
+class sequence_mapping[V, S: Float](
+    SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata
+):
     """
     List Mapping similarity function.
 
@@ -474,7 +476,9 @@ class sequence_mapping[V, S: Float](SimFunc[Sequence[V], SequenceSim[V, S]], Has
                     # Check if sim_val falls within weight's bounds
                     if (
                         (inclusive_lower and lower_bound <= sim_val <= upper_bound)
-                        or (not inclusive_lower and lower_bound < sim_val <= upper_bound)
+                        or (
+                            not inclusive_lower and lower_bound < sim_val <= upper_bound
+                        )
                     ) and (inclusive_upper or sim_val < upper_bound):
                         assert weight.normalized_weight is not None
                         weighted_sim = weight.normalized_weight * sim_val
