@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 from .model import Graph, to_sequence, GraphSim
-from ...helpers import dist2sim, batchify_sim, unbatchify_sim
+from ...helpers import batchify_sim, unbatchify_sim
 from ...typing import AnySimFunc, BatchSimFunc, SimFunc
 from ..collections import dtw as dtwmodule
-from collections.abc import Sequence
 
 __all__ = ["dtw"]
 
@@ -70,9 +69,6 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # Convert sim funcs into normal (pairwise) calls
         wrapped_node_sim_func = unbatchify_sim(self.node_sim_func)
-        wrapped_edge_sim_func = (
-            unbatchify_sim(self.edge_sim_func) if self.edge_sim_func is not None else None
-        )
 
         # Use the dtwmodule for node distances
         node_result = dtwmodule(distance_func=wrapped_node_sim_func)(
@@ -81,7 +77,6 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # Extract alignment and node distance
         alignment = node_result.mapping
-        node_distance = node_result.value
 
         # Batchify for node similarity calculation over alignment pairs
         batch_node_sim_func = batchify_sim(self.node_sim_func)
@@ -97,13 +92,6 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         edge_mapping = {}
 
         if self.edge_sim_func:
-            # Use the dtwmodule for edge distances
-            edge_result = dtwmodule(distance_func=wrapped_edge_sim_func)(
-                edges_x, edges_y, return_alignment=False
-            )
-
-            edge_distance = edge_result.value
-
             # Batchify for edge similarity
             batch_edge_sim_func = batchify_sim(self.edge_sim_func)
             edge_pairs = list(zip(edges_x, edges_y))
