@@ -89,10 +89,8 @@ with optional_dependencies():
                 messages.append({"role": "user", "content": unpack_value(prompt)})
 
             tool = pydantic_to_anthropic_schema(self.response_type) if issubclass(self.response_type, BaseModel) else None
-            print(tool)
 
             toolchoice = cast(ToolChoiceParam, {"type": "tool", "name": tool["name"]}) if tool is not None else None
-            print(toolchoice)
             tool = cast(ToolParam, tool) if tool is not None else None
             res = await self.client.messages.create(
                 model=self.model,
