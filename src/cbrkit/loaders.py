@@ -3,7 +3,7 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
-import pytomlpp
+import rtoml
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,8 +118,9 @@ class toml(ConversionFunc[str | IO, dict[str, Any]]):
 
     def __call__(self, source: str | IO) -> dict[str, Any]:
         if isinstance(source, str):
-            return pytomlpp.loads(source)
-        return pytomlpp.load(source)
+            return rtoml.loads(source)
+        s = source.read().decode("utf-8")
+        return rtoml.loads(s)
 
 
 @dataclass(slots=True, frozen=True)

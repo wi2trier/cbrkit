@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import orjson
-import pytomlpp
+import rtoml
 import polars as pl
 import yaml as yamllib
 
@@ -27,7 +27,8 @@ class toml(ConversionFunc[Any, str]):
     """
 
     def __call__(self, obj: Any) -> str:
-        return pytomlpp.dumps(obj)
+        obj = {f"i{k}": v for k, v in obj.items()}
+        return rtoml.dumps(obj)
     
     
 @dataclass(slots=True, frozen=True)
@@ -109,6 +110,8 @@ class json(ConversionFunc[Any, bytes]):
     option: int | None = None
 
     def __call__(self, obj: Any) -> bytes:
+        if isinstance(obj, dict) and any(not isinstance(obj, str) for t in (dict, list)):
+            obj = {str(k): v for k, v in obj.items()}
         return orjson.dumps(obj, default=self.default, option=self.option)
 
 
