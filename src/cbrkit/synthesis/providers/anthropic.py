@@ -1,13 +1,13 @@
 import json
 from dataclasses import dataclass, field
-from typing import Any, Type, cast, override, Iterable, List, Literal, Sequence
+from typing import Type, cast, override, Iterable, List, Literal, Sequence
 
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies, unpack_value
 from .model import ChatPrompt, ChatProvider
 
-def pydantic_to_anthropic_schema(model: Type[BaseModel], description: str = "") -> tuple[str, str]:
+def pydantic_to_anthropic_schema(model: Type[BaseModel], description: str = "") -> dict:
     """
     Convert a Pydantic model to an Anthropic-compatible JSON schema format.
 
@@ -24,26 +24,25 @@ def pydantic_to_anthropic_schema(model: Type[BaseModel], description: str = "") 
     # Extract the model name
     name = model.__name__
 
-    # Create the Anthropic-compatible schema structure
+    # Create the Anthropic-compatible schema structure 
     anthropic_schema = {
         "name": name,
         "description": description,
-        "parameters": {
+        "input_schema": {
             "type": "object",
             "properties": schema.get("properties", {}),
-            "title": schema.get("title", name)
         }
     }
 
     # Add required fields if they exist
     if "required" in schema:
-        anthropic_schema["parameters"]["required"] = schema["required"]
+        anthropic_schema["input_schema"]["required"] = schema["required"]
 
-    return name, json.dumps(anthropic_schema, indent=2)
+    return anthropic_schema
 
 with optional_dependencies():
     from anthropic import AsyncAnthropic
-    from anthropic.types import MessageParam, ModelParam, MetadataParam, TextBlockParam, ToolChoiceParam, ToolParam, ToolUseBlock
+    from anthropic.types import MessageParam, ModelParam, MetadataParam, TextBlockParam, ToolChoiceParam, ToolParam
     from anthropic._types import NOT_GIVEN, Headers, Query, Body, NotGiven
     from httpx import Timeout
 
@@ -89,16 +88,18 @@ with optional_dependencies():
             else:
                 messages.append({"role": "user", "content": unpack_value(prompt)})
 
-            toolname, tool = cast(ToolParam, pydantic_to_anthropic_schema(self.response_type)) if issubclass(self.response_type, BaseModel) else None, None
+            tool = pydantic_to_anthropic_schema(self.response_type) if issubclass(self.response_type, BaseModel) else None
+            print(tool)
 
-            toolchoice = cast(ToolChoiceParam, {"type": "tool", "name": toolname})
-
+            toolchoice = cast(ToolChoiceParam, {"type": "tool", "name": tool["name"]}) if tool is not None else None
+            print(toolchoice)
+            tool = cast(ToolParam, tool) if tool is not None else None
             res = await self.client.messages.create(
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
                 tools=[tool] if tool is not None else NOT_GIVEN,
-                tool_choice= toolchoice if toolname is not None else NOT_GIVEN,
+                tool_choice= toolchoice if toolchoice is not None else NOT_GIVEN,
             )
             if issubclass(self.response_type, BaseModel):
                 # res.content should contain one ToolUseBlock

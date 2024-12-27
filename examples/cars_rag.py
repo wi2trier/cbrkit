@@ -2,8 +2,9 @@
 import polars as pl
 
 import cbrkit
+from pydantic import BaseModel
 
-df = pl.read_csv("data/cars-1k.csv")
+df = pl.read_csv("data/cars-1k.csv").head(10)
 casebase = cbrkit.loaders.polars(df)
 
 sim_func = cbrkit.sim.attribute_value(
@@ -20,8 +21,14 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
+class Response(BaseModel):
+    car: str
+    price: float
+    summary: str
+
+
 synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.openai(model="gpt-4o", response_type=str),
+    cbrkit.synthesis.providers.anthropic(model="claude-3-haiku-20240307", response_type=Response, max_tokens=200),
     cbrkit.synthesis.prompts.default(
         "Give me a summary of the found cars.",
         metadata=cbrkit.helpers.get_metadata(sim_func),
@@ -30,10 +37,9 @@ synthesizer = cbrkit.synthesis.build(
 
 retrieval = cbrkit.retrieval.apply_query(
     casebase,
-    casebase[42],
+    casebase[0],
     retriever,
 )
-
 response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
 
 print(response)
