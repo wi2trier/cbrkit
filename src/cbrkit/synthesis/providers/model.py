@@ -31,7 +31,19 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
-        return asyncio.run(self.__call_batches__(batches))
+        try:
+            return asyncio.run(self.__call_batches__(batches))
+        except RuntimeError:
+            # If event loop is closed, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(self.__call_batches__(batches))
+            finally:
+                loop.close()
+
+    async def acall(self, batches: Sequence[P]) -> Sequence[R]:
+        return await self.__call_batches__(batches)
 
     async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
         return await asyncio.gather(*(self.__call_batch__(batch) for batch in batches))
