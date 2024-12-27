@@ -42,7 +42,6 @@ dependencies = [
     "pandas>=2,<3",
     "polars>=1,<2",
     "pydantic>=2,<3",
-    "pytomlpp>=1.0.13",
     "pyyaml>=6,<7",
     "rtoml>=0.12,<1",
     "scipy>=1,<2",
