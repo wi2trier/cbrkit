@@ -36,12 +36,13 @@ To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-d
 Further examples can be found in our [tests](./tests/test_retrieve.py) and [documentation](https://wi2trier.github.io/cbrkit/).
 The following modules are part of CBRkit:
 
-- `cbrkit.loaders`: Functions for loading cases and queries.
+- `cbrkit.loaders` and `cbrkit.dumpers`: Functions for loading and exporting cases and queries.
 - `cbrkit.sim`: Similarity generator functions for common data types like strings and numbers.
 - `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines.
 - `cbrkit.adapt`: Adaptation generator functions for adapting cases based on a query.
 - `cbrkit.reuse`: Functions for defining and applying reuse pipelines.
 - `cbrkit.typing`: Generic type definitions for defining custom functions.
+- `cbrkit.synthesis`: Functions for working on a casebase with LLMs to create new insights, e.g. in a RAG context.
 
 ## Installation
 
@@ -68,10 +69,25 @@ where `EXTRA_NAME` is one of the following:
 - `timeseries`: Time series similarity measures like `dtw` and `smith_waterman`
 - `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
 
+Alternatively, you can also clone this git repository and install CBRKit and its dependencies via uv: `uv pip install ".[all]"`
+
 ## Loading Cases
 
 The first step is to load cases and queries.
-We provide predefined functions for the most common formats like CSV, JSON, and XML.
+We provide predefined functions for the following formats:
+- csv
+- json
+- toml
+- xml
+- yaml
+- py (object inside of a python file).
+
+Loading one of those formats can be done via the `file` function:
+```python
+import cbrkit
+casebase = cbrkit.loaders.file("path/to/cases.[json,toml,yaml,xml,csv]")
+```
+
 Additionally, CBRkit also integrates with `polars` and `pandas` for loading data frames.
 The following example shows how to load cases and queries from a CSV file using `polars`:
 
@@ -83,16 +99,10 @@ df = pl.read_csv("path/to/cases.csv")
 casebase = cbrkit.loaders.polars(df)
 ```
 
-When dealing with formats like json, toml, yaml, or xml, the files can be loaded using
-
-```python
-casebase = cbrkit.loaders.file("path/to/cases.[json,toml,yaml,xml,csv]")
-```
-
 ## Defining Queries
 
 CBRkit expects the type of the queries to match the type of the cases.
-You may define a single query directly in Python as follows
+You may define a single query directly in Python as a dict:
 
 ```python
 query = {"name": "John", "age": 25}
@@ -103,7 +113,7 @@ If you have a collection of queries, you can load them using the same loader fun
 ```python
  # for polars
 queries = cbrkit.loaders.polars(pl.read_csv("path/to/queries.csv"))
-# for any other file format
+# for any other supported file format
 queries = cbrkit.loaders.file("path/to/queries.[json,toml,yaml,xml,csv]")
 ```
 
@@ -120,10 +130,10 @@ It is possible to define custom measures, use built-in ones, or combine both.
 
 ### Custom Similarity Measures
 
-In CBRkit, a similarity measure is defined as a function that takes two arguments (a case and a query) and returns a similarity score: `sim = f(x, y)`.
+In CBRkit, a similarity measure is defined as a function that compares two arguments (a case and a query) and returns a similarity score: `sim = f(x, y)`.
 It also supports pipeline-based similarity measures that are popular in NLP where a list of tuples is passed to the similarity measure: `sims = f([(x1, y1), (x2, y2), ...])`.
 This generic approach allows you to define custom similarity measures for your specific use case.
-For instance, the following function not only checks for strict equality, but also for partial matches (e.g., `x = "blue"` and `y = "light blue"`):
+For instance, the following function, which can be used to compare a string attribute of a case and a query, not only checks for strict equality, but also for partial matches (e.g., `x = "blue"` and `y = "light blue"`):
 
 ```python
 def color_similarity(x: str, y: str) -> float:
@@ -210,6 +220,7 @@ You first build a retrieval pipeline by specifying a global similarity function 
 ```python
 retriever = cbrkit.retrieval.build(
     cbrkit.sim.attribute_value(...),
+    limit=10,
 )
 ```
 
@@ -224,6 +235,8 @@ Our result has the following attributes:
 - `similarities`: A dictionary containing the similarity scores for each case.
 - `ranking` A list of case indices sorted by their similarity score.
 - `casebase` The casebase containing only the retrieved cases (useful for downstream tasks).
+
+An example using the provided `cars-1k` dataset can be found under [examples/cars_retriever.py](https://github.com/wi2trier/cbrkit/blob/main/examples/cars_retriever.py).
 
 In some cases, it is useful to combine multiple retrieval pipelines, for example when applying the MAC/FAC pattern where a cheap pre-filter is applied to the whole casebase before a more expensive similarity measure is applied on the remaining cases.
 To use this pattern, first create the corresponding retrievers using the builder:
@@ -250,7 +263,9 @@ The returned result also has these entries which are an alias for the correspond
 ## Adaptation Functions
 
 Case adaptation is a crucial step in the CBR cycle that allows us to modify retrieved cases to better suit the current query.
-CBRkit offers both built-in adaptation functions for common scenarios and the flexibility to define custom adaptation logic.
+CBRkit offers both built-in adaptation functions for common scenarios and the flexibility to define custom adaptation logic. 
+
+**Please note:** `cbrkit.adapt` contains the built-in adaption functions. To apply these (or custom adaption functions) to your actual casebase, please refer to [Reuse](#reuse).
 
 ### Custom Adaptation Functions
 
@@ -278,7 +293,9 @@ They are provided through **generator functions** that allow you to customize th
 For example, a number aggregator can be obtained as follows:
 
 ```python
-number_adapter = cbrkit.adapt.numbers.aggregate()
+# pooling must be a PoolingFunction or one of the provided PoolingNames
+pooling = "mean"
+number_adapter = cbrkit.adapt.numbers.aggregate(pooling)
 ```
 
 **Please note:** Calling the function `cbrkit.adapt.numbers.aggregate` returns an adaptation function that takes a collection of values and returns an adapted value.
@@ -300,7 +317,7 @@ You may even nest adaptation functions to handle object-oriented cases.
 
 An overview of all available adaptation functions can be found in the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/adapt.html).
 
-## Reuse
+## Reuse <a name="reuse"></a>
 
 The reuse phase applies adaptation functions to retrieved cases. The `cbrkit.reuse` module provides utility functions for this purpose. You first build a reuse pipeline by specifying a global adaptation function:
 
@@ -387,19 +404,65 @@ metrics = cbrkit.eval.metrics_at_k(["precision", "recall", "f1"], [1, 5, 10])
 
 ## Synthesis
 
-In the context of CBRkit, synthesis refers to creating new insights from the cases which were retrieved in a previous retrieval step, for example in a RAG context. CBRkit builds a synthesizer using the function `cbrkit.synthesis.build()` with a provider and a prompt. A synthesizer maps a `Result` (obtained through `cbrkit.retrieval.apply_query`) to an LLM output (can be a string or structurized). An example can be found in `examples/cars_rag.py`.
+In the context of CBRkit, synthesis refers to creating new insights from the cases which were retrieved in a previous retrieval step, for example in a RAG context. CBRkit builds a synthesizer using the function `cbrkit.synthesis.build` with a `provider` and a `prompt`. A synthesizer maps a `Result` (obtained in the retrieval step) to an LLM output (can be a string or structurized). An example can be found in [examples/cars_rag.py](https://github.com/wi2trier/cbrkit/blob/main/examples/cars_rag.py).
 
 The following **providers** are currently supported if a valid API key is stored the respective environment variable:
-- OpenAI (OPENAI_API_KEY)
-- Anthropic (ANTHROPIC_API_KEY)
-- Cohere (CO_API_KEY)
+- OpenAI (`OPENAI_API_KEY`)
+- Anthropic (`ANTHROPIC_API_KEY`)
+- Cohere (`CO_API_KEY`)
 - Ollama
 
-The respective provider class in `cbrkit.synthesis.providers` has to be initialized with the model name and a response type (either `str` or a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)). Further model options like `temperature`, `seed` or `max_tokens` can also be specified here.
+The respective provider class in `cbrkit.synthesis.providers` has to be initialized with the model name and a response type (either `str` or a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/) for structured output). Further model options like `temperature`, `seed`, `max_tokens`, etc. can also be specified here.
 
-A **prompt** produces an LLM input based on the specified `instructions`, an optional `encoder` (which maps a case or query to a string) and optional `metadata`. Supported prompt types can be found in `cbrkit.synthesis.prompts`. Internally, the prompt functions defined there also enrich the LLM input with context about the casebase, the query and the results of the retrieval. 
+A **prompt** produces an LLM input based on the specified `instructions`, an optional `encoder` (which maps a case or query to a string) and optional `metadata`. For a list of the currently included prompts, please refer to the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/synthesis/prompts.html)
 
-Using `result = cbrkit.synthesis.apply_result(result, synthesizer)`, the LLM specified in the provider can be queried, causing its response to be found in `result.response`.
+If the casebase is small enough, that it fits inside the LLM's context window, you can use CBRKit's synthesis as follows:
+
+```python
+import cbrkit
+
+casebase = cbrkit.loaders...
+retriever = cbrkit.retrieval...
+retrieval = cbrkit.retrieval.apply_query(...)
+provider = cbrkit.synthesis.providers...
+prompt = cbrkit.synthesis.prompts.default(instructions)
+synthesizer = cbrkit.synthesis.build(provider, prompt)
+response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response 
+```
+### Working with large casebases
+Because the built-in `default` and `document_aware` prompt functions include the entire casebase as context, the LLM input can be quite long when working with a large casebase. Because of this, in this case, we recommend transposing the cases (e.g. truncate every case to a fixed length) and/or apply chunking.
+
+#### Transposing cases
+CBRKit's `transpose` prompt allows to transpose cases and queries before they are passed to the main prompt function. This allows shortening entries like so:
+```python
+from cbrkit.typing import JsonEntry
+from cbrkit.dumpers import json_markdown
+...
+def encoder(value) -> dict:
+    ...
+baseprompt = cbrkit.synthesis.prompts.default(instructions, encoder=encoder)
+# transform the entries, e.g. by shortening, leaving out irrelevant attributes, etc.
+def shorten(entry: dict) -> JsonEntry:
+    entry = {k: str(v)[:100] for k,v in entry.items()}
+    return json_markdown(entry)
+prompt = cbrkit.synthesis.prompts.transpose(baseprompt, conversion_func)
+```
+
+#### Chunking
+Instead of using `cbrkit.synthesis.apply_result`, CBRKit also provides a function to process the synthesis in batches. The partial results can then be aggregated using the `pooling` prompt.
+
+```python
+from cbrkit.typing import JsonEntry
+from cbrkit.dumpers import json_markdown
+
+...
+
+synthesizer = cbrkit.synthesis.build(provider, prompt)
+pooling_prompt = cbrkit.synthesis.prompts.pooling()
+pooling_func = cbrkit.synthesis.build.pooling("Based on these partial results, please find the best match for this use case: ...")
+result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10).response
+```
+
 
 ## REST API and CLI
 
