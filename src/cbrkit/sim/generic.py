@@ -20,6 +20,7 @@ __all__ = [
     "dynamic_table",
     "type_table",
     "equality",
+    "type_equality",
     "static",
 ]
 
@@ -240,6 +241,23 @@ class equality(SimFunc[Any, float]):
     @override
     def __call__(self, x: Any, y: Any) -> float:
         return 1.0 if x == y else 0.0
+
+
+@dataclass(slots=True, frozen=True)
+class type_equality(SimFunc[Any, float]):
+    """Type equality similarity function. Returns 1.0 if the two values have the same type, 0.0 otherwise.
+
+    Examples:
+        >>> sim = type_equality()
+        >>> sim("b", "a")
+        1.0
+        >>> sim("a", 1)
+        0.0
+    """
+
+    @override
+    def __call__(self, x: Any, y: Any) -> float:
+        return 1.0 if type(x) is type(y) else 0.0
 
 
 @dataclass(slots=True, frozen=True)
