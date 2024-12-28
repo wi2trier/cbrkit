@@ -9,6 +9,7 @@ from ...typing import (
     Float,
     SimFunc,
 )
+from ..aggregator import default_aggregator
 from .model import ElementMatcher, Graph, GraphSim, Node, default_element_matcher
 
 with optional_dependencies():
@@ -28,7 +29,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
 
     node_sim_func: AnySimFunc[Node[K, N], Float]
-    aggregator: AggregatorFunc[Any, Float]
+    aggregator: AggregatorFunc[Any, Float] = default_aggregator
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     id_order: bool = True

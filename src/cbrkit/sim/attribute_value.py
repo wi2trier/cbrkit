@@ -11,7 +11,7 @@ from ..typing import (
     SimSeq,
     StructuredValue,
 )
-from .aggregator import aggregator
+from .aggregator import default_aggregator
 
 __all__ = ["attribute_value", "AttributeValueSim"]
 
@@ -29,9 +29,6 @@ def default_value_getter(obj: Any, key: Any) -> Any:
 class AttributeValueSim[S: Float](StructuredValue[float]):
     value: float
     attributes: Mapping[str, S]
-
-
-default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
