@@ -25,7 +25,7 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class static_table[V](SimFunc[V, float], HasMetadata):
+class static_table[V](SimFunc[V | Any, float], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -90,7 +90,7 @@ class static_table[V](SimFunc[V, float], HasMetadata):
                     self.table[(y, x)] = val
 
     @override
-    def __call__(self, x: V, y: V) -> float:
+    def __call__(self, x: V | Any, y: V | Any) -> float:
         sim = self.table.get((x, y), self.default)
 
         if sim is None:
@@ -103,7 +103,7 @@ table = static_table
 
 
 @dataclass(slots=True)
-class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
+class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
     """Allows to import a similarity values from a table.
 
     Args:
@@ -128,8 +128,8 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
     """
 
     symmetric: bool
-    default: BatchSimFunc[V, S] | None
-    key_getter: Callable[[V], K]
+    default: BatchSimFunc[U, S] | None
+    key_getter: Callable[[U | V], K]
     table: dict[tuple[K, K], BatchSimFunc[V, S]]
 
     @property
@@ -153,8 +153,8 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         self,
         entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
         | Mapping[K, AnySimFunc[..., S]],
-        key_getter: Callable[[V], K],
-        default: AnySimFunc[Any, S] | None = None,
+        key_getter: Callable[[U | V], K],
+        default: AnySimFunc[U, S] | None = None,
         symmetric: bool = True,
     ):
         self.default = batchify_sim(default) if default is not None else None
@@ -176,7 +176,7 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
                 self.table[(y, x)] = func
 
     @override
-    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
+    def __call__(self, batches: Sequence[tuple[U | V, U | V]]) -> SimSeq[S]:
         # then we group the batches by key to avoid redundant computations
         idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
 
@@ -192,7 +192,10 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         results: dict[int, S] = {}
 
         for key, idxs in idx_map.items():
-            sim_func = self.table.get(key) if key is not None else self.default
+            sim_func = cast(
+                BatchSimFunc[U | V, S],
+                self.table.get(key) if key is not None else self.default,
+            )
 
             if sim_func is None:
                 missing_entries = [batches[idx] for idx in idxs]
@@ -210,10 +213,10 @@ class dynamic_table[K, V, S: Float](BatchSimFunc[V, S], HasMetadata):
         return [results[idx] for idx in range(len(batches))]
 
 
-def type_table[V, S: Float](
+def type_table[U, V, S: Float](
     entries: Mapping[type[V], AnySimFunc[..., S]],
-    default: AnySimFunc[Any, S] | None = None,
-) -> BatchSimFunc[V, S]:
+    default: AnySimFunc[U, S] | None = None,
+) -> BatchSimFunc[U | V, S]:
     return dynamic_table(
         entries=entries,
         key_getter=type,
