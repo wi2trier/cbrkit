@@ -22,11 +22,8 @@ from .model import (
 )
 
 __all__ = [
-    "State",
-    "PriorityState",
-    "PastCost",
-    "PastCostFunc",
-    "FutureCostFunc",
+    "PastSimFunc",
+    "FutureSimFunc",
     "SelectionFunc",
     "InitFunc",
     "h1",
@@ -60,13 +57,13 @@ class PriorityState[K]:
 
 
 @dataclass(slots=True, frozen=True)
-class PastCost[K](StructuredValue[float]):
+class PastSim[K](StructuredValue[float]):
     value: float
     node_similarities: Mapping[K, float]
     edge_similarities: Mapping[K, float]
 
 
-class FutureCostFunc[K, N, E, G](Protocol):
+class FutureSimFunc[K, N, E, G](Protocol):
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -76,14 +73,14 @@ class FutureCostFunc[K, N, E, G](Protocol):
     ) -> float: ...
 
 
-class PastCostFunc[K, N, E, G](Protocol):
+class PastSimFunc[K, N, E, G](Protocol):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
         /,
-    ) -> float | PastCost[K]: ...
+    ) -> float | PastSim[K]: ...
 
 
 class SelectionFunc[K, N, E, G](Protocol):
@@ -106,7 +103,7 @@ class InitFunc[K, N, E, G](Protocol):
 
 
 @dataclass(slots=True, frozen=True)
-class h1[K, N, E, G](FutureCostFunc[K, N, E, G]):
+class h1[K, N, E, G](FutureSimFunc[K, N, E, G]):
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -121,7 +118,7 @@ class h1[K, N, E, G](FutureCostFunc[K, N, E, G]):
 
 
 @dataclass(slots=True)
-class h2[K, N, E, G](FutureCostFunc[K, N, E, G]):
+class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
     node_sim_func: BatchSimFunc[Node[K, N], Float]
     edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
 
@@ -173,7 +170,7 @@ class h2[K, N, E, G](FutureCostFunc[K, N, E, G]):
 
 
 @dataclass(slots=True)
-class h3[K, N, E, G](FutureCostFunc[K, N, E, G]):
+class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
     node_sim_func: BatchSimFunc[Node[K, N], Float]
     edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
 
@@ -239,7 +236,7 @@ class h3[K, N, E, G](FutureCostFunc[K, N, E, G]):
 
 
 @dataclass(slots=True)
-class g1[K, N, E, G](PastCostFunc[K, N, E, G]):
+class g1[K, N, E, G](PastSimFunc[K, N, E, G]):
     node_sim_func: BatchSimFunc[Node[K, N], Float]
     edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
 
@@ -260,7 +257,7 @@ class g1[K, N, E, G](PastCostFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
-    ) -> PastCost[K]:
+    ) -> PastSim[K]:
         """Function to compute the costs of all previous steps"""
 
         node_sims = unpack_floats(
@@ -284,7 +281,7 @@ class g1[K, N, E, G](PastCostFunc[K, N, E, G]):
         all_sims = itertools.chain(node_sims, edge_sims)
         total_elements = len(y.nodes) + len(y.edges)
 
-        return PastCost(
+        return PastSim(
             sum(all_sims) / total_elements,
             dict(zip(s.mapped_nodes.keys(), node_sims, strict=True)),
             dict(zip(s.mapped_edges.keys(), edge_sims, strict=True)),
@@ -343,7 +340,7 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
-    heuristic_func: FutureCostFunc[K, N, E, G]
+    heuristic_func: FutureSimFunc[K, N, E, G]
 
     def __call__(
         self,
@@ -516,8 +513,8 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    past_cost_func: PastCostFunc[K, N, E, G]
-    future_cost_func: FutureCostFunc[K, N, E, G]
+    past_cost_func: PastSimFunc[K, N, E, G]
+    future_cost_func: FutureSimFunc[K, N, E, G]
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     node_matcher: ElementMatcher[N] = default_element_matcher
@@ -667,6 +664,6 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             unpack_float(sim),
             best_state.mapped_nodes,
             best_state.mapped_edges,
-            sim.node_similarities if isinstance(sim, PastCost) else {},
-            sim.edge_similarities if isinstance(sim, PastCost) else {},
+            sim.node_similarities if isinstance(sim, PastSim) else {},
+            sim.edge_similarities if isinstance(sim, PastSim) else {},
         )
