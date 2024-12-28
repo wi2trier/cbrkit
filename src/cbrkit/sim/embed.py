@@ -143,16 +143,19 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 class cache(KeyValueStore[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: FilePath | None
+    autodump: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
     def __init__(
         self,
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
+        autodump: bool = False,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = path
         self.store = {}
+        self.autodump = autodump
 
     def __post_init__(self) -> None:
         if self.path:
@@ -171,6 +174,9 @@ class cache(KeyValueStore[str, NumpyArray]):
         if self.func:
             new_texts = [text for text in texts if text not in self.store]
             self.store.update(zip(new_texts, self.func(new_texts), strict=True))
+
+            if self.autodump:
+                self.dump()
 
         return [self.store[text] for text in texts]
 
