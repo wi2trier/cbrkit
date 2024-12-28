@@ -271,6 +271,7 @@ class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
     store: MutableMapping[K, V]
     func: BatchConversionFunc[K, V] | None
     path: FilePath | None
+    autodump: bool
 
     def dump(self) -> None: ...
 
