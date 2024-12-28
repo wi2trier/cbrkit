@@ -26,6 +26,7 @@ __all__ = [
     "FutureSimFunc",
     "SelectionFunc",
     "InitFunc",
+    "LegalMappingFunc",
     "h1",
     "h2",
     "h3",
@@ -35,9 +36,9 @@ __all__ = [
     "select3",
     "init1",
     "init2",
+    "legal_node_mapping",
+    "legal_edge_mapping",
     "build",
-    "is_legal_node_mapping",
-    "is_legal_edge_mapping",
 ]
 
 
@@ -100,6 +101,17 @@ class InitFunc[K, N, E, G](Protocol):
         y: Graph[K, N, E, G],
         /,
     ) -> State[K]: ...
+
+
+class LegalMappingFunc[K, N, E, G](Protocol):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+        x_key: K,
+        y_key: K,
+    ) -> bool: ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -393,8 +405,12 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class init2[K, N, E, G](InitFunc[K, N, E, G]):
-    node_matcher: ElementMatcher[N] = default_element_matcher
-    edge_matcher: ElementMatcher[E] = default_element_matcher
+    legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(
+        default_factory=lambda: legal_node_mapping(default_element_matcher)
+    )
+    legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(
+        default_factory=lambda: legal_edge_mapping(default_element_matcher)
+    )
 
     def __call__(
         self,
@@ -413,11 +429,11 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
         )
 
         for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
-            if is_legal_node_mapping(x, y, state, x_key, y_key, self.node_matcher):
+            if self.legal_node_mapping(x, y, state, x_key, y_key):
                 possible_node_mappings[y_key].add(x_key)
 
         for y_key, x_key in itertools.product(y.edges.keys(), x.edges.keys()):
-            if is_legal_edge_mapping(x, y, state, x_key, y_key, self.edge_matcher):
+            if self.legal_edge_mapping(x, y, state, x_key, y_key):
                 possible_edge_mappings[y_key].add(x_key)
 
         node_mappings: dict[K, K] = {
@@ -456,42 +472,54 @@ class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
         ]
 
 
-def is_legal_node_mapping[K, N, E, G](
-    x: Graph[K, N, E, G],
-    y: Graph[K, N, E, G],
-    state: State[K],
-    x_key: K,
-    y_key: K,
-    matcher: ElementMatcher[N],
-) -> bool:
-    return (
-        y_key not in state.mapped_nodes.keys()
-        and x_key not in state.mapped_nodes.values()
-        and matcher(x.nodes[x_key].value, y.nodes[y_key].value)
-    )
+@dataclass(slots=True, frozen=True)
+class legal_node_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
+    matcher: ElementMatcher[N]
+
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+        x_key: K,
+        y_key: K,
+    ) -> bool:
+        return (
+            y_key not in state.mapped_nodes.keys()
+            and x_key not in state.mapped_nodes.values()
+            and self.matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+        )
 
 
-def is_legal_edge_mapping[K, N, E, G](
-    x: Graph[K, N, E, G],
-    y: Graph[K, N, E, G],
-    state: State[K],
-    x_key: K,
-    y_key: K,
-    matcher: ElementMatcher[E],
-) -> bool:
-    x_value = x.edges[x_key]
-    y_value = y.edges[y_key]
-    mapped_x_source_key = state.mapped_nodes.get(y_value.source.key)
-    mapped_x_target_key = state.mapped_nodes.get(y_value.target.key)
+@dataclass(slots=True, frozen=True)
+class legal_edge_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
+    matcher: ElementMatcher[E]
 
-    return (
-        y_key not in state.mapped_edges.keys()
-        and x_key not in state.mapped_edges.values()
-        and matcher(x_value.value, y_value.value)
-        # if the nodes are already mapped, check if they are mapped legally
-        and (mapped_x_source_key is None or x_value.source.key == mapped_x_source_key)
-        and (mapped_x_target_key is None or x_value.target.key == mapped_x_target_key)
-    )
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+        x_key: K,
+        y_key: K,
+    ) -> bool:
+        x_value = x.edges[x_key]
+        y_value = y.edges[y_key]
+        mapped_x_source_key = state.mapped_nodes.get(y_value.source.key)
+        mapped_x_target_key = state.mapped_nodes.get(y_value.target.key)
+
+        return (
+            y_key not in state.mapped_edges.keys()
+            and x_key not in state.mapped_edges.values()
+            and self.matcher(x_value.value, y_value.value)
+            # if the nodes are already mapped, check if they are mapped legally
+            and (
+                mapped_x_source_key is None or x_value.source.key == mapped_x_source_key
+            )
+            and (
+                mapped_x_target_key is None or x_value.target.key == mapped_x_target_key
+            )
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -517,9 +545,15 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     future_cost_func: FutureSimFunc[K, N, E, G]
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
-    node_matcher: ElementMatcher[N] = default_element_matcher
-    edge_matcher: ElementMatcher[E] = default_element_matcher
+    legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(
+        default_factory=lambda: legal_node_mapping(default_element_matcher)
+    )
+    legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(
+        default_factory=lambda: legal_edge_mapping(default_element_matcher)
+    )
     queue_limit: int = 10000
+    precompute_node_sim_func: AnySimFunc[Node[K, N], Float] | None = None
+    precompute_edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
 
@@ -540,7 +574,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 state.remaining_edges,
             )
             for x_key in x.nodes.keys()
-            if is_legal_node_mapping(x, y, state, x_key, y_key, self.node_matcher)
+            if self.legal_node_mapping(x, y, state, x_key, y_key)
         ]
 
         if not next_states:
@@ -572,7 +606,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 state.remaining_edges - {y_key},
             )
             for x_key in x.edges.keys()
-            if is_legal_edge_mapping(x, y, state, x_key, y_key, self.edge_matcher)
+            if self.legal_edge_mapping(x, y, state, x_key, y_key)
         ]
 
         if not next_states:
@@ -610,6 +644,51 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         raise ValueError(f"Unknown element type: {y_type}")
 
+    def precompute_similarities(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> None:
+        state = State(
+            immutables.Map(),
+            immutables.Map(),
+            frozenset(y.nodes.keys()),
+            frozenset(y.edges.keys()),
+        )
+
+        if self.precompute_node_sim_func is not None:
+            node_sim_func = batchify_sim(self.precompute_node_sim_func)
+            node_batches: list[tuple[Node[K, N], Node[K, N]]] = [
+                (x.nodes[x_key], y.nodes[y_key])
+                for x_key, y_key in itertools.product(x.nodes.keys(), y.nodes.keys())
+                if self.legal_node_mapping(x, y, state, x_key, y_key)
+            ]
+            node_sim_func(node_batches)
+
+        if self.precompute_edge_sim_func is not None:
+            edge_sim_func = batchify_sim(self.precompute_edge_sim_func)
+            edge_batches: list[tuple[Edge[K, N, E], Edge[K, N, E]]] = [
+                (x.edges[x_key], y.edges[y_key])
+                for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
+                if self.legal_edge_mapping(x, y, state, x_key, y_key)
+            ]
+            edge_sim_func(edge_batches)
+
+    def __call_case_oriented__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> GraphSim[K]:
+        result = self(x=y, y=x)
+
+        return GraphSim(
+            result.value,
+            {v: k for k, v in result.node_mapping.items()},
+            {v: k for k, v in result.edge_mapping.items()},
+            {result.node_mapping[k]: v for k, v in result.node_similarities.items()},
+            {result.edge_mapping[k]: v for k, v in result.edge_similarities.items()},
+        )
+
     @override
     def __call__(
         self,
@@ -621,21 +700,9 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         if (
             (len(y.nodes) + len(y.edges)) > (len(x.nodes) + len(x.edges))
         ) and self.allow_case_oriented_mapping:
-            result = self(x=y, y=x)
+            return self.__call_case_oriented__(x, y)
 
-            return GraphSim(
-                result.value,
-                {v: k for k, v in result.node_mapping.items()},
-                {v: k for k, v in result.edge_mapping.items()},
-                {
-                    result.node_mapping[k]: v
-                    for k, v in result.node_similarities.items()
-                },
-                {
-                    result.edge_mapping[k]: v
-                    for k, v in result.edge_similarities.items()
-                },
-            )
+        self.precompute_similarities(x, y)
 
         open_set: list[PriorityState[K]] = []
         best_state = self.init_func(x, y)
