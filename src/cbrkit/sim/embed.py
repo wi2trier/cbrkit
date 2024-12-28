@@ -1,5 +1,5 @@
 import itertools
-from collections.abc import MutableMapping, Sequence
+from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, cast, override
 
@@ -239,13 +239,17 @@ with optional_dependencies():
 
         Args:
             model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
-                or a `SentenceTransformer` model instance.
+                or a `SentenceTransformer` model instance. If a callable is provided, it will be called
+                the first time the function is used to create the model instance. This is useful for
+                lazy loading of the model.
         """
 
-        model: SentenceTransformer
+        model: SentenceTransformer | Callable[[], SentenceTransformer]
         _metadata: JsonDict
 
-        def __init__(self, model: str | SentenceTransformer):
+        def __init__(
+            self, model: str | SentenceTransformer | Callable[[], SentenceTransformer]
+        ):
             self._metadata = {}
 
             if isinstance(model, str):
@@ -264,6 +268,9 @@ with optional_dependencies():
         def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
             if not texts:
                 return []
+
+            if not isinstance(self.model, SentenceTransformer):
+                self.model = self.model()
 
             return self.model.encode(
                 cast(list[str], texts), convert_to_numpy=True
