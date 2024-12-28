@@ -215,9 +215,9 @@ with optional_dependencies():
                 or a `spacy.Language` model instance.
         """
 
-        model: Language
+        model: Language | Callable[[], Language]
 
-        def __init__(self, model: str | Language):
+        def __init__(self, model: str | Language | Callable[[], Language]):
             if isinstance(model, str):
                 self.model = spacy_load(model)
             else:
@@ -226,10 +226,17 @@ with optional_dependencies():
         @property
         @override
         def metadata(self) -> JsonDict:
-            return {"model": self.model.meta}
+            return {
+                "model": self.model.meta
+                if isinstance(self.model, Language)
+                else "custom"
+            }
 
         @override
         def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+            if not isinstance(self.model, Language):
+                self.model = self.model()
+
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 

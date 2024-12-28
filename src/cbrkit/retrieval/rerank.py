@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
@@ -130,18 +130,16 @@ with optional_dependencies():
             model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
-        model: SentenceTransformer | str
+        model: SentenceTransformer | str | Callable[[], SentenceTransformer]
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
-        device: str = "cpu"
+        device: str | None = None
 
         @property
         @override
         def metadata(self) -> JsonDict:
             return {
-                "model": self.model
-                if isinstance(self.model, str)
-                else self.model.name_or_path,
+                "model": self.model if isinstance(self.model, str) else "custom",
                 "query_chunk_size": self.query_chunk_size,
                 "corpus_chunk_size": self.corpus_chunk_size,
                 "device": self.device,
@@ -152,11 +150,14 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            model = (
-                SentenceTransformer(self.model, device=self.device)
-                if isinstance(self.model, str)
-                else self.model
-            )
+            if isinstance(self.model, str):
+                model = SentenceTransformer(self.model, device=self.device)
+            elif isinstance(self.model, SentenceTransformer):
+                model = self.model
+            else:
+                model = self.model()
+
+            model.to(self.device)
 
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
