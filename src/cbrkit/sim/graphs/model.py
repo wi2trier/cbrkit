@@ -31,19 +31,19 @@ def default_element_matcher(x: Any, y: Any) -> bool:
 
 
 class SerializedNode[N](BaseModel):
-    data: N
+    value: N
 
 
 class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
-    data: E
+    value: E
 
 
 class SerializedGraph[K, N, E, G](BaseModel):
     nodes: Mapping[K, SerializedNode[N]]
     edges: Mapping[K, SerializedEdge[K, E]]
-    data: G
+    value: G
 
 
 @dataclass(slots=True, frozen=True)
@@ -52,15 +52,15 @@ class Node[K, N](StructuredValue[N]):
     value: N
 
     def dump(self) -> SerializedNode[N]:
-        return SerializedNode(data=self.value)
+        return SerializedNode(value=self.value)
 
     @classmethod
     def load(
         cls,
         key: K,
-        data: SerializedNode[N],
+        obj: SerializedNode[N],
     ) -> Node[K, N]:
-        return cls(key, data.data)
+        return cls(key, obj.value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -74,21 +74,21 @@ class Edge[K, N, E](StructuredValue[E]):
         return SerializedEdge(
             source=self.source.key,
             target=self.target.key,
-            data=self.value,
+            value=self.value,
         )
 
     @classmethod
     def load(
         cls,
         key: K,
-        data: SerializedEdge[K, E],
+        obj: SerializedEdge[K, E],
         nodes: Mapping[K, Node[K, N]],
     ) -> Edge[K, N, E]:
         return cls(
             key,
-            nodes[data.source],
-            nodes[data.target],
-            data.data,
+            nodes[obj.source],
+            nodes[obj.target],
+            obj.value,
         )
 
 
@@ -102,7 +102,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         return SerializedGraph(
             nodes={key: node.dump() for key, node in self.nodes.items()},
             edges={key: edge.dump() for key, edge in self.edges.items()},
-            data=self.value,
+            value=self.value,
         )
 
     @classmethod
@@ -116,19 +116,19 @@ class Graph[K, N, E, G](StructuredValue[G]):
         edges = immutables.Map(
             (key, Edge.load(key, value, nodes)) for key, value in g.edges.items()
         )
-        return cls(nodes, edges, g.data)
+        return cls(nodes, edges, g.value)
 
     @classmethod
     def build(
         cls,
         nodes: Iterable[Node[K, N]],
         edges: Iterable[Edge[K, N, E]],
-        data: G,
+        value: G,
     ) -> Graph[K, N, E, G]:
         node_map = immutables.Map((node.key, node) for node in nodes)
         edge_map = immutables.Map((edge.key, edge) for edge in edges)
 
-        return cls(node_map, edge_map, data)
+        return cls(node_map, edge_map, value)
 
 
 def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> Mapping[str, Any]:

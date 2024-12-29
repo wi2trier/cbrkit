@@ -13,13 +13,13 @@ def test_astar():
         cbrkit.sim.graphs.from_dict(
             {
                 "nodes": {
-                    "node1": {"data": "A string value"},
-                    "node2": {"data": 42},
+                    "node1": {"value": "A string value"},
+                    "node2": {"value": 42},
                 },
                 "edges": {
-                    "edge1": {"source": "node1", "target": "node2", "data": None}
+                    "edge1": {"source": "node1", "target": "node2", "value": None}
                 },
-                "data": "Some query",
+                "value": "Some query",
             }
         )
     )
