@@ -60,9 +60,13 @@
           ...
         }:
         let
-          pythonSet = pkgs.callPackage ./default.nix {
-            inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
-          };
+          inherit
+            (pkgs.callPackage ./default.nix {
+              inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
+            })
+            pythonSet
+            mkApplication
+            ;
         in
         {
           _module.args.pkgs = import nixpkgs {
@@ -94,7 +98,12 @@
           packages = {
             inherit (pythonSet.cbrkit.passthru) docs;
             default = config.packages.cbrkit;
-            cbrkit = pythonSet.mkApp [ "all" ];
+            cbrkit = mkApplication {
+              venv = pythonSet.mkVirtualEnv "cbrkit-env" {
+                cbrkit = [ "all" ];
+              };
+              package = pythonSet.cbrkit;
+            };
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "cbrkit";
               tag = "latest";
