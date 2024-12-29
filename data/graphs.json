@@ -1,48 +1,48 @@
 {
   "first": {
     "nodes": {
-      "node1": { "data": "A string value" },
-      "node2": { "data": 42 },
-      "node3": { "data": "Another string value" },
-      "node4": { "data": 99 }
+      "node1": { "value": "A string value" },
+      "node2": { "value": 42 },
+      "node3": { "value": "Another string value" },
+      "node4": { "value": 99 }
     },
     "edges": {
       "edge1": {
         "source": "node1",
         "target": "node2",
-        "data": null
+        "value": null
       },
-      "edge2": { "source": "node2", "target": "node3", "data": null },
+      "edge2": { "source": "node2", "target": "node3", "value": null },
       "edge3": {
         "source": "node3",
         "target": "node4",
-        "data": null
+        "value": null
       },
-      "edge4": { "source": "node4", "target": "node1", "data": null }
+      "edge4": { "source": "node4", "target": "node1", "value": null }
     },
-    "data": "A sample graph with nodes of mixed data types and diverse edge data."
+    "value": "A sample graph with nodes of mixed value types and diverse edge value."
   },
   "second": {
     "nodes": {
-      "nodeA": { "data": "Alpha" },
-      "nodeB": { "data": 75 },
-      "nodeC": { "data": "Beta" },
-      "nodeD": { "data": 120 }
+      "nodeA": { "value": "Alpha" },
+      "nodeB": { "value": 75 },
+      "nodeC": { "value": "Beta" },
+      "nodeD": { "value": 120 }
     },
     "edges": {
       "edgeA": {
         "source": "nodeA",
         "target": "nodeB",
-        "data": null
+        "value": null
       },
-      "edgeB": { "source": "nodeB", "target": "nodeC", "data": null },
+      "edgeB": { "source": "nodeB", "target": "nodeC", "value": null },
       "edgeC": {
         "source": "nodeC",
         "target": "nodeD",
-        "data": null
+        "value": null
       },
-      "edgeD": { "source": "nodeD", "target": "nodeA", "data": null }
+      "edgeD": { "source": "nodeD", "target": "nodeA", "value": null }
     },
-    "data": "A slightly different graph with varied node and edge attributes."
+    "value": "A slightly different graph with varied node and edge attributes."
   }
 }
