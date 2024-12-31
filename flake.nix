@@ -47,9 +47,9 @@
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = import systems;
-      imports = [
-        inputs.flake-parts.flakeModules.easyOverlay
-        inputs.treefmt-nix.flakeModule
+      imports = with inputs; [
+        flake-parts.flakeModules.easyOverlay
+        treefmt-nix.flakeModule
       ];
       perSystem =
         {
@@ -60,7 +60,9 @@
           ...
         }:
         let
-          inherit (config.legacyPackages) pythonSet;
+          pythonSet = pkgs.callPackage ./default.nix {
+            inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
+          };
         in
         {
           _module.args.pkgs = import nixpkgs {
@@ -89,9 +91,6 @@
               nixfmt.enable = true;
             };
           };
-          legacyPackages.pythonSet = pkgs.callPackage ./default.nix {
-            inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
-          };
           packages = {
             inherit (pythonSet.cbrkit.passthru) docs;
             default = config.packages.cbrkit;
@@ -110,7 +109,7 @@
               ];
             };
           };
-          apps.docker-manifest.program = flocken.legacyPackages.${system}.mkDockerManifest {
+          legacyPackages.docker-manifest = flocken.legacyPackages.${system}.mkDockerManifest {
             github = {
               enable = true;
               token = "$GH_TOKEN";

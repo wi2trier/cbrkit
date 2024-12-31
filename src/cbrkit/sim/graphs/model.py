@@ -2,32 +2,45 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Literal, Protocol
 
 import immutables
+from pydantic import BaseModel
 
 from ...helpers import optional_dependencies
 from ...typing import StructuredValue
+
+type ElementType = Literal["node", "edge"]
 
 
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
     value: float
-    node_mappings: dict[K, K]
-    edge_mappings: dict[K, K]
+    node_mapping: Mapping[K, K]
+    edge_mapping: Mapping[K, K]
+    node_similarities: Mapping[K, float]
+    edge_similarities: Mapping[K, float]
 
 
-class SerializedNode[N](TypedDict):
+class ElementMatcher[T](Protocol):
+    def __call__(self, x: T, y: T, /) -> bool: ...
+
+
+def default_element_matcher(x: Any, y: Any) -> bool:
+    return type(x) is type(y)
+
+
+class SerializedNode[N](BaseModel):
     data: N
 
 
-class SerializedEdge[K, E](TypedDict):
+class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
     data: E
 
 
-class SerializedGraph[K, N, E, G](TypedDict):
+class SerializedGraph[K, N, E, G](BaseModel):
     nodes: Mapping[K, SerializedNode[N]]
     edges: Mapping[K, SerializedEdge[K, E]]
     data: G
@@ -38,16 +51,16 @@ class Node[K, N](StructuredValue[N]):
     key: K
     value: N
 
-    def to_dict(self) -> SerializedNode[N]:
-        return {"data": self.value}
+    def dump(self) -> SerializedNode[N]:
+        return SerializedNode(data=self.value)
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         key: K,
         data: SerializedNode[N],
     ) -> Node[K, N]:
-        return cls(key, data["data"])
+        return cls(key, data.data)
 
 
 @dataclass(slots=True, frozen=True)
@@ -57,15 +70,15 @@ class Edge[K, N, E](StructuredValue[E]):
     target: Node[K, N]
     value: E
 
-    def to_dict(self) -> SerializedEdge[K, E]:
-        return {
-            "source": self.source.key,
-            "target": self.target.key,
-            "data": self.value,
-        }
+    def dump(self) -> SerializedEdge[K, E]:
+        return SerializedEdge(
+            source=self.source.key,
+            target=self.target.key,
+            data=self.value,
+        )
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         key: K,
         data: SerializedEdge[K, E],
@@ -73,9 +86,9 @@ class Edge[K, N, E](StructuredValue[E]):
     ) -> Edge[K, N, E]:
         return cls(
             key,
-            nodes[data["source"]],
-            nodes[data["target"]],
-            data["data"],
+            nodes[data.source],
+            nodes[data.target],
+            data.data,
         )
 
 
@@ -85,26 +98,25 @@ class Graph[K, N, E, G](StructuredValue[G]):
     edges: immutables.Map[K, Edge[K, N, E]]
     value: G
 
-    def to_dict(self) -> SerializedGraph[K, N, E, G]:
-        return {
-            "nodes": {key: node.to_dict() for key, node in self.nodes.items()},
-            "edges": {key: edge.to_dict() for key, edge in self.edges.items()},
-            "data": self.value,
-        }
+    def dump(self) -> SerializedGraph[K, N, E, G]:
+        return SerializedGraph(
+            nodes={key: node.dump() for key, node in self.nodes.items()},
+            edges={key: edge.dump() for key, edge in self.edges.items()},
+            data=self.value,
+        )
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         g: SerializedGraph[K, N, E, G],
     ) -> Graph[K, N, E, G]:
         nodes = immutables.Map(
-            (key, Node.from_dict(key, value)) for key, value in g["nodes"].items()
+            (key, Node.load(key, value)) for key, value in g.nodes.items()
         )
         edges = immutables.Map(
-            (key, Edge.from_dict(key, value, nodes))
-            for key, value in g["edges"].items()
+            (key, Edge.load(key, value, nodes)) for key, value in g.edges.items()
         )
-        return cls(nodes, edges, g["data"])
+        return cls(nodes, edges, g.data)
 
     @classmethod
     def build(
@@ -119,12 +131,12 @@ class Graph[K, N, E, G](StructuredValue[G]):
         return cls(node_map, edge_map, data)
 
 
-def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> SerializedGraph[K, N, E, G]:
-    return g.to_dict()
+def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> Mapping[str, Any]:
+    return g.dump().model_dump()
 
 
-def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
-    return Graph.from_dict(g)
+def from_dict(g: Any) -> Graph[Any, Any, Any, Any]:
+    return Graph.load(SerializedGraph.model_validate(g))
 
 
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:

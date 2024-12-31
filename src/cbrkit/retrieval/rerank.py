@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
@@ -10,6 +11,8 @@ from ..typing import (
     JsonDict,
     RetrieverFunc,
 )
+
+logger = logging.getLogger(__name__)
 
 with optional_dependencies():
     from cohere import AsyncClient
@@ -136,7 +139,9 @@ with optional_dependencies():
         @override
         def metadata(self) -> JsonDict:
             return {
-                "model": self.model if isinstance(self.model, str) else "custom",
+                "model": self.model
+                if isinstance(self.model, str)
+                else self.model.name_or_path,
                 "query_chunk_size": self.query_chunk_size,
                 "corpus_chunk_size": self.corpus_chunk_size,
                 "device": self.device,
@@ -146,19 +151,66 @@ with optional_dependencies():
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[Casebase[K, float]]:
+        ) -> Sequence[dict[K, float]]:
             model = (
                 SentenceTransformer(self.model, device=self.device)
                 if isinstance(self.model, str)
                 else self.model
             )
 
+            # if all casebases are the same, we can optimize the retrieval
+            first_casebase = batches[0][0]
+
+            if all(casebase == first_casebase for casebase, _ in batches):
+                logger.debug(
+                    "All casebases are the same, performing for all queries in one go"
+                )
+                return self.__call_queries__(
+                    [query for _, query in batches], first_casebase, model
+                )
+
+            logger.debug("Casebases are different, performing retrieval for each query")
             return [
-                self._retrieve_single(query, casebase, model)
+                self.__call_query__(query, casebase, model)
                 for casebase, query in batches
             ]
 
-        def _retrieve_single(
+        def __call_queries__(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+            model: SentenceTransformer,
+        ) -> Sequence[dict[K, float]]:
+            case_texts = list(casebase.values())
+            query_texts = cast(list[str], queries)
+
+            case_embeddings = util.normalize_embeddings(
+                model.encode(case_texts, convert_to_tensor=True).to(self.device)
+            )
+            query_embeddings = util.normalize_embeddings(
+                model.encode(query_texts, convert_to_tensor=True).to(self.device)
+            )
+
+            response = util.semantic_search(
+                query_embeddings,
+                case_embeddings,
+                top_k=len(casebase),
+                query_chunk_size=self.query_chunk_size,
+                corpus_chunk_size=self.corpus_chunk_size,
+                score_function=util.dot_score,
+            )
+
+            key_index = {idx: key for idx, key in enumerate(casebase)}
+
+            return [
+                {
+                    key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
+                    for res in query_response
+                }
+                for query_response in response
+            ]
+
+        def __call_query__(
             self,
             query: str,
             casebase: Casebase[K, str],
@@ -166,9 +218,11 @@ with optional_dependencies():
         ) -> dict[K, float]:
             case_texts = list(casebase.values())
             query_text = query
-            embeddings = model.encode([query_text] + case_texts, convert_to_tensor=True)
-            embeddings = embeddings.to(self.device)
-            embeddings = util.normalize_embeddings(embeddings)
+            embeddings = util.normalize_embeddings(
+                model.encode([query_text] + case_texts, convert_to_tensor=True).to(
+                    self.device
+                )
+            )
             query_embeddings = embeddings[0:1]
             case_embeddings = embeddings[1:]
 

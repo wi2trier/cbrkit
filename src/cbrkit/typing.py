@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
+
+import numpy as np
+import numpy.typing as npt
 
 __all__ = [
     "JsonEntry",
     "JsonDict",
+    "NumpyArray",
     "AdaptationFunc",
     "AggregatorFunc",
     "AnyAdaptationFunc",
@@ -41,16 +45,23 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
+    "KeyValueStore",
+    "WrappedObject",
 ]
 
 type JsonEntry = (
     Mapping[str, "JsonEntry"] | Sequence["JsonEntry"] | str | int | float | bool | None
 )
 type JsonDict = dict[str, JsonEntry]
+type NumpyArray = npt.NDArray[np.float64]
 
 
 class StructuredValue[T](ABC):
     value: T
+
+
+class WrappedObject[T](ABC):
+    __wrapped__: T
 
 
 class HasMetadata(ABC):
@@ -254,3 +265,18 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
         self,
         batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
     ) -> Sequence[T]: ...
+
+
+class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
+    store: MutableMapping[K, V]
+    func: BatchConversionFunc[K, V] | None
+    path: FilePath | None
+    autodump: bool
+
+    def dump(self) -> None: ...
+
+    def __call__(
+        self,
+        batches: Sequence[K],
+        /,
+    ) -> Sequence[V]: ...

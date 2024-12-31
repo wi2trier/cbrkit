@@ -14,7 +14,7 @@ with optional_dependencies():
 
     type OpenaiPrompt = str | ChatPrompt[str]
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
         structured_outputs: bool = True
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
@@ -53,7 +53,7 @@ with optional_dependencies():
                     cast(Sequence[ChatCompletionMessageParam], prompt.messages)
                 )
 
-            if self.messages and self.messages[-1]["role"] == "user":
+            if self.messages and self.messages[-1].role == "user":
                 messages.append(
                     {
                         "role": "assistant",

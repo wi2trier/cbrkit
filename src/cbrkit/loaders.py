@@ -3,6 +3,7 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
+import io
 import tomllib
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
@@ -76,7 +77,7 @@ class py(ConversionFunc[str | IO, Any]):
     """Reads a Python file and loads the object from it."""
 
     def __call__(self, source: str | IO) -> Any:
-        if isinstance(source, IO):
+        if isinstance(source, IO | io.IOBase):
             return load_object(source.read())
 
         return load_object(source)
@@ -102,7 +103,9 @@ class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
     """Reads a json file and converts it into a dict representation"""
 
     def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
-        data = orjson.loads(source.read() if isinstance(source, IO) else source)
+        data = orjson.loads(
+            source.read() if isinstance(source, IO | io.IOBase) else source
+        )
 
         if isinstance(data, list):
             return dict(enumerate(data))
@@ -117,7 +120,7 @@ class toml(ConversionFunc[str | IO, dict[str, Any]]):
     """Reads a toml file and converts it into a dict representation"""
 
     def __call__(self, source: str | IO) -> dict[str, Any]:
-        if isinstance(source, IO):
+        if isinstance(source, IO | io.IOBase):
             return tomllib.load(source)
 
         return tomllib.loads(source)
@@ -165,7 +168,7 @@ class txt(ConversionFunc[str | bytes | IO, str]):
     """Reads a text file and converts it into a string"""
 
     def __call__(self, source: str | bytes | IO) -> str:
-        if isinstance(source, IO):
+        if isinstance(source, IO | io.IOBase):
             return source.read()
 
         return str(source)
@@ -194,7 +197,9 @@ any_loaders: dict[str, AnyLoader] = {
 }
 
 
-def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
+def path(
+    path: FilePath, pattern: str | None = None, loader: AnyLoader | None = None
+) -> Casebase[Any, Any]:
     """Converts a path into a Casebase. The path can be a directory or a file.
 
     Args:
@@ -211,9 +216,9 @@ def path(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
         path = Path(path)
 
     if path.is_file():
-        return file(path)
+        return file(path, loader)
     elif path.is_dir():
-        return directory(path, pattern or "**/*")
+        return directory(path, pattern)
 
     raise FileNotFoundError(path)
 
@@ -246,7 +251,7 @@ def file(path: FilePath, loader: AnyLoader | None = None) -> Casebase[Any, Any]:
         return loader(fp)
 
 
-def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
+def directory(path: FilePath, pattern: str | None = None) -> Casebase[Any, Any]:
     """Converts the files of a directory into a Casebase. The files can be of type txt, csv, json, toml, yaml, or yml.
 
     Args:
@@ -267,9 +272,12 @@ def directory(path: FilePath, pattern: str) -> Casebase[Any, Any]:
     if isinstance(path, str):
         path = Path(path)
 
-    for elem in path.glob(pattern):
+    for elem in path.glob(pattern or "*"):
         if elem.is_file() and elem.suffix in any_loaders:
-            cb[elem.stem] = file(elem)
+            loader = any_loaders[elem.suffix]
+
+            with elem.open("rb") as fp:
+                cb[elem.stem] = loader(fp)
 
     return cb
 

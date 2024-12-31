@@ -2,12 +2,13 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 from ...typing import BatchConversionFunc, StructuredValue
 
 
-class ChatMessage(TypedDict):
+@dataclass(slots=True, frozen=True)
+class ChatMessage:
     role: Literal["user", "assistant"]
     content: str
 
@@ -24,7 +25,7 @@ class DocumentsPrompt[P](StructuredValue[P]):
     documents: Mapping[str, Mapping[str, str]]
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     model: str
     response_type: type[R]
@@ -40,7 +41,7 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     async def __call_batch__(self, prompt: P) -> R: ...
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class ChatProvider[P, R](BaseProvider[P, R], ABC):
     system_message: str | None = None
     messages: Sequence[ChatMessage] = field(default_factory=tuple)
