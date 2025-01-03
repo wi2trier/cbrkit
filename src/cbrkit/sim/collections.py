@@ -259,7 +259,6 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         ]  # Reverse to start from the beginning
 
     __all__ += ["dtw"]
-    __all__ += ["dtw"]
 
 
 @dataclass(slots=True, frozen=True)
