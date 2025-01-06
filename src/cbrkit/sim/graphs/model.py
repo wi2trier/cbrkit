@@ -182,6 +182,7 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
 
     return True
 
+
 def to_sequence[K, N, E, G](graph: Graph[K, N, E, G]) -> tuple[list[N], list[E]]:
     """
     Extract nodes and edges of a graph in sequential order.
