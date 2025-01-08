@@ -33,15 +33,11 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = [
     "immutables>=0.21,<1",
-    "numpy>=1,<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "numpy>=2,<3; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
     "orjson>=3,<4",
-    "pandas>=2,<3",
     "polars>=1,<2",
-    "pydantic>=2,<3",
     "pyyaml>=6,<7",
     "rtoml>=0.12,<1",
     "scipy>=1,<2",
@@ -49,7 +45,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all = ["cbrkit[api,cli,eval,graphs,llm,nlp,timeseries,transformers]"]
+all = [
+    "cbrkit[api,cli,eval,graphs,llm,nlp,timeseries,transformers]",
+    "numpy>=1,<2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy>=2,<3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "numpy>=2,<3; sys_platform == 'linux'",
+    "pandas>=2,<3",
+    "pydantic>=2,<3",
+    "scipy>=1,<2",
+]
 api = [
     "cbrkit[cli]",
     "fastapi>=0.100,<1",
@@ -65,20 +69,22 @@ llm = [
     "ollama>=0.3,<1",
     "openai>=1,<2",
     "anthropic>=0.40,<1",
-    "google-genai>=0.2,<1",
 ]
 nlp = [
     "levenshtein>=0.23,<0.26; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "levenshtein>=0.26,<1; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
+    "levenshtein>=0.26,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "levenshtein>=0.26,<1; sys_platform == 'linux'",
     "nltk>=3,<4",
     "spacy>=3.7,<3.8; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "spacy>=3.8,<4; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
+    "spacy>=3.8,<4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "spacy>=3.8,<4; sys_platform == 'linux'",
 ]
-timeseries = ["minineedle>=3,<4"]
+timeseries = ["minineedle>=3,<4", "dtaidistance>=2,<3"]
 transformers = [
     "sentence-transformers>=3,<4",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "torch>=2.5,<3; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
+    "torch>=2.5,<3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "torch>=2.5,<3; sys_platform == 'linux'",
     "transformers>=4,<5",
 ]
 
@@ -105,6 +111,9 @@ doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
 
 [tool.uv]
 default-groups = ["test", "docs"]
+
+[tool.ruff]
+target-version = "py312"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
