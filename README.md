@@ -442,26 +442,44 @@ def encoder(value) -> dict:
     ...
 baseprompt = cbrkit.synthesis.prompts.default(instructions, encoder=encoder)
 # transform the entries, e.g. by shortening, leaving out irrelevant attributes, etc.
+# In this case, the value of every field is trunctated to 100 characters
 def shorten(entry: dict) -> JsonEntry:
     entry = {k: str(v)[:100] for k,v in entry.items()}
     return json_markdown(entry)
-prompt = cbrkit.synthesis.prompts.transpose(baseprompt, conversion_func)
+    
+prompt = cbrkit.synthesis.prompts.transpose(baseprompt, shorten)
+synthesizer = cbrkit.synthesis.build(provider, prompt)
+...
 ```
 
 #### Chunking
-Instead of using `cbrkit.synthesis.apply_result`, CBRKit also provides a function to process the synthesis in batches. The partial results can then be aggregated using the `pooling` prompt.
+Instead of using `cbrkit.synthesis.apply_result`, CBRKit also provides the `cbrkit.synthesis.chunks` function to process the synthesis in batches. The partial results can then be aggregated using a `pooling` prompt. 
 
 ```python
-from cbrkit.typing import JsonEntry
-from cbrkit.dumpers import json_markdown
+import cbrkit
 
-...
+casebase = cbrkit.loaders.file(...)
 
+queries = [...]
+retriever = cbrkit.retrieval.dropout(...)
+# run retrieval on each casebase chunk
+retrievals = [cbrkit.retrieval.apply_query(casebase, query, retriever) for query in queries]
+
+# batches are tuples of casebase, query, and retrieval similarities
+batches = [(casebase, query, retrieval.similarities) for query, retrieval in zip(queries, retrievals)]
+
+# Prompt which should be evaluated on each batch
+prompt = cbrkit.synthesis.prompts.default(instructions="...")
+provider = cbrkit.synthesis.providers...
 synthesizer = cbrkit.synthesis.build(provider, prompt)
-pooling_prompt = cbrkit.synthesis.prompts.pooling()
-pooling_func = cbrkit.synthesis.build.pooling("Based on these partial results, please find the best match for this use case: ...")
-result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10).response
+
+# prompt to aggregate the partial results into a final result
+pooling_prompt = cbrkit.synthesis.prompts.pooling(instructions="...")
+pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)
+get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10)
+response = get_result(batches)
 ```
+The complete version of this example can be found under `examples/cars_rag_large.py`.
 
 
 ## REST API and CLI
