@@ -73,7 +73,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent(f"""
+        result += dedent(f"""
             ## Query
 
             {self.encoder(query)}
