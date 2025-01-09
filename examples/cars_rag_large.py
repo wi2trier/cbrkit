@@ -1,8 +1,7 @@
 import polars as pl
-import ollama
 import cbrkit
 
-df = pl.read_csv("data/cars-1k.csv")[:30]
+df = pl.read_csv("data/cars-1k.csv").head(30)
 
 casebase = cbrkit.loaders.polars(df)
 
@@ -15,18 +14,13 @@ sim_func = cbrkit.sim.attribute_value(
     aggregator=cbrkit.sim.aggregator(pooling="mean"),
 )
 
-retriever = cbrkit.retrieval.dropout(
-    cbrkit.retrieval.build(sim_func),
-    # limit=5,
-)
+retriever = cbrkit.retrieval.build(sim_func)
 
 prompt = cbrkit.synthesis.prompts.default(
         instructions="Give me a summary of the aptitude for daily driving each of the retrieved cars.",
         # metadata=cbrkit.helpers.get_metadata(sim_func),
     )
-# provider = cbrkit.synthesis.providers.anthropic(model="claude-3-haiku-20240307", response_type=str, max_tokens=400)
-client = ollama.AsyncClient(host="http://136.199.130.136:6789")
-provider = cbrkit.synthesis.providers.ollama(client, model="mistral", response_type=str)
+provider = cbrkit.synthesis.providers.anthropic(model="claude-3-haiku-20240307", response_type=str, max_tokens=400)
 synthesizer = cbrkit.synthesis.build(
     provider,
     prompt,

@@ -9,6 +9,7 @@ import polars as pl
 import yaml as yamllib
 
 from .typing import ConversionFunc, FilePath
+from typing import Union
 
 __all__ = [
     "json_markdown",
@@ -37,24 +38,25 @@ class csv(ConversionFunc[Any, str]):
     """
 
     @staticmethod
-    def __flatten_dict(nested_dict) -> list[dict[str, Any]]:
+    def _flatten_recursive(obj: Union[dict, Any], prefix: str = '') -> dict:
+        flat_item = {}
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                new_prefix = f"{prefix}.{key}" if prefix else key
+                flat_item.update(csv._flatten_recursive(value, new_prefix))
+        else:
+            flat_item[prefix] = obj
+        return flat_item
+
+    @staticmethod
+    def __flatten_dict(nested_dict: dict) -> list[dict[str, Any]]:
         flattened = []
 
         # Handle both dict with numeric keys and list inputs
         items = nested_dict.values() if isinstance(nested_dict, dict) else nested_dict
 
         for d in items:
-            flat_item = {}
-
-            def flatten_recursive(obj, prefix=''):
-                if isinstance(obj, dict):
-                    for key, value in obj.items():
-                        new_prefix = f"{prefix}.{key}" if prefix else key
-                        flatten_recursive(value, new_prefix)
-                else:
-                    flat_item[prefix] = obj
-
-            flatten_recursive(d)
+            flat_item = csv._flatten_recursive(d)
             flattened.append(flat_item)
 
         return flattened
