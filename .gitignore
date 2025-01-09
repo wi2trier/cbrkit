@@ -236,3 +236,5 @@ pyrightconfig.json
 /data/private
 /data/output.json
 /data/fritz-meyer/
+/data/fritz_meyer.py
+/data/cars_rag_retrieval.py

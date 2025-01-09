@@ -76,7 +76,7 @@ class py(ConversionFunc[str | IO, Any]):
     """Reads a Python file and loads the object from it."""
 
     def __call__(self, source: str | IO) -> Any:
-        if isinstance(source, IO):
+        if isinstance(source, IO | io.IOBase):
             return load_object(source.read())
 
         return load_object(source)
@@ -102,7 +102,9 @@ class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
     """Reads a json file and converts it into a dict representation"""
 
     def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
-        data = orjson.loads(source.read() if isinstance(source, IO) else source)
+        data = orjson.loads(
+            source.read() if isinstance(source, IO | io.IOBase) else source
+        )
 
         if isinstance(data, list):
             return dict(enumerate(data))
@@ -165,7 +167,7 @@ class txt(ConversionFunc[str | bytes | IO, str]):
     """Reads a text file and converts it into a string"""
 
     def __call__(self, source: str | bytes | IO) -> str:
-        if isinstance(source, IO):
+        if isinstance(source, IO | io.IOBase):
             return source.read()
 
         return str(source)

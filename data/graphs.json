@@ -1,0 +1,48 @@
+{
+  "first": {
+    "nodes": {
+      "node1": { "value": "A string value" },
+      "node2": { "value": 42 },
+      "node3": { "value": "Another string value" },
+      "node4": { "value": 99 }
+    },
+    "edges": {
+      "edge1": {
+        "source": "node1",
+        "target": "node2",
+        "value": null
+      },
+      "edge2": { "source": "node2", "target": "node3", "value": null },
+      "edge3": {
+        "source": "node3",
+        "target": "node4",
+        "value": null
+      },
+      "edge4": { "source": "node4", "target": "node1", "value": null }
+    },
+    "value": "A sample graph with nodes of mixed value types and diverse edge value."
+  },
+  "second": {
+    "nodes": {
+      "nodeA": { "value": "Alpha" },
+      "nodeB": { "value": 75 },
+      "nodeC": { "value": "Beta" },
+      "nodeD": { "value": 120 }
+    },
+    "edges": {
+      "edgeA": {
+        "source": "nodeA",
+        "target": "nodeB",
+        "value": null
+      },
+      "edgeB": { "source": "nodeB", "target": "nodeC", "value": null },
+      "edgeC": {
+        "source": "nodeC",
+        "target": "nodeD",
+        "value": null
+      },
+      "edgeD": { "source": "nodeD", "target": "nodeA", "value": null }
+    },
+    "value": "A slightly different graph with varied node and edge attributes."
+  }
+}

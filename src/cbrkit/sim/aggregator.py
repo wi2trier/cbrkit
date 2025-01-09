@@ -15,6 +15,7 @@ from ..typing import (
 __all__ = [
     "PoolingName",
     "pooling_funcs",
+    "default_aggregator",
     "aggregator",
 ]
 
@@ -116,3 +117,6 @@ class aggregator[K](AggregatorFunc[K, Float]):
             raise NotImplementedError()
 
         return pooling_func(sims) * pooling_factor
+
+
+default_aggregator = aggregator()

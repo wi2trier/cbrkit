@@ -1,13 +1,13 @@
 from collections.abc import Mapping, Sequence
 
-from ..helpers import (
-    get_metadata,
-)
+from ..helpers import get_logger, get_metadata
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import (
     Float,
     RetrieverFunc,
 )
+
+logger = get_logger(__name__)
 
 
 def apply_batches[Q, C, V, S: Float](
@@ -21,7 +21,8 @@ def apply_batches[Q, C, V, S: Float](
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batches
 
-    for retriever_func in retrievers:
+    for i, retriever_func in enumerate(retrievers, start=1):
+        logger.info(f"Processing retriever {i}/{len(retrievers)}")
         queries_results = retriever_func(list(current_batches.values()))
 
         step_queries = {
@@ -65,9 +66,6 @@ def apply_queries[Q, C, V, S: Float](
         ...         attributes={
         ...             "price": cbrkit.sim.numbers.linear(max=100000),
         ...             "year": cbrkit.sim.numbers.linear(max=50),
-        ...             "manufacturer": cbrkit.sim.strings.wu_palmer(
-        ...                 cbrkit.sim.strings.Taxonomy("./data/cars-taxonomy.yaml")
-        ...             ),
         ...             "miles": cbrkit.sim.numbers.linear(max=1000000),
         ...         },
         ...         aggregator=cbrkit.sim.aggregator(pooling="mean"),

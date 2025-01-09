@@ -1,4 +1,5 @@
-import dataclasses
+import asyncio
+import logging
 from collections.abc import (
     Callable,
     Collection,
@@ -9,11 +10,12 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import contextmanager
-from dataclasses import dataclass, field, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
-from typing import Any, Literal, cast, override
+from multiprocessing.pool import Pool
+from typing import Any, ClassVar, Literal, cast, override
 
 from .typing import (
     AnyConversionFunc,
@@ -27,7 +29,6 @@ from .typing import (
     ConversionFunc,
     Float,
     HasMetadata,
-    JsonDict,
     JsonEntry,
     NamedFunc,
     PositionalFunc,
@@ -35,9 +36,11 @@ from .typing import (
     SimMap,
     SimSeq,
     StructuredValue,
+    WrappedObject,
 )
 
 __all__ = [
+    "event_loop",
     "optional_dependencies",
     "dist2sim",
     "batchify_positional",
@@ -55,7 +58,41 @@ __all__ = [
     "load_object",
     "load_callables",
     "load_callables_map",
+    "identity",
+    "get_logger",
 ]
+
+
+@dataclass(slots=True)
+class EventLoop:
+    _instance: asyncio.AbstractEventLoop | None = None
+
+    def get(self) -> asyncio.AbstractEventLoop:
+        if self._instance is None:
+            self._instance = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._instance)
+
+        return self._instance
+
+    def close(self) -> None:
+        if self._instance is not None:
+            tasks = asyncio.all_tasks(self._instance)
+            for task in tasks:
+                task.cancel()
+
+            try:
+                self._instance.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
+            except asyncio.CancelledError:
+                pass
+
+            finally:
+                self._instance.close()
+                self._instance = None
+
+
+event_loop = EventLoop()
 
 
 @contextmanager
@@ -92,32 +129,28 @@ def get_name(obj: Any) -> str | None:
 
 
 def get_metadata(obj: Any) -> JsonEntry:
-    if hasattr(obj, "__wrapped__"):
+    if isinstance(obj, WrappedObject):
         return get_metadata(obj.__wrapped__)
 
     if isinstance(obj, HasMetadata):
-        value: JsonDict = {
+        return {
+            "name": get_name(obj),
+            "doc": getdoc(obj),
             "metadata": obj.metadata,
         }
 
-        if isinstance(obj, Callable) or isinstance(obj, type):
-            value["name"] = get_name(obj)
-            value["doc"] = getdoc(obj)
-
-        return value
-
-    if is_dataclass(obj) and not isinstance(obj, type):
+    if is_dataclass(obj):
         return {
             "name": get_name(obj),
             "doc": getdoc(obj),
             "metadata": {
                 field.name: get_metadata(getattr(obj, field.name))
-                for field in dataclasses.fields(obj)
+                for field in fields(obj)
                 if field.repr
             },
         }
 
-    if isinstance(obj, Callable) or isinstance(obj, type):
+    if isinstance(obj, Callable):
         return {
             "name": get_name(obj),
             "doc": getdoc(obj),
@@ -191,30 +224,46 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
-@dataclass(slots=True)
-class batchify_positional[T](BatchPositionalFunc[T]):
+@dataclass(slots=True, init=False)
+class batchify_positional[T](
+    WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
+):
     __wrapped__: AnyPositionalFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
+    logger: logging.Logger | None
+    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
+        logger = get_logger(self.__wrapped__)
+        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
         if self.parameters != 1:
             func = cast(PositionalFunc[T], self.__wrapped__)
-            return [func(*batch) for batch in batches]
+            values: list[T] = []
+
+            for i, batch in enumerate(batches, start=1):
+                if self.logger is not None:
+                    self.logger.log(
+                        self.logger_level, f"Processing batch {i}/{len(batches)}"
+                    )
+
+                values.append(func(*batch))
+
+            return values
 
         func = cast(BatchPositionalFunc[T], self.__wrapped__)
         return func(batches)
 
 
-@dataclass(slots=True)
-class unbatchify_positional[T](PositionalFunc[T]):
+@dataclass(slots=True, init=False)
+class unbatchify_positional[T](WrappedObject[AnyPositionalFunc[T]], PositionalFunc[T]):
     __wrapped__: AnyPositionalFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
@@ -231,28 +280,42 @@ class unbatchify_positional[T](PositionalFunc[T]):
         return func(*args)
 
 
-@dataclass(slots=True)
-class batchify_named[T](BatchNamedFunc[T]):
+@dataclass(slots=True, init=False)
+class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
-    parameters: int = field(init=False)
+    parameters: int
+    logger: logging.Logger | None
+    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyNamedFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
+        logger = get_logger(self.__wrapped__)
+        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
         if self.parameters != 1:
             func = cast(NamedFunc[T], self.__wrapped__)
-            return [func(**batch) for batch in batches]
+            values: list[T] = []
+
+            for i, batch in enumerate(batches, start=1):
+                if self.logger is not None:
+                    self.logger.log(
+                        self.logger_level, f"Processing batch {i}/{len(batches)}"
+                    )
+
+                values.append(func(**batch))
+
+            return values
 
         func = cast(BatchNamedFunc[T], self.__wrapped__)
         return func(batches)
 
 
 @dataclass(slots=True)
-class unbatchify_named[T](NamedFunc[T]):
+class unbatchify_named[T](WrappedObject[AnyNamedFunc[T]], NamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
     parameters: int = field(init=False)
 
@@ -393,3 +456,56 @@ def load_callables_map(
 
 def identity[T](x: T) -> T:
     return x
+
+
+def get_logger(obj: Any) -> logging.Logger:
+    if isinstance(obj, str):
+        return logging.getLogger(obj)
+
+    if hasattr(obj, "__class__"):
+        obj = obj.__class__
+
+    name = obj.__module__
+
+    if not name.endswith(obj.__qualname__):
+        name += f".{obj.__qualname__}"
+
+    return logging.getLogger(name)
+
+
+def use_mp(pool_or_processes: Pool | int | None) -> bool:
+    return pool_or_processes is not None and pool_or_processes != 1
+
+
+def mp_map[U, V](
+    func: Callable[[U], V],
+    batches: Iterable[U],
+    pool_or_processes: Pool | int | None,
+) -> list[V]:
+    if isinstance(pool_or_processes, int):
+        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
+        pool = Pool(pool_processes)
+    elif isinstance(pool_or_processes, Pool):
+        pool = pool_or_processes
+    else:
+        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+    with pool as p:
+        return p.map(func, batches)
+
+
+def mp_starmap[*Us, V](
+    func: Callable[[*Us], V],
+    batches: Iterable[tuple[*Us]],
+    pool_or_processes: Pool | int | None,
+) -> list[V]:
+    if isinstance(pool_or_processes, int):
+        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
+        pool = Pool(pool_processes)
+    elif isinstance(pool_or_processes, Pool):
+        pool = pool_or_processes
+    else:
+        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+    with pool as p:
+        return p.starmap(func, batches)

@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import batchify_sim
+from ..helpers import batchify_sim, get_logger
 from ..typing import (
     AggregatorFunc,
     AnySimFunc,
@@ -11,9 +11,11 @@ from ..typing import (
     SimSeq,
     StructuredValue,
 )
-from .aggregator import aggregator
+from .aggregator import default_aggregator
 
 __all__ = ["attribute_value", "AttributeValueSim"]
+
+logger = get_logger(__name__)
 
 
 def default_value_getter(obj: Any, key: Any) -> Any:
@@ -27,9 +29,6 @@ def default_value_getter(obj: Any, key: Any) -> Any:
 class AttributeValueSim[S: Float](StructuredValue[float]):
     value: float
     attributes: Mapping[str, S]
-
-
-default_aggregator = aggregator()
 
 
 @dataclass(slots=True, frozen=True)
@@ -69,6 +68,7 @@ class attribute_value[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]]):
         local_sims: list[dict[str, S]] = [dict() for _ in range(len(batches))]
 
         for attr_name in self.attributes:
+            logger.debug(f"Processing attribute {attr_name}")
             attribute_values = [
                 (self.value_getter(x, attr_name), self.value_getter(y, attr_name))
                 for x, y in batches

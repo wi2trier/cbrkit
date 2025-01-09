@@ -2,12 +2,14 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
+from ...helpers import event_loop
 from ...typing import BatchConversionFunc, StructuredValue
 
 
-class ChatMessage(TypedDict):
+@dataclass(slots=True, frozen=True)
+class ChatMessage:
     role: Literal["user", "assistant"]
     content: str
 
@@ -24,23 +26,14 @@ class DocumentsPrompt[P](StructuredValue[P]):
     documents: Mapping[str, Mapping[str, str]]
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     model: str
     response_type: type[R]
     extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
-        try:
-            return asyncio.run(self.__call_batches__(batches))
-        except RuntimeError:
-            # If event loop is closed, create a new one
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(self.__call_batches__(batches))
-            finally:
-                loop.close()
+        return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
     async def acall(self, batches: Sequence[P]) -> Sequence[R]:
         return await self.__call_batches__(batches)
@@ -52,7 +45,7 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     async def __call_batch__(self, prompt: P) -> R: ...
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class ChatProvider[P, R](BaseProvider[P, R], ABC):
     system_message: str | None = None
     messages: Sequence[ChatMessage] = field(default_factory=tuple)

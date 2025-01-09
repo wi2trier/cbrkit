@@ -6,6 +6,9 @@
 
 """
 
+import atexit
+import logging
+
 from . import (
     adapt,
     cycle,
@@ -35,3 +38,6 @@ __all__ = [
     "synthesis",
     "typing",
 ]
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+atexit.register(helpers.event_loop.close)

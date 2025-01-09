@@ -2,35 +2,48 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Literal, Protocol
 
 import immutables
+from pydantic import BaseModel
 
 from ...helpers import optional_dependencies
 from ...typing import StructuredValue
+
+type ElementType = Literal["node", "edge"]
 
 
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
     value: float
-    node_mappings: dict[K, K]
-    edge_mappings: dict[K, K]
+    node_mapping: Mapping[K, K]
+    edge_mapping: Mapping[K, K]
+    node_similarities: Mapping[K, float]
+    edge_similarities: Mapping[K, float]
 
 
-class SerializedNode[N](TypedDict):
-    data: N
+class ElementMatcher[T](Protocol):
+    def __call__(self, x: T, y: T, /) -> bool: ...
 
 
-class SerializedEdge[K, E](TypedDict):
+def default_element_matcher(x: Any, y: Any) -> bool:
+    return type(x) is type(y)
+
+
+class SerializedNode[N](BaseModel):
+    value: N
+
+
+class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
-    data: E
+    value: E
 
 
-class SerializedGraph[K, N, E, G](TypedDict):
+class SerializedGraph[K, N, E, G](BaseModel):
     nodes: Mapping[K, SerializedNode[N]]
     edges: Mapping[K, SerializedEdge[K, E]]
-    data: G
+    value: G
 
 
 @dataclass(slots=True, frozen=True)
@@ -38,16 +51,16 @@ class Node[K, N](StructuredValue[N]):
     key: K
     value: N
 
-    def to_dict(self) -> SerializedNode[N]:
-        return {"data": self.value}
+    def dump(self) -> SerializedNode[N]:
+        return SerializedNode(value=self.value)
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         key: K,
-        data: SerializedNode[N],
+        obj: SerializedNode[N],
     ) -> Node[K, N]:
-        return cls(key, data["data"])
+        return cls(key, obj.value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -57,25 +70,25 @@ class Edge[K, N, E](StructuredValue[E]):
     target: Node[K, N]
     value: E
 
-    def to_dict(self) -> SerializedEdge[K, E]:
-        return {
-            "source": self.source.key,
-            "target": self.target.key,
-            "data": self.value,
-        }
+    def dump(self) -> SerializedEdge[K, E]:
+        return SerializedEdge(
+            source=self.source.key,
+            target=self.target.key,
+            value=self.value,
+        )
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         key: K,
-        data: SerializedEdge[K, E],
+        obj: SerializedEdge[K, E],
         nodes: Mapping[K, Node[K, N]],
     ) -> Edge[K, N, E]:
         return cls(
             key,
-            nodes[data["source"]],
-            nodes[data["target"]],
-            data["data"],
+            nodes[obj.source],
+            nodes[obj.target],
+            obj.value,
         )
 
 
@@ -85,46 +98,45 @@ class Graph[K, N, E, G](StructuredValue[G]):
     edges: immutables.Map[K, Edge[K, N, E]]
     value: G
 
-    def to_dict(self) -> SerializedGraph[K, N, E, G]:
-        return {
-            "nodes": {key: node.to_dict() for key, node in self.nodes.items()},
-            "edges": {key: edge.to_dict() for key, edge in self.edges.items()},
-            "data": self.value,
-        }
+    def dump(self) -> SerializedGraph[K, N, E, G]:
+        return SerializedGraph(
+            nodes={key: node.dump() for key, node in self.nodes.items()},
+            edges={key: edge.dump() for key, edge in self.edges.items()},
+            value=self.value,
+        )
 
     @classmethod
-    def from_dict(
+    def load(
         cls,
         g: SerializedGraph[K, N, E, G],
     ) -> Graph[K, N, E, G]:
         nodes = immutables.Map(
-            (key, Node.from_dict(key, value)) for key, value in g["nodes"].items()
+            (key, Node.load(key, value)) for key, value in g.nodes.items()
         )
         edges = immutables.Map(
-            (key, Edge.from_dict(key, value, nodes))
-            for key, value in g["edges"].items()
+            (key, Edge.load(key, value, nodes)) for key, value in g.edges.items()
         )
-        return cls(nodes, edges, g["data"])
+        return cls(nodes, edges, g.value)
 
     @classmethod
     def build(
         cls,
         nodes: Iterable[Node[K, N]],
         edges: Iterable[Edge[K, N, E]],
-        data: G,
+        value: G,
     ) -> Graph[K, N, E, G]:
         node_map = immutables.Map((node.key, node) for node in nodes)
         edge_map = immutables.Map((edge.key, edge) for edge in edges)
 
-        return cls(node_map, edge_map, data)
+        return cls(node_map, edge_map, value)
 
 
-def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> SerializedGraph[K, N, E, G]:
-    return g.to_dict()
+def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> Mapping[str, Any]:
+    return g.dump().model_dump()
 
 
-def from_dict[K, N, E, G](g: SerializedGraph[K, N, E, G]) -> Graph[K, N, E, G]:
-    return Graph.from_dict(g)
+def from_dict(g: Any) -> Graph[Any, Any, Any, Any]:
+    return Graph.load(SerializedGraph.model_validate(g))
 
 
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
@@ -169,6 +181,46 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
                 return False
 
     return True
+
+
+def to_sequence[K, N, E, G](graph: Graph[K, N, E, G]) -> tuple[list[N], list[E]]:
+    """
+    Extract nodes and edges of a graph in sequential order.
+
+    Args:
+        graph: The graph to extract from.
+
+    Returns:
+        A tuple containing a list of nodes and a list of edges in sequential order.
+    """
+    in_degree = {node.key: 0 for node in graph.nodes.values()}
+    for edge in graph.edges.values():
+        in_degree[edge.target.key] += 1
+    start_nodes = [node for node in graph.nodes.values() if in_degree[node.key] == 0]
+    if len(start_nodes) != 1:
+        raise ValueError("Graph does not have a unique start node")
+    start_node = start_nodes[0]
+
+    nodes = []
+    edges = []
+    current_node = start_node
+    visited_nodes = set()
+    while current_node and current_node.key not in visited_nodes:
+        nodes.append(current_node)
+        visited_nodes.add(current_node.key)
+        outgoing_edges = [
+            edge for edge in graph.edges.values() if edge.source.key == current_node.key
+        ]
+        if len(outgoing_edges) > 1:
+            raise ValueError(
+                "Graph is not sequential (node has multiple outgoing edges)"
+            )
+        if outgoing_edges:
+            edges.append(outgoing_edges[0])
+            current_node = outgoing_edges[0].target
+        else:
+            current_node = None
+    return nodes, edges
 
 
 with optional_dependencies():
