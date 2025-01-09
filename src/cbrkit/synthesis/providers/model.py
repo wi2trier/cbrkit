@@ -35,9 +35,6 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
         return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
-    async def acall(self, batches: Sequence[P]) -> Sequence[R]:
-        return await self.__call_batches__(batches)
-
     async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
         return await asyncio.gather(*(self.__call_batch__(batch) for batch in batches))
 
