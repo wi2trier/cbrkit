@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import (
     Callable,
@@ -39,6 +40,7 @@ from .typing import (
 )
 
 __all__ = [
+    "event_loop",
     "optional_dependencies",
     "dist2sim",
     "batchify_positional",
@@ -59,6 +61,38 @@ __all__ = [
     "identity",
     "get_logger",
 ]
+
+
+@dataclass(slots=True)
+class EventLoop:
+    _instance: asyncio.AbstractEventLoop | None = None
+
+    def get(self) -> asyncio.AbstractEventLoop:
+        if self._instance is None:
+            self._instance = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._instance)
+
+        return self._instance
+
+    def close(self) -> None:
+        if self._instance is not None:
+            tasks = asyncio.all_tasks(self._instance)
+            for task in tasks:
+                task.cancel()
+
+            try:
+                self._instance.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
+            except asyncio.CancelledError:
+                pass
+
+            finally:
+                self._instance.close()
+                self._instance = None
+
+
+event_loop = EventLoop()
 
 
 @contextmanager
