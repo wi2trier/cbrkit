@@ -48,7 +48,7 @@ with optional_dependencies():
 
     type AnthropicPrompt = str | ChatPrompt[str]
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class anthropic[R: str | BaseModel](ChatProvider[AnthropicPrompt, R]):
         max_tokens: int
         model: ModelParam
