@@ -9,7 +9,6 @@ import polars as pl
 import yaml as yamllib
 
 from .typing import ConversionFunc, FilePath
-from typing import Union
 
 __all__ = [
     "json_markdown",
@@ -22,23 +21,22 @@ __all__ = [
     "yaml",
 ]
 
+
 @dataclass(slots=True, frozen=True)
 class toml(ConversionFunc[Any, str]):
-    """Writes an object to toml.
-    """
+    """Writes an object to toml."""
 
     def __call__(self, obj: Any) -> str:
         obj = {f"i{k}": v for k, v in obj.items()}
         return rtoml.dumps(obj)
-    
-    
+
+
 @dataclass(slots=True, frozen=True)
 class csv(ConversionFunc[Any, str]):
-    """Writes an object to a csv file.
-    """
+    """Writes an object to a csv file."""
 
     @staticmethod
-    def _flatten_recursive(obj: Union[dict, Any], prefix: str = '') -> dict:
+    def _flatten_recursive(obj: Any, prefix: str = "") -> dict[str, Any]:
         flat_item = {}
         if isinstance(obj, dict):
             for key, value in obj.items():
@@ -60,7 +58,6 @@ class csv(ConversionFunc[Any, str]):
             flattened.append(flat_item)
 
         return flattened
-            
 
     def __call__(self, obj: Any) -> str:
         # remove nested dicts
@@ -69,11 +66,11 @@ class csv(ConversionFunc[Any, str]):
         obj = self.__flatten_dict(obj)
         df = pl.DataFrame(obj)
         return df.write_csv()
-    
+
+
 @dataclass(slots=True, frozen=True)
 class yaml(ConversionFunc[Any, str]):
-    """Writes an object to a csv file.
-    """
+    """Writes an object to a csv file."""
 
     def __call__(self, obj: Any) -> str:
         return yamllib.dump(obj)
@@ -112,7 +109,9 @@ class json(ConversionFunc[Any, bytes]):
     option: int | None = None
 
     def __call__(self, obj: Any) -> bytes:
-        if isinstance(obj, dict) and any(not isinstance(obj, str) for t in (dict, list)):
+        if isinstance(obj, dict) and any(
+            not isinstance(obj, str) for t in (dict, list)
+        ):
             obj = {str(k): v for k, v in obj.items()}
         return orjson.dumps(obj, default=self.default, option=self.option)
 
