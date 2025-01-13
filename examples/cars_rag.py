@@ -21,6 +21,7 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
+
 class Response(BaseModel):
     car: str
     price: float
@@ -28,7 +29,9 @@ class Response(BaseModel):
 
 
 synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.anthropic(model="claude-3-haiku-20240307", response_type=Response, max_tokens=200),
+    cbrkit.synthesis.providers.anthropic(
+        model="claude-3-haiku-20240307", response_type=Response, max_tokens=200
+    ),
     cbrkit.synthesis.prompts.default(
         "Give me a summary of the found cars.",
         metadata=cbrkit.helpers.get_metadata(sim_func),

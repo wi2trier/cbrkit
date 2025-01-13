@@ -3,15 +3,16 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
-import rtoml
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from io import IOBase
 from pathlib import Path
 from typing import IO, Any, cast
 
 import orjson
 import pandas as pd
 import polars as pl
+import rtoml
 import xmltodict
 import yaml as yamllib
 from pydantic import BaseModel
@@ -76,7 +77,7 @@ class py(ConversionFunc[str | IO, Any]):
     """Reads a Python file and loads the object from it."""
 
     def __call__(self, source: str | IO) -> Any:
-        if isinstance(source, IO | io.IOBase):
+        if isinstance(source, IO | IOBase):
             return load_object(source.read())
 
         return load_object(source)
@@ -103,7 +104,7 @@ class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
 
     def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
         data = orjson.loads(
-            source.read() if isinstance(source, IO | io.IOBase) else source
+            source.read() if isinstance(source, IO | IOBase) else source
         )
 
         if isinstance(data, list):
@@ -167,7 +168,7 @@ class txt(ConversionFunc[str | bytes | IO, str]):
     """Reads a text file and converts it into a string"""
 
     def __call__(self, source: str | bytes | IO) -> str:
-        if isinstance(source, IO | io.IOBase):
+        if isinstance(source, IO | IOBase):
             return source.read()
 
         return str(source)

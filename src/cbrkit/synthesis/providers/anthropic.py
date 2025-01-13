@@ -1,13 +1,14 @@
-import json
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Type, cast, override, Iterable, List, Literal, Sequence
+from typing import Literal, cast, override
 
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies, unpack_value
 from .model import ChatPrompt, ChatProvider
 
-def pydantic_to_anthropic_schema(model: Type[BaseModel], description: str = "") -> dict:
+
+def pydantic_to_anthropic_schema(model: type[BaseModel], description: str = "") -> dict:
     """
     Convert a Pydantic model to an Anthropic-compatible JSON schema format.
 
@@ -24,26 +25,31 @@ def pydantic_to_anthropic_schema(model: Type[BaseModel], description: str = "") 
     # Extract the model name
     name = model.__name__
 
-    # Create the Anthropic-compatible schema structure 
+    # Create the Anthropic-compatible schema structure
     anthropic_schema = {
         "name": name,
         "description": description,
         "input_schema": {
             "type": "object",
             "properties": schema.get("properties", {}),
-        }
+            "required": schema.get("required", []),
+        },
     }
-
-    # Add required fields if they exist
-    if "required" in schema:
-        anthropic_schema["input_schema"]["required"] = schema["required"]
 
     return anthropic_schema
 
+
 with optional_dependencies():
     from anthropic import AsyncAnthropic
-    from anthropic.types import MessageParam, ModelParam, MetadataParam, TextBlockParam, ToolChoiceParam, ToolParam
-    from anthropic._types import NOT_GIVEN, Headers, Query, Body, NotGiven
+    from anthropic._types import NOT_GIVEN, Body, Headers, NotGiven, Query
+    from anthropic.types import (
+        MessageParam,
+        MetadataParam,
+        ModelParam,
+        TextBlockParam,
+        ToolChoiceParam,
+        ToolParam,
+    )
     from httpx import Timeout
 
     type AnthropicPrompt = str | ChatPrompt[str]
@@ -54,7 +60,7 @@ with optional_dependencies():
         model: ModelParam
         client: AsyncAnthropic = field(default_factory=AsyncAnthropic, repr=False)
         metadata: MetadataParam | NotGiven = NOT_GIVEN
-        stop_sequences: List[str] | NotGiven = NOT_GIVEN
+        stop_sequences: list[str] | NotGiven = NOT_GIVEN
         stream: NotGiven | Literal[False] = NOT_GIVEN
         system: str | Iterable[TextBlockParam] | NotGiven = NOT_GIVEN
         temperature: float | NotGiven = NOT_GIVEN
@@ -72,32 +78,40 @@ with optional_dependencies():
             messages: list[MessageParam] = []
 
             if self.system_message is not None:
-                messages.append({
-                    "role": "user", # anthropic doesn't have a "system" role
-                    "content": self.system_message,
-                })
+                messages.append(
+                    {
+                        "role": "user",  # anthropic doesn't have a "system" role
+                        "content": self.system_message,
+                    }
+                )
             messages.extend(cast(Sequence[MessageParam], self.messages))
 
             if isinstance(prompt, ChatPrompt):
-                messages.extend(
-                    cast(Sequence[MessageParam], prompt.messages)
-                )
+                messages.extend(cast(Sequence[MessageParam], prompt.messages))
 
-            if self.messages and self.messages[-1]["role"] == "user":
+            if self.messages and self.messages[-1].role == "user":
                 messages.append({"role": "assistant", "content": unpack_value(prompt)})
             else:
                 messages.append({"role": "user", "content": unpack_value(prompt)})
 
-            tool = pydantic_to_anthropic_schema(self.response_type) if issubclass(self.response_type, BaseModel) else None
+            tool = (
+                pydantic_to_anthropic_schema(self.response_type)
+                if issubclass(self.response_type, BaseModel)
+                else None
+            )
 
-            toolchoice = cast(ToolChoiceParam, {"type": "tool", "name": tool["name"]}) if tool is not None else None
+            toolchoice = (
+                cast(ToolChoiceParam, {"type": "tool", "name": tool["name"]})
+                if tool is not None
+                else None
+            )
             tool = cast(ToolParam, tool) if tool is not None else None
             res = await self.client.messages.create(
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
                 tools=[tool] if tool is not None else NOT_GIVEN,
-                tool_choice= toolchoice if toolchoice is not None else NOT_GIVEN,
+                tool_choice=toolchoice if toolchoice is not None else NOT_GIVEN,
             )
             if issubclass(self.response_type, BaseModel):
                 # res.content should contain one ToolUseBlock
@@ -107,7 +121,7 @@ with optional_dependencies():
                 if block.type != "tool_use":
                     raise ValueError("Expected one ToolUseBlock, got", block.type)
                 return self.response_type.model_validate(block.input)
-            
+
             elif self.response_type is str:
                 str_res = ""
                 for block in res.content:
@@ -116,4 +130,3 @@ with optional_dependencies():
                 return cast(R, str_res)
 
             raise ValueError("Problem with response type", res.content)
-
