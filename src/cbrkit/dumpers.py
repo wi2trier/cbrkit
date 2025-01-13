@@ -127,8 +127,8 @@ dumpers: dict[str, Dumper] = {
 
 
 def file(
-    data: Any,
     path: FilePath,
+    data: Any,
     dumper: Dumper | None = None,
 ) -> None:
     """Writes arbitrary data to a json file.
@@ -162,8 +162,8 @@ def file(
 
 
 def directory(
-    data: Mapping[str, Any],
     path: FilePath,
+    data: Mapping[str, Any],
 ):
     """Writes arbitrary data to a directory.
 
@@ -178,12 +178,12 @@ def directory(
     path.mkdir(parents=True, exist_ok=True)
 
     for key, value in data.items():
-        file(value, path / key)
+        file(path / key, value)
 
 
 def path(
-    data: Any,
     path: FilePath,
+    data: Any,
 ) -> None:
     """Writes arbitrary data to a file or directory.
 
@@ -196,6 +196,6 @@ def path(
     """
 
     if isinstance(data, Mapping):
-        directory(data, path)
+        directory(path, data)
     else:
-        file(data, path)
+        file(path, data)
