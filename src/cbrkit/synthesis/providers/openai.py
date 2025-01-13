@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import cast, override
+from typing import Literal, cast, override
 
 from pydantic import BaseModel
 
@@ -22,13 +22,13 @@ with optional_dependencies():
         logit_bias: dict[str, int] | None = None
         logprobs: bool | None = None
         max_completion_tokens: int | None = None
-        max_tokens: int | None = None
         metadata: dict[str, str] | None = None
         n: int | None = None
         presence_penalty: float | None = None
         seed: int | None = None
         stop: str | list[str] | None = None
         store: bool | None = None
+        reasoning_effort: Literal["low", "medium", "high"] | None = None
         temperature: float | None = None
         timeout: float | None = None
         top_logprobs: int | None = None
@@ -92,13 +92,13 @@ with optional_dependencies():
                 logit_bias=self.logit_bias,
                 logprobs=self.logprobs,
                 max_completion_tokens=self.max_completion_tokens,
-                max_tokens=self.max_tokens,
                 metadata=self.metadata,
                 n=self.n,
                 presence_penalty=self.presence_penalty,
                 seed=self.seed,
                 stop=self.stop,
                 store=self.store,
+                reasoning_effort=self.reasoning_effort or NOT_GIVEN,
                 temperature=self.temperature,
                 timeout=self.timeout,
                 top_logprobs=self.top_logprobs,
