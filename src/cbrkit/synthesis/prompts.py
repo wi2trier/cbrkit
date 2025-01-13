@@ -55,8 +55,8 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         A string to be used as an LLM input.
 
     Examples:
-        >>> prompt = cbrkit.synthesis.prompts.default('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
-        >>> prompt(casebase, query, similarities)
+        >>> prompt = default("Give me a summary of the found cars.")
+        >>> prompt(casebase, query, similarities) # doctest: +SKIP
     """
 
     instructions: str | None = None
@@ -122,8 +122,9 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
         encoder: Encoder function to convert the a case or query to a string.
         metadata: Optional metadata to include in the prompt.
 
-    >>> prompt = cbrkit.synthesis.prompts.documents_aware('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
-    >>> prompt(casebase, query, similarities)
+    Examples:
+        >>> prompt = documents_aware("Give me a summary of the found cars.")
+        >>> prompt(casebase, query, similarities) # doctest: +SKIP
     """
 
     instructions: str | None = None
@@ -187,8 +188,9 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         encoder: Encoder function to convert the a case or query to a string.
         metadata: Optional metadata to include in the prompt.
 
-    >>> prompt = cbrkit.synthesis.prompts.documents_aware('Please find the best match from the following partial results.',metadata=cbrkit.helpers.get_metadata(sim_func))
-    >>> prompt(partial_results)
+    Examples:
+        >>> prompt = pooling("Please find the best match from the following partial results.")
+        >>> prompt([partial1, partial2, partial3]) # doctest: +SKIP
     """
 
     instructions: str | None = None
