@@ -1,4 +1,5 @@
 import polars as pl
+
 import cbrkit
 
 df = pl.read_csv("data/cars-1k.csv").head(30)
@@ -17,22 +18,31 @@ sim_func = cbrkit.sim.attribute_value(
 retriever = cbrkit.retrieval.build(sim_func)
 
 prompt = cbrkit.synthesis.prompts.default(
-        instructions="Give me a summary of the aptitude for daily driving each of the retrieved cars.",
-        # metadata=cbrkit.helpers.get_metadata(sim_func),
-    )
-provider = cbrkit.synthesis.providers.anthropic(model="claude-3-haiku-20240307", response_type=str, max_tokens=400)
+    instructions="Give me a summary of the aptitude for daily driving each of the retrieved cars.",
+    # metadata=cbrkit.helpers.get_metadata(sim_func),
+)
+provider = cbrkit.synthesis.providers.anthropic(
+    model="claude-3-haiku-20240307", response_type=str, max_tokens=400
+)
 synthesizer = cbrkit.synthesis.build(
     provider,
     prompt,
 )
 queries = [casebase[i] for i in range(2)]
 
-retrievals = [cbrkit.retrieval.apply_query(casebase, query, retriever) for query in queries]
+retrievals = [
+    cbrkit.retrieval.apply_query(casebase, query, retriever) for query in queries
+]
 
 # batches are tuples of casebase, query, and retrieval similarities
-batches = [(casebase, query, retrieval.similarities) for query, retrieval in zip(queries, retrievals)]
+batches = [
+    (casebase, query, retrieval.similarities)
+    for query, retrieval in zip(queries, retrievals, strict=True)
+]
 
-pooling_prompt = cbrkit.synthesis.prompts.pooling("Which of the following cars is the best replacement for the queried cars?")
+pooling_prompt = cbrkit.synthesis.prompts.pooling(
+    "Which of the following cars is the best replacement for the queried cars?"
+)
 pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)
 get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10)
 response = get_result(batches)

@@ -58,6 +58,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         >>> prompt = cbrkit.synthesis.prompts.default('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
         >>> prompt(casebase, query, similarities)
     """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -115,14 +116,14 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any]):
     """
     Produces a structured LLM input (as of now: exclusive for cohere) which provides context for the LLM to be able to perform instructions.
-    
+
     Args:
         instructions: Instructions for the LLM to execute on the input.
         encoder: Encoder function to convert the a case or query to a string.
         metadata: Optional metadata to include in the prompt.
 
     >>> prompt = cbrkit.synthesis.prompts.documents_aware('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
-    >>> prompt(casebase, query, similarities)   
+    >>> prompt(casebase, query, similarities)
     """
 
     instructions: str | None = None
@@ -180,15 +181,16 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
 class pooling[V](ConversionPoolingFunc[V, str]):
     """
     Produces an LLM input to aggregate partial results (i.e., the LLM output for single chunks) to a final, global result.
-    
+
     Args:
         instructions: Instructions for the LLM to execute on the input.
         encoder: Encoder function to convert the a case or query to a string.
         metadata: Optional metadata to include in the prompt.
 
     >>> prompt = cbrkit.synthesis.prompts.documents_aware('Please find the best match from the following partial results.',metadata=cbrkit.helpers.get_metadata(sim_func))
-    >>> prompt(partial_results)   
+    >>> prompt(partial_results)
     """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None

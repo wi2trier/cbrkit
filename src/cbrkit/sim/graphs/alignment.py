@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from .model import Graph, to_sequence, GraphSim
-from ...helpers import batchify_sim, unbatchify_sim
-from ...typing import AnySimFunc, SimFunc
+
+from ...helpers import batchify_sim, unbatchify_sim, unpack_floats
+from ...typing import AnySimFunc, Float, SimFunc
 from ..collections import dtw as dtwmodule
+from .model import Edge, Graph, GraphSim, Node, to_sequence
 
 __all__ = ["dtw"]
 
@@ -56,8 +57,8 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                  node_similarities=..., edge_similarities=...)
     """
 
-    node_sim_func: AnySimFunc
-    edge_sim_func: AnySimFunc | None = None
+    node_sim_func: AnySimFunc[Node[K, N], Float]
+    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
     normalize: bool = True
 
     def __call__(
@@ -80,14 +81,18 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # Batchify for node similarities
         batch_node_sim_func = batchify_sim(self.node_sim_func)
-        node_pairs = [(xn, yn) for xn, yn in alignment if xn and yn]
-        node_sims = batch_node_sim_func(node_pairs)
+        node_pairs = (
+            [(xn, yn) for xn, yn in alignment if xn and yn]
+            if alignment is not None
+            else []
+        )
+        node_sims = unpack_floats(batch_node_sim_func(node_pairs))
         node_similarity = sum(node_sims) / len(node_sims) if node_sims else 0.0
 
         # Build node mapping and node_similarities dict
         node_mapping = {}
         node_similarities = {}
-        for (xn, yn), sim in zip(node_pairs, node_sims):
+        for (xn, yn), sim in zip(node_pairs, node_sims, strict=True):
             # In the mapping, we store y_node.key -> x_node.key
             node_mapping[yn.key] = xn.key
             # For node_similarities, we likewise index by y_node.key
@@ -100,14 +105,14 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         if self.edge_sim_func:
             # Convert edge_sim_func into a batched sim function
             batch_edge_sim_func = batchify_sim(self.edge_sim_func)
-            edge_pairs = list(zip(edges_x, edges_y))
+            edge_pairs = list(zip(edges_x, edges_y, strict=True))
 
             # Compute edge similarities over all edge pairs
-            edge_sims = batch_edge_sim_func(edge_pairs)
+            edge_sims = unpack_floats(batch_edge_sim_func(edge_pairs))
             edge_similarity = sum(edge_sims) / len(edge_sims) if edge_sims else 0.0
 
             # Build edge mapping and edge_similarities dict
-            for (xe, ye), sim in zip(edge_pairs, edge_sims):
+            for (xe, ye), sim in zip(edge_pairs, edge_sims, strict=True):
                 if xe and ye:
                     edge_mapping[ye.key] = xe.key
                     edge_similarities[ye.key] = float(sim)
