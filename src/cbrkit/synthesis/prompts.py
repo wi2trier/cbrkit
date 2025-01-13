@@ -32,12 +32,12 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
     def __call__(
         self,
         casebase: Casebase[K, V1],
-        query: V1,
+        query: V1 | None,
         similarities: SimMap[K, S] | None,
     ) -> P:
         return self.prompt_func(
             {key: self.conversion_func(value) for key, value in casebase.items()},
-            self.conversion_func(query),
+            self.conversion_func(query) if query is not None else None,
             similarities,
         )
 
@@ -66,7 +66,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     def __call__(
         self,
         casebase: Casebase[Any, V],
-        query: V,
+        query: V | None,
         similarities: SimMap[Any, Float] | None,
     ) -> str:
         result = ""
@@ -74,11 +74,14 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         if self.instructions is not None:
             result += self.instructions
 
-        result += dedent(f"""
-            ## Query
+        if query is not None:
+            result += dedent(f"""
+                ## Query
 
-            {self.encoder(query)}
+                {self.encoder(query)}
+            """)
 
+        result += dedent("""
             ## Documents Collection
         """)
 
@@ -134,7 +137,7 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
     def __call__(
         self,
         casebase: Casebase[Any, V],
-        query: V,
+        query: V | None,
         similarities: SimMap[Any, Float] | None,
     ) -> DocumentsPrompt:
         result = ""
@@ -142,11 +145,12 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent(f"""
-            ## Query
+        if query is not None:
+            result += dedent(f"""
+                ## Query
 
-            {self.encoder(query)}
-        """)
+                {self.encoder(query)}
+            """)
 
         if self.metadata is not None:
             result += dedent(f"""
@@ -206,7 +210,7 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent("""
+        result += dedent("""
             ## Documents Collection
         """)
 

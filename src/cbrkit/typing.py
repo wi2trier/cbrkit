@@ -254,7 +254,7 @@ class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
     def __call__(
         self,
         casebase: Casebase[K, V],
-        query: V,
+        query: V | None,
         similarities: SimMap[K, S] | None,
         /,
     ) -> T: ...
@@ -263,7 +263,7 @@ class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
 class SynthesizerFunc[T, K, V, S: Float](Protocol):
     def __call__(
         self,
-        batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]],
+        batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]],
     ) -> Sequence[T]: ...
 
 
