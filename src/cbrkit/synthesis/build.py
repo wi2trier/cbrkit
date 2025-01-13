@@ -46,8 +46,8 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class pooling[P, R](BatchPoolingFunc[R]):
-    prompt_func: ConversionPoolingFunc[R, P]
     generation_func: AnyConversionFunc[P, R]
+    prompt_func: ConversionPoolingFunc[R, P]
 
     def __call__(self, batches: Sequence[Sequence[R]]) -> Sequence[R]:
         func = batchify_conversion(self.generation_func)
