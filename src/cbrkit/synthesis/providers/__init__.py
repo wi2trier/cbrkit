@@ -8,6 +8,8 @@ with optional_dependencies():
     from .ollama import ollama
 with optional_dependencies():
     from .cohere import cohere
+with optional_dependencies():
+    from .anthropic import anthropic
 
 __all__ = [
     "openai",
@@ -20,4 +22,5 @@ __all__ = [
     "ChatMessage",
     "ChatPrompt",
     "DocumentsPrompt",
+    "anthropic",
 ]

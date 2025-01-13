@@ -200,7 +200,7 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
 
 
 def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
-    """Yield a total of k chunks from val.
+    """Yield chunks of size `k` from the input sequence.
 
     Examples:
         >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))

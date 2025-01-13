@@ -44,6 +44,20 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
 
 @dataclass(slots=True, frozen=True)
 class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
+    """Produces an LLM input which provides context for the LLM to be able to perform instructions.
+
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    Returns:
+        A string to be used as an LLM input.
+
+    Examples:
+        >>> prompt = cbrkit.synthesis.prompts.default('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
+        >>> prompt(casebase, query, similarities)
+    """
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -59,7 +73,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent(f"""
+        result += dedent(f"""
             ## Query
 
             {self.encoder(query)}
@@ -99,6 +113,18 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 
 @dataclass(slots=True, frozen=True)
 class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any]):
+    """
+    Produces a structured LLM input (as of now: exclusive for cohere) which provides context for the LLM to be able to perform instructions.
+    
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    >>> prompt = cbrkit.synthesis.prompts.documents_aware('Give me a summary of the found cars.',metadata=cbrkit.helpers.get_metadata(sim_func))
+    >>> prompt(casebase, query, similarities)   
+    """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -152,6 +178,17 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
 
 @dataclass(slots=True, frozen=True)
 class pooling[V](ConversionPoolingFunc[V, str]):
+    """
+    Produces an LLM input to aggregate partial results (i.e., the LLM output for single chunks) to a final, global result.
+    
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    >>> prompt = cbrkit.synthesis.prompts.documents_aware('Please find the best match from the following partial results.',metadata=cbrkit.helpers.get_metadata(sim_func))
+    >>> prompt(partial_results)   
+    """
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
