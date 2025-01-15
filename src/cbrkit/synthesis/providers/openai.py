@@ -53,7 +53,7 @@ with optional_dependencies():
                     cast(Sequence[ChatCompletionMessageParam], prompt.messages)
                 )
 
-            if self.messages and self.messages[-1].role == "user":
+            if messages and messages[-1]["role"] == "user":
                 messages.append(
                     {
                         "role": "assistant",
