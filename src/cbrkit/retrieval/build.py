@@ -18,6 +18,7 @@ from ..typing import (
     Float,
     RetrieverFunc,
     SimMap,
+    StructuredValue,
 )
 
 
@@ -64,8 +65,8 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
         retriever_func: The retriever function to be used on the converted values.
     """
 
-    conversion_func: ConversionFunc[V1, V2]
     retriever_func: RetrieverFunc[K, V2, S]
+    conversion_func: ConversionFunc[V1, V2]
 
     @override
     def __call__(
@@ -83,6 +84,12 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
                 for casebase, query in batches
             ]
         )
+
+
+def transpose_value[K, V, S: Float](
+    retriever_func: RetrieverFunc[K, V, S],
+) -> RetrieverFunc[K, StructuredValue[V], S]:
+    return transpose(retriever_func, lambda x: x.value)
 
 
 @dataclass(slots=True, frozen=True)

@@ -1,7 +1,7 @@
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import apply_batches, apply_queries, apply_query
-from .build import build, dropout, transpose
+from .build import build, dropout, transpose, transpose_value
 from .synthesis import SynthesisResponse, synthesis
 
 with optional_dependencies():
@@ -16,6 +16,7 @@ with optional_dependencies():
 __all__ = [
     "build",
     "transpose",
+    "transpose_value",
     "dropout",
     "synthesis",
     "SynthesisResponse",

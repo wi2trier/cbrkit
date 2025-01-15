@@ -12,12 +12,14 @@ from ..typing import (
     Float,
     JsonEntry,
     SimMap,
+    StructuredValue,
     SynthesizerPromptFunc,
 )
 from .providers.model import DocumentsPrompt
 
 __all__ = [
     "transpose",
+    "transpose_value",
     "default",
     "documents_aware",
     "pooling",
@@ -40,6 +42,12 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
             self.conversion_func(query) if query is not None else None,
             similarities,
         )
+
+
+def transpose_value[P, K, V, S: Float](
+    func: SynthesizerPromptFunc[P, K, V, S],
+) -> SynthesizerPromptFunc[P, K, StructuredValue[V], S]:
+    return transpose(func, lambda x: x.value)
 
 
 @dataclass(slots=True, frozen=True)
