@@ -12,10 +12,11 @@ Additionally, the module contains an aggregator to combine multiple local measur
 from . import collections, embed, generic, graphs, numbers, strings, taxonomy
 from .aggregator import PoolingName, aggregator
 from .attribute_value import AttributeValueSim, attribute_value
-from .wrappers import cache, transpose
+from .wrappers import cache, transpose, transpose_value
 
 __all__ = [
     "transpose",
+    "transpose_value",
     "cache",
     "collections",
     "generic",

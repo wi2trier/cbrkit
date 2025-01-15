@@ -9,6 +9,7 @@ from ..typing import (
     ConversionFunc,
     Float,
     SimSeq,
+    StructuredValue,
 )
 
 
@@ -17,8 +18,8 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
     """Transforms a similarity function from one type to another.
 
     Args:
-        conversion_func: A function that converts the input values from one type to another.
         similarity_func: The similarity function to be used on the converted values.
+        conversion_func: A function that converts the input values from one type to another.
 
     Examples:
         >>> from cbrkit.sim.generic import equality
@@ -46,6 +47,12 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
         return self.similarity_func(
             [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
         )
+
+
+def transpose_value[V, S: Float](
+    func: AnySimFunc[V, S],
+) -> BatchSimFunc[StructuredValue[V], S]:
+    return transpose(func, lambda x: x.value)
 
 
 @dataclass(slots=True)
