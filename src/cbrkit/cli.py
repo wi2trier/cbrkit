@@ -51,7 +51,7 @@ def retrieve(
             print(f"Query: {query_key}")
 
             if print_ranking:
-                print(f"Ranking: {", ".join(map(str, query_result.ranking))}")
+                print(f"Ranking: {', '.join(map(str, query_result.ranking))}")
 
             if print_similarities:
                 print("Similarities:")
