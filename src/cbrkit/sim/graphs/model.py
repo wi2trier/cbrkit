@@ -16,10 +16,10 @@ type ElementType = Literal["node", "edge"]
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
     value: float
-    node_mapping: Mapping[K, K]
-    edge_mapping: Mapping[K, K]
-    node_similarities: Mapping[K, float]
-    edge_similarities: Mapping[K, float]
+    node_mapping: dict[K, K]
+    edge_mapping: dict[K, K]
+    node_similarities: dict[K, float]
+    edge_similarities: dict[K, float]
 
 
 class ElementMatcher[T](Protocol):

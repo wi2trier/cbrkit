@@ -696,10 +696,10 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         return GraphSim(
             unpack_float(sim),
-            best_state.mapped_nodes,
-            best_state.mapped_edges,
-            sim.node_similarities if isinstance(sim, PastSim) else {},
-            sim.edge_similarities if isinstance(sim, PastSim) else {},
+            dict(best_state.mapped_nodes),
+            dict(best_state.mapped_edges),
+            dict(sim.node_similarities) if isinstance(sim, PastSim) else {},
+            dict(sim.edge_similarities) if isinstance(sim, PastSim) else {},
         )
 
     def precompute_similarities(
