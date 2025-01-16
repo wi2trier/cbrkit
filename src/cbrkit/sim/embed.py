@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass, field
@@ -6,7 +7,13 @@ from typing import Literal, cast, override
 import numpy as np
 from scipy.spatial.distance import cosine as scipy_cosine
 
-from ..helpers import batchify_conversion, batchify_sim, optional_dependencies
+from ..helpers import (
+    batchify_conversion,
+    batchify_sim,
+    chunkify,
+    event_loop,
+    optional_dependencies,
+)
 from ..typing import (
     AnyConversionFunc,
     AnySimFunc,
@@ -291,7 +298,8 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    from openai import OpenAI
+    import tiktoken
+    from openai import AsyncOpenAI
 
     @dataclass(slots=True, frozen=True)
     class openai(BatchConversionFunc[str, NumpyArray]):
@@ -302,16 +310,44 @@ with optional_dependencies():
         """
 
         model: str
-        client: OpenAI = field(default_factory=OpenAI, repr=False)
+        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
+        chunk_size: int = 2048
+        context_size: int = 8192
+        truncate: Literal["start", "end"] | None = "end"
 
         @override
-        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-            res = self.client.embeddings.create(
-                input=cast(list[str], texts),
+        def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
+            return event_loop.get().run_until_complete(self.__call_batches__(batches))
+
+        async def __call_batches__(
+            self, batches: Sequence[str]
+        ) -> Sequence[NumpyArray]:
+            chunk_results = await asyncio.gather(
+                *(
+                    self.__call_chunk__(chunk)
+                    for chunk in chunkify(batches, self.chunk_size)
+                )
+            )
+
+            return list(itertools.chain.from_iterable(chunk_results))
+
+        async def __call_chunk__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
+            res = await self.client.embeddings.create(
+                input=[self.encode(text) for text in batches],
                 model=self.model,
                 encoding_format="float",
             )
             return [np.array(x.embedding) for x in res.data]
+
+        def encode(self, text: str) -> list[int]:
+            value = tiktoken.encoding_for_model(self.model).encode(text)
+
+            if self.truncate == "start":
+                return value[-self.context_size :]
+            elif self.truncate == "end":
+                return value[: self.context_size]
+
+            return value
 
 
 with optional_dependencies():
