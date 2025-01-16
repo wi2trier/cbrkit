@@ -493,11 +493,14 @@ def get_logger(obj: Any) -> logging.Logger:
 
 
 def use_mp(pool_or_processes: Pool | int | bool | None) -> bool:
-    return pool_or_processes is not None and (
-        (isinstance(pool_or_processes, bool) and pool_or_processes)
-        or (isinstance(pool_or_processes, int) and pool_or_processes != 1)
-        or isinstance(pool_or_processes, Pool)
-    )
+    if isinstance(pool_or_processes, bool):
+        return pool_or_processes
+    elif isinstance(pool_or_processes, int):
+        return pool_or_processes != 1
+    elif isinstance(pool_or_processes, Pool):
+        return True
+
+    return False
 
 
 def mp_map[U, V](
