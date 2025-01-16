@@ -552,8 +552,8 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
         default_factory=lambda: legal_edge_mapping(default_element_matcher)
     )
     queue_limit: int = 10000
-    precompute_node_sim_func: AnySimFunc[Node[K, N], Float] | None = None
-    precompute_edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
+    precompute_nodes_func: AnySimFunc[Node[K, N], Float] | None = None
+    precompute_edges_func: AnySimFunc[Edge[K, N, E], Float] | None = None
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
 
@@ -702,12 +702,11 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
             dict(sim.edge_similarities) if isinstance(sim, PastSim) else {},
         )
 
-    def precompute_similarities(
-        self,
-        batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]],
+    def precompute(
+        self, batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]]
     ) -> None:
-        if self.precompute_node_sim_func is not None:
-            node_sim_func = batchify_sim(self.precompute_node_sim_func)
+        if self.precompute_nodes_func is not None:
+            node_sim_func = batchify_sim(self.precompute_nodes_func)
             node_batches: list[tuple[Node[K, N], Node[K, N]]] = []
 
             for x, y in batches:
@@ -729,8 +728,8 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
             node_sim_func(node_batches)
 
-        if self.precompute_edge_sim_func is not None:
-            edge_sim_func = batchify_sim(self.precompute_edge_sim_func)
+        if self.precompute_edges_func is not None:
+            edge_sim_func = batchify_sim(self.precompute_edges_func)
             edge_batches: list[tuple[Edge[K, N, E], Edge[K, N, E]]] = []
 
             for x, y in batches:
@@ -756,6 +755,6 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
     def __call__(
         self, batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]]
     ) -> list[GraphSim[K]]:
-        self.precompute_similarities(batches)
+        self.precompute(batches)
 
         return [self.__call_single__(x, y) for x, y in batches]
