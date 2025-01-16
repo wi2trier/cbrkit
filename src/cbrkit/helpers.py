@@ -207,6 +207,9 @@ def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
         [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
     """
 
+    if k < 1:
+        raise ValueError("Chunk size must be greater than 0")
+
     for i in range(0, len(val), k):
         yield val[i : i + k]
 
