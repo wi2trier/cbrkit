@@ -47,6 +47,7 @@ __all__ = [
     "unbatchify_positional",
     "batchify_named",
     "unbatchify_named",
+    "get_value",
     "unpack_value",
     "unpack_values",
     "unpack_float",
@@ -361,6 +362,10 @@ def unbatchify_conversion[P, R](
         ConversionFunc[P, R],
         batchify_positional(cast(AnyPositionalFunc[R], func)),
     )
+
+
+def get_value[T](arg: StructuredValue[T]) -> T:
+    return arg.value
 
 
 def unpack_value[T](arg: T | StructuredValue[T]) -> T:

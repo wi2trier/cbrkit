@@ -6,6 +6,7 @@ from typing import override
 from ..helpers import (
     batchify_sim,
     chunkify,
+    get_value,
     mp_map,
     sim_map2ranking,
     unpack_float,
@@ -89,7 +90,7 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
 def transpose_value[K, V, S: Float](
     retriever_func: RetrieverFunc[K, V, S],
 ) -> RetrieverFunc[K, StructuredValue[V], S]:
-    return transpose(retriever_func, lambda x: x.value)
+    return transpose(retriever_func, get_value)
 
 
 @dataclass(slots=True, frozen=True)
