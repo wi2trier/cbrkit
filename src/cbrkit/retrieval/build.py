@@ -125,7 +125,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     """
 
     similarity_func: AnySimFunc[V, S]
-    multiprocessing: Pool | int | None = None
+    multiprocessing: Pool | int | bool | None = None
     chunksize: int = 10
 
     @override

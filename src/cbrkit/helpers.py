@@ -476,16 +476,22 @@ def get_logger(obj: Any) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def use_mp(pool_or_processes: Pool | int | None) -> bool:
-    return pool_or_processes is not None and pool_or_processes != 1
+def use_mp(pool_or_processes: Pool | int | bool | None) -> bool:
+    return pool_or_processes is not None and (
+        (isinstance(pool_or_processes, bool) and pool_or_processes)
+        or (isinstance(pool_or_processes, int) and pool_or_processes != 1)
+        or isinstance(pool_or_processes, Pool)
+    )
 
 
 def mp_map[U, V](
     func: Callable[[U], V],
     batches: Iterable[U],
-    pool_or_processes: Pool | int | None,
+    pool_or_processes: Pool | int | bool | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, int):
+    if isinstance(pool_or_processes, bool):
+        pool = Pool()
+    elif isinstance(pool_or_processes, int):
         pool_processes = None if pool_or_processes <= 0 else pool_or_processes
         pool = Pool(pool_processes)
     elif isinstance(pool_or_processes, Pool):
@@ -500,9 +506,11 @@ def mp_map[U, V](
 def mp_starmap[*Us, V](
     func: Callable[[*Us], V],
     batches: Iterable[tuple[*Us]],
-    pool_or_processes: Pool | int | None,
+    pool_or_processes: Pool | int | bool | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, int):
+    if isinstance(pool_or_processes, bool):
+        pool = Pool()
+    elif isinstance(pool_or_processes, int):
         pool_processes = None if pool_or_processes <= 0 else pool_or_processes
         pool = Pool(pool_processes)
     elif isinstance(pool_or_processes, Pool):
