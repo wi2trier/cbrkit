@@ -3,7 +3,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast, override
 
-from ..helpers import batchify_sim, get_metadata, get_value
+from ..helpers import batchify_sim, get_metadata, get_value, getitem_or_getattr
 from ..typing import (
     AnySimFunc,
     BatchSimFunc,
@@ -237,9 +237,9 @@ def attribute_table[K, U, S: Float](
     entries: Mapping[K, AnySimFunc[..., S]],
     attribute: str,
     default: AnySimFunc[U, S] | None = None,
-    getter: Callable[[Any, str], K] = getattr,
+    value_getter: Callable[[Any, str], K] = getitem_or_getattr,
 ) -> BatchSimFunc[Any, S]:
-    key_getter = attribute_table_key_getter(getter, attribute)
+    key_getter = attribute_table_key_getter(value_getter, attribute)
 
     return dynamic_table(
         entries=entries,
