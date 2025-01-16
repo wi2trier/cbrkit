@@ -109,6 +109,7 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
 
     Examples:
         >>> from cbrkit.helpers import identity
+        >>> from cbrkit.sim.generic import static
         >>> sim = dynamic_table(
         ...     {
         ...         ("a", "b"): static(0.5),
