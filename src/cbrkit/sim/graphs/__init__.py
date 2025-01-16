@@ -10,8 +10,10 @@ from .model import (
     SerializedEdge,
     SerializedGraph,
     SerializedNode,
+    dump,
     from_dict,
     is_sequential,
+    load,
     to_dict,
 )
 
@@ -32,6 +34,8 @@ __all__ = [
     "SerializedNode",
     "SerializedEdge",
     "SerializedGraph",
+    "load",
+    "dump",
     "to_dict",
     "from_dict",
     "is_sequential",
