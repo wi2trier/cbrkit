@@ -2,6 +2,7 @@ import asyncio
 import itertools
 from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, cast, override
 
 import numpy as np
@@ -149,7 +150,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 @dataclass(slots=True, init=False)
 class cache(KeyValueStore[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
-    path: FilePath | None
+    path: Path | None
     autodump: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
@@ -160,16 +161,14 @@ class cache(KeyValueStore[str, NumpyArray]):
         autodump: bool = False,
     ):
         self.func = batchify_conversion(func) if func is not None else None
-        self.path = path
-        self.store = {}
+        self.path = Path(path) if isinstance(path, str) else path
         self.autodump = autodump
 
-    def __post_init__(self) -> None:
-        if self.path:
-            try:
-                self.store = np.load(self.path)
-            except Exception:
-                pass
+        if self.path and self.path.exists():
+            with np.load(self.path) as data:
+                self.store = dict(data)
+        else:
+            self.store = {}
 
     def dump(self) -> None:
         if not self.path:

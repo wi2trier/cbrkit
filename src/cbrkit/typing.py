@@ -270,7 +270,7 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
 class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
     store: MutableMapping[K, V]
     func: BatchConversionFunc[K, V] | None
-    path: FilePath | None
+    path: Path | None
     autodump: bool
 
     def dump(self) -> None: ...
