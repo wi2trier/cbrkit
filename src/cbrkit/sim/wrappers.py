@@ -14,6 +14,7 @@ from ..typing import (
     SimSeq,
     StructuredValue,
 )
+from .generic import static
 
 
 @dataclass(slots=True)
@@ -150,13 +151,19 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
         entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
         | Mapping[K, AnySimFunc[..., S]],
         key_getter: Callable[[Any], K],
-        default: AnySimFunc[U, S] | None = None,
+        default: AnySimFunc[U, S] | S | None = None,
         symmetric: bool = True,
     ):
-        self.default = batchify_sim(default) if default is not None else None
         self.symmetric = symmetric
         self.key_getter = key_getter
         self.table = {}
+
+        if isinstance(default, Callable):
+            self.default = batchify_sim(default)
+        elif default is None:
+            self.default = None
+        else:
+            self.default = batchify_sim(static(default))
 
         for key, val in entries.items():
             func = batchify_sim(val)
@@ -189,7 +196,7 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
 
         for key, idxs in idx_map.items():
             sim_func = cast(
-                BatchSimFunc[U | V, S],
+                BatchSimFunc[U | V, S] | None,
                 self.table.get(key) if key is not None else self.default,
             )
 
@@ -214,7 +221,7 @@ table = dynamic_table
 
 def type_table[U, V, S: Float](
     entries: Mapping[type[V], AnySimFunc[..., S]],
-    default: AnySimFunc[U, S] | None = None,
+    default: AnySimFunc[U, S] | S | None = None,
 ) -> BatchSimFunc[U | V, S]:
     return dynamic_table(
         entries=entries,
@@ -236,7 +243,7 @@ class attribute_table_key_getter[K]:
 def attribute_table[K, U, S: Float](
     entries: Mapping[K, AnySimFunc[..., S]],
     attribute: str,
-    default: AnySimFunc[U, S] | None = None,
+    default: AnySimFunc[U, S] | S | None = None,
     value_getter: Callable[[Any, str], K] = getitem_or_getattr,
 ) -> BatchSimFunc[Any, S]:
     key_getter = attribute_table_key_getter(value_getter, attribute)

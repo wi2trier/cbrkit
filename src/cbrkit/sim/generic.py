@@ -1,8 +1,11 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
+from ..helpers import get_metadata, unbatchify_sim
 from ..typing import (
+    AnySimFunc,
+    Float,
     HasMetadata,
     JsonDict,
     SimFunc,
@@ -38,7 +41,7 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
         0.0
     """
 
-    default: float | None
+    default: SimFunc[V | Any, float] | None
     symmetric: bool
     table: dict[tuple[V, V], float]
 
@@ -47,7 +50,7 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
     def metadata(self) -> JsonDict:
         return {
             "symmetric": self.symmetric,
-            "default": self.default,
+            "default": get_metadata(self.default),
             "table": [
                 {
                     "x": str(k[0]),
@@ -61,12 +64,18 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
     def __init__(
         self,
         entries: Sequence[tuple[V, V, float]] | Mapping[tuple[V, V], float],
-        default: float | None = None,
+        default: AnySimFunc[V | Any, float] | float | None = None,
         symmetric: bool = True,
     ):
-        self.default = default
         self.symmetric = symmetric
         self.table = {}
+
+        if isinstance(default, Callable):
+            self.default = unbatchify_sim(default)
+        elif default is None:
+            self.default = None
+        else:
+            self.default = static(default)
 
         if isinstance(entries, Mapping):
             for (x, y), val in entries.items():
@@ -84,7 +93,10 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
 
     @override
     def __call__(self, x: V | Any, y: V | Any) -> float:
-        sim = self.table.get((x, y), self.default)
+        sim = self.table.get((x, y))
+
+        if sim is None and self.default is not None:
+            sim = self.default(x, y)
 
         if sim is None:
             raise ValueError(f"Pair ({x}, {y}) not in the table")
@@ -130,7 +142,7 @@ class type_equality(SimFunc[Any, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class static(SimFunc[Any, float]):
+class static[S: Float](SimFunc[Any, S]):
     """Static similarity function. Returns a constant value for all batches.
 
     Args:
@@ -144,8 +156,8 @@ class static(SimFunc[Any, float]):
         0.5
     """
 
-    value: float
+    value: S
 
     @override
-    def __call__(self, x: Any, y: Any) -> float:
+    def __call__(self, x: Any, y: Any) -> S:
         return self.value
