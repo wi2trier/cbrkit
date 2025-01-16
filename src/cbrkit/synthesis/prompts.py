@@ -4,7 +4,7 @@ from textwrap import dedent
 from typing import Any
 
 from ..dumpers import json_markdown
-from ..helpers import sim_map2ranking, unpack_float
+from ..helpers import get_value, sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
     ConversionFunc,
@@ -47,7 +47,7 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
 def transpose_value[P, K, V, S: Float](
     func: SynthesizerPromptFunc[P, K, V, S],
 ) -> SynthesizerPromptFunc[P, K, StructuredValue[V], S]:
-    return transpose(func, lambda x: x.value)
+    return transpose(func, get_value)
 
 
 @dataclass(slots=True, frozen=True)

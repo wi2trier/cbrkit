@@ -3,7 +3,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast, override
 
-from ..helpers import batchify_sim, get_metadata
+from ..helpers import batchify_sim, get_metadata, get_value
 from ..typing import (
     AnySimFunc,
     BatchSimFunc,
@@ -55,7 +55,7 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
 def transpose_value[V, S: Float](
     func: AnySimFunc[V, S],
 ) -> BatchSimFunc[StructuredValue[V], S]:
-    return transpose(func, lambda x: x.value)
+    return transpose(func, get_value)
 
 
 @dataclass(slots=True)
@@ -224,15 +224,26 @@ def type_table[U, V, S: Float](
     )
 
 
+@dataclass(slots=True, frozen=True)
+class attribute_table_key_getter[K]:
+    func: Callable[[Any, str], K]
+    attribute: str
+
+    def __call__(self, x: Any) -> K:
+        return self.func(x, self.attribute)
+
+
 def attribute_table[K, U, S: Float](
     entries: Mapping[K, AnySimFunc[..., S]],
     attribute: str,
     default: AnySimFunc[U, S] | None = None,
     getter: Callable[[Any, str], K] = getattr,
 ) -> BatchSimFunc[Any, S]:
+    key_getter = attribute_table_key_getter(getter, attribute)
+
     return dynamic_table(
         entries=entries,
-        key_getter=lambda x: getter(x, attribute),
+        key_getter=key_getter,
         default=default,
         symmetric=False,
     )
