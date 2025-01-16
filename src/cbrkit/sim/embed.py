@@ -54,7 +54,7 @@ class cosine(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if np.any(u) and np.any(v):
-            return 1 - scipy_cosine(u, v, self.weight).astype(float)
+            return 1 - scipy_cosine(u, v, self.weight).__float__()
 
         return 0.0
 
@@ -63,7 +63,7 @@ class cosine(SimFunc[NumpyArray, float]):
 class dot(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return np.dot(u, v).astype(float)
+        return np.dot(u, v).__float__()
 
 
 @dataclass(slots=True, frozen=True)
@@ -87,14 +87,14 @@ class angular(SimFunc[NumpyArray, float]):
 class euclidean(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return 1 / (1 + np.linalg.norm(u - v)).astype(float)
+        return 1 / (1 + np.linalg.norm(u - v).__float__())
 
 
 @dataclass(slots=True, frozen=True)
 class manhattan(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return 1 / (1 + np.sum(np.abs(u - v)))
+        return 1 / (1 + np.sum(np.abs(u - v)).__float__())
 
 
 default_score_func: SimFunc[NumpyArray, float] = cosine()
