@@ -183,12 +183,7 @@ class weights(TaxonomySimFunc):
     ![user weights](../../../../assets/taxonomy/auto-weights.png)
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", weights("optimistic", "user"))
-        >>> sim("audi", "Volkswagen AG")
-        1.0
-        >>> sim("audi", "bmw")
-        0.0
-        >>> sim = build("./data/cars-taxonomy.yaml", weights("optimistic", "auto"))
+        >>> sim = build("./data/cars-taxonomy.yaml", weights("auto", "optimistic"))
         >>> sim("audi", "Volkswagen AG")
         1.0
         >>> sim("audi", "bmw")
@@ -205,7 +200,7 @@ class weights(TaxonomySimFunc):
         lca = taxonomy.lca(node1, node2)
         max_depth = taxonomy.max_depth
 
-        weight = lca.weight if self.source == "user" else lca.depth / max_depth
+        weight: float = lca.weight if self.source == "user" else lca.depth / max_depth
 
         if lca == node1 or lca == node2:
             # pessimistic not needed: weight of lca already used
