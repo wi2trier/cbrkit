@@ -177,8 +177,9 @@ class cache(KeyValueStore[str, NumpyArray]):
         np.savez_compressed(self.path, **self.store)
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if self.func:
-            new_texts = [text for text in texts if text not in self.store]
+        new_texts = [text for text in texts if text not in self.store]
+
+        if self.func and new_texts:
             self.store.update(zip(new_texts, self.func(new_texts), strict=True))
 
             if self.autodump:
