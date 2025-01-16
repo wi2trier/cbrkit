@@ -61,6 +61,10 @@ __all__ = [
     "load_callables_map",
     "identity",
     "get_logger",
+    "use_mp",
+    "mp_map",
+    "mp_starmap",
+    "getitem_or_getattr",
 ]
 
 
@@ -395,6 +399,13 @@ def sim_seq2ranking[S: Float](similarities: SimSeq[S]) -> list[int]:
         key=lambda i: unpack_float(similarities[i]),
         reverse=True,
     )
+
+
+def getitem_or_getattr(obj: Any, key: Any) -> Any:
+    if hasattr(obj, "__getitem__"):
+        return obj[key]
+
+    return getattr(obj, key)
 
 
 def load_object(import_name: str) -> Any:
