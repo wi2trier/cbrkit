@@ -139,6 +139,16 @@ def from_dict(g: Any) -> Graph[Any, Any, Any, Any]:
     return Graph.load(SerializedGraph.model_validate(g))
 
 
+def load[K](data: Mapping[K, Any]) -> dict[K, Graph[Any, Any, Any, Any]]:
+    return {key: from_dict(value) for key, value in data.items()}
+
+
+def dump[T, K, N, E, G](
+    data: Mapping[T, Graph[K, N, E, G]],
+) -> dict[T, SerializedGraph[K, N, E, G]]:
+    return {key: value.dump() for key, value in data.items()}
+
+
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
     """
     Check if a graph is a sequential workflow.
