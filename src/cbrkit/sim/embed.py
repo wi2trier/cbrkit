@@ -309,29 +309,40 @@ with optional_dependencies():
         """
 
         model: str
-        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
+        client: AsyncOpenAI | Callable[[], AsyncOpenAI] = field(
+            default=AsyncOpenAI, repr=False
+        )
         chunk_size: int = 2048
         context_size: int = 8192
         truncate: Literal["start", "end"] | None = "end"
 
         @override
         def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
-            return event_loop.get().run_until_complete(self.__call_batches__(batches))
+            client = (
+                self.client if isinstance(self.client, AsyncOpenAI) else self.client()
+            )
+            return event_loop.get().run_until_complete(
+                self.__call_batches__(batches, client)
+            )
 
         async def __call_batches__(
-            self, batches: Sequence[str]
+            self, batches: Sequence[str], client: AsyncOpenAI
         ) -> Sequence[NumpyArray]:
             chunk_results = await asyncio.gather(
                 *(
-                    self.__call_chunk__(chunk)
+                    self.__call_chunk__(chunk, client)
                     for chunk in chunkify(batches, self.chunk_size)
                 )
             )
 
             return list(itertools.chain.from_iterable(chunk_results))
 
-        async def __call_chunk__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
-            res = await self.client.embeddings.create(
+        async def __call_chunk__(
+            self,
+            batches: Sequence[str],
+            client: AsyncOpenAI,
+        ) -> Sequence[NumpyArray]:
+            res = await client.embeddings.create(
                 input=[self.encode(text) for text in batches],
                 model=self.model,
                 encoding_format="float",
