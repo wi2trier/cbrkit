@@ -9,7 +9,7 @@ from typing import Protocol, override
 
 import immutables
 
-from ...helpers import batchify_sim, unpack_float, unpack_floats
+from ...helpers import batchify_sim, get_logger, unpack_float, unpack_floats
 from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
 from .model import (
     Edge,
@@ -40,6 +40,8 @@ __all__ = [
     "legal_edge_mapping",
     "build",
 ]
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -706,6 +708,7 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
         self, batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]]
     ) -> None:
         if self.precompute_nodes_func is not None:
+            logger.info("Precomputing node similarities")
             node_sim_func = batchify_sim(self.precompute_nodes_func)
             node_batches: list[tuple[Node[K, N], Node[K, N]]] = []
 
@@ -729,6 +732,7 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
             node_sim_func(node_batches)
 
         if self.precompute_edges_func is not None:
+            logger.info("Precomputing edge similarities")
             edge_sim_func = batchify_sim(self.precompute_edges_func)
             edge_batches: list[tuple[Edge[K, N, E], Edge[K, N, E]]] = []
 
@@ -757,4 +761,10 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> list[GraphSim[K]]:
         self.precompute(batches)
 
-        return [self.__call_single__(x, y) for x, y in batches]
+        sims: list[GraphSim[K]] = []
+
+        for i, batch in enumerate(batches, start=1):
+            logger.debug(f"Processing batch {i}/{len(batches)}")
+            sims.append(self.__call_single__(*batch))
+
+        return sims
