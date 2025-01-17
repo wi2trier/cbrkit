@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from collections.abc import (
     Callable,
     Collection,
@@ -65,6 +66,9 @@ __all__ = [
     "mp_map",
     "mp_starmap",
     "getitem_or_getattr",
+    "round",
+    "round_nearest",
+    "scale",
 ]
 
 
@@ -406,6 +410,34 @@ def getitem_or_getattr(obj: Any, key: Any) -> Any:
         return obj[key]
 
     return getattr(obj, key)
+
+
+def round_nearest(value: float) -> int:
+    x = math.floor(value)
+
+    if (value - x) < 0.50:
+        return x
+
+    return math.ceil(value)
+
+
+def round(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
+    if mode == "floor":
+        return math.floor(value)
+    elif mode == "ceil":
+        return math.ceil(value)
+    elif mode == "nearest":
+        return round_nearest(value)
+
+    raise ValueError(f"Invalid rounding mode: {mode}")
+
+
+def scale(value: float, lower: float, upper: float) -> float:
+    """Scale a value from [0, 1] to [lower, upper]."""
+    if lower == 0 and upper == 1:
+        return value
+
+    return value * (upper - lower) + lower
 
 
 def load_object(import_name: str) -> Any:
