@@ -27,13 +27,6 @@ def parse_metric(spec: str) -> tuple[str, int, int]:
     return m, k, int(rel_lvl)
 
 
-def generate_metrics(
-    metrics: Iterable[str],
-    ks: Iterable[int | None],
-) -> list[str]:
-    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]
-
-
 def concordances(
     qrel: Mapping[str, int],
     run: Mapping[str, float],
@@ -214,3 +207,13 @@ def compute[Q, C, S: Float](
             )
 
     return eval_results
+
+
+def generate_metrics(
+    metrics: Iterable[str] = DEFAULT_METRICS,
+    ks: Iterable[int | None] | int | None = None,
+) -> list[str]:
+    if not isinstance(ks, Iterable):
+        ks = [ks]
+
+    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]
