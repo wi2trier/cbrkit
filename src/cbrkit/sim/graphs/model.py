@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-import immutables
+from frozendict import frozendict
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies
@@ -94,8 +94,8 @@ class Edge[K, N, E](StructuredValue[E]):
 
 @dataclass(slots=True, frozen=True)
 class Graph[K, N, E, G](StructuredValue[G]):
-    nodes: immutables.Map[K, Node[K, N]]
-    edges: immutables.Map[K, Edge[K, N, E]]
+    nodes: frozendict[K, Node[K, N]]
+    edges: frozendict[K, Edge[K, N, E]]
     value: G
 
     def dump(self) -> SerializedGraph[K, N, E, G]:
@@ -110,10 +110,10 @@ class Graph[K, N, E, G](StructuredValue[G]):
         cls,
         g: SerializedGraph[K, N, E, G],
     ) -> Graph[K, N, E, G]:
-        nodes = immutables.Map(
+        nodes = frozendict(
             (key, Node.load(key, value)) for key, value in g.nodes.items()
         )
-        edges = immutables.Map(
+        edges = frozendict(
             (key, Edge.load(key, value, nodes)) for key, value in g.edges.items()
         )
         return cls(nodes, edges, g.value)
@@ -125,8 +125,8 @@ class Graph[K, N, E, G](StructuredValue[G]):
         edges: Iterable[Edge[K, N, E]],
         value: G,
     ) -> Graph[K, N, E, G]:
-        node_map = immutables.Map((node.key, node) for node in nodes)
-        edge_map = immutables.Map((edge.key, edge) for edge in edges)
+        node_map = frozendict((node.key, node) for node in nodes)
+        edge_map = frozendict((edge.key, edge) for edge in edges)
 
         return cls(node_map, edge_map, value)
 
@@ -273,10 +273,10 @@ with optional_dependencies():
         return to_rustworkx_with_lookup(g)[0]
 
     def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
-        nodes = immutables.Map(
+        nodes = frozendict(
             (idx, Node(idx, g.get_node_data(idx))) for idx in g.node_indices()
         )
-        edges = immutables.Map(
+        edges = frozendict(
             (edge_id, Edge(edge_id, nodes[source_id], nodes[target_id], edge_data))
             for edge_id, (source_id, target_id, edge_data) in g.edge_index_map().items()
         )
@@ -319,11 +319,9 @@ with optional_dependencies():
         return ng
 
     def from_networkx(g: nx.DiGraph) -> Graph[Any, Any, Any, Any]:
-        nodes = immutables.Map(
-            (idx, Node(idx, data)) for idx, data in g.nodes(data=True)
-        )
+        nodes = frozendict((idx, Node(idx, data)) for idx, data in g.nodes(data=True))
 
-        edges = immutables.Map(
+        edges = frozendict(
             (idx, Edge(idx, nodes[source_id], nodes[target_id], edge_data))
             for idx, (source_id, target_id, edge_data) in enumerate(g.edges(data=True))
         )

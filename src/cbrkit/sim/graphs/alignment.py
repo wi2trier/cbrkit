@@ -19,23 +19,23 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         normalize: Whether to normalize the similarity score by the alignment length (default: True).
 
     Examples:
-        >>> from immutables import Map
+        >>> from frozendict import frozendict
         >>> from .model import Node, Edge, Graph
         >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
         >>> edge_similarity = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
-        >>> nodes_x = Map({
+        >>> nodes_x = frozendict({
         ...     '1': Node(key='1', value='A'),
         ...     '2': Node(key='2', value='B'),
         ... })
-        >>> edges_x = Map({
+        >>> edges_x = frozendict({
         ...     'e1': Edge(key='e1', source=nodes_x['1'], target=nodes_x['2'], value='X'),
         ... })
         >>> graph_x = Graph(nodes=nodes_x, edges=edges_x, value=None)
-        >>> nodes_y = Map({
+        >>> nodes_y = frozendict({
         ...     '1': Node(key='1', value='A'),
         ...     '2': Node(key='2', value='C'),
         ... })
-        >>> edges_y = Map({
+        >>> edges_y = frozendict({
         ...     'e1': Edge(key='e1', source=nodes_y['1'], target=nodes_y['2'], value='Y'),
         ... })
         >>> graph_y = Graph(nodes=nodes_y, edges=edges_y, value=None)
