@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, override
 
-import immutables
+from frozendict import frozendict
 
 from ...helpers import batchify_sim, get_logger, unpack_float, unpack_floats
 from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
@@ -47,8 +47,8 @@ logger = get_logger(__name__)
 @dataclass(slots=True, frozen=True)
 class State[K]:
     # mappings are from y to x
-    mapped_nodes: immutables.Map[K, K]
-    mapped_edges: immutables.Map[K, K]
+    mapped_nodes: frozendict[K, K]
+    mapped_edges: frozendict[K, K]
     remaining_nodes: frozenset[K]
     remaining_edges: frozenset[K]
 
@@ -398,8 +398,8 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
     ) -> State[K]:
         return State(
-            immutables.Map(),
-            immutables.Map(),
+            frozendict(),
+            frozendict(),
             frozenset(y.nodes.keys()),
             frozenset(y.edges.keys()),
         )
@@ -424,8 +424,8 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
         possible_edge_mappings: defaultdict[K, set[K]] = defaultdict(set)
 
         state = State(
-            immutables.Map(),
-            immutables.Map(),
+            frozendict(),
+            frozendict(),
             frozenset(y.nodes.keys()),
             frozenset(y.edges.keys()),
         )
@@ -450,8 +450,8 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
         }
 
         return State(
-            immutables.Map(node_mappings),
-            immutables.Map(edge_mappings),
+            frozendict(node_mappings),
+            frozendict(edge_mappings),
             frozenset(y.nodes.keys() - node_mappings.keys()),
             frozenset(y.edges.keys() - edge_mappings.keys()),
         )
@@ -714,8 +714,8 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
             for x, y in batches:
                 state = State(
-                    immutables.Map(),
-                    immutables.Map(),
+                    frozendict(),
+                    frozendict(),
                     frozenset(y.nodes.keys()),
                     frozenset(y.edges.keys()),
                 )
@@ -738,8 +738,8 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
             for x, y in batches:
                 state = State(
-                    immutables.Map(),
-                    immutables.Map(),
+                    frozendict(),
+                    frozendict(),
                     frozenset(y.nodes.keys()),
                     frozenset(y.edges.keys()),
                 )
