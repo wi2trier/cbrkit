@@ -153,7 +153,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
             chunksize = self.chunksize or math.ceil(
                 len(flat_batches) / mp_count(self.multiprocessing)
             )
-            pair_chunks = chunkify(flat_batches, chunksize)
+            pair_chunks = list(chunkify(flat_batches, chunksize))
             sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing)
 
             for sim_chunk in sim_chunks:

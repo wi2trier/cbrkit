@@ -4,7 +4,7 @@ from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
 from typing import cast, override
 
-from ..helpers import mp_starmap, use_mp
+from ..helpers import mp_starmap
 from ..typing import (
     AdaptationFunc,
     AnyAdaptationFunc,
@@ -68,17 +68,11 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 MapAdaptationFunc[K, V] | ReduceAdaptationFunc[K, V],
                 adaptation_func,
             )
-
-            if use_mp(self.multiprocessing):
-                adaptation_results = mp_starmap(
-                    adapt_func,
-                    batches,
-                    self.multiprocessing,
-                )
-            else:
-                adaptation_results = [
-                    adapt_func(casebase, query) for casebase, query in batches
-                ]
+            adaptation_results = mp_starmap(
+                adapt_func,
+                batches,
+                self.multiprocessing,
+            )
 
             if all(isinstance(item, tuple) for item in adaptation_results):
                 adaptation_results = cast(Sequence[tuple[K, V]], adaptation_results)
@@ -98,15 +92,11 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        if use_mp(self.multiprocessing):
-            adapted_cases = mp_starmap(
-                adapt_func,
-                flat_batches,
-                self.multiprocessing,
-            )
-        else:
-            adapted_cases = [adapt_func(case, query) for case, query in flat_batches]
-
+        adapted_cases = mp_starmap(
+            adapt_func,
+            flat_batches,
+            self.multiprocessing,
+        )
         adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
 
         for (idx, key), adapted_case in zip(batches_index, adapted_cases, strict=True):
