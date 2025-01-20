@@ -13,6 +13,7 @@ from ..helpers import (
     batchify_sim,
     chunkify,
     event_loop,
+    get_logger,
     optional_dependencies,
 )
 from ..typing import (
@@ -46,6 +47,8 @@ __all__ = [
     "cohere",
     "voyageai",
 ]
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -174,7 +177,9 @@ class cache(KeyValueStore[str, NumpyArray]):
         if not self.path:
             raise ValueError("Path not provided")
 
+        logger.info(f"Dumping cache to {self.path}")
         np.savez_compressed(self.path, **self.store)
+        logger.info("Cache dumped")
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
         new_texts = [text for text in texts if text not in self.store]
