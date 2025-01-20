@@ -5,7 +5,9 @@ from .model import Graph, to_sequence, GraphSim
 from ...helpers import batchify_sim, unbatchify_sim
 from ...typing import AnySimFunc, SimFunc
 from ..collections import dtw as dtwmodule
-from ..collections import smith_waterman as minineedle_sw  # original minineedle-based SW wrapper
+from ..collections import (
+    smith_waterman as minineedle_sw,
+)  # original minineedle-based SW wrapper
 
 __all__ = ["dtw", "smith_waterman"]
 
@@ -14,16 +16,16 @@ __all__ = ["dtw", "smith_waterman"]
 # Private helper to build mappings and compute average node/edge similarity.
 ###############################################################################
 def _build_node_edge_mappings_and_similarity(
-    alignment: list[tuple],         # e.g. [(xn, yn), ...]
-    node_sim_func: AnySimFunc,      # node similarity function (batch or single)
-    edges_x: list,                  # edges in x (if needed)
-    edges_y: list,                  # edges in y (if needed)
+    alignment: list[tuple],  # e.g. [(xn, yn), ...]
+    node_sim_func: AnySimFunc,  # node similarity function (batch or single)
+    edges_x: list,  # edges in x (if needed)
+    edges_y: list,  # edges in y (if needed)
     edge_sim_func: AnySimFunc | None = None,
 ) -> tuple[
-    dict,   # node_mapping
-    dict,   # node_similarities
-    dict,   # edge_mapping
-    dict,   # edge_similarities
+    dict,  # node_mapping
+    dict,  # node_similarities
+    dict,  # edge_mapping
+    dict,  # edge_similarities
     float,  # node_similarity (avg)
     float,  # edge_similarity (avg or None)
 ]:
@@ -266,6 +268,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # 2) Decide how to compute local similarity for each node pair
         if self.use_procake_formula:
+
             def local_node_sim(q_node, c_node):
                 base = self.node_sim_func(q_node, c_node) if self.node_sim_func else 0.0
 
@@ -331,7 +334,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         if raw_sw_score > 0:
             # Example scale: divide by 100 to keep final range small
             # This is an arbitrary decision for all i know, if there is basis to change it, it should be done
-            total_similarity *= (raw_sw_score / 100.0)
+            total_similarity *= raw_sw_score / 100.0
 
         # 7) Normalize if requested
         if self.normalize and length > 0:
