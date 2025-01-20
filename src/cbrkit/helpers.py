@@ -71,6 +71,7 @@ __all__ = [
     "round",
     "round_nearest",
     "scale",
+    "log_batch",
 ]
 
 
@@ -261,11 +262,7 @@ class batchify_positional[T](
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
-                if self.logger is not None:
-                    self.logger.log(
-                        self.logger_level, f"Processing batch {i}/{len(batches)}"
-                    )
-
+                log_batch(self.logger, i, len(batches))
                 values.append(func(*batch))
 
             return values
@@ -315,11 +312,7 @@ class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
-                if self.logger is not None:
-                    self.logger.log(
-                        self.logger_level, f"Processing batch {i}/{len(batches)}"
-                    )
-
+                log_batch(self.logger, i, len(batches))
                 values.append(func(**batch))
 
             return values
@@ -582,3 +575,13 @@ def mp_starmap[*Us, V](
 
     with pool as p:
         return p.starmap(func, batches)
+
+
+def log_batch(
+    logger: logging.Logger | None,
+    i: int,
+    total: int,
+    level: int = logging.DEBUG,
+):
+    if logger is not None:
+        logger.log(level, f"Processing batch {i}/{total}")
