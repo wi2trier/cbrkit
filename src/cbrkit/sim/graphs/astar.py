@@ -5,11 +5,18 @@ import itertools
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from multiprocessing.pool import Pool
 from typing import Protocol, override
 
 from frozendict import frozendict
 
-from ...helpers import batchify_sim, get_logger, unpack_float, unpack_floats
+from ...helpers import (
+    batchify_sim,
+    get_logger,
+    mp_starmap,
+    unpack_float,
+    unpack_floats,
+)
 from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
 from .model import (
     Edge,
@@ -556,6 +563,7 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
     queue_limit: int = 10000
     precompute_nodes_func: AnySimFunc[Node[K, N], Float] | None = None
     precompute_edges_func: AnySimFunc[Edge[K, N, E], Float] | None = None
+    multiprocessing: Pool | int | bool = False
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
 
@@ -667,7 +675,6 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         """Perform an A* analysis of the x base and the y"""
-
         if (
             (len(y.nodes) + len(y.edges)) > (len(x.nodes) + len(x.edges))
         ) and self.allow_case_oriented_mapping:
@@ -761,10 +768,4 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> list[GraphSim[K]]:
         self.precompute(batches)
 
-        sims: list[GraphSim[K]] = []
-
-        for i, batch in enumerate(batches, start=1):
-            logger.debug(f"Processing batch {i}/{len(batches)}")
-            sims.append(self.__call_single__(*batch))
-
-        return sims
+        return mp_starmap(self.__call_single__, batches, self.multiprocessing)

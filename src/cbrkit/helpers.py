@@ -17,7 +17,7 @@ from importlib import import_module
 from inspect import getdoc
 from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
-from typing import Any, ClassVar, Literal, cast, override
+from typing import Any, Literal, cast, override
 
 from .typing import (
     AnyConversionFunc,
@@ -64,6 +64,7 @@ __all__ = [
     "identity",
     "get_logger",
     "mp_count",
+    "mp_pool",
     "use_mp",
     "mp_map",
     "mp_starmap",
@@ -72,6 +73,7 @@ __all__ = [
     "round_nearest",
     "scale",
     "log_batch",
+    "BATCH_LOGGING_LEVEL",
 ]
 
 
@@ -239,6 +241,18 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
+BATCH_LOGGING_LEVEL: int = logging.DEBUG
+
+
+def log_batch(
+    logger: logging.Logger | None,
+    i: int,
+    total: int,
+):
+    if logger is not None:
+        logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
+
+
 @dataclass(slots=True, init=False)
 class batchify_positional[T](
     WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
@@ -246,14 +260,13 @@ class batchify_positional[T](
     __wrapped__: AnyPositionalFunc[T]
     parameters: int
     logger: logging.Logger | None
-    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
-        logger = get_logger(self.__wrapped__)
-        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
+        logger = get_logger(func)
+        self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
@@ -296,14 +309,13 @@ class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
     __wrapped__: AnyNamedFunc[T]
     parameters: int
     logger: logging.Logger | None
-    logger_level: ClassVar[int] = logging.DEBUG
 
     def __init__(self, func: AnyNamedFunc[T]):
         self.__wrapped__ = func
         signature = inspect_signature(func)
         self.parameters = len(signature.parameters)
-        logger = get_logger(self.__wrapped__)
-        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
+        logger = get_logger(func)
+        self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
@@ -508,6 +520,9 @@ def get_logger(obj: Any) -> logging.Logger:
     if isinstance(obj, str):
         return logging.getLogger(obj)
 
+    if hasattr(obj, "__self__"):
+        obj = obj.__self__
+
     if hasattr(obj, "__class__"):
         obj = obj.__class__
 
@@ -530,6 +545,17 @@ def mp_count(pool_or_processes: Pool | int | bool) -> int:
     return os.cpu_count() or 1
 
 
+def mp_pool(pool_or_processes: Pool | int | bool) -> Pool:
+    if isinstance(pool_or_processes, bool):
+        return Pool()
+    elif isinstance(pool_or_processes, int):
+        return Pool(pool_or_processes)
+    elif isinstance(pool_or_processes, Pool):
+        return pool_or_processes
+
+    raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+
 def use_mp(pool_or_processes: Pool | int | bool) -> bool:
     if isinstance(pool_or_processes, bool):
         return pool_or_processes
@@ -541,47 +567,77 @@ def use_mp(pool_or_processes: Pool | int | bool) -> bool:
     return False
 
 
+@dataclass(slots=True, frozen=True)
+class mp_logging_wrapper[U, V]:
+    func: Callable[[U], V]
+    logger: logging.Logger | None
+
+    def __call__(
+        self,
+        batch: U,
+        i: int,
+        total: int,
+    ) -> V:
+        log_batch(self.logger, i, total)
+
+        return self.func(batch)
+
+
+@dataclass(slots=True, frozen=True)
+class mp_logging_starwrapper[*Us, V]:
+    func: Callable[[*Us], V]
+    logger: logging.Logger | None
+
+    def __call__(
+        self,
+        batch: tuple[*Us],
+        i: int,
+        total: int,
+    ) -> V:
+        log_batch(self.logger, i, total)
+
+        return self.func(*batch)
+
+
 def mp_map[U, V](
     func: Callable[[U], V],
-    batches: Iterable[U],
+    batches: Sequence[U],
     pool_or_processes: Pool | int | bool,
 ) -> list[V]:
-    if isinstance(pool_or_processes, bool):
-        pool = Pool()
-    elif isinstance(pool_or_processes, int):
-        pool = Pool(pool_or_processes)
-    elif isinstance(pool_or_processes, Pool):
-        pool = pool_or_processes
-    else:
-        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+    logger = get_logger(func)
+    wrapper = mp_logging_wrapper(
+        func, logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
+    )
 
-    with pool as p:
-        return p.map(func, batches)
+    if use_mp(pool_or_processes):
+        pool = mp_pool(pool_or_processes)
+
+        with pool as p:
+            return p.starmap(
+                wrapper,
+                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
+            )
+
+    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
 
 
 def mp_starmap[*Us, V](
     func: Callable[[*Us], V],
-    batches: Iterable[tuple[*Us]],
+    batches: Sequence[tuple[*Us]],
     pool_or_processes: Pool | int | bool,
 ) -> list[V]:
-    if isinstance(pool_or_processes, bool):
-        pool = Pool()
-    elif isinstance(pool_or_processes, int):
-        pool = Pool(pool_or_processes)
-    elif isinstance(pool_or_processes, Pool):
-        pool = pool_or_processes
-    else:
-        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+    logger = get_logger(func)
+    wrapper = mp_logging_starwrapper(
+        func, logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
+    )
 
-    with pool as p:
-        return p.starmap(func, batches)
+    if use_mp(pool_or_processes):
+        pool = mp_pool(pool_or_processes)
 
+        with pool as p:
+            return p.starmap(
+                wrapper,
+                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
+            )
 
-def log_batch(
-    logger: logging.Logger | None,
-    i: int,
-    total: int,
-    level: int = logging.DEBUG,
-):
-    if logger is not None:
-        logger.log(level, f"Processing batch {i}/{total}")
+    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
