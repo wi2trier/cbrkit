@@ -7,8 +7,8 @@ from typing import Any, Literal, Protocol
 from frozendict import frozendict
 from pydantic import BaseModel
 
-from ...helpers import optional_dependencies
-from ...typing import StructuredValue
+from ...helpers import identity, optional_dependencies
+from ...typing import ConversionFunc, StructuredValue
 
 type ElementType = Literal["node", "edge"]
 
@@ -51,16 +51,17 @@ class Node[K, N](StructuredValue[N]):
     key: K
     value: N
 
-    def dump(self) -> SerializedNode[N]:
-        return SerializedNode(value=self.value)
+    def dump(self, converter: ConversionFunc[N, N] = identity) -> SerializedNode[N]:
+        return SerializedNode(value=converter(self.value))
 
     @classmethod
     def load(
-        cls,
-        key: K,
-        obj: SerializedNode[N],
+        cls, key: K, obj: SerializedNode[N], converter: ConversionFunc[N, N] = identity
     ) -> Node[K, N]:
-        return cls(key, obj.value)
+        return cls(
+            key,
+            converter(obj.value),
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -70,11 +71,11 @@ class Edge[K, N, E](StructuredValue[E]):
     target: Node[K, N]
     value: E
 
-    def dump(self) -> SerializedEdge[K, E]:
+    def dump(self, converter: ConversionFunc[E, E] = identity) -> SerializedEdge[K, E]:
         return SerializedEdge(
             source=self.source.key,
             target=self.target.key,
-            value=self.value,
+            value=converter(self.value),
         )
 
     @classmethod
@@ -83,12 +84,13 @@ class Edge[K, N, E](StructuredValue[E]):
         key: K,
         obj: SerializedEdge[K, E],
         nodes: Mapping[K, Node[K, N]],
+        converter: ConversionFunc[E, E] = identity,
     ) -> Edge[K, N, E]:
         return cls(
             key,
             nodes[obj.source],
             nodes[obj.target],
-            obj.value,
+            converter(obj.value),
         )
 
 
@@ -98,25 +100,35 @@ class Graph[K, N, E, G](StructuredValue[G]):
     edges: frozendict[K, Edge[K, N, E]]
     value: G
 
-    def dump(self) -> SerializedGraph[K, N, E, G]:
+    def dump(
+        self,
+        node_converter: ConversionFunc[N, N] = identity,
+        edge_converter: ConversionFunc[E, E] = identity,
+        graph_converter: ConversionFunc[G, G] = identity,
+    ) -> SerializedGraph[K, N, E, G]:
         return SerializedGraph(
-            nodes={key: node.dump() for key, node in self.nodes.items()},
-            edges={key: edge.dump() for key, edge in self.edges.items()},
-            value=self.value,
+            nodes={key: node.dump(node_converter) for key, node in self.nodes.items()},
+            edges={key: edge.dump(edge_converter) for key, edge in self.edges.items()},
+            value=graph_converter(self.value),
         )
 
     @classmethod
     def load(
         cls,
         g: SerializedGraph[K, N, E, G],
+        node_converter: ConversionFunc[N, N] = identity,
+        edge_converter: ConversionFunc[E, E] = identity,
+        graph_converter: ConversionFunc[G, G] = identity,
     ) -> Graph[K, N, E, G]:
         nodes = frozendict(
-            (key, Node.load(key, value)) for key, value in g.nodes.items()
+            (key, Node.load(key, value, node_converter))
+            for key, value in g.nodes.items()
         )
         edges = frozendict(
-            (key, Edge.load(key, value, nodes)) for key, value in g.edges.items()
+            (key, Edge.load(key, value, nodes, edge_converter))
+            for key, value in g.edges.items()
         )
-        return cls(nodes, edges, g.value)
+        return cls(nodes, edges, graph_converter(g.value))
 
     @classmethod
     def build(
@@ -131,22 +143,56 @@ class Graph[K, N, E, G](StructuredValue[G]):
         return cls(node_map, edge_map, value)
 
 
-def to_dict[K, N, E, G](g: Graph[K, N, E, G]) -> Mapping[str, Any]:
-    return g.dump().model_dump()
+def to_dict[K, N, E, G](
+    g: Graph[K, N, E, G],
+    node_converter: ConversionFunc[N, N] = identity,
+    edge_converter: ConversionFunc[E, E] = identity,
+    graph_converter: ConversionFunc[G, G] = identity,
+) -> Mapping[str, Any]:
+    return g.dump(node_converter, edge_converter, graph_converter).model_dump()
 
 
-def from_dict(g: Any) -> Graph[Any, Any, Any, Any]:
-    return Graph.load(SerializedGraph.model_validate(g))
+def from_dict(
+    g: Any,
+    node_converter: ConversionFunc[Any, Any] = identity,
+    edge_converter: ConversionFunc[Any, Any] = identity,
+    graph_converter: ConversionFunc[Any, Any] = identity,
+) -> Graph[Any, Any, Any, Any]:
+    return Graph.load(
+        SerializedGraph.model_validate(g),
+        node_converter,
+        edge_converter,
+        graph_converter,
+    )
 
 
-def load[K](data: Mapping[K, Any]) -> dict[K, Graph[Any, Any, Any, Any]]:
-    return {key: from_dict(value) for key, value in data.items()}
+def load[K](
+    data: Mapping[K, Any],
+    node_converter: ConversionFunc[Any, Any] = identity,
+    edge_converter: ConversionFunc[Any, Any] = identity,
+    graph_converter: ConversionFunc[Any, Any] = identity,
+) -> dict[K, Graph[Any, Any, Any, Any]]:
+    return {
+        key: from_dict(
+            value,
+            node_converter,
+            edge_converter,
+            graph_converter,
+        )
+        for key, value in data.items()
+    }
 
 
 def dump[T, K, N, E, G](
     data: Mapping[T, Graph[K, N, E, G]],
+    node_converter: ConversionFunc[N, N] = identity,
+    edge_converter: ConversionFunc[E, E] = identity,
+    graph_converter: ConversionFunc[G, G] = identity,
 ) -> dict[T, SerializedGraph[K, N, E, G]]:
-    return {key: value.dump() for key, value in data.items()}
+    return {
+        key: value.dump(node_converter, edge_converter, graph_converter)
+        for key, value in data.items()
+    }
 
 
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
