@@ -33,7 +33,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
     adaptation_func: AnyAdaptationFunc[K, V]
     retriever_func: RetrieverFunc[K, V, S]
-    multiprocessing: Pool | int | bool | None = None
+    multiprocessing: Pool | int | bool = False
 
     @override
     def __call__(
