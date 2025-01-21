@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -45,7 +45,6 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
-    "KeyValueStore",
     "WrappedObject",
 ]
 
@@ -265,18 +264,3 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
         self,
         batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]],
     ) -> Sequence[T]: ...
-
-
-class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
-    store: MutableMapping[K, V]
-    func: BatchConversionFunc[K, V] | None
-    path: Path | None
-    autodump: bool
-
-    def dump(self) -> None: ...
-
-    def __call__(
-        self,
-        batches: Sequence[K],
-        /,
-    ) -> Sequence[V]: ...
