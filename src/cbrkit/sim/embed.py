@@ -25,7 +25,6 @@ from ..typing import (
     Float,
     HasMetadata,
     JsonDict,
-    KeyValueStore,
     NumpyArray,
     SimFunc,
     SimSeq,
@@ -155,19 +154,22 @@ class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     autodump: bool
-    store: MutableMapping[str, NumpyArray] = field(repr=False)
+    store: MutableMapping[str, NumpyArray] | None = field(repr=False)
 
     def __init__(
         self,
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
         autodump: bool = False,
+        lazy: bool = True,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
         self.autodump = autodump
 
-        if self.path and self.path.exists():
+        if lazy:
+            self.store = None
+        elif self.path and self.path.exists():
             with np.load(self.path) as data:
                 self.store = dict(data)
         else:
@@ -177,11 +179,19 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         if not self.path:
             raise ValueError("Path not provided")
 
+        if not self.store:
+            raise ValueError("No cache to dump")
+
         logger.info(f"Dumping cache to {self.path}")
         np.savez_compressed(self.path, **self.store)
-        logger.info("Cache dumped")
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+        if self.store is None and self.path and self.path.exists():
+            with np.load(self.path) as data:
+                self.store = dict(data)
+        elif self.store is None:
+            self.store = {}
+
         new_texts = [text for text in texts if text not in self.store]
 
         if self.func and new_texts:
