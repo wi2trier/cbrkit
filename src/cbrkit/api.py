@@ -7,6 +7,7 @@ import cbrkit
 
 with cbrkit.helpers.optional_dependencies("raise", "api"):
     from fastapi import FastAPI
+    from fastapi.openapi.utils import get_openapi
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -149,3 +150,19 @@ def synthesize(
         result.final_step,
         synthesizer,
     )
+
+
+def openapi_generator():
+    if not app.openapi_schema:
+        app.openapi_schema = get_openapi(
+            title="CBRKit",
+            version="0.1.0",
+            summary="API for CBRKit",
+            description="API for CBRKit",
+            routes=app.routes,
+        )
+
+    return app.openapi_schema
+
+
+app.openapi = openapi_generator

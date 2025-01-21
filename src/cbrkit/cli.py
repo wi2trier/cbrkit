@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import orjson
+
 import cbrkit
 
 with cbrkit.helpers.optional_dependencies("raise", "cli"):
@@ -154,6 +156,25 @@ def serve(
         reload=reload,
         root_path=root_path,
     )
+
+
+@app.command()
+def openapi(file: Path | None = None):
+    from cbrkit.api import app
+
+    schema = orjson.dumps(
+        app.openapi(),
+        option=orjson.OPT_INDENT_2,
+    )
+
+    if file is None:
+        print(schema.decode())
+
+    else:
+        print(f"Writing OpenAPI schema to {file}")
+
+        with file.open("wb") as fp:
+            fp.write(schema)
 
 
 if __name__ == "__main__":
