@@ -151,7 +151,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(KeyValueStore[str, NumpyArray]):
+class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     autodump: bool
