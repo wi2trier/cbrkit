@@ -29,10 +29,12 @@
   };
   nixConfig = {
     extra-substituters = [
-      "https://pyproject-nix.cachix.org"
+      "https://nix-community.cachix.org"
+      "https://wi2trier.cachix.org"
     ];
     extra-trusted-public-keys = [
-      "pyproject-nix.cachix.org-1:UNzugsOlQIu2iOz0VyZNBQm2JSrL/kwxeCcFGw+jMe0="
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "wi2trier.cachix.org-1:8wJvKtRD8XUqYZMdjECTsN1zWxHy9kvp5aoPQiAm1fY="
     ];
   };
   outputs =
