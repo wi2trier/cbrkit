@@ -38,6 +38,8 @@ def apply_batches[Q, C, V, S: Float](
             for query_key in current_batches
         }
 
+    logger.info("Finished processing all retrievers")
+
     return Result(steps)
 
 

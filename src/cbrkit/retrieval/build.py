@@ -7,6 +7,7 @@ from typing import override
 from ..helpers import (
     batchify_sim,
     chunkify,
+    get_logger,
     get_value,
     mp_count,
     mp_map,
@@ -23,6 +24,8 @@ from ..typing import (
     SimMap,
     StructuredValue,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -154,7 +157,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
                 len(flat_batches) / mp_count(self.multiprocessing)
             )
             pair_chunks = list(chunkify(flat_batches, chunksize))
-            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing)
+            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing, logger)
 
             for sim_chunk in sim_chunks:
                 flat_sims.extend(sim_chunk)

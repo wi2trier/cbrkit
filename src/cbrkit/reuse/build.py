@@ -4,7 +4,7 @@ from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
 from typing import cast, override
 
-from ..helpers import mp_starmap
+from ..helpers import get_logger, mp_starmap
 from ..typing import (
     AdaptationFunc,
     AnyAdaptationFunc,
@@ -16,6 +16,8 @@ from ..typing import (
     ReuserFunc,
     SimMap,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -72,6 +74,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 adapt_func,
                 batches,
                 self.multiprocessing,
+                logger,
             )
 
             if all(isinstance(item, tuple) for item in adaptation_results):
@@ -96,6 +99,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
             adapt_func,
             flat_batches,
             self.multiprocessing,
+            logger,
         )
         adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
 
