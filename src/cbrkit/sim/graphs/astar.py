@@ -5,7 +5,6 @@ import itertools
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from multiprocessing.pool import Pool
 from typing import Protocol, override
 
 from frozendict import frozendict
@@ -13,11 +12,10 @@ from frozendict import frozendict
 from ...helpers import (
     batchify_sim,
     get_logger,
-    mp_starmap,
     unpack_float,
     unpack_floats,
 )
-from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
+from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from .model import (
     Edge,
     ElementMatcher,
@@ -532,7 +530,7 @@ class legal_edge_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
 
 
 @dataclass(slots=True, frozen=True)
-class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
+class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
@@ -561,9 +559,6 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
         default_factory=lambda: legal_edge_mapping(default_element_matcher)
     )
     queue_limit: int = 10000
-    precompute_nodes_func: AnySimFunc[Node[K, N], Float] | None = None
-    precompute_edges_func: AnySimFunc[Edge[K, N, E], Float] | None = None
-    multiprocessing: Pool | int | bool = False
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
 
@@ -659,7 +654,7 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        result = self.__call_single__(x=y, y=x)
+        result = self(x=y, y=x)
 
         return GraphSim(
             result.value,
@@ -669,7 +664,7 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
             {result.edge_mapping[k]: v for k, v in result.edge_similarities.items()},
         )
 
-    def __call_single__(
+    def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
@@ -710,62 +705,3 @@ class build[K, N, E, G](BatchSimFunc[Graph[K, N, E, G], GraphSim[K]]):
             dict(sim.node_similarities) if isinstance(sim, PastSim) else {},
             dict(sim.edge_similarities) if isinstance(sim, PastSim) else {},
         )
-
-    def precompute(
-        self, batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]]
-    ) -> None:
-        if self.precompute_nodes_func is not None:
-            logger.info("Precomputing node similarities")
-            node_sim_func = batchify_sim(self.precompute_nodes_func)
-            node_batches: list[tuple[Node[K, N], Node[K, N]]] = []
-
-            for x, y in batches:
-                state = State(
-                    frozendict(),
-                    frozendict(),
-                    frozenset(y.nodes.keys()),
-                    frozenset(y.edges.keys()),
-                )
-                node_batches.extend(
-                    [
-                        (x.nodes[x_key], y.nodes[y_key])
-                        for x_key, y_key in itertools.product(
-                            x.nodes.keys(), y.nodes.keys()
-                        )
-                        if self.legal_node_mapping(x, y, state, x_key, y_key)
-                    ]
-                )
-
-            node_sim_func(node_batches)
-
-        if self.precompute_edges_func is not None:
-            logger.info("Precomputing edge similarities")
-            edge_sim_func = batchify_sim(self.precompute_edges_func)
-            edge_batches: list[tuple[Edge[K, N, E], Edge[K, N, E]]] = []
-
-            for x, y in batches:
-                state = State(
-                    frozendict(),
-                    frozendict(),
-                    frozenset(y.nodes.keys()),
-                    frozenset(y.edges.keys()),
-                )
-                edge_batches.extend(
-                    [
-                        (x.edges[x_key], y.edges[y_key])
-                        for x_key, y_key in itertools.product(
-                            x.edges.keys(), y.edges.keys()
-                        )
-                        if self.legal_edge_mapping(x, y, state, x_key, y_key)
-                    ]
-                )
-
-            edge_sim_func(edge_batches)
-
-    @override
-    def __call__(
-        self, batches: Sequence[tuple[Graph[K, N, E, G], Graph[K, N, E, G]]]
-    ) -> list[GraphSim[K]]:
-        self.precompute(batches)
-
-        return mp_starmap(self.__call_single__, batches, self.multiprocessing)

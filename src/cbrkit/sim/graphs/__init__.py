@@ -16,6 +16,7 @@ from .model import (
     load,
     to_dict,
 )
+from .precompute import precompute
 
 with optional_dependencies():
     from .model import from_rustworkx, to_rustworkx
@@ -27,6 +28,7 @@ __all__ = [
     "astar",
     "brute_force",
     "isomorphism",
+    "precompute",
     "Node",
     "Edge",
     "Graph",
