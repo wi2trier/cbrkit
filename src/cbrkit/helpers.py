@@ -603,11 +603,12 @@ def mp_map[U, V](
     func: Callable[[U], V],
     batches: Sequence[U],
     pool_or_processes: Pool | int | bool,
+    logger: logging.Logger | None,
 ) -> list[V]:
-    logger = get_logger(func)
-    wrapper = mp_logging_wrapper(
-        func, logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
-    )
+    if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
+        logger = None
+
+    wrapper = mp_logging_wrapper(func, logger)
 
     if use_mp(pool_or_processes):
         pool = mp_pool(pool_or_processes)
@@ -625,11 +626,12 @@ def mp_starmap[*Us, V](
     func: Callable[[*Us], V],
     batches: Sequence[tuple[*Us]],
     pool_or_processes: Pool | int | bool,
+    logger: logging.Logger | None,
 ) -> list[V]:
-    logger = get_logger(func)
-    wrapper = mp_logging_starwrapper(
-        func, logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
-    )
+    if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
+        logger = None
+
+    wrapper = mp_logging_starwrapper(func, logger)
 
     if use_mp(pool_or_processes):
         pool = mp_pool(pool_or_processes)
