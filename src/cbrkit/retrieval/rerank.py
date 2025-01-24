@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
@@ -9,6 +9,7 @@ from ..typing import (
     HasMetadata,
     JsonDict,
     RetrieverFunc,
+    ValueOrCallable,
 )
 
 logger = get_logger(__name__)
@@ -129,7 +130,7 @@ with optional_dependencies():
             model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
-        model: SentenceTransformer | str | Callable[[], SentenceTransformer]
+        model: ValueOrCallable[SentenceTransformer] | str
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
         device: str | None = None

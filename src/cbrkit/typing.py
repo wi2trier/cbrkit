@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -7,9 +7,6 @@ import numpy as np
 import numpy.typing as npt
 
 __all__ = [
-    "JsonEntry",
-    "JsonDict",
-    "NumpyArray",
     "AdaptationFunc",
     "AggregatorFunc",
     "AnyAdaptationFunc",
@@ -30,8 +27,11 @@ __all__ = [
     "FilePath",
     "Float",
     "HasMetadata",
+    "JsonDict",
+    "JsonEntry",
     "MapAdaptationFunc",
     "NamedFunc",
+    "NumpyArray",
     "PoolingFunc",
     "PositionalFunc",
     "Prompt",
@@ -45,6 +45,7 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
+    "ValueOrCallable",
     "WrappedObject",
 ]
 
@@ -76,6 +77,7 @@ type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
+type ValueOrCallable[T] = T | Callable[[], T]
 
 
 class ConversionFunc[U, V](Protocol):

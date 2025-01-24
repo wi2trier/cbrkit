@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from collections.abc import Callable, MutableMapping, Sequence
+from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast, override
@@ -28,6 +28,7 @@ from ..typing import (
     NumpyArray,
     SimFunc,
     SimSeq,
+    ValueOrCallable,
 )
 
 __all__ = [
@@ -237,9 +238,9 @@ with optional_dependencies():
                 or a `spacy.Language` model instance.
         """
 
-        model: Language | Callable[[], Language]
+        model: ValueOrCallable[Language]
 
-        def __init__(self, model: str | Language | Callable[[], Language]):
+        def __init__(self, model: str | ValueOrCallable[Language]):
             if isinstance(model, str):
                 self.model = spacy_load(model)
             else:
@@ -279,12 +280,10 @@ with optional_dependencies():
                 lazy loading of the model.
         """
 
-        model: SentenceTransformer | Callable[[], SentenceTransformer]
+        model: ValueOrCallable[SentenceTransformer]
         _metadata: JsonDict
 
-        def __init__(
-            self, model: str | SentenceTransformer | Callable[[], SentenceTransformer]
-        ):
+        def __init__(self, model: str | ValueOrCallable[SentenceTransformer]):
             self._metadata = {}
 
             if isinstance(model, str):
@@ -325,9 +324,7 @@ with optional_dependencies():
         """
 
         model: str
-        client: AsyncOpenAI | Callable[[], AsyncOpenAI] = field(
-            default=AsyncOpenAI, repr=False
-        )
+        client: ValueOrCallable[AsyncOpenAI] = field(default=AsyncOpenAI, repr=False)
         chunk_size: int = 2048
         context_size: int = 8192
         truncate: Literal["start", "end"] | None = "end"
