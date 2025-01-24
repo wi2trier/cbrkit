@@ -35,8 +35,8 @@ class Settings(BaseSettings):
 settings = Settings()
 app = FastAPI()
 
-retriever: list[cbrkit.typing.RetrieverFunc] = []
-retriever_map: dict[str, cbrkit.typing.RetrieverFunc] = {}
+retriever: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = []
+retriever_map: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = {}
 
 if settings.retriever is not None and settings.retriever_map is not None:
     retriever = cbrkit.helpers.load_callables(settings.retriever.split(","))
@@ -48,8 +48,8 @@ elif settings.retriever_map is not None:
     retriever_map = cbrkit.helpers.load_callables_map(settings.retriever_map.split(","))
     retriever = list(retriever_map.values())
 
-reuser: list[cbrkit.typing.ReuserFunc] = []
-reuser_map: dict[str, cbrkit.typing.ReuserFunc] = {}
+reuser: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = []
+reuser_map: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = {}
 
 if settings.reuser is not None and settings.reuser_map is not None:
     reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))
@@ -61,7 +61,7 @@ elif settings.reuser_map is not None:
     reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
     reuser = list(reuser_map.values())
 
-synthesizer: cbrkit.typing.SynthesizerFunc | None = (
+synthesizer: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc] | None = (
     cbrkit.helpers.load_callable(settings.synthesizer)
     if settings.synthesizer is not None
     else None

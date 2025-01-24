@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import math
 import os
@@ -14,10 +15,8 @@ from collections.abc import (
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
-from inspect import getdoc
-from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, TypeGuard, cast, override
 
 from .typing import (
     AnyConversionFunc,
@@ -29,9 +28,12 @@ from .typing import (
     BatchPositionalFunc,
     BatchSimFunc,
     ConversionFunc,
+    Factory,
     Float,
     HasMetadata,
     JsonEntry,
+    MaybeFactories,
+    MaybeFactory,
     NamedFunc,
     PositionalFunc,
     SimFunc,
@@ -74,6 +76,7 @@ __all__ = [
     "scale",
     "log_batch",
     "BATCH_LOGGING_LEVEL",
+    "total_params",
 ]
 
 
@@ -149,14 +152,14 @@ def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, HasMetadata):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
             "metadata": obj.metadata,
         }
 
     if is_dataclass(obj):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
             "metadata": {
                 field.name: get_metadata(getattr(obj, field.name))
                 for field in fields(obj)
@@ -167,7 +170,7 @@ def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, Callable):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
         }
 
     if isinstance(obj, dict):
@@ -253,6 +256,28 @@ def log_batch(
         logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
 
 
+def total_params(func: Callable) -> int:
+    return len(inspect.signature(func).parameters)
+
+
+def is_factory[T](obj: MaybeFactory[T]) -> TypeGuard[Factory[T]]:
+    return callable(obj) and total_params(obj) == 0
+
+
+def produce_factory[T](obj: MaybeFactory[T]) -> T:
+    if is_factory(obj):
+        return obj()
+
+    return cast(T, obj)
+
+
+def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
+    if isinstance(obj, Sequence):
+        return [produce_factory(item) for item in obj]
+
+    return [produce_factory(obj)]
+
+
 @dataclass(slots=True, init=False)
 class batchify_positional[T](
     WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
@@ -263,8 +288,7 @@ class batchify_positional[T](
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
         logger = get_logger(func)
         self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
@@ -291,8 +315,7 @@ class unbatchify_positional[T](WrappedObject[AnyPositionalFunc[T]], PositionalFu
 
     def __init__(self, func: AnyPositionalFunc[T]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
 
     @override
     def __call__(self, *args: Any) -> T:
@@ -312,8 +335,7 @@ class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
 
     def __init__(self, func: AnyNamedFunc[T]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
         logger = get_logger(func)
         self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
@@ -340,8 +362,7 @@ class unbatchify_named[T](WrappedObject[AnyNamedFunc[T]], NamedFunc[T]):
 
     def __init__(self, func: AnyNamedFunc[T]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
 
     @override
     def __call__(self, **kwargs: Any) -> T:

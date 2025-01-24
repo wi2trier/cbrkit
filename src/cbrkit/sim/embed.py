@@ -25,10 +25,10 @@ from ..typing import (
     Float,
     HasMetadata,
     JsonDict,
+    MaybeFactory,
     NumpyArray,
     SimFunc,
     SimSeq,
-    ValueOrCallable,
 )
 
 __all__ = [
@@ -238,9 +238,9 @@ with optional_dependencies():
                 or a `spacy.Language` model instance.
         """
 
-        model: ValueOrCallable[Language]
+        model: MaybeFactory[Language]
 
-        def __init__(self, model: str | ValueOrCallable[Language]):
+        def __init__(self, model: str | MaybeFactory[Language]):
             if isinstance(model, str):
                 self.model = spacy_load(model)
             else:
@@ -280,10 +280,10 @@ with optional_dependencies():
                 lazy loading of the model.
         """
 
-        model: ValueOrCallable[SentenceTransformer]
+        model: MaybeFactory[SentenceTransformer]
         _metadata: JsonDict
 
-        def __init__(self, model: str | ValueOrCallable[SentenceTransformer]):
+        def __init__(self, model: str | MaybeFactory[SentenceTransformer]):
             self._metadata = {}
 
             if isinstance(model, str):
@@ -324,7 +324,7 @@ with optional_dependencies():
         """
 
         model: str
-        client: ValueOrCallable[AsyncOpenAI] = field(default=AsyncOpenAI, repr=False)
+        client: MaybeFactory[AsyncOpenAI] = field(default=AsyncOpenAI, repr=False)
         chunk_size: int = 2048
         context_size: int = 8192
         truncate: Literal["start", "end"] | None = "end"

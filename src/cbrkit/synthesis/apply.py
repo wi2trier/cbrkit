@@ -1,8 +1,8 @@
 from collections.abc import Mapping
 
 from .. import model
-from ..helpers import get_logger, get_metadata
-from ..typing import Casebase, Float, SynthesizerFunc
+from ..helpers import get_logger, get_metadata, produce_factory
+from ..typing import Casebase, Float, MaybeFactory, SynthesizerFunc
 from .model import QueryResultStep, Result, ResultStep
 
 logger = get_logger(__name__)
@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 def apply_result[R, Q, C, V, S: Float](
     result: model.Result[Q, C, V, S] | model.ResultStep[Q, C, V, S],
-    synthesizer: SynthesizerFunc[R, C, V, S],
+    synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
     return apply_batches(
         {
@@ -23,10 +23,11 @@ def apply_result[R, Q, C, V, S: Float](
 
 def apply_batches[R, Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V | None, Mapping[C, S] | None]],
-    synthesizer: SynthesizerFunc[R, C, V, S],
+    synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
+    synthesis_func = produce_factory(synthesizer)
     logger.info(f"Processing {len(batches)} batches")
-    synthesis_results = synthesizer(list(batches.values()))
+    synthesis_results = synthesis_func(list(batches.values()))
 
     return Result(
         [
@@ -37,7 +38,7 @@ def apply_batches[R, Q, C, V, S: Float](
                         batches.keys(), synthesis_results, strict=True
                     )
                 },
-                get_metadata(synthesizer),
+                get_metadata(synthesis_func),
             )
         ]
     )
@@ -46,7 +47,7 @@ def apply_batches[R, Q, C, V, S: Float](
 def apply_queries[R, Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
-    synthesizer: SynthesizerFunc[R, C, V, S],
+    synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
     """Applies multiple queries to a casebase using synthesis functions.
 
@@ -67,7 +68,7 @@ def apply_queries[R, Q, C, V, S: Float](
 def apply_query[R, K, V, S: Float](
     casebase: Casebase[K, V],
     query: V,
-    synthesizer: SynthesizerFunc[R, K, V, S],
+    synthesizer: MaybeFactory[SynthesizerFunc[R, K, V, S]],
 ) -> Result[str, R]:
     """Applies a single query to a casebase using synthesis functions.
 
@@ -84,7 +85,7 @@ def apply_query[R, K, V, S: Float](
 
 def apply_casebase[R, K, V, S: Float](
     casebase: Casebase[K, V],
-    synthesizer: SynthesizerFunc[R, K, V, S],
+    synthesizer: MaybeFactory[SynthesizerFunc[R, K, V, S]],
 ) -> Result[str, R]:
     """Applies a single query to a casebase using synthesis functions.
 

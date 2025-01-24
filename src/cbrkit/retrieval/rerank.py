@@ -8,8 +8,8 @@ from ..typing import (
     Casebase,
     HasMetadata,
     JsonDict,
+    MaybeFactory,
     RetrieverFunc,
-    ValueOrCallable,
 )
 
 logger = get_logger(__name__)
@@ -130,7 +130,7 @@ with optional_dependencies():
             model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
-        model: ValueOrCallable[SentenceTransformer] | str
+        model: MaybeFactory[SentenceTransformer] | str
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
         device: str | None = None
