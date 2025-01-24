@@ -46,6 +46,7 @@ __all__ = [
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
     "ValueOrCallable",
+    "ValueOrSequence",
     "WrappedObject",
 ]
 
@@ -78,6 +79,7 @@ type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
 type ValueOrCallable[T] = T | Callable[[], T]
+type ValueOrSequence[T] = T | Sequence[T]
 
 
 class ConversionFunc[U, V](Protocol):
