@@ -24,12 +24,16 @@ __all__ = [
     "ConversionFunc",
     "ConversionPoolingFunc",
     "EvalMetricFunc",
+    "Factory",
     "FilePath",
     "Float",
     "HasMetadata",
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
+    "MaybeFactory",
+    "MaybeFactories",
+    "MaybeSequence",
     "NamedFunc",
     "NumpyArray",
     "PoolingFunc",
@@ -45,8 +49,6 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
-    "ValueOrCallable",
-    "ValueOrSequence",
     "WrappedObject",
 ]
 
@@ -78,8 +80,10 @@ type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
-type ValueOrCallable[T] = T | Callable[[], T]
-type ValueOrSequence[T] = T | Sequence[T]
+type Factory[T] = Callable[[], T]
+type MaybeFactory[T] = T | Factory[T]
+type MaybeSequence[T] = T | Sequence[T]
+type MaybeFactories[T] = T | Factory[T] | Sequence[T | Factory[T]]
 
 
 class ConversionFunc[U, V](Protocol):
