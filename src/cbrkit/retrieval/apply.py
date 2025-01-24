@@ -5,6 +5,7 @@ from ..model import QueryResultStep, Result, ResultStep
 from ..typing import (
     Float,
     RetrieverFunc,
+    ValueOrSequence,
 )
 
 logger = get_logger(__name__)
@@ -12,7 +13,7 @@ logger = get_logger(__name__)
 
 def apply_batches[Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V]],
-    retrievers: RetrieverFunc[C, V, S] | Sequence[RetrieverFunc[C, V, S]],
+    retrievers: ValueOrSequence[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     if not isinstance(retrievers, Sequence):
         retrievers = [retrievers]
@@ -46,7 +47,7 @@ def apply_batches[Q, C, V, S: Float](
 def apply_queries[Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
-    retrievers: RetrieverFunc[C, V, S] | Sequence[RetrieverFunc[C, V, S]],
+    retrievers: ValueOrSequence[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     """Applies a single query to a Casebase using retriever functions.
 
@@ -84,7 +85,7 @@ def apply_queries[Q, C, V, S: Float](
 def apply_query[K, V, S: Float](
     casebase: Mapping[K, V],
     query: V,
-    retrievers: RetrieverFunc[K, V, S] | Sequence[RetrieverFunc[K, V, S]],
+    retrievers: ValueOrSequence[RetrieverFunc[K, V, S]],
 ) -> Result[str, K, V, S]:
     return apply_queries(
         casebase,

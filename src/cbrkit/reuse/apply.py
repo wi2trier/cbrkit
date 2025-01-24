@@ -6,6 +6,7 @@ from ..typing import (
     Casebase,
     Float,
     ReuserFunc,
+    ValueOrSequence,
 )
 
 logger = get_logger(__name__)
@@ -13,7 +14,7 @@ logger = get_logger(__name__)
 
 def apply_result[Q, C, V, S: Float](
     result: Result[Q, C, V, S] | ResultStep[Q, C, V, S],
-    reusers: ReuserFunc[C, V, S] | Sequence[ReuserFunc[C, V, S]],
+    reusers: ValueOrSequence[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     """Applies a single query to a casebase using reuser functions.
 
@@ -35,7 +36,7 @@ def apply_result[Q, C, V, S: Float](
 
 def apply_batches[Q, C, V, S: Float](
     batch: Mapping[Q, tuple[Mapping[C, V], V]],
-    reusers: ReuserFunc[C, V, S] | Sequence[ReuserFunc[C, V, S]],
+    reusers: ValueOrSequence[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     if not isinstance(reusers, Sequence):
         reusers = [reusers]
@@ -69,7 +70,7 @@ def apply_batches[Q, C, V, S: Float](
 def apply_queries[Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
-    reusers: ReuserFunc[C, V, S] | Sequence[ReuserFunc[C, V, S]],
+    reusers: ValueOrSequence[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     """Applies a single query to a casebase using reuser functions.
 
@@ -90,7 +91,7 @@ def apply_queries[Q, C, V, S: Float](
 def apply_pair[V, S: Float](
     case: V,
     query: V,
-    reusers: ReuserFunc[str, V, S] | Sequence[ReuserFunc[str, V, S]],
+    reusers: ValueOrSequence[ReuserFunc[str, V, S]],
 ) -> Result[str, str, V, S]:
     """Applies a single query to a single case using reuser functions.
 
@@ -112,7 +113,7 @@ def apply_pair[V, S: Float](
 def apply_query[K, V, S: Float](
     casebase: Casebase[K, V],
     query: V,
-    reusers: ReuserFunc[K, V, S] | Sequence[ReuserFunc[K, V, S]],
+    reusers: ValueOrSequence[ReuserFunc[K, V, S]],
 ) -> Result[str, K, V, S]:
     """Applies a single query to a casebase using reuser functions.
 

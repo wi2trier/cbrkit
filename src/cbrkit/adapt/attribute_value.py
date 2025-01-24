@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..typing import AdaptationFunc
+from ..typing import AdaptationFunc, ValueOrSequence
 
 __all__ = ["attribute_value"]
 
@@ -51,7 +51,7 @@ class attribute_value[V](AdaptationFunc[V]):
         {'name': 'Peter', 'age': 30}
     """
 
-    attributes: Mapping[str, AdaptationFunc[Any] | Sequence[AdaptationFunc[Any]]]
+    attributes: Mapping[str, ValueOrSequence[AdaptationFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = default_value_getter
     value_setter: Callable[[Any, str, Any], None] = default_value_setter
 
