@@ -9,6 +9,7 @@ from ..typing import (
     ConversionFunc,
     ConversionPoolingFunc,
     Float,
+    MaybeFactory,
     SimMap,
     SynthesizerFunc,
     SynthesizerPromptFunc,
@@ -69,7 +70,7 @@ class transpose[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class build[P, R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
-    generation_func: AnyConversionFunc[P, R]
+    generation_func: MaybeFactory[AnyConversionFunc[P, R]]
     prompt_func: SynthesizerPromptFunc[P, K, V, S]
 
     def __call__(

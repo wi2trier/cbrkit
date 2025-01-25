@@ -4,13 +4,14 @@ from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
 from typing import cast, override
 
-from ..helpers import get_logger, mp_starmap
+from ..helpers import get_logger, mp_starmap, produce_factory
 from ..typing import (
     AdaptationFunc,
     AnyAdaptationFunc,
     Casebase,
     Float,
     MapAdaptationFunc,
+    MaybeFactory,
     ReduceAdaptationFunc,
     RetrieverFunc,
     ReuserFunc,
@@ -33,7 +34,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         The adapted casebases and the similarities between the adapted cases and the query.
     """
 
-    adaptation_func: AnyAdaptationFunc[K, V]
+    adaptation_func: MaybeFactory[AnyAdaptationFunc[K, V]]
     retriever_func: RetrieverFunc[K, V, S]
     multiprocessing: Pool | int | bool = False
 
@@ -42,7 +43,8 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        adapted_casebases = self._adapt(batches, self.adaptation_func)
+        adaptation_func = produce_factory(self.adaptation_func)
+        adapted_casebases = self._adapt(batches, adaptation_func)
         adapted_batches = [
             (adapted_casebase, query)
             for adapted_casebase, (_, query) in zip(
