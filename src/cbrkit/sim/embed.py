@@ -154,22 +154,19 @@ class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     autodump: bool
-    store: MutableMapping[str, NumpyArray] | None = field(repr=False)
+    store: MutableMapping[str, NumpyArray] = field(repr=False)
 
     def __init__(
         self,
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
         autodump: bool = False,
-        lazy: bool = True,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
         self.autodump = autodump
 
-        if lazy:
-            self.store = None
-        elif self.path and self.path.exists():
+        if self.path and self.path.exists():
             with np.load(self.path) as data:
                 self.store = dict(data)
         else:
@@ -186,12 +183,6 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         np.savez_compressed(self.path, **self.store)
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if self.store is None and self.path and self.path.exists():
-            with np.load(self.path) as data:
-                self.store = dict(data)
-        elif self.store is None:
-            self.store = {}
-
         new_texts = [text for text in texts if text not in self.store]
 
         if self.func and new_texts:
@@ -271,9 +262,7 @@ with optional_dependencies():
 
         Args:
             model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
-                or a `SentenceTransformer` model instance. If a callable is provided, it will be called
-                the first time the function is used to create the model instance. This is useful for
-                lazy loading of the model.
+                or a `SentenceTransformer` model instance.
         """
 
         model: SentenceTransformer
