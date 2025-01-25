@@ -280,13 +280,13 @@ def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
 
 @dataclass(slots=True, init=False)
 class batchify_positional[T](
-    WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
+    WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], BatchPositionalFunc[T]
 ):
-    __wrapped__: AnyPositionalFunc[T]
+    __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
     logger: logging.Logger | None
 
-    def __init__(self, func: AnyPositionalFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyPositionalFunc[T]]):
         self.__wrapped__ = func
         self.parameters = total_params(func)
         logger = get_logger(func)
@@ -294,8 +294,15 @@ class batchify_positional[T](
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
-        if self.parameters != 1:
-            func = cast(PositionalFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyPositionalFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters != 1:
+            func = cast(PositionalFunc[T], func)
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
@@ -304,36 +311,47 @@ class batchify_positional[T](
 
             return values
 
-        func = cast(BatchPositionalFunc[T], self.__wrapped__)
+        func = cast(BatchPositionalFunc[T], func)
         return func(batches)
 
 
 @dataclass(slots=True, init=False)
-class unbatchify_positional[T](WrappedObject[AnyPositionalFunc[T]], PositionalFunc[T]):
-    __wrapped__: AnyPositionalFunc[T]
+class unbatchify_positional[T](
+    WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], PositionalFunc[T]
+):
+    __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
 
-    def __init__(self, func: AnyPositionalFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyPositionalFunc[T]]):
         self.__wrapped__ = func
         self.parameters = total_params(func)
 
     @override
     def __call__(self, *args: Any) -> T:
-        if self.parameters == 1:
-            func = cast(BatchPositionalFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyPositionalFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters == 1:
+            func = cast(BatchPositionalFunc[T], func)
             return func([args])[0]
 
-        func = cast(PositionalFunc[T], self.__wrapped__)
+        func = cast(PositionalFunc[T], func)
         return func(*args)
 
 
 @dataclass(slots=True, init=False)
-class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
-    __wrapped__: AnyNamedFunc[T]
+class batchify_named[T](
+    WrappedObject[MaybeFactory[AnyNamedFunc[T]]], BatchNamedFunc[T]
+):
+    __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int
     logger: logging.Logger | None
 
-    def __init__(self, func: AnyNamedFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyNamedFunc[T]]):
         self.__wrapped__ = func
         self.parameters = total_params(func)
         logger = get_logger(func)
@@ -341,8 +359,15 @@ class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
-        if self.parameters != 1:
-            func = cast(NamedFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyNamedFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters != 1:
+            func = cast(NamedFunc[T], func)
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
@@ -351,52 +376,64 @@ class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
 
             return values
 
-        func = cast(BatchNamedFunc[T], self.__wrapped__)
+        func = cast(BatchNamedFunc[T], func)
         return func(batches)
 
 
 @dataclass(slots=True)
-class unbatchify_named[T](WrappedObject[AnyNamedFunc[T]], NamedFunc[T]):
-    __wrapped__: AnyNamedFunc[T]
+class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFunc[T]):
+    __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int = field(init=False)
 
-    def __init__(self, func: AnyNamedFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyNamedFunc[T]]):
         self.__wrapped__ = func
         self.parameters = total_params(func)
 
     @override
     def __call__(self, **kwargs: Any) -> T:
-        if self.parameters == 1:
-            func = cast(BatchNamedFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyNamedFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters == 1:
+            func = cast(BatchNamedFunc[T], func)
             return func([kwargs])[0]
 
-        func = cast(NamedFunc[T], self.__wrapped__)
+        func = cast(NamedFunc[T], func)
         return func(**kwargs)
 
 
-def batchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> BatchSimFunc[V, S]:
-    return batchify_positional(cast(AnyPositionalFunc[S], func))
+def batchify_sim[V, S: Float](
+    func: MaybeFactory[AnySimFunc[V, S]],
+) -> BatchSimFunc[V, S]:
+    return batchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func))
 
 
-def unbatchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> SimFunc[V, S]:
-    return cast(SimFunc[V, S], unbatchify_positional(cast(AnyPositionalFunc[S], func)))
+def unbatchify_sim[V, S: Float](func: MaybeFactory[AnySimFunc[V, S]]) -> SimFunc[V, S]:
+    return cast(
+        SimFunc[V, S],
+        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func)),
+    )
 
 
 def batchify_conversion[P, R](
-    func: AnyConversionFunc[P, R],
+    func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> BatchConversionFunc[P, R]:
     return cast(
         BatchConversionFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], func)),
+        batchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
     )
 
 
 def unbatchify_conversion[P, R](
-    func: AnyConversionFunc[P, R],
+    func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
     return cast(
         ConversionFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], func)),
+        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
     )
 
 

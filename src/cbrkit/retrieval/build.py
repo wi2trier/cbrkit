@@ -20,6 +20,7 @@ from ..typing import (
     Casebase,
     ConversionFunc,
     Float,
+    MaybeFactory,
     RetrieverFunc,
     SimMap,
     StructuredValue,
@@ -130,7 +131,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         ... )
     """
 
-    similarity_func: AnySimFunc[V, S]
+    similarity_func: MaybeFactory[AnySimFunc[V, S]]
     multiprocessing: Pool | int | bool = False
     chunksize: int | None = None
 
