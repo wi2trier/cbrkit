@@ -8,7 +8,6 @@ from ..typing import (
     Casebase,
     HasMetadata,
     JsonDict,
-    MaybeFactory,
     RetrieverFunc,
 )
 
@@ -130,7 +129,7 @@ with optional_dependencies():
             model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
-        model: MaybeFactory[SentenceTransformer] | str
+        model: SentenceTransformer | str
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
         device: str | None = None
@@ -152,10 +151,8 @@ with optional_dependencies():
         ) -> Sequence[dict[K, float]]:
             if isinstance(self.model, str):
                 model = SentenceTransformer(self.model, device=self.device)
-            elif isinstance(self.model, SentenceTransformer):
-                model = self.model
             else:
-                model = self.model()
+                model = self.model
 
             model.to(self.device)
 

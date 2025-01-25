@@ -25,7 +25,6 @@ from ..typing import (
     Float,
     HasMetadata,
     JsonDict,
-    MaybeFactory,
     NumpyArray,
     SimFunc,
     SimSeq,
@@ -238,9 +237,9 @@ with optional_dependencies():
                 or a `spacy.Language` model instance.
         """
 
-        model: MaybeFactory[Language]
+        model: Language
 
-        def __init__(self, model: str | MaybeFactory[Language]):
+        def __init__(self, model: str | Language):
             if isinstance(model, str):
                 self.model = spacy_load(model)
             else:
@@ -257,9 +256,6 @@ with optional_dependencies():
 
         @override
         def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-            if not isinstance(self.model, Language):
-                self.model = self.model()
-
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 
@@ -280,10 +276,10 @@ with optional_dependencies():
                 lazy loading of the model.
         """
 
-        model: MaybeFactory[SentenceTransformer]
+        model: SentenceTransformer
         _metadata: JsonDict
 
-        def __init__(self, model: str | MaybeFactory[SentenceTransformer]):
+        def __init__(self, model: str | SentenceTransformer):
             self._metadata = {}
 
             if isinstance(model, str):
@@ -303,9 +299,6 @@ with optional_dependencies():
             if not texts:
                 return []
 
-            if not isinstance(self.model, SentenceTransformer):
-                self.model = self.model()
-
             return self.model.encode(
                 cast(list[str], texts), convert_to_numpy=True
             ).tolist()
@@ -324,38 +317,29 @@ with optional_dependencies():
         """
 
         model: str
-        client: MaybeFactory[AsyncOpenAI] = field(default=AsyncOpenAI, repr=False)
+        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         chunk_size: int = 2048
         context_size: int = 8192
         truncate: Literal["start", "end"] | None = "end"
 
         @override
         def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
-            client = (
-                self.client if isinstance(self.client, AsyncOpenAI) else self.client()
-            )
-            return event_loop.get().run_until_complete(
-                self.__call_batches__(batches, client)
-            )
+            return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
         async def __call_batches__(
-            self, batches: Sequence[str], client: AsyncOpenAI
+            self, batches: Sequence[str]
         ) -> Sequence[NumpyArray]:
             chunk_results = await asyncio.gather(
                 *(
-                    self.__call_chunk__(chunk, client)
+                    self.__call_chunk__(chunk)
                     for chunk in chunkify(batches, self.chunk_size)
                 )
             )
 
             return list(itertools.chain.from_iterable(chunk_results))
 
-        async def __call_chunk__(
-            self,
-            batches: Sequence[str],
-            client: AsyncOpenAI,
-        ) -> Sequence[NumpyArray]:
-            res = await client.embeddings.create(
+        async def __call_chunk__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
+            res = await self.client.embeddings.create(
                 input=[self.encode(text) for text in batches],
                 model=self.model,
                 encoding_format="float",
