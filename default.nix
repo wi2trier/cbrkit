@@ -103,7 +103,7 @@ let
             buildPhase = ''
               runHook preBuild
 
-              typer ./src/cbrkit/cli.py utils docs --name cbrkit --output cli.md
+              typer cbrkit.cli utils docs --name cbrkit --output cli.md
 
               pdoc \
                 -d google \
