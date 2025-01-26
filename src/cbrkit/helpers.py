@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import inspect
 import logging
 import math
@@ -15,7 +16,9 @@ from collections.abc import (
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
+from io import BytesIO
 from multiprocessing.pool import Pool
+from pathlib import Path
 from typing import Any, Literal, TypeGuard, cast, override
 
 from .typing import (
@@ -77,6 +80,7 @@ __all__ = [
     "log_batch",
     "BATCH_LOGGING_LEVEL",
     "total_params",
+    "get_hash",
 ]
 
 
@@ -701,3 +705,14 @@ def mp_starmap[*Us, V](
             )
 
     return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
+
+
+def get_hash(file: Path | bytes | BytesIO) -> str:
+    if isinstance(file, Path):
+        data = file.read_bytes()
+    elif isinstance(file, BytesIO):
+        data = file.getvalue()
+    else:
+        data = file
+
+    return hashlib.sha256(data).hexdigest()
