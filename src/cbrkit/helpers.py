@@ -256,7 +256,7 @@ def log_batch(
     i: int,
     total: int,
 ):
-    if logger is not None:
+    if logger is not None and total > 1:
         logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
 
 
