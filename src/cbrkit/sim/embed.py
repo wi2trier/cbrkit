@@ -1,4 +1,5 @@
 import asyncio
+import io
 import itertools
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from ..helpers import (
     batchify_sim,
     chunkify,
     event_loop,
+    get_hash,
     get_logger,
     optional_dependencies,
 )
@@ -155,6 +157,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
     path: Path | None
     autodump: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
+    hash: str | None
 
     def __init__(
         self,
@@ -167,10 +170,15 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         self.autodump = autodump
 
         if self.path and self.path.exists():
-            with np.load(self.path) as data:
-                self.store = dict(data)
+            data = self.path.read_bytes()
+            self.hash = get_hash(data)
+
+            with np.load(data) as loaded_data:
+                self.store = dict(loaded_data)
+
         else:
             self.store = {}
+            self.hash = None
 
     def dump(self) -> None:
         if not self.path:
@@ -179,8 +187,21 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         if not self.store:
             raise ValueError("No cache to dump")
 
+        if not self.hash:
+            raise ValueError("No hash to compare")
+
+        memory_file = io.BytesIO()
+        np.savez_compressed(memory_file, **self.store)
+        data = memory_file.getvalue()
+        memory_file.close()
+
+        if get_hash(self.path) != self.hash:
+            logger.warning("Cache file has been modified, skipping dump")
+            return
+
         logger.info(f"Dumping cache to {self.path}")
-        np.savez_compressed(self.path, **self.store)
+        self.path.write_bytes(data)
+        self.hash = get_hash(data)
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
         new_texts = [text for text in texts if text not in self.store]
