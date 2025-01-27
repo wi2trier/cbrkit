@@ -103,7 +103,8 @@ let
             buildPhase = ''
               runHook preBuild
 
-              typer cbrkit.cli utils docs --name cbrkit --output cli.md
+              # TODO: This is failing as of 2025-01-27
+              # typer cbrkit.cli utils docs --name cbrkit --output cli.md
 
               pdoc \
                 -d google \
