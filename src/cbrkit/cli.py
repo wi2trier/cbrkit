@@ -145,8 +145,8 @@ def synthesis(
 def serve(
     retriever: Annotated[list[str], typer.Option(default_factory=list)],
     reuser: Annotated[list[str], typer.Option(default_factory=list)],
-    synthesizer: Annotated[str | None, typer.Option(default=None)],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    synthesizer: str | None = None,
     host: str = "0.0.0.0",
     port: int = 8080,
     reload: bool = False,
