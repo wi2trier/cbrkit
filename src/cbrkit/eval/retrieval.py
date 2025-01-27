@@ -40,11 +40,20 @@ def retrieval[Q, C, S: Float](
 
 def retrieval_step_to_qrels[Q, C, S: Float](
     result: ResultStep[Q, C, Any, S],
-    max_qrel: int = 5,
-    min_qrel: int = 1,
+    max_qrel: int | None = None,
+    min_qrel: int = 0,
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
+    if max_qrel is None:
+        return {
+            query: {
+                case: rank
+                for rank, case in enumerate(reversed(entry.ranking), start=min_qrel)
+            }
+            for query, entry in result.queries.items()
+        }
+
     sims = {
         query: {case: unpack_float(value) for case, value in entry.similarities.items()}
         for query, entry in result.queries.items()
