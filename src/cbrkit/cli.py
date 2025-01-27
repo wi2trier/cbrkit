@@ -2,7 +2,6 @@
 .. include:: ../../cli.md
 """
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -45,15 +44,14 @@ def retrieve(
     result = cbrkit.retrieval.apply_queries(casebase, queries, retrievers)
 
     if output_path:
-        with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(result.as_dict(), fp, indent=2)
+        cbrkit.dumpers.file(output_path, result.as_dict())
 
     if print_ranking or print_similarities:
         for query_key, query_result in result.final_step.queries.items():
             print(f"Query: {query_key}")
 
             if print_ranking:
-                print(f"Ranking: {", ".join(map(str, query_result.ranking))}")
+                print(f"Ranking: {', '.join(map(str, query_result.ranking))}")
 
             if print_similarities:
                 print("Similarities:")
@@ -79,8 +77,7 @@ def reuse(
     result = cbrkit.reuse.apply_queries(casebase, queries, reusers)
 
     if output_path:
-        with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(result.as_dict(), fp, indent=2)
+        cbrkit.dumpers.file(output_path, result.as_dict())
 
 
 @app.command()
@@ -103,8 +100,7 @@ def cycle(
     result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
 
     if output_path:
-        with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(result.as_dict(), fp, indent=2)
+        cbrkit.dumpers.file(output_path, result.as_dict())
 
 
 @app.command()
@@ -132,8 +128,7 @@ def synthesis(
     )
 
     if output_path:
-        with output_path.with_suffix(".json").open("w") as fp:
-            json.dump(synthesis_result.as_dict(), fp, indent=2)
+        cbrkit.dumpers.file(output_path, synthesis_result.as_dict())
 
 
 @app.command()

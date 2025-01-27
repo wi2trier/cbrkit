@@ -9,6 +9,7 @@ For nodes without a `weight` or `children`, it is also possible to pass its name
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Protocol, override
 
 from pydantic import BaseModel, Field
@@ -173,29 +174,24 @@ class weights(TaxonomySimFunc):
     The weights are defined by the user in the taxonomy file or automatically calculated based on the depth of the nodes.
 
     Args:
+        source: The source of the weights to use. One of "auto" or "user".
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
-        source: The source of the weights to use. One of "auto" or "user".
 
     ![user weights](../../../../assets/taxonomy/user-weights.png)
 
     ![user weights](../../../../assets/taxonomy/auto-weights.png)
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", weights("optimistic", "user"))
-        >>> sim("audi", "Volkswagen AG")
-        1.0
-        >>> sim("audi", "bmw")
-        0.0
-        >>> sim = build("./data/cars-taxonomy.yaml", weights("optimistic", "auto"))
+        >>> sim = build("./data/cars-taxonomy.yaml", weights("auto", "optimistic"))
         >>> sim("audi", "Volkswagen AG")
         1.0
         >>> sim("audi", "bmw")
         0.0
     """
 
-    strategy: TaxonomyStrategy
     source: Literal["auto", "user"]
+    strategy: TaxonomyStrategy
 
     @override
     def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float:
@@ -204,7 +200,7 @@ class weights(TaxonomySimFunc):
         lca = taxonomy.lca(node1, node2)
         max_depth = taxonomy.max_depth
 
-        weight = lca.weight if self.source == "user" else lca.depth / max_depth
+        weight: float = lca.weight if self.source == "user" else lca.depth / max_depth
 
         if lca == node1 or lca == node2:
             # pessimistic not needed: weight of lca already used
@@ -317,12 +313,12 @@ class build:
 
     def __init__(
         self,
-        taxonomy: Taxonomy | SerializedTaxonomyNode | str,
+        taxonomy: Taxonomy | SerializedTaxonomyNode | str | Path,
         func: TaxonomySimFunc = default_taxonomy_func,
     ) -> None:
         if isinstance(taxonomy, Taxonomy):
             self.taxonomy = taxonomy
-        elif isinstance(taxonomy, str):
+        elif isinstance(taxonomy, str | Path):
             loaded_content = load_file(taxonomy)
             serialized_taxonomy = SerializedTaxonomyNode.model_validate(loaded_content)
             self.taxonomy = Taxonomy(serialized_taxonomy)

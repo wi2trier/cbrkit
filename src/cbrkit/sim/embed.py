@@ -1,12 +1,20 @@
+import asyncio
 import itertools
 from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, cast, override
 
 import numpy as np
 from scipy.spatial.distance import cosine as scipy_cosine
 
-from ..helpers import batchify_conversion, batchify_sim, optional_dependencies
+from ..helpers import (
+    batchify_conversion,
+    batchify_sim,
+    chunkify,
+    event_loop,
+    optional_dependencies,
+)
 from ..typing import (
     AnyConversionFunc,
     AnySimFunc,
@@ -47,7 +55,7 @@ class cosine(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if np.any(u) and np.any(v):
-            return 1 - scipy_cosine(u, v, self.weight).astype(float)
+            return 1 - scipy_cosine(u, v, self.weight).__float__()
 
         return 0.0
 
@@ -56,7 +64,7 @@ class cosine(SimFunc[NumpyArray, float]):
 class dot(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return np.dot(u, v).astype(float)
+        return np.dot(u, v).__float__()
 
 
 @dataclass(slots=True, frozen=True)
@@ -80,14 +88,14 @@ class angular(SimFunc[NumpyArray, float]):
 class euclidean(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return 1 / (1 + np.linalg.norm(u - v)).astype(float)
+        return 1 / (1 + np.linalg.norm(u - v).__float__())
 
 
 @dataclass(slots=True, frozen=True)
 class manhattan(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return 1 / (1 + np.sum(np.abs(u - v)))
+        return 1 / (1 + np.sum(np.abs(u - v)).__float__())
 
 
 default_score_func: SimFunc[NumpyArray, float] = cosine()
@@ -142,7 +150,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 @dataclass(slots=True, init=False)
 class cache(KeyValueStore[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
-    path: FilePath | None
+    path: Path | None
     autodump: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
@@ -153,16 +161,14 @@ class cache(KeyValueStore[str, NumpyArray]):
         autodump: bool = False,
     ):
         self.func = batchify_conversion(func) if func is not None else None
-        self.path = path
-        self.store = {}
+        self.path = Path(path) if isinstance(path, str) else path
         self.autodump = autodump
 
-    def __post_init__(self) -> None:
-        if self.path:
-            try:
-                self.store = np.load(self.path)
-            except Exception:
-                pass
+        if self.path and self.path.exists():
+            with np.load(self.path) as data:
+                self.store = dict(data)
+        else:
+            self.store = {}
 
     def dump(self) -> None:
         if not self.path:
@@ -171,8 +177,9 @@ class cache(KeyValueStore[str, NumpyArray]):
         np.savez_compressed(self.path, **self.store)
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if self.func:
-            new_texts = [text for text in texts if text not in self.store]
+        new_texts = [text for text in texts if text not in self.store]
+
+        if self.func and new_texts:
             self.store.update(zip(new_texts, self.func(new_texts), strict=True))
 
             if self.autodump:
@@ -291,7 +298,8 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    from openai import OpenAI
+    import tiktoken
+    from openai import AsyncOpenAI
 
     @dataclass(slots=True, frozen=True)
     class openai(BatchConversionFunc[str, NumpyArray]):
@@ -302,16 +310,55 @@ with optional_dependencies():
         """
 
         model: str
-        client: OpenAI = field(default_factory=OpenAI, repr=False)
+        client: AsyncOpenAI | Callable[[], AsyncOpenAI] = field(
+            default=AsyncOpenAI, repr=False
+        )
+        chunk_size: int = 2048
+        context_size: int = 8192
+        truncate: Literal["start", "end"] | None = "end"
 
         @override
-        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-            res = self.client.embeddings.create(
-                input=cast(list[str], texts),
+        def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
+            client = (
+                self.client if isinstance(self.client, AsyncOpenAI) else self.client()
+            )
+            return event_loop.get().run_until_complete(
+                self.__call_batches__(batches, client)
+            )
+
+        async def __call_batches__(
+            self, batches: Sequence[str], client: AsyncOpenAI
+        ) -> Sequence[NumpyArray]:
+            chunk_results = await asyncio.gather(
+                *(
+                    self.__call_chunk__(chunk, client)
+                    for chunk in chunkify(batches, self.chunk_size)
+                )
+            )
+
+            return list(itertools.chain.from_iterable(chunk_results))
+
+        async def __call_chunk__(
+            self,
+            batches: Sequence[str],
+            client: AsyncOpenAI,
+        ) -> Sequence[NumpyArray]:
+            res = await client.embeddings.create(
+                input=[self.encode(text) for text in batches],
                 model=self.model,
                 encoding_format="float",
             )
             return [np.array(x.embedding) for x in res.data]
+
+        def encode(self, text: str) -> list[int]:
+            value = tiktoken.encoding_for_model(self.model).encode(text)
+
+            if self.truncate == "start":
+                return value[-self.context_size :]
+            elif self.truncate == "end":
+                return value[: self.context_size]
+
+            return value
 
 
 with optional_dependencies():

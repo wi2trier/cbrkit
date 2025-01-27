@@ -1,15 +1,20 @@
-from collections.abc import Sequence
+from collections import defaultdict
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import cast, override
+from typing import Any, cast, override
 
-from ..helpers import batchify_sim
+from ..helpers import batchify_sim, get_metadata, get_value, getitem_or_getattr
 from ..typing import (
     AnySimFunc,
     BatchSimFunc,
     ConversionFunc,
     Float,
+    HasMetadata,
+    JsonDict,
     SimSeq,
+    StructuredValue,
 )
+from .generic import static
 
 
 @dataclass(slots=True)
@@ -17,8 +22,8 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
     """Transforms a similarity function from one type to another.
 
     Args:
-        conversion_func: A function that converts the input values from one type to another.
         similarity_func: The similarity function to be used on the converted values.
+        conversion_func: A function that converts the input values from one type to another.
 
     Examples:
         >>> from cbrkit.sim.generic import equality
@@ -46,6 +51,12 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
         return self.similarity_func(
             [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
         )
+
+
+def transpose_value[V, S: Float](
+    func: AnySimFunc[V, S],
+) -> BatchSimFunc[StructuredValue[V], S]:
+    return transpose(func, get_value)
 
 
 @dataclass(slots=True)
@@ -85,3 +96,161 @@ class cache[V, U, S: Float](BatchSimFunc[V, S]):
         )
 
         return [self.cache[pair] for pair in transformed_batches]
+
+
+@dataclass(slots=True)
+class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
+    """Allows to import a similarity values from a table.
+
+    Args:
+        entries: Sequence[tuple[a, b, sim(a, b)]
+        symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
+        default: Default similarity value for pairs not in the table
+        key_getter: A function that extracts the the key for lookup from the input values
+
+    Examples:
+        >>> from cbrkit.helpers import identity
+        >>> from cbrkit.sim.generic import static
+        >>> sim = dynamic_table(
+        ...     {
+        ...         ("a", "b"): static(0.5),
+        ...         ("b", "c"): static(0.7)
+        ...     },
+        ...     symmetric=True,
+        ...     default=static(0.0),
+        ...     key_getter=identity,
+        ... )
+        >>> sim([("b", "a"), ("a", "c")])
+        [0.5, 0.0]
+    """
+
+    symmetric: bool
+    default: BatchSimFunc[U, S] | None
+    key_getter: Callable[[Any], K]
+    table: dict[tuple[K, K], BatchSimFunc[V, S]]
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        return {
+            "symmetric": self.symmetric,
+            "default": get_metadata(self.default),
+            "key_getter": get_metadata(self.key_getter),
+            "table": [
+                {
+                    "x": str(k[0]),
+                    "y": str(k[1]),
+                    "value": get_metadata(v),
+                }
+                for k, v in self.table.items()
+            ],
+        }
+
+    def __init__(
+        self,
+        entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
+        | Mapping[K, AnySimFunc[..., S]],
+        key_getter: Callable[[Any], K],
+        default: AnySimFunc[U, S] | S | None = None,
+        symmetric: bool = True,
+    ):
+        self.symmetric = symmetric
+        self.key_getter = key_getter
+        self.table = {}
+
+        if isinstance(default, Callable):
+            self.default = batchify_sim(default)
+        elif default is None:
+            self.default = None
+        else:
+            self.default = batchify_sim(static(default))
+
+        for key, val in entries.items():
+            func = batchify_sim(val)
+
+            if isinstance(key, tuple):
+                x, y = cast(tuple[K, K], key)
+            else:
+                x = y = cast(K, key)
+
+            self.table[(x, y)] = func
+
+            if self.symmetric and x != y:
+                self.table[(y, x)] = func
+
+    @override
+    def __call__(self, batches: Sequence[tuple[U | V, U | V]]) -> SimSeq[S]:
+        # then we group the batches by key to avoid redundant computations
+        idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
+
+        for idx, (x, y) in enumerate(batches):
+            key = (self.key_getter(x), self.key_getter(y))
+
+            if key in self.table:
+                idx_map[key].append(idx)
+            else:
+                idx_map[None].append(idx)
+
+        # now we compute the similarities
+        results: dict[int, S] = {}
+
+        for key, idxs in idx_map.items():
+            sim_func = cast(
+                BatchSimFunc[U | V, S] | None,
+                self.table.get(key) if key is not None else self.default,
+            )
+
+            if sim_func is None:
+                missing_entries = [batches[idx] for idx in idxs]
+                missing_keys = {
+                    (self.key_getter(x), self.key_getter(y)) for x, y in missing_entries
+                }
+
+                raise ValueError(f"Pairs {missing_keys} not in the table")
+
+            sims = sim_func([batches[idx] for idx in idxs])
+
+            for idx, sim in zip(idxs, sims, strict=True):
+                results[idx] = sim
+
+        return [results[idx] for idx in range(len(batches))]
+
+
+table = dynamic_table
+
+
+def type_table[U, V, S: Float](
+    entries: Mapping[type[V], AnySimFunc[..., S]],
+    default: AnySimFunc[U, S] | S | None = None,
+) -> BatchSimFunc[U | V, S]:
+    return dynamic_table(
+        entries=entries,
+        key_getter=type,
+        default=default,
+        symmetric=False,
+    )
+
+
+@dataclass(slots=True, frozen=True)
+class attribute_table_key_getter[K]:
+    func: Callable[[Any, str], K]
+    attribute: str
+
+    def __call__(self, x: Any) -> K:
+        return self.func(x, self.attribute)
+
+
+def attribute_table[K, U, S: Float](
+    entries: Mapping[K, AnySimFunc[..., S]],
+    attribute: str,
+    default: AnySimFunc[U, S] | S | None = None,
+    value_getter: Callable[[Any, str], K] = getitem_or_getattr,
+) -> BatchSimFunc[Any, S]:
+    key_getter = attribute_table_key_getter(value_getter, attribute)
+
+    return dynamic_table(
+        entries=entries,
+        key_getter=key_getter,
+        default=default,
+        symmetric=False,
+    )

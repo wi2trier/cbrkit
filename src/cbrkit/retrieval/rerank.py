@@ -1,10 +1,9 @@
 import asyncio
-import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
-from ..helpers import optional_dependencies
+from ..helpers import event_loop, get_logger, optional_dependencies
 from ..typing import (
     Casebase,
     HasMetadata,
@@ -12,7 +11,7 @@ from ..typing import (
     RetrieverFunc,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 with optional_dependencies():
     from cohere import AsyncClient
@@ -36,7 +35,7 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            return asyncio.run(self._retrieve(batches))
+            return event_loop.get().run_until_complete(self._retrieve(batches))
 
         async def _retrieve(
             self,
@@ -87,7 +86,7 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[Casebase[K, float]]:
-            return asyncio.run(self._retrieve(batches))
+            return event_loop.get().run_until_complete(self._retrieve(batches))
 
         async def _retrieve(
             self,

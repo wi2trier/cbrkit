@@ -122,7 +122,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (3, 4)])
     """
 
-    distance_func: Callable[[V, V], float] | None = None
+    distance_func: Callable[[V, V], Float] | None = None
 
     def __call__(
         self,
@@ -181,13 +181,13 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
         for i in range(1, n + 1):
             for j in range(1, m + 1):
-                cost = (
+                cost = unpack_float(
                     self.distance_func(x[i - 1], y[j - 1])
                     if self.distance_func
                     else abs(x[i - 1] - y[j - 1])
                 )
                 # Take last min from a square box
-                last_min = min(
+                last_min: float = min(
                     dtw_matrix[i - 1, j],  # Insertion
                     dtw_matrix[i, j - 1],  # Deletion
                     dtw_matrix[i - 1, j - 1],  # Match
@@ -225,7 +225,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
         while i > 0 and j > 0:
             alignment.append((x[i - 1], y[j - 1]))  # Align elements
-            cost = (
+            cost = unpack_float(
                 self.distance_func(x[i - 1], y[j - 1])
                 if self.distance_func
                 else abs(x[i - 1] - y[j - 1])
@@ -431,7 +431,7 @@ class sequence_mapping[V, S: Float](
         self, larger_list: Sequence[V], smaller_list: Sequence[V]
     ) -> SequenceSim[V, S]:
         max_similarity = -1.0
-        best_local_similarities: list[S] = []
+        best_local_similarities: Sequence[S] = []
 
         for i in range(len(larger_list) - len(smaller_list) + 1):
             sublist = larger_list[i : i + len(smaller_list)]

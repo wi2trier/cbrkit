@@ -4,7 +4,7 @@ from textwrap import dedent
 from typing import Any
 
 from ..dumpers import json_markdown
-from ..helpers import sim_map2ranking, unpack_float
+from ..helpers import get_value, sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
     ConversionFunc,
@@ -12,12 +12,14 @@ from ..typing import (
     Float,
     JsonEntry,
     SimMap,
+    StructuredValue,
     SynthesizerPromptFunc,
 )
 from .providers.model import DocumentsPrompt
 
 __all__ = [
     "transpose",
+    "transpose_value",
     "default",
     "documents_aware",
     "pooling",
@@ -32,18 +34,39 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
     def __call__(
         self,
         casebase: Casebase[K, V1],
-        query: V1,
+        query: V1 | None,
         similarities: SimMap[K, S] | None,
     ) -> P:
         return self.prompt_func(
             {key: self.conversion_func(value) for key, value in casebase.items()},
-            self.conversion_func(query),
+            self.conversion_func(query) if query is not None else None,
             similarities,
         )
 
 
+def transpose_value[P, K, V, S: Float](
+    func: SynthesizerPromptFunc[P, K, V, S],
+) -> SynthesizerPromptFunc[P, K, StructuredValue[V], S]:
+    return transpose(func, get_value)
+
+
 @dataclass(slots=True, frozen=True)
 class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
+    """Produces an LLM input which provides context for the LLM to be able to perform instructions.
+
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    Returns:
+        A string to be used as an LLM input.
+
+    Examples:
+        >>> prompt = default("Give me a summary of the found cars.")
+        >>> prompt(casebase, query, similarities) # doctest: +SKIP
+    """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -51,7 +74,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     def __call__(
         self,
         casebase: Casebase[Any, V],
-        query: V,
+        query: V | None,
         similarities: SimMap[Any, Float] | None,
     ) -> str:
         result = ""
@@ -59,11 +82,14 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent(f"""
-            ## Query
+        if query is not None:
+            result += dedent(f"""
+                ## Query
 
-            {self.encoder(query)}
+                {self.encoder(query)}
+            """)
 
+        result += dedent("""
             ## Documents Collection
         """)
 
@@ -99,6 +125,19 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 
 @dataclass(slots=True, frozen=True)
 class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any]):
+    """
+    Produces a structured LLM input (as of now: exclusive for cohere) which provides context for the LLM to be able to perform instructions.
+
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    Examples:
+        >>> prompt = documents_aware("Give me a summary of the found cars.")
+        >>> prompt(casebase, query, similarities) # doctest: +SKIP
+    """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -106,7 +145,7 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
     def __call__(
         self,
         casebase: Casebase[Any, V],
-        query: V,
+        query: V | None,
         similarities: SimMap[Any, Float] | None,
     ) -> DocumentsPrompt:
         result = ""
@@ -114,11 +153,12 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent(f"""
-            ## Query
+        if query is not None:
+            result += dedent(f"""
+                ## Query
 
-            {self.encoder(query)}
-        """)
+                {self.encoder(query)}
+            """)
 
         if self.metadata is not None:
             result += dedent(f"""
@@ -152,6 +192,19 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
 
 @dataclass(slots=True, frozen=True)
 class pooling[V](ConversionPoolingFunc[V, str]):
+    """
+    Produces an LLM input to aggregate partial results (i.e., the LLM output for single chunks) to a final, global result.
+
+    Args:
+        instructions: Instructions for the LLM to execute on the input.
+        encoder: Encoder function to convert the a case or query to a string.
+        metadata: Optional metadata to include in the prompt.
+
+    Examples:
+        >>> prompt = pooling("Please find the best match from the following partial results.")
+        >>> prompt([partial1, partial2, partial3]) # doctest: +SKIP
+    """
+
     instructions: str | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
     metadata: JsonEntry | None = None
@@ -165,7 +218,7 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         if self.instructions is not None:
             result += self.instructions
 
-        result = dedent("""
+        result += dedent("""
             ## Documents Collection
         """)
 

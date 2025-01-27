@@ -22,7 +22,7 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     chunk_size: int
 
     def __call__(
-        self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]]
+        self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
     ) -> Sequence[R]:
         result_chunks: list[Sequence[R]] = []
 
@@ -46,8 +46,8 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class pooling[P, R](BatchPoolingFunc[R]):
-    prompt_func: ConversionPoolingFunc[R, P]
     generation_func: AnyConversionFunc[P, R]
+    prompt_func: ConversionPoolingFunc[R, P]
 
     def __call__(self, batches: Sequence[Sequence[R]]) -> Sequence[R]:
         func = batchify_conversion(self.generation_func)
@@ -62,7 +62,7 @@ class transpose[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
     conversion_func: ConversionFunc[R2, R1]
 
     def __call__(
-        self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]]
+        self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
     ) -> Sequence[R1]:
         return [self.conversion_func(batch) for batch in self.synthesis_func(batches)]
 
@@ -73,7 +73,7 @@ class build[P, R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     prompt_func: SynthesizerPromptFunc[P, K, V, S]
 
     def __call__(
-        self, batches: Sequence[tuple[Casebase[K, V], V, SimMap[K, S] | None]]
+        self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
     ) -> Sequence[R]:
         func = batchify_conversion(self.generation_func)
 

@@ -1,24 +1,19 @@
-from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, cast, override
+from typing import Any, override
 
-from ..helpers import batchify_sim, get_metadata
+from ..helpers import get_metadata, unbatchify_sim
 from ..typing import (
     AnySimFunc,
-    BatchSimFunc,
     Float,
     HasMetadata,
     JsonDict,
     SimFunc,
-    SimSeq,
 )
 
 __all__ = [
     "table",
     "static_table",
-    "dynamic_table",
-    "type_table",
     "equality",
     "type_equality",
     "static",
@@ -46,7 +41,7 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
         0.0
     """
 
-    default: float | None
+    default: SimFunc[V | Any, float] | None
     symmetric: bool
     table: dict[tuple[V, V], float]
 
@@ -55,7 +50,7 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
     def metadata(self) -> JsonDict:
         return {
             "symmetric": self.symmetric,
-            "default": self.default,
+            "default": get_metadata(self.default),
             "table": [
                 {
                     "x": str(k[0]),
@@ -69,12 +64,18 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
     def __init__(
         self,
         entries: Sequence[tuple[V, V, float]] | Mapping[tuple[V, V], float],
-        default: float | None = None,
+        default: AnySimFunc[V | Any, float] | float | None = None,
         symmetric: bool = True,
     ):
-        self.default = default
         self.symmetric = symmetric
         self.table = {}
+
+        if isinstance(default, Callable):
+            self.default = unbatchify_sim(default)
+        elif default is None:
+            self.default = None
+        else:
+            self.default = static(default)
 
         if isinstance(entries, Mapping):
             for (x, y), val in entries.items():
@@ -92,7 +93,10 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
 
     @override
     def __call__(self, x: V | Any, y: V | Any) -> float:
-        sim = self.table.get((x, y), self.default)
+        sim = self.table.get((x, y))
+
+        if sim is None and self.default is not None:
+            sim = self.default(x, y)
 
         if sim is None:
             raise ValueError(f"Pair ({x}, {y}) not in the table")
@@ -101,129 +105,6 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
 
 
 table = static_table
-
-
-@dataclass(slots=True)
-class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
-    """Allows to import a similarity values from a table.
-
-    Args:
-        entries: Sequence[tuple[a, b, sim(a, b)]
-        symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
-        default: Default similarity value for pairs not in the table
-        key_getter: A function that extracts the the key for lookup from the input values
-
-    Examples:
-        >>> from cbrkit.helpers import identity
-        >>> sim = dynamic_table(
-        ...     {
-        ...         ("a", "b"): static(0.5),
-        ...         ("b", "c"): static(0.7)
-        ...     },
-        ...     symmetric=True,
-        ...     default=static(0.0),
-        ...     key_getter=identity,
-        ... )
-        >>> sim([("b", "a"), ("a", "c")])
-        [0.5, 0.0]
-    """
-
-    symmetric: bool
-    default: BatchSimFunc[U, S] | None
-    key_getter: Callable[[U | V], K]
-    table: dict[tuple[K, K], BatchSimFunc[V, S]]
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        return {
-            "symmetric": self.symmetric,
-            "default": get_metadata(self.default),
-            "key_getter": get_metadata(self.key_getter),
-            "table": [
-                {
-                    "x": str(k[0]),
-                    "y": str(k[1]),
-                    "value": get_metadata(v),
-                }
-                for k, v in self.table.items()
-            ],
-        }
-
-    def __init__(
-        self,
-        entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
-        | Mapping[K, AnySimFunc[..., S]],
-        key_getter: Callable[[U | V], K],
-        default: AnySimFunc[U, S] | None = None,
-        symmetric: bool = True,
-    ):
-        self.default = batchify_sim(default) if default is not None else None
-        self.symmetric = symmetric
-        self.key_getter = key_getter
-        self.table = {}
-
-        for key, val in entries.items():
-            func = batchify_sim(val)
-
-            if isinstance(key, tuple):
-                x, y = cast(tuple[K, K], key)
-            else:
-                x = y = cast(K, key)
-
-            self.table[(x, y)] = func
-
-            if self.symmetric and x != y:
-                self.table[(y, x)] = func
-
-    @override
-    def __call__(self, batches: Sequence[tuple[U | V, U | V]]) -> SimSeq[S]:
-        # then we group the batches by key to avoid redundant computations
-        idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
-
-        for idx, (x, y) in enumerate(batches):
-            key = (self.key_getter(x), self.key_getter(y))
-
-            if key in self.table:
-                idx_map[key].append(idx)
-            else:
-                idx_map[None].append(idx)
-
-        # now we compute the similarities
-        results: dict[int, S] = {}
-
-        for key, idxs in idx_map.items():
-            sim_func = cast(
-                BatchSimFunc[U | V, S],
-                self.table.get(key) if key is not None else self.default,
-            )
-
-            if sim_func is None:
-                missing_entries = [batches[idx] for idx in idxs]
-                missing_keys = {
-                    (self.key_getter(x), self.key_getter(y)) for x, y in missing_entries
-                }
-
-                raise ValueError(f"Pairs {missing_keys} not in the table")
-
-            sims = sim_func([batches[idx] for idx in idxs])
-
-            for idx, sim in zip(idxs, sims, strict=True):
-                results[idx] = sim
-
-        return [results[idx] for idx in range(len(batches))]
-
-
-def type_table[U, V, S: Float](
-    entries: Mapping[type[V], AnySimFunc[..., S]],
-    default: AnySimFunc[U, S] | None = None,
-) -> BatchSimFunc[U | V, S]:
-    return dynamic_table(
-        entries=entries,
-        key_getter=type,
-        default=default,
-        symmetric=False,
-    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -261,7 +142,7 @@ class type_equality(SimFunc[Any, float]):
 
 
 @dataclass(slots=True, frozen=True)
-class static(SimFunc[Any, float]):
+class static[S: Float](SimFunc[Any, S]):
     """Static similarity function. Returns a constant value for all batches.
 
     Args:
@@ -275,8 +156,8 @@ class static(SimFunc[Any, float]):
         0.5
     """
 
-    value: float
+    value: S
 
     @override
-    def __call__(self, x: Any, y: Any) -> float:
+    def __call__(self, x: Any, y: Any) -> S:
         return self.value

@@ -3,16 +3,16 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
-import io
-import tomllib
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from io import IOBase
 from pathlib import Path
 from typing import IO, Any, cast
 
 import orjson
 import pandas as pd
 import polars as pl
+import rtoml
 import xmltodict
 import yaml as yamllib
 from pydantic import BaseModel
@@ -35,6 +35,21 @@ __all__ = [
     "xml",
     "yaml",
 ]
+
+type ReadableType = str | bytes | IO | IOBase
+
+
+def read(data: ReadableType) -> str:
+    if isinstance(data, str):
+        return data
+
+    elif isinstance(data, bytes | bytearray):
+        return data.decode("utf-8")
+
+    elif isinstance(data, IO | IOBase):
+        return read(data.read())
+
+    raise TypeError(f"Invalid data type: {type(data)}")
 
 
 @dataclass(slots=True, frozen=True)
@@ -73,13 +88,10 @@ class polars(Mapping[int, dict[str, Any]]):
 
 
 @dataclass(slots=True, frozen=True)
-class py(ConversionFunc[str | IO, Any]):
+class py(ConversionFunc[str, Any]):
     """Reads a Python file and loads the object from it."""
 
-    def __call__(self, source: str | IO) -> Any:
-        if isinstance(source, IO | io.IOBase):
-            return load_object(source.read())
-
+    def __call__(self, source: str) -> Any:
         return load_object(source)
 
 
@@ -99,13 +111,11 @@ class csv(ConversionFunc[Iterable[str] | IO, dict[int, dict[str, str]]]):
 
 
 @dataclass(slots=True, frozen=True)
-class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
+class json(ConversionFunc[ReadableType, dict[Any, Any]]):
     """Reads a json file and converts it into a dict representation"""
 
-    def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
-        data = orjson.loads(
-            source.read() if isinstance(source, IO | io.IOBase) else source
-        )
+    def __call__(self, source: ReadableType) -> dict[Any, Any]:
+        data = orjson.loads(read(source))
 
         if isinstance(data, list):
             return dict(enumerate(data))
@@ -116,21 +126,18 @@ class json(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
 
 
 @dataclass(slots=True, frozen=True)
-class toml(ConversionFunc[str | IO, dict[str, Any]]):
+class toml(ConversionFunc[ReadableType, dict[str, Any]]):
     """Reads a toml file and converts it into a dict representation"""
 
-    def __call__(self, source: str | IO) -> dict[str, Any]:
-        if isinstance(source, IO | io.IOBase):
-            return tomllib.load(source)
-
-        return tomllib.loads(source)
+    def __call__(self, source: ReadableType) -> dict[str, Any]:
+        return rtoml.loads(read(source))
 
 
 @dataclass(slots=True, frozen=True)
-class yaml(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
+class yaml(ConversionFunc[ReadableType, dict[Any, Any]]):
     """Reads a yaml file and converts it into a dict representation"""
 
-    def __call__(self, source: str | bytes | IO) -> dict[Any, Any]:
+    def __call__(self, source: ReadableType) -> dict[Any, Any]:
         data: dict[Any, Any] = {}
 
         for doc_idx, doc in enumerate(yamllib.safe_load_all(source)):
@@ -146,14 +153,11 @@ class yaml(ConversionFunc[str | bytes | IO, dict[Any, Any]]):
 
 
 @dataclass(slots=True, frozen=True)
-class xml(ConversionFunc[str | IO, dict[str, Any]]):
+class xml(ConversionFunc[ReadableType, dict[str, Any]]):
     """Reads a xml file and converts it into a dict representation"""
 
-    def __call__(self, source: str | IO) -> dict[str, Any]:
-        if isinstance(source, str):
-            data = xmltodict.parse(source)
-        else:
-            data = xmltodict.parse(source.read())
+    def __call__(self, source: ReadableType) -> dict[str, Any]:
+        data = xmltodict.parse(read(source))
 
         if len(data) == 1:
             data_without_root = data[next(iter(data))]
@@ -164,14 +168,11 @@ class xml(ConversionFunc[str | IO, dict[str, Any]]):
 
 
 @dataclass(slots=True, frozen=True)
-class txt(ConversionFunc[str | bytes | IO, str]):
+class txt(ConversionFunc[ReadableType, str]):
     """Reads a text file and converts it into a string"""
 
-    def __call__(self, source: str | bytes | IO) -> str:
-        if isinstance(source, IO | io.IOBase):
-            return source.read()
-
-        return str(source)
+    def __call__(self, source: ReadableType) -> str:
+        return read(source)
 
 
 def _csv_polars(source: IO | Path | str | bytes) -> Mapping[int, dict[str, Any]]:
@@ -193,7 +194,6 @@ structured_loaders: dict[str, StructuredLoader] = {
 any_loaders: dict[str, AnyLoader] = {
     **structured_loaders,
     ".txt": txt(),
-    ".py": py(),
 }
 
 
@@ -223,7 +223,7 @@ def path(
     raise FileNotFoundError(path)
 
 
-def file(path: FilePath, loader: AnyLoader | None = None) -> Casebase[Any, Any]:
+def file(path: FilePath, loader: StructuredLoader | None = None) -> Casebase[Any, Any]:
     """Converts a file into a Casebase. The file can be of type csv, json, toml, yaml, or yml.
 
     Args:

@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import orjson
+import polars as pl
+import rtoml
+import yaml as yamllib
 
 from .typing import ConversionFunc, FilePath
 
@@ -13,7 +16,64 @@ __all__ = [
     "file",
     "directory",
     "path",
+    "toml",
+    "csv",
+    "yaml",
 ]
+
+
+@dataclass(slots=True, frozen=True)
+class toml(ConversionFunc[Any, str]):
+    """Writes an object to toml."""
+
+    def __call__(self, obj: Any) -> str:
+        obj = {f"i{k}": v for k, v in obj.items()}
+        return rtoml.dumps(obj)
+
+
+@dataclass(slots=True, frozen=True)
+class csv(ConversionFunc[Any, str]):
+    """Writes an object to a csv file."""
+
+    @staticmethod
+    def _flatten_recursive(obj: Any, prefix: str = "") -> dict[str, Any]:
+        flat_item = {}
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                new_prefix = f"{prefix}.{key}" if prefix else key
+                flat_item.update(csv._flatten_recursive(value, new_prefix))
+        else:
+            flat_item[prefix] = obj
+        return flat_item
+
+    @staticmethod
+    def __flatten_dict(nested_dict: dict) -> list[dict[str, Any]]:
+        flattened = []
+
+        # Handle both dict with numeric keys and list inputs
+        items = nested_dict.values() if isinstance(nested_dict, dict) else nested_dict
+
+        for d in items:
+            flat_item = csv._flatten_recursive(d)
+            flattened.append(flat_item)
+
+        return flattened
+
+    def __call__(self, obj: Any) -> str:
+        # remove nested dicts
+        if not isinstance(obj, dict):
+            raise ValueError("Object must be a dictionary")
+        obj = self.__flatten_dict(obj)
+        df = pl.DataFrame(obj)
+        return df.write_csv()
+
+
+@dataclass(slots=True, frozen=True)
+class yaml(ConversionFunc[Any, str]):
+    """Writes an object to a csv file."""
+
+    def __call__(self, obj: Any) -> str:
+        return yamllib.dump(obj)
 
 
 @dataclass(slots=True, frozen=True)
@@ -49,6 +109,10 @@ class json(ConversionFunc[Any, bytes]):
     option: int | None = None
 
     def __call__(self, obj: Any) -> bytes:
+        if isinstance(obj, dict) and any(
+            not isinstance(obj, str) for t in (dict, list)
+        ):
+            obj = {str(k): v for k, v in obj.items()}
         return orjson.dumps(obj, default=self.default, option=self.option)
 
 
@@ -56,12 +120,15 @@ Dumper = Callable[[Any], str | bytes]
 
 dumpers: dict[str, Dumper] = {
     ".json": json(),
+    ".toml": toml(),
+    ".csv": csv(),
+    ".yaml": yaml(),
 }
 
 
 def file(
-    data: Any,
     path: FilePath,
+    data: Any,
     dumper: Dumper | None = None,
 ) -> None:
     """Writes arbitrary data to a json file.
@@ -90,12 +157,13 @@ def file(
         with open(path, "wb") as f:
             f.write(encoded_data)
 
-    raise ValueError("Invalid dumper output type")
+    else:
+        raise ValueError("Invalid dumper output type")
 
 
 def directory(
-    data: Mapping[str, Any],
     path: FilePath,
+    data: Mapping[str, Any],
 ):
     """Writes arbitrary data to a directory.
 
@@ -110,12 +178,12 @@ def directory(
     path.mkdir(parents=True, exist_ok=True)
 
     for key, value in data.items():
-        file(value, path / key)
+        file(path / key, value)
 
 
 def path(
-    data: Any,
     path: FilePath,
+    data: Any,
 ) -> None:
     """Writes arbitrary data to a file or directory.
 
@@ -128,6 +196,6 @@ def path(
     """
 
     if isinstance(data, Mapping):
-        directory(data, path)
+        directory(path, data)
     else:
-        file(data, path)
+        file(path, data)

@@ -16,10 +16,10 @@ type ElementType = Literal["node", "edge"]
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
     value: float
-    node_mapping: Mapping[K, K]
-    edge_mapping: Mapping[K, K]
-    node_similarities: Mapping[K, float]
-    edge_similarities: Mapping[K, float]
+    node_mapping: dict[K, K]
+    edge_mapping: dict[K, K]
+    node_similarities: dict[K, float]
+    edge_similarities: dict[K, float]
 
 
 class ElementMatcher[T](Protocol):
@@ -139,6 +139,16 @@ def from_dict(g: Any) -> Graph[Any, Any, Any, Any]:
     return Graph.load(SerializedGraph.model_validate(g))
 
 
+def load[K](data: Mapping[K, Any]) -> dict[K, Graph[Any, Any, Any, Any]]:
+    return {key: from_dict(value) for key, value in data.items()}
+
+
+def dump[T, K, N, E, G](
+    data: Mapping[T, Graph[K, N, E, G]],
+) -> dict[T, SerializedGraph[K, N, E, G]]:
+    return {key: value.dump() for key, value in data.items()}
+
+
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
     """
     Check if a graph is a sequential workflow.
@@ -183,7 +193,9 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
     return True
 
 
-def to_sequence[K, N, E, G](graph: Graph[K, N, E, G]) -> tuple[list[N], list[E]]:
+def to_sequence[K, N, E, G](
+    graph: Graph[K, N, E, G],
+) -> tuple[list[Node[K, N]], list[Edge[K, N, E]]]:
     """
     Extract nodes and edges of a graph in sequential order.
 
@@ -193,33 +205,42 @@ def to_sequence[K, N, E, G](graph: Graph[K, N, E, G]) -> tuple[list[N], list[E]]
     Returns:
         A tuple containing a list of nodes and a list of edges in sequential order.
     """
+
     in_degree = {node.key: 0 for node in graph.nodes.values()}
+
     for edge in graph.edges.values():
         in_degree[edge.target.key] += 1
+
     start_nodes = [node for node in graph.nodes.values() if in_degree[node.key] == 0]
+
     if len(start_nodes) != 1:
         raise ValueError("Graph does not have a unique start node")
+
     start_node = start_nodes[0]
 
-    nodes = []
-    edges = []
+    nodes: list[Node[K, N]] = []
+    edges: list[Edge[K, N, E]] = []
     current_node = start_node
     visited_nodes = set()
+
     while current_node and current_node.key not in visited_nodes:
         nodes.append(current_node)
         visited_nodes.add(current_node.key)
         outgoing_edges = [
             edge for edge in graph.edges.values() if edge.source.key == current_node.key
         ]
+
         if len(outgoing_edges) > 1:
             raise ValueError(
                 "Graph is not sequential (node has multiple outgoing edges)"
             )
+
         if outgoing_edges:
             edges.append(outgoing_edges[0])
             current_node = outgoing_edges[0].target
         else:
             current_node = None
+
     return nodes, edges
 
 

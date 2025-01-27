@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import (
     Callable,
@@ -39,12 +40,14 @@ from .typing import (
 )
 
 __all__ = [
+    "event_loop",
     "optional_dependencies",
     "dist2sim",
     "batchify_positional",
     "unbatchify_positional",
     "batchify_named",
     "unbatchify_named",
+    "get_value",
     "unpack_value",
     "unpack_values",
     "unpack_float",
@@ -58,7 +61,43 @@ __all__ = [
     "load_callables_map",
     "identity",
     "get_logger",
+    "use_mp",
+    "mp_map",
+    "mp_starmap",
+    "getitem_or_getattr",
 ]
+
+
+@dataclass(slots=True)
+class EventLoop:
+    _instance: asyncio.AbstractEventLoop | None = None
+
+    def get(self) -> asyncio.AbstractEventLoop:
+        if self._instance is None:
+            self._instance = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._instance)
+
+        return self._instance
+
+    def close(self) -> None:
+        if self._instance is not None:
+            tasks = asyncio.all_tasks(self._instance)
+            for task in tasks:
+                task.cancel()
+
+            try:
+                self._instance.run_until_complete(
+                    asyncio.gather(*tasks, return_exceptions=True)
+                )
+            except asyncio.CancelledError:
+                pass
+
+            finally:
+                self._instance.close()
+                self._instance = None
+
+
+event_loop = EventLoop()
 
 
 @contextmanager
@@ -166,12 +205,15 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
 
 
 def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
-    """Yield a total of k chunks from val.
+    """Yield chunks of size `k` from the input sequence.
 
     Examples:
         >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
         [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
     """
+
+    if k < 1:
+        raise ValueError("Chunk size must be greater than 0")
 
     for i in range(0, len(val), k):
         yield val[i : i + k]
@@ -326,6 +368,10 @@ def unbatchify_conversion[P, R](
     )
 
 
+def get_value[T](arg: StructuredValue[T]) -> T:
+    return arg.value
+
+
 def unpack_value[T](arg: T | StructuredValue[T]) -> T:
     if isinstance(arg, StructuredValue):
         return arg.value
@@ -353,6 +399,13 @@ def sim_seq2ranking[S: Float](similarities: SimSeq[S]) -> list[int]:
         key=lambda i: unpack_float(similarities[i]),
         reverse=True,
     )
+
+
+def getitem_or_getattr(obj: Any, key: Any) -> Any:
+    if hasattr(obj, "__getitem__"):
+        return obj[key]
+
+    return getattr(obj, key)
 
 
 def load_object(import_name: str) -> Any:
@@ -439,16 +492,25 @@ def get_logger(obj: Any) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def use_mp(pool_or_processes: Pool | int | None) -> bool:
-    return pool_or_processes is not None and pool_or_processes != 1
+def use_mp(pool_or_processes: Pool | int | bool | None) -> bool:
+    if isinstance(pool_or_processes, bool):
+        return pool_or_processes
+    elif isinstance(pool_or_processes, int):
+        return pool_or_processes != 1
+    elif isinstance(pool_or_processes, Pool):
+        return True
+
+    return False
 
 
 def mp_map[U, V](
     func: Callable[[U], V],
     batches: Iterable[U],
-    pool_or_processes: Pool | int | None,
+    pool_or_processes: Pool | int | bool | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, int):
+    if isinstance(pool_or_processes, bool):
+        pool = Pool()
+    elif isinstance(pool_or_processes, int):
         pool_processes = None if pool_or_processes <= 0 else pool_or_processes
         pool = Pool(pool_processes)
     elif isinstance(pool_or_processes, Pool):
@@ -463,9 +525,11 @@ def mp_map[U, V](
 def mp_starmap[*Us, V](
     func: Callable[[*Us], V],
     batches: Iterable[tuple[*Us]],
-    pool_or_processes: Pool | int | None,
+    pool_or_processes: Pool | int | bool | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, int):
+    if isinstance(pool_or_processes, bool):
+        pool = Pool()
+    elif isinstance(pool_or_processes, int):
         pool_processes = None if pool_or_processes <= 0 else pool_or_processes
         pool = Pool(pool_processes)
     elif isinstance(pool_or_processes, Pool):
