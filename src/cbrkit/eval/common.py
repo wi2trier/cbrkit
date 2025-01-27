@@ -7,12 +7,6 @@ from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 
 # https://amenra.github.io/ranx/metrics/
 
-__all__ = [
-    "compute",
-    "generate_metrics",
-    "parse_metric",
-]
-
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
     rel_lvl = 1
