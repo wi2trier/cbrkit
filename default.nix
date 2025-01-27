@@ -8,6 +8,7 @@
   pyproject-build-systems,
   python3,
   tbb_2021_11,
+  cacert,
 }:
 let
   pdocRepo = fetchFromGitHub {
@@ -69,6 +70,7 @@ let
             name = "${final.cbrkit.name}-pytest";
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
+              cacert
               (final.mkVirtualEnv "cbrkit-test-env" {
                 cbrkit = [
                   "all"
@@ -92,6 +94,7 @@ let
             name = "${final.cbrkit.name}-docs";
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
+              cacert
               (final.mkVirtualEnv "cbrkit-docs-env" {
                 cbrkit = [
                   "all"
