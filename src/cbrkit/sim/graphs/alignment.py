@@ -2,9 +2,9 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Tuple
-from .model import Graph, to_sequence, GraphSim
+from .model import Graph, Node, Edge, to_sequence, GraphSim
 from ...helpers import batchify_sim, unbatchify_sim
-from ...typing import AnySimFunc, SimFunc
+from ...typing import AnySimFunc, SimFunc, Float
 from ..collections import dtw as dtwmodule
 from ..collections import smith_waterman as minineedle_sw
 
@@ -126,8 +126,8 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                  node_similarities=..., edge_similarities=...)
     """
 
-    node_sim_func: AnySimFunc
-    edge_sim_func: Optional[AnySimFunc] = None
+    node_sim_func: AnySimFunc[Node[K, N], Float]
+    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
     normalize: bool = True
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
