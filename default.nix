@@ -103,8 +103,7 @@ let
             buildPhase = ''
               runHook preBuild
 
-              # TODO: This is failing as of 2025-01-27
-              # typer cbrkit.cli utils docs --name cbrkit --output cli.md
+              typer cbrkit.cli utils docs --name cbrkit --output cli.md
 
               pdoc \
                 -d google \
@@ -112,9 +111,9 @@ let
                 --math \
                 --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
                 -o "$out" \
-                ./src/cbrkit/api.py \
-                ./src/cbrkit/cli.py \
-                ./src/cbrkit
+                cbrkit.api \
+                cbrkit.cli \
+                cbrkit
 
               runHook postBuild
             '';
