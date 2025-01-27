@@ -241,13 +241,13 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         GraphSim(value=0.01, node_mapping={'1': '1', '2': '2'}, edge_mapping={}, node_similarities={'1': 1.0, '2': 0.0}, edge_similarities={})
     """
 
-    node_sim_func: AnySimFunc
-    dataflow_in_sim_func: AnySimFunc | None = None
-    dataflow_out_sim_func: AnySimFunc | None = None
+    node_sim_func: AnySimFunc[Node[K, N], Float]
+    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
+    dataflow_in_sim_func: Optional[AnySimFunc] = None  # No specific typing needed here
+    dataflow_out_sim_func: Optional[AnySimFunc] = None # No specific typing needed here
     l_t: float = 1.0
     l_i: float = 0.0
     l_o: float = 0.0
-    edge_sim_func: AnySimFunc | None = None
 
     match_score: int = 2
     mismatch_penalty: int = -1
