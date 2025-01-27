@@ -10,9 +10,11 @@ from ..collections import smith_waterman as minineedle_sw
 
 __all__ = ["dtw", "smith_waterman"]
 
+
 @dataclass(slots=True, frozen=True)
 class SimilarityData[K]:
     """Dataclass to hold similarity data."""
+
     node_mapping: Dict[K, K]
     node_similarities: Dict[K, float]
     edge_mapping: Dict[K, K]
@@ -261,6 +263,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # 2) Decide how to compute local similarity for each node pair
         if self.use_procake_formula:
+
             def local_node_sim(q_node, c_node):
                 base = self.node_sim_func(q_node, c_node) if self.node_sim_func else 0.0
 
@@ -301,7 +304,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         length = min(len(sequence_x), len(sequence_y))
         alignment = [(sequence_x[i], sequence_y[i]) for i in range(length)]
 
-       #  5) Build node/edge mappings & average similarities using local_node_# 5) Build node/edge mappings & average similarities using local_node_sim
+        #  5) Build node/edge mappings & average similarities using local_node_# 5) Build node/edge mappings & average similarities using local_node_sim
         similarity_data = _build_node_edge_mappings_and_similarity(
             alignment,
             local_node_sim,
@@ -312,12 +315,14 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         # 6) Combine node & edge sim, scale by raw SW score (if > 0)
         if similarity_data.edge_similarity is not None:
-            total_similarity = (similarity_data.node_similarity + similarity_data.edge_similarity) / 2.0
+            total_similarity = (
+                similarity_data.node_similarity + similarity_data.edge_similarity
+            ) / 2.0
         else:
             total_similarity = similarity_data.node_similarity
 
         if raw_sw_score > 0:
-            total_similarity *= (raw_sw_score / 100.0)
+            total_similarity *= raw_sw_score / 100.0
 
         # 7) Normalize if requested
         if self.normalize and length > 0:
