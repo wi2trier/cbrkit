@@ -1,6 +1,6 @@
 from collections import defaultdict
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any, cast, override
 
 from ..helpers import batchify_sim, get_metadata, get_value, getitem_or_getattr
@@ -63,7 +63,7 @@ def transpose_value[V, S: Float](
 class cache[V, U, S: Float](BatchSimFunc[V, S]):
     similarity_func: BatchSimFunc[V, S]
     conversion_func: ConversionFunc[V, U] | None
-    cache: dict[tuple[U, U], S]
+    store: MutableMapping[tuple[U, U], S] = field(repr=False)
 
     def __init__(
         self,
@@ -72,7 +72,7 @@ class cache[V, U, S: Float](BatchSimFunc[V, S]):
     ):
         self.similarity_func = batchify_sim(similarity_func)
         self.conversion_func = conversion_func
-        self.cache = {}
+        self.store = {}
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
@@ -84,18 +84,18 @@ class cache[V, U, S: Float](BatchSimFunc[V, S]):
         uncached_indexes = [
             idx
             for idx, pair in enumerate(transformed_batches)
-            if pair not in self.cache
+            if pair not in self.store
         ]
 
         uncached_sims = self.similarity_func([batches[idx] for idx in uncached_indexes])
-        self.cache.update(
+        self.store.update(
             {
                 transformed_batches[idx]: sim
                 for idx, sim in zip(uncached_indexes, uncached_sims, strict=True)
             }
         )
 
-        return [self.cache[pair] for pair in transformed_batches]
+        return [self.store[pair] for pair in transformed_batches]
 
 
 @dataclass(slots=True)

@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import orjson
+
 import cbrkit
 
 with cbrkit.helpers.optional_dependencies("raise", "cli"):
@@ -16,7 +18,7 @@ with cbrkit.helpers.optional_dependencies("raise", "cli"):
 
 __all__ = ["app"]
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 
 
 @app.callback()
@@ -37,8 +39,8 @@ def retrieve(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.RetrieverFunc] = cbrkit.helpers.load_callables(
-        retriever
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+        cbrkit.helpers.load_callables(retriever)
     )
 
     result = cbrkit.retrieval.apply_queries(casebase, queries, retrievers)
@@ -72,7 +74,9 @@ def reuse(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+        cbrkit.helpers.load_callables(reuser)
+    )
 
     result = cbrkit.reuse.apply_queries(casebase, queries, reusers)
 
@@ -92,10 +96,12 @@ def cycle(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.RetrieverFunc] = cbrkit.helpers.load_callables(
-        retriever
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+        cbrkit.helpers.load_callables(retriever)
     )
-    reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+        cbrkit.helpers.load_callables(reuser)
+    )
 
     result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
 
@@ -116,11 +122,15 @@ def synthesis(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.RetrieverFunc] = cbrkit.helpers.load_callables(
-        retriever
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+        cbrkit.helpers.load_callables(retriever)
     )
-    reusers: list[cbrkit.typing.ReuserFunc] = cbrkit.helpers.load_callables(reuser)
-    synthesis_func = cbrkit.helpers.load_callable(synthesizer)
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+        cbrkit.helpers.load_callables(reuser)
+    )
+    synthesis_func: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc] = (
+        cbrkit.helpers.load_callable(synthesizer)
+    )
 
     cycle_result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
     synthesis_result = cbrkit.synthesis.apply_result(
@@ -136,6 +146,7 @@ def serve(
     retriever: Annotated[list[str], typer.Option(default_factory=list)],
     reuser: Annotated[list[str], typer.Option(default_factory=list)],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    synthesizer: str | None = None,
     host: str = "0.0.0.0",
     port: int = 8080,
     reload: bool = False,
@@ -147,6 +158,9 @@ def serve(
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
     os.environ["CBRKIT_REUSER"] = ",".join(reuser)
 
+    if synthesizer:
+        os.environ["CBRKIT_SYNTHESIZER"] = synthesizer
+
     uvicorn.run(
         "cbrkit.api:app",
         host=host,
@@ -154,6 +168,25 @@ def serve(
         reload=reload,
         root_path=root_path,
     )
+
+
+@app.command()
+def openapi(file: Path | None = None):
+    from cbrkit.api import app
+
+    schema = orjson.dumps(
+        app.openapi(),
+        option=orjson.OPT_INDENT_2,
+    )
+
+    if file is None:
+        print(schema.decode())
+
+    else:
+        print(f"Writing OpenAPI schema to {file}")
+
+        with file.open("wb") as fp:
+            fp.write(schema)
 
 
 if __name__ == "__main__":

@@ -1,28 +1,24 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
-from ..helpers import get_logger, get_metadata
+from ..helpers import get_logger, get_metadata, produce_factories
 from ..model import QueryResultStep, Result, ResultStep
-from ..typing import (
-    Float,
-    RetrieverFunc,
-)
+from ..typing import Float, MaybeFactories, RetrieverFunc
 
 logger = get_logger(__name__)
 
 
 def apply_batches[Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V]],
-    retrievers: RetrieverFunc[C, V, S] | Sequence[RetrieverFunc[C, V, S]],
+    retrievers: MaybeFactories[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
-    if not isinstance(retrievers, Sequence):
-        retrievers = [retrievers]
+    retriever_funcs = produce_factories(retrievers)
 
-    assert len(retrievers) > 0
+    assert len(retriever_funcs) > 0
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batches
 
-    for i, retriever_func in enumerate(retrievers, start=1):
-        logger.info(f"Processing retriever {i}/{len(retrievers)}")
+    for i, retriever_func in enumerate(retriever_funcs, start=1):
+        logger.info(f"Processing retriever {i}/{len(retriever_funcs)}")
         queries_results = retriever_func(list(current_batches.values()))
 
         step_queries = {
@@ -38,13 +34,15 @@ def apply_batches[Q, C, V, S: Float](
             for query_key in current_batches
         }
 
+    logger.info("Finished processing all retrievers")
+
     return Result(steps)
 
 
 def apply_queries[Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
-    retrievers: RetrieverFunc[C, V, S] | Sequence[RetrieverFunc[C, V, S]],
+    retrievers: MaybeFactories[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     """Applies a single query to a Casebase using retriever functions.
 
@@ -82,7 +80,7 @@ def apply_queries[Q, C, V, S: Float](
 def apply_query[K, V, S: Float](
     casebase: Mapping[K, V],
     query: V,
-    retrievers: RetrieverFunc[K, V, S] | Sequence[RetrieverFunc[K, V, S]],
+    retrievers: MaybeFactories[RetrieverFunc[K, V, S]],
 ) -> Result[str, K, V, S]:
     return apply_queries(
         casebase,

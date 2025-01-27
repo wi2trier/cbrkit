@@ -8,6 +8,7 @@
   pyproject-build-systems,
   python3,
   tbb_2021_11,
+  cacert,
 }:
 let
   pdocRepo = fetchFromGitHub {
@@ -69,6 +70,7 @@ let
             name = "${final.cbrkit.name}-pytest";
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
+              cacert
               (final.mkVirtualEnv "cbrkit-test-env" {
                 cbrkit = [
                   "all"
@@ -92,6 +94,7 @@ let
             name = "${final.cbrkit.name}-docs";
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
+              cacert
               (final.mkVirtualEnv "cbrkit-docs-env" {
                 cbrkit = [
                   "all"
@@ -103,7 +106,7 @@ let
             buildPhase = ''
               runHook preBuild
 
-              typer ./src/cbrkit/cli.py utils docs --name cbrkit --output cli.md
+              typer cbrkit.cli utils docs --name cbrkit --output cli.md
 
               pdoc \
                 -d google \
@@ -111,9 +114,9 @@ let
                 --math \
                 --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
                 -o "$out" \
-                ./src/cbrkit/api.py \
-                ./src/cbrkit/cli.py \
-                ./src/cbrkit
+                cbrkit.api \
+                cbrkit.cli \
+                cbrkit
 
               runHook postBuild
             '';

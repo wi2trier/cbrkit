@@ -1,5 +1,10 @@
 from .common import compute, generate_metrics, parse_metric
-from .retrieval import retrieval, retrieval_step
+from .retrieval import (
+    retrieval,
+    retrieval_step,
+    retrieval_step_to_qrels,
+    retrieval_to_qrels,
+)
 
 __all__ = [
     "compute",
@@ -7,4 +12,6 @@ __all__ = [
     "parse_metric",
     "retrieval",
     "retrieval_step",
+    "retrieval_step_to_qrels",
+    "retrieval_to_qrels",
 ]
