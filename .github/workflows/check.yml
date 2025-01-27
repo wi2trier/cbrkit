@@ -15,6 +15,7 @@ jobs:
         with:
           extra-conf: |
             accept-flake-config = true
+            log-lines = 1000
       - uses: cachix/cachix-action@v15
         with:
           name: wi2trier
