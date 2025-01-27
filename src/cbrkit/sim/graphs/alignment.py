@@ -1,32 +1,36 @@
 # alignment.py
 
 from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple
 from .model import Graph, to_sequence, GraphSim
 from ...helpers import batchify_sim, unbatchify_sim
 from ...typing import AnySimFunc, SimFunc
 from ..collections import dtw as dtwmodule
-from ..collections import smith_waterman as minineedle_sw  # original minineedle-based SW wrapper
+from ..collections import smith_waterman as minineedle_sw
 
 __all__ = ["dtw", "smith_waterman"]
+
+@dataclass(slots=True, frozen=True)
+class SimilarityData[K]:
+    """Dataclass to hold similarity data."""
+    node_mapping: Dict[K, K]
+    node_similarities: Dict[K, float]
+    edge_mapping: Dict[K, K]
+    edge_similarities: Dict[K, float]
+    node_similarity: float
+    edge_similarity: Optional[float]
 
 
 ###############################################################################
 # Private helper to build mappings and compute average node/edge similarity.
 ###############################################################################
-def _build_node_edge_mappings_and_similarity(
-    alignment: list[tuple],         # e.g. [(xn, yn), ...]
-    node_sim_func: AnySimFunc,      # node similarity function (batch or single)
-    edges_x: list,                  # edges in x (if needed)
-    edges_y: list,                  # edges in y (if needed)
-    edge_sim_func: AnySimFunc | None = None,
-) -> tuple[
-    dict,   # node_mapping
-    dict,   # node_similarities
-    dict,   # edge_mapping
-    dict,   # edge_similarities
-    float,  # node_similarity (avg)
-    float,  # edge_similarity (avg or None)
-]:
+def _build_node_edge_mappings_and_similarity[N, E](
+    alignment: List[Tuple[Optional[N], Optional[N]]],
+    node_sim_func: AnySimFunc,
+    edges_x: List[E],
+    edges_y: List[E],
+    edge_sim_func: Optional[AnySimFunc] = None,
+) -> SimilarityData:
     """
     Internal helper for building node/edge mappings & computing average similarities.
 
@@ -36,26 +40,25 @@ def _build_node_edge_mappings_and_similarity(
     edge_sim_func: optional, can be batch or single.
 
     Returns:
-        (node_mapping, node_similarities, edge_mapping, edge_similarities,
-         avg_node_sim, avg_edge_sim)
+        SimilarityData object containing node/edge mappings and similarities.
     """
     batch_node_sim_func = batchify_sim(node_sim_func)
     node_pairs = [(xn, yn) for (xn, yn) in alignment if xn and yn]
     node_sims = batch_node_sim_func(node_pairs) if node_pairs else []
     node_similarity = sum(node_sims) / len(node_sims) if node_sims else 0.0
 
-    node_mapping = {}
-    node_similarities = {}
+    node_mapping: Dict = {}
+    node_similarities: Dict = {}
     for (xn, yn), sim_val in zip(node_pairs, node_sims):
         node_mapping[yn.key] = xn.key
         node_similarities[yn.key] = float(sim_val)
 
     edge_similarity = None
-    edge_mapping = {}
-    edge_similarities = {}
+    edge_mapping: Dict = {}
+    edge_similarities: Dict = {}
     if edge_sim_func:
         batch_edge_sim_func = batchify_sim(edge_sim_func)
-        edge_pairs = list(zip(edges_x, edges_y))  # naive 1:1 pairing
+        edge_pairs = list(zip(edges_x, edges_y))
         edge_sims = batch_edge_sim_func(edge_pairs) if edge_pairs else []
         edge_similarity = sum(edge_sims) / len(edge_sims) if edge_sims else 0.0
 
@@ -64,7 +67,7 @@ def _build_node_edge_mappings_and_similarity(
                 edge_mapping[ye.key] = xe.key
                 edge_similarities[ye.key] = float(es)
 
-    return (
+    return SimilarityData(
         node_mapping,
         node_similarities,
         edge_mapping,
@@ -124,7 +127,7 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
 
     node_sim_func: AnySimFunc
-    edge_sim_func: AnySimFunc | None = None
+    edge_sim_func: Optional[AnySimFunc] = None
     normalize: bool = True
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
@@ -142,22 +145,15 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         alignment = node_result.mapping  # matched (x_node, y_node)
 
         # 4) Build node/edge mapping & average similarity using the helper
-        (
-            node_mapping,
-            node_similarities,
-            edge_mapping,
-            edge_similarities,
-            node_similarity,
-            edge_similarity,
-        ) = _build_node_edge_mappings_and_similarity(
+        similarity_data = _build_node_edge_mappings_and_similarity(
             alignment, self.node_sim_func, edges_x, edges_y, self.edge_sim_func
         )
 
         # 5) Combine node & edge similarity
         total_similarity = (
-            (node_similarity + edge_similarity) / 2.0
-            if edge_similarity is not None
-            else node_similarity
+            (similarity_data.node_similarity + similarity_data.edge_similarity) / 2.0
+            if similarity_data.edge_similarity is not None
+            else similarity_data.node_similarity
         )
 
         # 6) Normalize by alignment length if applicable
@@ -168,10 +164,10 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         return GraphSim(
             value=total_similarity,
-            node_mapping=node_mapping,
-            edge_mapping=edge_mapping,
-            node_similarities=node_similarities,
-            edge_similarities=edge_similarities,
+            node_mapping=similarity_data.node_mapping,
+            edge_mapping=similarity_data.edge_mapping,
+            node_similarities=similarity_data.node_similarities,
+            edge_similarities=similarity_data.edge_similarities,
         )
 
 
@@ -256,7 +252,6 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     gap_penalty: int = -1
     normalize: bool = True
 
-    # <-- Added a toggle to show or skip the ProCAKE formula -->
     use_procake_formula: bool = False
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
@@ -306,15 +301,8 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         length = min(len(sequence_x), len(sequence_y))
         alignment = [(sequence_x[i], sequence_y[i]) for i in range(length)]
 
-        # 5) Build node/edge mappings & average similarities using local_node_sim
-        (
-            node_mapping,
-            node_similarities,
-            edge_mapping,
-            edge_similarities,
-            node_similarity,
-            edge_similarity,
-        ) = _build_node_edge_mappings_and_similarity(
+       #  5) Build node/edge mappings & average similarities using local_node_# 5) Build node/edge mappings & average similarities using local_node_sim
+        similarity_data = _build_node_edge_mappings_and_similarity(
             alignment,
             local_node_sim,
             edges_x,
@@ -323,14 +311,12 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         )
 
         # 6) Combine node & edge sim, scale by raw SW score (if > 0)
-        if edge_similarity is not None:
-            total_similarity = (node_similarity + edge_similarity) / 2.0
+        if similarity_data.edge_similarity is not None:
+            total_similarity = (similarity_data.node_similarity + similarity_data.edge_similarity) / 2.0
         else:
-            total_similarity = node_similarity
+            total_similarity = similarity_data.node_similarity
 
         if raw_sw_score > 0:
-            # Example scale: divide by 100 to keep final range small
-            # This is an arbitrary decision for all i know, if there is basis to change it, it should be done
             total_similarity *= (raw_sw_score / 100.0)
 
         # 7) Normalize if requested
@@ -339,8 +325,8 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         return GraphSim(
             value=total_similarity,
-            node_mapping=node_mapping,
-            edge_mapping=edge_mapping,
-            node_similarities=node_similarities,
-            edge_similarities=edge_similarities,
+            node_mapping=similarity_data.node_mapping,
+            edge_mapping=similarity_data.edge_mapping,
+            node_similarities=similarity_data.node_similarities,
+            edge_similarities=similarity_data.edge_similarities,
         )
