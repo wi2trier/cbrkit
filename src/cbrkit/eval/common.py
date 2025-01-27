@@ -179,6 +179,38 @@ def mean_score(
         return float("nan")
 
 
+def kendall_tau(
+    qrels: Mapping[str, Mapping[str, int]],
+    run: Mapping[str, Mapping[str, float]],
+    k: int,
+    relevance_level: int,
+) -> float:
+    from scipy.stats import kendalltau
+
+    keys = set(qrels.keys()).intersection(set(run.keys()))
+
+    scores: list[float] = []
+
+    for key in keys:
+        sorted_run = sorted(run.keys(), key=lambda x: run[key][x], reverse=True)
+        sorted_qrel = sorted(qrels[key].keys(), key=lambda x: qrels[key][x])
+
+        max_idx = min(len(sorted_run), len(sorted_qrel))
+
+        if k > 0:
+            max_idx = min(max_idx, k)
+
+        run_ranking = sorted_run[:max_idx]
+        qrel_ranking = sorted_qrel[:max_idx]
+
+        scores = kendalltau(run_ranking, qrel_ranking).statistic
+
+    try:
+        return statistics.mean(scores)
+    except statistics.StatisticsError:
+        return float("nan")
+
+
 DEFAULT_METRICS = (
     "precision",
     "recall",
@@ -193,6 +225,7 @@ CBRKIT_METRICS: dict[str, EvalMetricFunc] = {
     "correctness": correctness,
     "completeness": completeness,
     "mean_score": mean_score,
+    "kendall_tau": kendall_tau,
 }
 
 
