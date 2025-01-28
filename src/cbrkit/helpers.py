@@ -81,6 +81,10 @@ __all__ = [
     "BATCH_LOGGING_LEVEL",
     "total_params",
     "get_hash",
+    "wrap_factory",
+    "produce_factory",
+    "produce_factories",
+    "is_factory",
 ]
 
 
@@ -280,6 +284,16 @@ def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
         return [produce_factory(item) for item in obj]
 
     return [produce_factory(obj)]
+
+
+@dataclass(slots=True, frozen=True)
+class wrap_factory[**P, T]:
+    func: MaybeFactory[Callable[P, T]]
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        func: Callable[P, T] = produce_factory(self.func)
+
+        return func(*args, **kwargs)
 
 
 @dataclass(slots=True, init=False)
