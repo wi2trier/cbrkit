@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ..helpers import batchify_conversion, chunkify
+from ..helpers import batchify_conversion, chunkify, unbatchify_conversion
 from ..typing import (
     AnyConversionFunc,
     BatchPoolingFunc,
@@ -25,24 +25,37 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
     ) -> Sequence[R]:
-        result_chunks: list[Sequence[R]] = []
+        chunked_batches: list[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]] = []
+        batch2chunk_indexes: list[list[int]] = []
 
         for casebase, query, similarities in batches:
-            key_chunks = chunkify(list(casebase.keys()), self.chunk_size)
-            synthesis_batches = [
-                (
-                    {key: casebase[key] for key in chunk},
-                    query,
-                    {key: similarities[key] for key in chunk}
-                    if similarities is not None
-                    else None,
-                )
-                for chunk in key_chunks
-            ]
+            key_chunks = list(chunkify(list(casebase.keys()), self.chunk_size))
+            last_idx = len(batch2chunk_indexes)
+            batch2chunk_indexes.append(
+                list(range(last_idx, last_idx + len(key_chunks)))
+            )
+            chunked_batches.extend(
+                [
+                    (
+                        {key: casebase[key] for key in chunk},
+                        query,
+                        {key: similarities[key] for key in chunk}
+                        if similarities is not None
+                        else None,
+                    )
+                    for chunk in key_chunks
+                ]
+            )
 
-            result_chunks.append(self.synthesis_func(synthesis_batches))
+        results = self.synthesis_func(chunked_batches)
 
-        return self.pooling_func(result_chunks)
+        # now reconstruct the original batches to apply the pooling function
+        results_per_batch: list[Sequence[R]] = [
+            [results[idx] for idx in chunk_indexes]
+            for chunk_indexes in batch2chunk_indexes
+        ]
+
+        return self.pooling_func(results_per_batch)
 
 
 @dataclass(slots=True, frozen=True)
