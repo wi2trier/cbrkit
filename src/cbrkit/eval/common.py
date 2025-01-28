@@ -1,3 +1,4 @@
+import itertools
 import statistics
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
@@ -10,21 +11,22 @@ from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
     rel_lvl = 1
+    k = 0
 
     if "-l" in spec:
         spec, rel_lvl = spec.split("-l")
 
-    metric_split = spec.split("@")
-    m = metric_split[0]
-    k = int(metric_split[1]) if len(metric_split) > 1 else 0
+    if "@" in spec:
+        spec, k = spec.split("@")
 
-    return m, k, int(rel_lvl)
+    return spec, int(k), int(rel_lvl)
 
 
 def concordances(
     qrel: Mapping[str, int],
     run: Mapping[str, float],
     k: int,
+    relevance_level: int,
 ) -> tuple[int, int, int]:
     """Compute the number of concordant and discordant pairs in a ranking.
 
@@ -32,6 +34,7 @@ def concordances(
         qrel: The query relevance judgments.
         run: The ranking produced by the system.
         k: The number of top documents to consider.
+        relevance_level: The relevance level to consider.
 
     Returns:
         A tuple with the number of concordant pairs, discordant pairs, and total pairs.
@@ -51,7 +54,7 @@ def concordances(
         ...     "case4": 0.55,
         ...     "case5": 0.8,
         ... }
-        >>> concordances(qrel, run1, 0)
+        >>> concordances(qrel, run1, 0, 1)
         (9, 1, 10)
         >>> run2 = {
         ...     "case1": 0.6,
@@ -60,30 +63,31 @@ def concordances(
         ...     "case4": 0.7,
         ...     "case5": 0.58,
         ... }
-        >>> concordances(qrel, run2, 0)
+        >>> concordances(qrel, run2, 0, 1)
         (5, 5, 10)
     """
     # We only inverse the similarities to compute the ranking and get the top k
     # Later, we us the original similarities as their ordering corresponds to the qrel odering
     sorted_run = sorted(run.items(), key=lambda x: x[1], reverse=True)
     run_k = dict(sorted_run[: k if k > 0 else len(sorted_run)])
+    qrel_relevant = {k: v for k, v in qrel.items() if v >= relevance_level}
+
+    keys = list(qrel_relevant.keys())
 
     concordant_pairs = 0
     discordant_pairs = 0
     total_pairs = 0
 
-    case_keys = list(qrel.keys())
-
-    for i in range(len(case_keys)):
-        for j in range(i + 1, len(case_keys)):
-            idx1, idx2 = case_keys[i], case_keys[j]
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            idx1, idx2 = keys[i], keys[j]
             qrel1, qrel2 = qrel[idx1], qrel[idx2]
 
             if qrel1 != qrel2:
                 total_pairs += 1
 
                 if idx1 in run_k and idx2 in run_k:
-                    run1, run2 = run_k[idx1], run_k[idx2]
+                    run1, run2 = run[idx1], run[idx2]
 
                     if (qrel1 < qrel2 and run1 < run2) or (
                         qrel1 > qrel2 and run1 > run2
@@ -99,8 +103,11 @@ def _correctness_single(
     qrel: Mapping[str, int],
     run: Mapping[str, float],
     k: int,
+    relevance_level: int,
 ) -> float:
-    concordant_pairs, discordant_pairs, total_pairs = concordances(qrel, run, k)
+    concordant_pairs, discordant_pairs, total_pairs = concordances(
+        qrel, run, k, relevance_level
+    )
 
     return (
         (concordant_pairs - discordant_pairs) / (concordant_pairs + discordant_pairs)
@@ -116,7 +123,9 @@ def correctness(
     relevance_level: int,
 ) -> float:
     keys = set(qrels.keys()).intersection(set(run.keys()))
-    scores = [_correctness_single(qrels[key], run[key], k) for key in keys]
+    scores = [
+        _correctness_single(qrels[key], run[key], k, relevance_level) for key in keys
+    ]
 
     try:
         return statistics.mean(scores)
@@ -128,8 +137,11 @@ def _completeness_single(
     qrel: Mapping[str, int],
     run: Mapping[str, float],
     k: int,
+    relevance_level: int,
 ) -> float:
-    concordant_pairs, discordant_pairs, total_pairs = concordances(qrel, run, k)
+    concordant_pairs, discordant_pairs, total_pairs = concordances(
+        qrel, run, k, relevance_level
+    )
 
     return (
         (concordant_pairs + discordant_pairs) / total_pairs if total_pairs > 0 else 0.0
@@ -143,7 +155,9 @@ def completeness(
     relevance_level: int,
 ) -> float:
     keys = set(qrels.keys()).intersection(set(run.keys()))
-    scores = [_completeness_single(qrels[key], run[key], k) for key in keys]
+    scores = [
+        _completeness_single(qrels[key], run[key], k, relevance_level) for key in keys
+    ]
 
     try:
         return statistics.mean(scores)
@@ -186,18 +200,17 @@ def kendall_tau(
     scores: list[float] = []
 
     for key in keys:
+        qrel_relevant = {k for k, v in qrels[key].items() if v >= relevance_level}
+        sorted_qrel_relevant = sorted(qrel_relevant, key=lambda x: qrels[key][x])
+
         sorted_run = sorted(run.keys(), key=lambda x: run[key][x], reverse=True)
-        sorted_qrel = sorted(qrels[key].keys(), key=lambda x: qrels[key][x])
+        run_k = sorted_run[: k if k > 0 else len(sorted_run)]
 
-        max_idx = min(len(sorted_run), len(sorted_qrel))
-
-        if k > 0:
-            max_idx = min(max_idx, k)
-
+        max_idx = min(len(run_k), len(sorted_qrel_relevant))
         run_ranking = sorted_run[:max_idx]
-        qrel_ranking = sorted_qrel[:max_idx]
+        qrel_ranking = sorted_qrel_relevant[:max_idx]
 
-        scores = kendalltau(run_ranking, qrel_ranking).statistic
+        scores.append(kendalltau(run_ranking, qrel_ranking).statistic)
 
     try:
         return statistics.mean(scores)
@@ -275,11 +288,33 @@ def compute[Q, C, S: Float](
     return eval_results
 
 
+def generate_metric(
+    metric: str,
+    k: int | None = None,
+    relevance_level: int | None = None,
+) -> str:
+    if k is None and relevance_level is None:
+        return metric
+    elif k is None:
+        return f"{metric}-l{relevance_level}"
+    elif relevance_level is None:
+        return f"{metric}@{k}"
+
+    return f"{metric}@{k}-l{relevance_level}"
+
+
 def generate_metrics(
     metrics: Iterable[str] = DEFAULT_METRICS,
     ks: Iterable[int | None] | int | None = None,
+    relevance_levels: Iterable[int | None] | int | None = None,
 ) -> list[str]:
     if not isinstance(ks, Iterable):
         ks = [ks]
 
-    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]
+    if not isinstance(relevance_levels, Iterable):
+        relevance_levels = [relevance_levels]
+
+    return [
+        generate_metric(*args)
+        for args in itertools.product(metrics, ks, relevance_levels)
+    ]

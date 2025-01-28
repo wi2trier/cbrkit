@@ -41,7 +41,7 @@ def retrieval[Q, C, S: Float](
 def retrieval_step_to_qrels[Q, C, S: Float](
     result: ResultStep[Q, C, Any, S],
     max_qrel: int | None = None,
-    min_qrel: int = 0,
+    min_qrel: int = 1,
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
