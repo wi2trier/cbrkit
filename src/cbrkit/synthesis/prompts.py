@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from textwrap import dedent
 from typing import Any
 
-from ..dumpers import json_markdown
+from ..dumpers import markdown
 from ..helpers import get_value, sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
@@ -68,7 +68,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     """
 
     instructions: str | None = None
-    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
+    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
     def __call__(
@@ -139,7 +139,7 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
     """
 
     instructions: str | None = None
-    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
+    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
     def __call__(
@@ -206,7 +206,7 @@ class pooling[V](ConversionPoolingFunc[V, str]):
     """
 
     instructions: str | None = None
-    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=json_markdown)
+    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
     def __call__(

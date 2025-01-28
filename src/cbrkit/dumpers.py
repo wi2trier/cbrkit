@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -7,11 +7,12 @@ import orjson
 import polars as pl
 import rtoml
 import yaml as yamllib
+from pydantic import BaseModel
 
 from .typing import ConversionFunc, FilePath
 
 __all__ = [
-    "json_markdown",
+    "markdown",
     "json",
     "file",
     "directory",
@@ -22,13 +23,22 @@ __all__ = [
 ]
 
 
+def preprocess(obj: Any) -> Any:
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()
+
+    if isinstance(obj, dict) and any(not isinstance(obj, str) for t in (dict, list)):
+        return {str(k): v for k, v in obj.items()}
+
+    return obj
+
+
 @dataclass(slots=True, frozen=True)
 class toml(ConversionFunc[Any, str]):
     """Writes an object to toml."""
 
     def __call__(self, obj: Any) -> str:
-        obj = {f"i{k}": v for k, v in obj.items()}
-        return rtoml.dumps(obj)
+        return rtoml.dumps(preprocess(obj))
 
 
 @dataclass(slots=True, frozen=True)
@@ -73,26 +83,7 @@ class yaml(ConversionFunc[Any, str]):
     """Writes an object to a csv file."""
 
     def __call__(self, obj: Any) -> str:
-        return yamllib.dump(obj)
-
-
-@dataclass(slots=True, frozen=True)
-class json_markdown(ConversionFunc[Any, str]):
-    """Writes an object to a json code block in markdown.
-
-    Args:
-        default: Function to serialize arbitrary objects, see orjson documentation.
-        option: Serialization options, see orjson documentation.
-            Multiple options can be combined using the bitwise OR operator `|`.
-    """
-
-    default: Callable[[Any], Any] | None = None
-    option: int | None = None
-
-    def __call__(self, obj: Any) -> str:
-        return f"""```json
-{str(orjson.dumps(obj, default=self.default, option=self.option))}
-```"""
+        return yamllib.dump(preprocess(obj))
 
 
 @dataclass(slots=True, frozen=True)
@@ -109,14 +100,15 @@ class json(ConversionFunc[Any, bytes]):
     option: int | None = None
 
     def __call__(self, obj: Any) -> bytes:
-        if isinstance(obj, dict) and any(
-            not isinstance(obj, str) for t in (dict, list)
-        ):
-            obj = {str(k): v for k, v in obj.items()}
-        return orjson.dumps(obj, default=self.default, option=self.option)
+        return orjson.dumps(
+            preprocess(obj),
+            default=self.default,
+            option=self.option,
+        )
 
 
 Dumper = Callable[[Any], str | bytes]
+
 
 dumpers: dict[str, Dumper] = {
     ".json": json(),
@@ -124,6 +116,24 @@ dumpers: dict[str, Dumper] = {
     ".csv": csv(),
     ".yaml": yaml(),
 }
+
+
+@dataclass(slots=True, frozen=True)
+class markdown(ConversionFunc[Any, str]):
+    """Writes an object to a code block in markdown.
+
+    Args:
+        dumper: Function to serialize arbitrary objects, see orjson documentation.
+        language: Language of the code block.
+    """
+
+    dumper: Dumper = field(default_factory=json)
+    language: str | None = None
+
+    def __call__(self, obj: Any) -> str:
+        language = self.dumper.__name__ if self.language is None else self.language
+
+        return f"```{language}\n{str(self.dumper(obj))}\n```"
 
 
 def file(
