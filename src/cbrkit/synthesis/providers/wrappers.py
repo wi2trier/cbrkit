@@ -3,12 +3,14 @@ from dataclasses import dataclass
 
 from ...helpers import (
     batchify_conversion,
+    produce_sequence,
     unbatchify_conversion,
 )
 from ...typing import (
     AnyConversionFunc,
     BatchConversionFunc,
     ConversionFunc,
+    MaybeSequence,
 )
 from .model import ChatMessage, ChatPrompt
 
@@ -43,16 +45,11 @@ class conversation[R](ConversionFunc[Iterable[str], R]):
 
 @dataclass(slots=True, frozen=True)
 class pipe[P, R](BatchConversionFunc[P, R]):
-    generation_funcs: Sequence[AnyConversionFunc[P, R]] | AnyConversionFunc[P, R]
+    generation_funcs: MaybeSequence[AnyConversionFunc[P, R]]
     conversion_func: ConversionFunc[R, P]
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
-        funcs = (
-            self.generation_funcs
-            if isinstance(self.generation_funcs, Sequence)
-            else [self.generation_funcs]
-        )
-
+        funcs = produce_sequence(self.generation_funcs)
         current_input = batches
         current_output: Sequence[R] = []
 

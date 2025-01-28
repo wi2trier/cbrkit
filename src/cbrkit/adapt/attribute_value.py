@@ -1,7 +1,8 @@
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, override
 
+from ..helpers import produce_sequence
 from ..typing import AdaptationFunc, MaybeSequence
 
 __all__ = ["attribute_value"]
@@ -58,10 +59,7 @@ class attribute_value[V](AdaptationFunc[V]):
     @override
     def __call__(self, case: V, query: V) -> V:
         for attr_name in self.attributes:
-            adapt_funcs = self.attributes[attr_name]
-
-            if not isinstance(adapt_funcs, Sequence):
-                adapt_funcs = [adapt_funcs]
+            adapt_funcs = produce_sequence(self.attributes[attr_name])
 
             case_attr_value = self.value_getter(case, attr_name)
             query_attr_value = self.value_getter(query, attr_name)

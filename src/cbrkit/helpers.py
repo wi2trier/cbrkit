@@ -37,6 +37,7 @@ from .typing import (
     JsonEntry,
     MaybeFactories,
     MaybeFactory,
+    MaybeSequence,
     NamedFunc,
     PositionalFunc,
     SimFunc,
@@ -85,6 +86,7 @@ __all__ = [
     "produce_factory",
     "produce_factories",
     "is_factory",
+    "produce_sequence",
 ]
 
 
@@ -266,6 +268,13 @@ def log_batch(
 
 def total_params(func: Callable) -> int:
     return len(inspect.signature(func).parameters)
+
+
+def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
+    if isinstance(obj, Sequence):
+        return list(obj)
+
+    return [obj]
 
 
 def is_factory[T](obj: MaybeFactory[T]) -> TypeGuard[Factory[T]]:
@@ -551,14 +560,11 @@ def load_callable(import_name: str) -> Callable:
 
 
 def load_callables(
-    import_names: Sequence[str] | str,
+    import_names: MaybeSequence[str],
 ) -> list[Callable]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
     functions: list[Callable] = []
 
-    for import_name in import_names:
+    for import_name in produce_sequence(import_names):
         obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
