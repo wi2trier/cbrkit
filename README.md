@@ -489,6 +489,24 @@ response = get_result(batches)
 
 The complete version of this example can be found under `examples/cars_rag_large.py`.
 
+## Logging
+
+CBRkit integrates with the `logging` module to provide a unified logging interface.
+By default, logging is not configured, you can activate by placing the following code in your project's `__init__.py` file:
+
+```python
+import logging
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logging.getLogger("cbrkit.sim.XXX").setLevel(logging.DEBUG) # to see debug messages from function XXX of the sim module
+logging.getLogger("cbrkit.retrieval").setLevel(logging.DEBUG) # to see debug messages from the retrieval module
+```
+
 ## REST API and CLI
 
 In order to use the built-in API and CLI, you need to define a retriever/reuser in a Python module using the function `cbrkit.retrieval.build()` and/or `cbrkit.reuse.build()`.
