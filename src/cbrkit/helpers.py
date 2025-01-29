@@ -746,3 +746,30 @@ def get_hash(file: Path | bytes | BytesIO) -> str:
         data = file
 
     return hashlib.sha256(data).hexdigest()
+
+
+def callable2model(func: Callable[..., Any]) -> type[BaseModel]:
+    sig = inspect.signature(func)
+    fields: dict[str, Any] = {}
+
+    for param in sig.parameters.values():
+        # Skip *args/**kwargs
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
+        field_type = (
+            cast(type[Any], param.annotation)
+            if param.annotation is not inspect.Parameter.empty
+            else Any
+        )
+        field_config = (
+            Field(...)
+            if param.default is inspect.Parameter.empty
+            else Field(default=param.default)
+        )
+        fields[param.name] = (field_type, field_config)
+
+    return create_model(f"{func.__name__}Model", **fields)
