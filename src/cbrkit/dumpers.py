@@ -9,6 +9,7 @@ import rtoml
 import yaml as yamllib
 from pydantic import BaseModel
 
+from .helpers import get_name
 from .typing import ConversionFunc, FilePath
 
 __all__ = [
@@ -131,7 +132,7 @@ class markdown(ConversionFunc[Any, str]):
     language: str | None = None
 
     def __call__(self, obj: Any) -> str:
-        language = self.dumper.__name__ if self.language is None else self.language
+        language = get_name(self.dumper) if self.language is None else self.language
 
         return f"```{language}\n{str(self.dumper(obj))}\n```"
 

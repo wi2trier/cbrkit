@@ -145,14 +145,24 @@ def optional_dependencies(
                 pass
 
 
-def get_name(obj: Any) -> str | None:
+def get_name(obj: Any) -> str:
     if obj is None:
-        return None
+        return ""
 
-    elif isinstance(obj, type):
+    if isinstance(obj, str):
+        return obj
+
+    if isinstance(obj, type):
         return obj.__name__
 
     return type(obj).__name__
+
+
+def get_optional_name(obj: Any | None) -> str | None:
+    if obj is None:
+        return None
+
+    return get_name(obj)
 
 
 def get_metadata(obj: Any) -> JsonEntry:
@@ -161,14 +171,14 @@ def get_metadata(obj: Any) -> JsonEntry:
 
     if isinstance(obj, HasMetadata):
         return {
-            "name": get_name(obj),
+            "name": get_optional_name(obj),
             "doc": inspect.getdoc(obj),
             "metadata": obj.metadata,
         }
 
     if is_dataclass(obj):
         return {
-            "name": get_name(obj),
+            "name": get_optional_name(obj),
             "doc": inspect.getdoc(obj),
             "metadata": {
                 field.name: get_metadata(getattr(obj, field.name))
@@ -179,7 +189,7 @@ def get_metadata(obj: Any) -> JsonEntry:
 
     if isinstance(obj, Callable):
         return {
-            "name": get_name(obj),
+            "name": get_optional_name(obj),
             "doc": inspect.getdoc(obj),
         }
 
