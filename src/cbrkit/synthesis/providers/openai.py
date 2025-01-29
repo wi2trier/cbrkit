@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, cast, override
+from typing import Literal, Union, cast, get_args, get_origin, override
 
 from pydantic import BaseModel
 
@@ -10,13 +10,17 @@ from .model import ChatPrompt, ChatProvider
 with optional_dependencies():
     from openai import AsyncOpenAI, pydantic_function_tool
     from openai._types import NOT_GIVEN
-    from openai.types.chat import ChatCompletionMessageParam
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionNamedToolChoiceParam,
+        ChatCompletionToolParam,
+    )
 
     type OpenaiPrompt = str | ChatPrompt[str]
 
     @dataclass(slots=True)
     class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
-        structured_outputs: bool = True
+        tool_choice: type[BaseModel] | str | None = None
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         frequency_penalty: float | None = None
         logit_bias: dict[str, int] | None = None
@@ -68,26 +72,39 @@ with optional_dependencies():
                     }
                 )
 
-            tool = (
-                pydantic_function_tool(self.response_type)
-                if issubclass(self.response_type, BaseModel)
-                and not self.structured_outputs
-                else None
-            )
+            tools: list[ChatCompletionToolParam] | None = None
+            tool_choice: ChatCompletionNamedToolChoiceParam | None = None
+
+            if get_origin(self.response_type) is Union:
+                tools = [
+                    pydantic_function_tool(tool)
+                    for tool in get_args(self.response_type)
+                    if issubclass(tool, BaseModel)
+                ]
+            elif (
+                issubclass(self.response_type, BaseModel)
+                and self.tool_choice is not None
+            ):
+                tools = [pydantic_function_tool(self.response_type)]
+
+            if self.tool_choice is not None:
+                tool_choice = {
+                    "type": "function",
+                    "function": {
+                        "name": self.tool_choice
+                        if isinstance(self.tool_choice, str)
+                        else self.tool_choice.__name__,
+                    },
+                }
 
             res = await self.client.beta.chat.completions.parse(
                 model=self.model,
                 messages=messages,
                 response_format=self.response_type
-                if issubclass(self.response_type, BaseModel) and self.structured_outputs
+                if not tools and issubclass(self.response_type, BaseModel)
                 else NOT_GIVEN,
-                tools=[tool] if tool is not None else NOT_GIVEN,
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": tool["function"]["name"]},
-                }
-                if tool is not None
-                else NOT_GIVEN,
+                tools=tools or NOT_GIVEN,
+                tool_choice=tool_choice or NOT_GIVEN,
                 frequency_penalty=self.frequency_penalty,
                 logit_bias=self.logit_bias,
                 logprobs=self.logprobs,
@@ -107,17 +124,17 @@ with optional_dependencies():
             )
 
             if (
-                issubclass(self.response_type, BaseModel)
-                and (parsed := res.choices[0].message.parsed) is not None
-            ):
-                return parsed
-
-            elif (
-                issubclass(self.response_type, BaseModel)
+                tools is not None
                 and (tool_calls := res.choices[0].message.tool_calls) is not None
                 and (parsed := tool_calls[0].function.parsed_arguments) is not None
             ):
                 return cast(R, parsed)
+
+            elif (
+                issubclass(self.response_type, BaseModel)
+                and (parsed := res.choices[0].message.parsed) is not None
+            ):
+                return parsed
 
             elif (
                 issubclass(self.response_type, str)
