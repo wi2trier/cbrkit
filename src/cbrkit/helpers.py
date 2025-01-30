@@ -616,14 +616,11 @@ def load_callables(
 
 
 def load_callables_map(
-    import_names: Collection[str] | str,
+    import_names: MaybeSequence[str],
 ) -> dict[str, Callable]:
-    if isinstance(import_names, str):
-        import_names = [import_names]
-
     functions: dict[str, Callable] = {}
 
-    for import_name in import_names:
+    for import_name in produce_sequence(import_names):
         obj = load_object(import_name)
 
         if isinstance(obj, Mapping):

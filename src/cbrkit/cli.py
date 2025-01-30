@@ -145,8 +145,8 @@ def synthesis(
 def serve(
     retriever: Annotated[list[str], typer.Option(default_factory=list)],
     reuser: Annotated[list[str], typer.Option(default_factory=list)],
+    synthesizer: Annotated[list[str], typer.Option(default_factory=list)],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    synthesizer: str | None = None,
     host: str = "0.0.0.0",
     port: int = 8080,
     reload: bool = False,
@@ -155,11 +155,10 @@ def serve(
     import uvicorn
 
     sys.path.extend(str(x) for x in search_path)
+
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
     os.environ["CBRKIT_REUSER"] = ",".join(reuser)
-
-    if synthesizer:
-        os.environ["CBRKIT_SYNTHESIZER"] = synthesizer
+    os.environ["CBRKIT_SYNTHESIZER"] = ",".join(synthesizer)
 
     uvicorn.run(
         "cbrkit.api:app",

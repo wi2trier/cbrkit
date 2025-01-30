@@ -26,95 +26,70 @@ SynthesisResult = dataclass(cbrkit.synthesis.Result, **pydantic_dataclass_kwargs
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
     retriever: str | None = None
-    retriever_map: str | None = None
     reuser: str | None = None
-    reuser_map: str | None = None
     synthesizer: str | None = None
 
 
 settings = Settings()
 app = FastAPI()
 
-retriever: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = []
-retriever_map: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = {}
 
-if settings.retriever is not None and settings.retriever_map is not None:
-    retriever = cbrkit.helpers.load_callables(settings.retriever.split(","))
-    retriever_map = cbrkit.helpers.load_callables_map(settings.retriever_map.split(","))
-elif settings.retriever is not None:
-    retriever = cbrkit.helpers.load_callables(settings.retriever.split(","))
-    retriever_map = {str(idx): retriever for idx, retriever in enumerate(retriever)}
-elif settings.retriever_map is not None:
-    retriever_map = cbrkit.helpers.load_callables_map(settings.retriever_map.split(","))
-    retriever = list(retriever_map.values())
+loaded_retrievers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]
+] = (
+    cbrkit.helpers.load_callables_map(settings.retriever.split(","))
+    if settings.retriever is not None
+    else {}
+)
 
-reuser: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = []
-reuser_map: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = {}
+loaded_reusers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+    cbrkit.helpers.load_callables_map(settings.reuser.split(","))
+    if settings.reuser is not None
+    else {}
+)
 
-if settings.reuser is not None and settings.reuser_map is not None:
-    reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))
-    reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
-elif settings.reuser is not None:
-    reuser = cbrkit.helpers.load_callables(settings.reuser.split(","))
-    reuser_map = {str(idx): reuser for idx, reuser in enumerate(reuser)}
-elif settings.reuser_map is not None:
-    reuser_map = cbrkit.helpers.load_callables_map(settings.reuser_map.split(","))
-    reuser = list(reuser_map.values())
-
-synthesizer: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc] | None = (
-    cbrkit.helpers.load_callable(settings.synthesizer)
+loaded_synthesizers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc]
+] = (
+    cbrkit.helpers.load_callables_map(settings.synthesizer.split(","))
     if settings.synthesizer is not None
-    else None
+    else {}
 )
 
 
 @app.post("/retrieve", response_model=RetrievalResult)
-def all_retrievers(
+def retrieve(
     casebase: dict[str, Any],
     queries: dict[str, Any],
+    retriever: list[str] | str | None = None,
 ) -> cbrkit.retrieval.Result:
+    if retriever is None:
+        retriever = list(loaded_retrievers.keys())
+    elif isinstance(retriever, str):
+        retriever = [retriever]
+
     return cbrkit.retrieval.apply_queries(
         casebase,
         queries,
-        retriever,
-    )
-
-
-@app.post("/retrieve/{name}", response_model=RetrievalResult)
-def named_retriever(
-    name: str,
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
-) -> cbrkit.retrieval.Result:
-    return cbrkit.retrieval.apply_queries(
-        casebase,
-        queries,
-        retriever_map[name],
+        [loaded_retrievers[x] for x in retriever],
     )
 
 
 @app.post("/reuse", response_model=ReuseResult)
-def all_reusers(
+def reuse(
     casebase: dict[str, Any],
     queries: dict[str, Any],
+    reuser: list[str] | str | None = None,
 ) -> cbrkit.reuse.Result:
+    if reuser is None:
+        reuser = list(loaded_reusers.keys())
+    elif isinstance(reuser, str):
+        reuser = [reuser]
+
     return cbrkit.reuse.apply_queries(
         casebase,
         queries,
-        reuser,
-    )
-
-
-@app.post("/reuse/{name}", response_model=ReuseResult)
-def named_reuser(
-    name: str,
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
-) -> cbrkit.reuse.Result:
-    return cbrkit.reuse.apply_queries(
-        casebase,
-        queries,
-        reuser_map[name],
+        [loaded_reusers[x] for x in reuser],
     )
 
 
@@ -122,12 +97,24 @@ def named_reuser(
 def cycle(
     casebase: dict[str, Any],
     queries: dict[str, Any],
+    retriever: list[str] | str | None = None,
+    reuser: list[str] | str | None = None,
 ) -> cbrkit.cycle.Result:
+    if retriever is None:
+        retriever = list(loaded_retrievers.keys())
+    elif isinstance(retriever, str):
+        retriever = [retriever]
+
+    if reuser is None:
+        reuser = list(loaded_reusers.keys())
+    elif isinstance(reuser, str):
+        reuser = [reuser]
+
     return cbrkit.cycle.apply_queries(
         casebase,
         queries,
-        retriever,
-        reuser,
+        [loaded_retrievers[x] for x in retriever],
+        [loaded_reusers[x] for x in reuser],
     )
 
 
@@ -135,20 +122,30 @@ def cycle(
 def synthesize(
     casebase: dict[str, Any],
     queries: dict[str, Any],
+    synthesizer: str,
+    retriever: list[str] | str | None = None,
+    reuser: list[str] | str | None = None,
 ) -> cbrkit.synthesis.Result:
-    if synthesizer is None:
-        raise ValueError("Synthesis function not provided")
+    if retriever is None:
+        retriever = list(loaded_retrievers.keys())
+    elif isinstance(retriever, str):
+        retriever = [retriever]
+
+    if reuser is None:
+        reuser = list(loaded_reusers.keys())
+    elif isinstance(reuser, str):
+        reuser = [reuser]
 
     result = cbrkit.cycle.apply_queries(
         casebase,
         queries,
-        retriever,
-        reuser,
+        [loaded_retrievers[x] for x in retriever],
+        [loaded_reusers[x] for x in reuser],
     )
 
     return cbrkit.synthesis.apply_result(
         result.final_step,
-        synthesizer,
+        loaded_synthesizers[synthesizer],
     )
 
 
