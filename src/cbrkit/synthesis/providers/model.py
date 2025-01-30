@@ -4,8 +4,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ...helpers import event_loop
+from ...helpers import event_loop, get_logger
 from ...typing import BatchConversionFunc, StructuredValue
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -37,6 +39,8 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
         return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
     async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
+        logger.info(f"Processing {len(batches)} batches with {self.model}")
+
         return await asyncio.gather(
             *(
                 self.__call_batch_with_delay__(batch, idx)
@@ -48,7 +52,10 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
         if self.delay > 0:
             await asyncio.sleep(idx * self.delay)
 
-        return await self.__call_batch__(prompt)
+        result = await self.__call_batch__(prompt)
+        logger.debug(f"Result of batch {idx + 1}: {result}")
+
+        return result
 
     @abstractmethod
     async def __call_batch__(self, prompt: P) -> R: ...
