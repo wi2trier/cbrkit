@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Tuple
-from .model import Graph, Node, Edge, to_sequence, GraphSim
+from .model import Graph, Node, Edge, GraphSim, to_sequence
 from ...helpers import batchify_sim, unbatchify_sim
 from ...typing import AnySimFunc, SimFunc, Float
 from ..collections import dtw as dtwmodule
@@ -90,31 +90,41 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         normalize: Whether to normalize the similarity score by the alignment length (default: True).
 
     Examples:
-        >>> from immutables import Map
-        >>> from .model import Node, Edge, Graph
+        >>> from .model import Node, Edge, Graph, SerializedGraph
         >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
         >>> edge_similarity = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
-        >>> nodes_x = Map({
-        ...     '1': Node(key='1', value='A'),
-        ...     '2': Node(key='2', value='B'),
-        ... })
-        >>> edges_x = Map({
-        ...     'e1': Edge(key='e1', source=nodes_x['1'], target=nodes_x['2'], value='X'),
-        ... })
-        >>> graph_x = Graph(nodes=nodes_x, edges=edges_x, value=None)
-        >>> nodes_y = Map({
-        ...     '1': Node(key='1', value='A'),
-        ...     '2': Node(key='2', value='C'),
-        ... })
-        >>> edges_y = Map({
-        ...     'e1': Edge(key='e1', source=nodes_y['1'], target=nodes_y['2'], value='Y'),
-        ... })
-        >>> graph_y = Graph(nodes=nodes_y, edges=edges_y, value=None)
+
+        >>> data_x = {
+        ...     "nodes": {
+        ...         "1": {"value": "A"},
+        ...         "2": {"value": "B"},
+        ...     },
+        ...     "edges": {
+        ...         "e1": {"source": "1", "target": "2", "value": "X"},
+        ...     },
+        ...     "value": None
+        ... }
+        >>> sx = SerializedGraph.model_validate(data_x)
+        >>> graph_x = Graph.load(sx)
+
+        >>> data_y = {
+        ...     "nodes": {
+        ...         "1": {"value": "A"},
+        ...         "2": {"value": "C"},
+        ...     },
+        ...     "edges": {
+        ...         "e1": {"source": "1", "target": "2", "value": "Y"},
+        ...     },
+        ...     "value": None
+        ... }
+        >>> sy = SerializedGraph.model_validate(data_y)
+        >>> graph_y = Graph.load(sy)
+
         >>> g_dtw = dtw(node_similarity, edge_similarity)
         >>> result = g_dtw(graph_x, graph_y)
         >>> print(result)
-        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'},
-                 node_similarities=..., edge_similarities=...)
+        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'},
+                 edge_mapping={'e1': 'e1'}, node_similarities=..., edge_similarities=...)
 
         >>> # Example with BatchSimFunc
         >>> def batch_node_similarity(pairs):
@@ -124,8 +134,8 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         >>> g_dtw_batch = dtw(batch_node_similarity, batch_edge_similarity)
         >>> result_batch = g_dtw_batch(graph_x, graph_y)
         >>> print(result_batch)
-        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'},
-                 node_similarities=..., edge_similarities=...)
+        GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'},
+                 edge_mapping={'e1': 'e1'}, node_similarities=..., edge_similarities=...)
     """
 
     node_sim_func: AnySimFunc[Node[K, N], Float]
@@ -193,27 +203,34 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         normalize: Whether to normalize the final similarity (default True).
 
     Examples:
-        >>> from immutables import Map
-        >>> from .model import Node, Edge, Graph
+        >>> from .model import Node, Edge, Graph, SerializedGraph
         >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
-        >>> edge_sim_func=lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
+        >>> edge_sim_func = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
         >>> def dataflow_dummy(a, b): return 0.5  # pretend data flow sim
-        >>> nodes_x = Map({
-        ...     '1': Node(key='1', value='A'),
-        ...     '2': Node(key='2', value='B'),
-        ... })
-        >>> edges_x = Map({
-        ...     'e1': Edge(key='e1', source=nodes_x['1'], target=nodes_x['2'], value='X'),
-        ... })
-        >>> graph_x = Graph(nodes=nodes_x, edges=edges_x, value=None)
-        >>> nodes_y = Map({
-        ...     '1': Node(key='1', value='A'),
-        ...     '2': Node(key='2', value='C'),
-        ... })
-        >>> edges_y = Map({
-        ...     'e1': Edge(key='e1', source=nodes_y['1'], target=nodes_y['2'], value='X'),
-        ... })
-        >>> graph_y = Graph(nodes=nodes_y, edges=edges_y, value=None)
+
+        >>> data_x = {
+        ...     "nodes": {
+        ...         "1": {"value": "A"},
+        ...         "2": {"value": "B"},
+        ...     },
+        ...     "edges": {
+        ...         "e1": {"source": "1", "target": "2", "value": "X"},
+        ...     },
+        ...     "value": None
+        ... }
+        >>> graph_x = Graph.load(SerializedGraph.model_validate(data_x))
+
+        >>> data_y = {
+        ...     "nodes": {
+        ...         "1": {"value": "A"},
+        ...         "2": {"value": "C"},
+        ...     },
+        ...     "edges": {
+        ...         "e1": {"source": "1", "target": "2", "value": "X"},
+        ...     },
+        ...     "value": None
+        ... }
+        >>> graph_y = Graph.load(SerializedGraph.model_validate(data_y))
 
         >>> g_swa = smith_waterman(
         ...     node_sim_func=node_similarity,
@@ -225,7 +242,8 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         ... )
         >>> result = g_swa(graph_x, graph_y)
         >>> print(result)
-        GraphSim(value=0.015, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'}, node_similarities={'1': 0.75, '2': 0.25}, edge_similarities={'e1': 1.0})
+        GraphSim(value=0.015, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'},
+                 node_similarities={'1': 0.75, '2': 0.25}, edge_similarities={'e1': 1.0})
 
         >>> # Another example without the ProCAKE weighting:
         >>> g_swa_naive = smith_waterman(
@@ -238,7 +256,8 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         ... )
         >>> result_naive = g_swa_naive(graph_x, graph_y)
         >>> print(result_naive)
-        GraphSim(value=0.01, node_mapping={'1': '1', '2': '2'}, edge_mapping={}, node_similarities={'1': 1.0, '2': 0.0}, edge_similarities={})
+        GraphSim(value=0.01, node_mapping={'1': '1', '2': '2'}, edge_mapping={},
+                 node_similarities={'1': 1.0, '2': 0.0}, edge_similarities={})
     """
 
     node_sim_func: AnySimFunc[Node[K, N], Float]
@@ -282,6 +301,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 return (
                     self.l_t * base + self.l_i * in_flow + self.l_o * out_flow
                 ) / total_weight
+
         else:
             # Naive approach: just call the node_sim_func
             def local_node_sim(q_node, c_node):
@@ -304,7 +324,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         length = min(len(sequence_x), len(sequence_y))
         alignment = [(sequence_x[i], sequence_y[i]) for i in range(length)]
 
-        #  5) Build node/edge mappings & average similarities using local_node_# 5) Build node/edge mappings & average similarities using local_node_sim
+        # 5) Build node/edge mappings & average similarities using local_node_sim
         similarity_data = _build_node_edge_mappings_and_similarity(
             alignment,
             local_node_sim,
