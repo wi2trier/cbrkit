@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from pydantic import ConfigDict
@@ -26,17 +27,17 @@ SynthesisResult = dataclass(cbrkit.synthesis.Result, **pydantic_dataclass_kwargs
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
-    retriever: str | None = None
-    reuser: str | None = None
-    synthesizer: str | None = None
+    retriever: str = ""
+    reuser: str = ""
+    synthesizer: str = ""
 
 
 settings = Settings()
 app = FastAPI()
 
 
-def load_callables(value: str | None) -> dict[str, Any]:
-    if value is None:
+def load_callables(value: str) -> dict[str, Any]:
+    if value == "":
         return {}
 
     return cbrkit.helpers.load_callables_map(value.split(","))
@@ -55,18 +56,23 @@ loaded_synthesizers: dict[
 ] = load_callables(settings.synthesizer)
 
 
-def parse_dataset(obj: dict[str, Any] | UploadFile) -> Mapping[str, Any]:
+def parse_dataset(obj: dict[str, Any] | UploadFile | Path) -> Mapping[str, Any]:
+    if isinstance(obj, dict):
+        return obj
+
+    data: Mapping[Any, Any] = {}
+
     if isinstance(obj, UploadFile):
         assert obj.content_type is not None
         loader = cbrkit.loaders.structured_loaders[f".{obj.content_type}"]
         data = loader(obj.file)
+    elif isinstance(obj, Path):
+        data = cbrkit.loaders.path(obj)
 
-        if not all(isinstance(key, str) for key in data.keys()):
-            return {str(key): value for key, value in loader(obj.file).items()}
+    if not all(isinstance(key, str) for key in data.keys()):
+        return {str(key): value for key, value in data.items()}
 
-        return data
-
-    return obj
+    return data
 
 
 def parse_callables[T](
@@ -83,8 +89,8 @@ def parse_callables[T](
 
 @app.post("/retrieve", response_model=RetrievalResult)
 def retrieve(
-    casebase: dict[str, Any] | UploadFile,
-    queries: dict[str, Any] | UploadFile,
+    casebase: dict[str, Any] | UploadFile | Path,
+    queries: dict[str, Any] | UploadFile | Path,
     retrievers: list[str] | None = None,
 ) -> cbrkit.retrieval.Result:
     return cbrkit.retrieval.apply_queries(
@@ -96,8 +102,8 @@ def retrieve(
 
 @app.post("/reuse", response_model=ReuseResult)
 def reuse(
-    casebase: dict[str, Any] | UploadFile,
-    queries: dict[str, Any] | UploadFile,
+    casebase: dict[str, Any] | UploadFile | Path,
+    queries: dict[str, Any] | UploadFile | Path,
     reusers: list[str] | None = None,
 ) -> cbrkit.reuse.Result:
     return cbrkit.reuse.apply_queries(
@@ -109,8 +115,8 @@ def reuse(
 
 @app.post("/cycle", response_model=CycleResult)
 def cycle(
-    casebase: dict[str, Any] | UploadFile,
-    queries: dict[str, Any] | UploadFile,
+    casebase: dict[str, Any] | UploadFile | Path,
+    queries: dict[str, Any] | UploadFile | Path,
     retrievers: list[str] | None = None,
     reusers: list[str] | None = None,
 ) -> cbrkit.cycle.Result:
@@ -124,8 +130,8 @@ def cycle(
 
 @app.post("/synthesize", response_model=SynthesisResult)
 def synthesize(
-    casebase: dict[str, Any] | UploadFile,
-    queries: dict[str, Any] | UploadFile,
+    casebase: dict[str, Any] | UploadFile | Path,
+    queries: dict[str, Any] | UploadFile | Path,
     synthesizer: str,
     retrievers: list[str] | None = None,
     reusers: list[str] | None = None,
@@ -149,7 +155,7 @@ def openapi_generator():
             title="CBRKit",
             version="0.1.0",
             summary="API for CBRKit",
-            description="API for CBRKit",
+            description="Makes it possible to perform Case-Based Reasoning tasks.",
             routes=app.routes,
         )
 
