@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -7,9 +7,6 @@ import numpy as np
 import numpy.typing as npt
 
 __all__ = [
-    "JsonEntry",
-    "JsonDict",
-    "NumpyArray",
     "AdaptationFunc",
     "AggregatorFunc",
     "AnyAdaptationFunc",
@@ -27,11 +24,18 @@ __all__ = [
     "ConversionFunc",
     "ConversionPoolingFunc",
     "EvalMetricFunc",
+    "Factory",
     "FilePath",
     "Float",
     "HasMetadata",
+    "JsonDict",
+    "JsonEntry",
     "MapAdaptationFunc",
+    "MaybeFactory",
+    "MaybeFactories",
+    "MaybeSequence",
     "NamedFunc",
+    "NumpyArray",
     "PoolingFunc",
     "PositionalFunc",
     "Prompt",
@@ -45,7 +49,6 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
-    "KeyValueStore",
     "WrappedObject",
 ]
 
@@ -77,6 +80,10 @@ type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]
 type SimSeq[S: Float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
+type Factory[T] = Callable[[], T]
+type MaybeFactory[T] = T | Factory[T]
+type MaybeSequence[T] = T | Sequence[T]
+type MaybeFactories[T] = T | Factory[T] | Sequence[T | Factory[T]]
 
 
 class ConversionFunc[U, V](Protocol):
@@ -265,18 +272,3 @@ class SynthesizerFunc[T, K, V, S: Float](Protocol):
         self,
         batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]],
     ) -> Sequence[T]: ...
-
-
-class KeyValueStore[K, V](BatchConversionFunc[K, V], Protocol):
-    store: MutableMapping[K, V]
-    func: BatchConversionFunc[K, V] | None
-    path: Path | None
-    autodump: bool
-
-    def dump(self) -> None: ...
-
-    def __call__(
-        self,
-        batches: Sequence[K],
-        /,
-    ) -> Sequence[V]: ...

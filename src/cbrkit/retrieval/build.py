@@ -1,3 +1,4 @@
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
@@ -6,7 +7,9 @@ from typing import override
 from ..helpers import (
     batchify_sim,
     chunkify,
+    get_logger,
     get_value,
+    mp_count,
     mp_map,
     sim_map2ranking,
     unpack_float,
@@ -17,10 +20,13 @@ from ..typing import (
     Casebase,
     ConversionFunc,
     Float,
+    MaybeFactory,
     RetrieverFunc,
     SimMap,
     StructuredValue,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -125,9 +131,9 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         ... )
     """
 
-    similarity_func: AnySimFunc[V, S]
-    multiprocessing: Pool | int | bool | None = None
-    chunksize: int = 10
+    similarity_func: MaybeFactory[AnySimFunc[V, S]]
+    multiprocessing: Pool | int | bool = False
+    chunksize: int | None = None
 
     @override
     def __call__(
@@ -148,8 +154,11 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
                 flat_batches.append((case, query))
 
         if use_mp(self.multiprocessing):
-            pair_chunks = chunkify(flat_batches, self.chunksize)
-            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing)
+            chunksize = self.chunksize or math.ceil(
+                len(flat_batches) / mp_count(self.multiprocessing)
+            )
+            pair_chunks = list(chunkify(flat_batches, chunksize))
+            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing, logger)
 
             for sim_chunk in sim_chunks:
                 flat_sims.extend(sim_chunk)

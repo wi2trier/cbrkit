@@ -1,5 +1,9 @@
 import asyncio
+import hashlib
+import inspect
 import logging
+import math
+import os
 from collections.abc import (
     Callable,
     Collection,
@@ -12,10 +16,10 @@ from collections.abc import (
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
-from inspect import getdoc
-from inspect import signature as inspect_signature
+from io import BytesIO
 from multiprocessing.pool import Pool
-from typing import Any, ClassVar, Literal, cast, override
+from pathlib import Path
+from typing import Any, Literal, TypeGuard, cast, override
 
 from .typing import (
     AnyConversionFunc,
@@ -27,9 +31,12 @@ from .typing import (
     BatchPositionalFunc,
     BatchSimFunc,
     ConversionFunc,
+    Factory,
     Float,
     HasMetadata,
     JsonEntry,
+    MaybeFactories,
+    MaybeFactory,
     NamedFunc,
     PositionalFunc,
     SimFunc,
@@ -61,10 +68,19 @@ __all__ = [
     "load_callables_map",
     "identity",
     "get_logger",
+    "mp_count",
+    "mp_pool",
     "use_mp",
     "mp_map",
     "mp_starmap",
     "getitem_or_getattr",
+    "round",
+    "round_nearest",
+    "scale",
+    "log_batch",
+    "BATCH_LOGGING_LEVEL",
+    "total_params",
+    "get_hash",
 ]
 
 
@@ -140,14 +156,14 @@ def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, HasMetadata):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
             "metadata": obj.metadata,
         }
 
     if is_dataclass(obj):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
             "metadata": {
                 field.name: get_metadata(getattr(obj, field.name))
                 for field in fields(obj)
@@ -158,7 +174,7 @@ def get_metadata(obj: Any) -> JsonEntry:
     if isinstance(obj, Callable):
         return {
             "name": get_name(obj),
-            "doc": getdoc(obj),
+            "doc": inspect.getdoc(obj),
         }
 
     if isinstance(obj, dict):
@@ -232,139 +248,196 @@ def dist2sim(distance: float) -> float:
     return 1 / (1 + distance)
 
 
+BATCH_LOGGING_LEVEL: int = logging.DEBUG
+
+
+def log_batch(
+    logger: logging.Logger | None,
+    i: int,
+    total: int,
+):
+    if logger is not None and total > 1:
+        logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
+
+
+def total_params(func: Callable) -> int:
+    return len(inspect.signature(func).parameters)
+
+
+def is_factory[T](obj: MaybeFactory[T]) -> TypeGuard[Factory[T]]:
+    return callable(obj) and total_params(obj) == 0
+
+
+def produce_factory[T](obj: MaybeFactory[T]) -> T:
+    if is_factory(obj):
+        return obj()
+
+    return cast(T, obj)
+
+
+def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
+    if isinstance(obj, Sequence):
+        return [produce_factory(item) for item in obj]
+
+    return [produce_factory(obj)]
+
+
 @dataclass(slots=True, init=False)
 class batchify_positional[T](
-    WrappedObject[AnyPositionalFunc[T]], BatchPositionalFunc[T]
+    WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], BatchPositionalFunc[T]
 ):
-    __wrapped__: AnyPositionalFunc[T]
+    __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
     logger: logging.Logger | None
-    logger_level: ClassVar[int] = logging.DEBUG
 
-    def __init__(self, func: AnyPositionalFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyPositionalFunc[T]]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
-        logger = get_logger(self.__wrapped__)
-        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
+        self.parameters = total_params(func)
+        logger = get_logger(func)
+        self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
     def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
-        if self.parameters != 1:
-            func = cast(PositionalFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyPositionalFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters != 1:
+            func = cast(PositionalFunc[T], func)
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
-                if self.logger is not None:
-                    self.logger.log(
-                        self.logger_level, f"Processing batch {i}/{len(batches)}"
-                    )
-
+                log_batch(self.logger, i, len(batches))
                 values.append(func(*batch))
 
             return values
 
-        func = cast(BatchPositionalFunc[T], self.__wrapped__)
+        func = cast(BatchPositionalFunc[T], func)
         return func(batches)
 
 
 @dataclass(slots=True, init=False)
-class unbatchify_positional[T](WrappedObject[AnyPositionalFunc[T]], PositionalFunc[T]):
-    __wrapped__: AnyPositionalFunc[T]
+class unbatchify_positional[T](
+    WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], PositionalFunc[T]
+):
+    __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
 
-    def __init__(self, func: AnyPositionalFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyPositionalFunc[T]]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
 
     @override
     def __call__(self, *args: Any) -> T:
-        if self.parameters == 1:
-            func = cast(BatchPositionalFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyPositionalFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters == 1:
+            func = cast(BatchPositionalFunc[T], func)
             return func([args])[0]
 
-        func = cast(PositionalFunc[T], self.__wrapped__)
+        func = cast(PositionalFunc[T], func)
         return func(*args)
 
 
 @dataclass(slots=True, init=False)
-class batchify_named[T](WrappedObject[AnyNamedFunc[T]], BatchNamedFunc[T]):
-    __wrapped__: AnyNamedFunc[T]
+class batchify_named[T](
+    WrappedObject[MaybeFactory[AnyNamedFunc[T]]], BatchNamedFunc[T]
+):
+    __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int
     logger: logging.Logger | None
-    logger_level: ClassVar[int] = logging.DEBUG
 
-    def __init__(self, func: AnyNamedFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyNamedFunc[T]]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
-        logger = get_logger(self.__wrapped__)
-        self.logger = logger if logger.isEnabledFor(self.logger_level) else None
+        self.parameters = total_params(func)
+        logger = get_logger(func)
+        self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
     def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
-        if self.parameters != 1:
-            func = cast(NamedFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyNamedFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters != 1:
+            func = cast(NamedFunc[T], func)
             values: list[T] = []
 
             for i, batch in enumerate(batches, start=1):
-                if self.logger is not None:
-                    self.logger.log(
-                        self.logger_level, f"Processing batch {i}/{len(batches)}"
-                    )
-
+                log_batch(self.logger, i, len(batches))
                 values.append(func(**batch))
 
             return values
 
-        func = cast(BatchNamedFunc[T], self.__wrapped__)
+        func = cast(BatchNamedFunc[T], func)
         return func(batches)
 
 
 @dataclass(slots=True)
-class unbatchify_named[T](WrappedObject[AnyNamedFunc[T]], NamedFunc[T]):
-    __wrapped__: AnyNamedFunc[T]
+class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFunc[T]):
+    __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int = field(init=False)
 
-    def __init__(self, func: AnyNamedFunc[T]):
+    def __init__(self, func: MaybeFactory[AnyNamedFunc[T]]):
         self.__wrapped__ = func
-        signature = inspect_signature(func)
-        self.parameters = len(signature.parameters)
+        self.parameters = total_params(func)
 
     @override
     def __call__(self, **kwargs: Any) -> T:
-        if self.parameters == 1:
-            func = cast(BatchNamedFunc[T], self.__wrapped__)
+        if self.parameters == 0:
+            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
+            parameters = total_params(func)
+        else:
+            func = cast(AnyNamedFunc[T], self.__wrapped__)
+            parameters = self.parameters
+
+        if parameters == 1:
+            func = cast(BatchNamedFunc[T], func)
             return func([kwargs])[0]
 
-        func = cast(NamedFunc[T], self.__wrapped__)
+        func = cast(NamedFunc[T], func)
         return func(**kwargs)
 
 
-def batchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> BatchSimFunc[V, S]:
-    return batchify_positional(cast(AnyPositionalFunc[S], func))
+def batchify_sim[V, S: Float](
+    func: MaybeFactory[AnySimFunc[V, S]],
+) -> BatchSimFunc[V, S]:
+    return batchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func))
 
 
-def unbatchify_sim[V, S: Float](func: AnySimFunc[V, S]) -> SimFunc[V, S]:
-    return cast(SimFunc[V, S], unbatchify_positional(cast(AnyPositionalFunc[S], func)))
+def unbatchify_sim[V, S: Float](func: MaybeFactory[AnySimFunc[V, S]]) -> SimFunc[V, S]:
+    return cast(
+        SimFunc[V, S],
+        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func)),
+    )
 
 
 def batchify_conversion[P, R](
-    func: AnyConversionFunc[P, R],
+    func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> BatchConversionFunc[P, R]:
     return cast(
         BatchConversionFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], func)),
+        batchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
     )
 
 
 def unbatchify_conversion[P, R](
-    func: AnyConversionFunc[P, R],
+    func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
     return cast(
         ConversionFunc[P, R],
-        batchify_positional(cast(AnyPositionalFunc[R], func)),
+        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
     )
 
 
@@ -406,6 +479,34 @@ def getitem_or_getattr(obj: Any, key: Any) -> Any:
         return obj[key]
 
     return getattr(obj, key)
+
+
+def round_nearest(value: float) -> int:
+    x = math.floor(value)
+
+    if (value - x) < 0.50:
+        return x
+
+    return math.ceil(value)
+
+
+def round(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
+    if mode == "floor":
+        return math.floor(value)
+    elif mode == "ceil":
+        return math.ceil(value)
+    elif mode == "nearest":
+        return round_nearest(value)
+
+    raise ValueError(f"Invalid rounding mode: {mode}")
+
+
+def scale(value: float, lower: float, upper: float) -> float:
+    """Scale a value from [0, 1] to [lower, upper]."""
+    if lower == 0 and upper == 1:
+        return value
+
+    return value * (upper - lower) + lower
 
 
 def load_object(import_name: str) -> Any:
@@ -481,6 +582,9 @@ def get_logger(obj: Any) -> logging.Logger:
     if isinstance(obj, str):
         return logging.getLogger(obj)
 
+    if hasattr(obj, "__self__"):
+        obj = obj.__self__
+
     if hasattr(obj, "__class__"):
         obj = obj.__class__
 
@@ -492,50 +596,123 @@ def get_logger(obj: Any) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def use_mp(pool_or_processes: Pool | int | bool | None) -> bool:
+def mp_count(pool_or_processes: Pool | int | bool) -> int:
+    if isinstance(pool_or_processes, bool):
+        return os.cpu_count() or 1
+    elif isinstance(pool_or_processes, int):
+        return pool_or_processes
+    elif isinstance(pool_or_processes, Pool):
+        return pool_or_processes._processes  # type: ignore
+
+    return os.cpu_count() or 1
+
+
+def mp_pool(pool_or_processes: Pool | int | bool) -> Pool:
+    if isinstance(pool_or_processes, bool):
+        return Pool()
+    elif isinstance(pool_or_processes, int):
+        return Pool(pool_or_processes)
+    elif isinstance(pool_or_processes, Pool):
+        return pool_or_processes
+
+    raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+
+
+def use_mp(pool_or_processes: Pool | int | bool) -> bool:
     if isinstance(pool_or_processes, bool):
         return pool_or_processes
     elif isinstance(pool_or_processes, int):
-        return pool_or_processes != 1
+        return pool_or_processes > 1
     elif isinstance(pool_or_processes, Pool):
         return True
 
     return False
 
 
+@dataclass(slots=True, frozen=True)
+class mp_logging_wrapper[U, V]:
+    func: Callable[[U], V]
+    logger: logging.Logger | None
+
+    def __call__(
+        self,
+        batch: U,
+        i: int,
+        total: int,
+    ) -> V:
+        log_batch(self.logger, i, total)
+
+        return self.func(batch)
+
+
+@dataclass(slots=True, frozen=True)
+class mp_logging_starwrapper[*Us, V]:
+    func: Callable[[*Us], V]
+    logger: logging.Logger | None
+
+    def __call__(
+        self,
+        batch: tuple[*Us],
+        i: int,
+        total: int,
+    ) -> V:
+        log_batch(self.logger, i, total)
+
+        return self.func(*batch)
+
+
 def mp_map[U, V](
     func: Callable[[U], V],
-    batches: Iterable[U],
-    pool_or_processes: Pool | int | bool | None,
+    batches: Sequence[U],
+    pool_or_processes: Pool | int | bool,
+    logger: logging.Logger | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, bool):
-        pool = Pool()
-    elif isinstance(pool_or_processes, int):
-        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
-        pool = Pool(pool_processes)
-    elif isinstance(pool_or_processes, Pool):
-        pool = pool_or_processes
-    else:
-        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+    if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
+        logger = None
 
-    with pool as p:
-        return p.map(func, batches)
+    wrapper = mp_logging_wrapper(func, logger)
+
+    if use_mp(pool_or_processes):
+        pool = mp_pool(pool_or_processes)
+
+        with pool as p:
+            return p.starmap(
+                wrapper,
+                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
+            )
+
+    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
 
 
 def mp_starmap[*Us, V](
     func: Callable[[*Us], V],
-    batches: Iterable[tuple[*Us]],
-    pool_or_processes: Pool | int | bool | None,
+    batches: Sequence[tuple[*Us]],
+    pool_or_processes: Pool | int | bool,
+    logger: logging.Logger | None,
 ) -> list[V]:
-    if isinstance(pool_or_processes, bool):
-        pool = Pool()
-    elif isinstance(pool_or_processes, int):
-        pool_processes = None if pool_or_processes <= 0 else pool_or_processes
-        pool = Pool(pool_processes)
-    elif isinstance(pool_or_processes, Pool):
-        pool = pool_or_processes
-    else:
-        raise TypeError(f"Invalid multiprocessing value: {pool_or_processes}")
+    if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
+        logger = None
 
-    with pool as p:
-        return p.starmap(func, batches)
+    wrapper = mp_logging_starwrapper(func, logger)
+
+    if use_mp(pool_or_processes):
+        pool = mp_pool(pool_or_processes)
+
+        with pool as p:
+            return p.starmap(
+                wrapper,
+                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
+            )
+
+    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
+
+
+def get_hash(file: Path | bytes | BytesIO) -> str:
+    if isinstance(file, Path):
+        data = file.read_bytes()
+    elif isinstance(file, BytesIO):
+        data = file.getvalue()
+    else:
+        data = file
+
+    return hashlib.sha256(data).hexdigest()

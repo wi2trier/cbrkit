@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from collections.abc import Callable, MutableMapping, Sequence
+from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast, override
@@ -13,6 +13,7 @@ from ..helpers import (
     batchify_sim,
     chunkify,
     event_loop,
+    get_logger,
     optional_dependencies,
 )
 from ..typing import (
@@ -24,7 +25,6 @@ from ..typing import (
     Float,
     HasMetadata,
     JsonDict,
-    KeyValueStore,
     NumpyArray,
     SimFunc,
     SimSeq,
@@ -46,6 +46,8 @@ __all__ = [
     "cohere",
     "voyageai",
 ]
+
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -148,11 +150,12 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(KeyValueStore[str, NumpyArray]):
+class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     autodump: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
+    mtime: float = field(repr=False)
 
     def __init__(
         self,
@@ -165,16 +168,29 @@ class cache(KeyValueStore[str, NumpyArray]):
         self.autodump = autodump
 
         if self.path and self.path.exists():
+            self.mtime = self.path.stat().st_mtime
+
             with np.load(self.path) as data:
                 self.store = dict(data)
+
         else:
             self.store = {}
+            self.mtime = 0
 
     def dump(self) -> None:
         if not self.path:
             raise ValueError("Path not provided")
 
+        if not self.store:
+            logger.warning("Cache is empty, skipping dump")
+            return
+
+        if self.mtime != self.path.stat().st_mtime:
+            logger.warning("Cache file has been modified, skipping dump")
+            return
+
         np.savez_compressed(self.path, **self.store)
+        self.mtime = self.path.stat().st_mtime
 
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
         new_texts = [text for text in texts if text not in self.store]
@@ -222,9 +238,9 @@ with optional_dependencies():
                 or a `spacy.Language` model instance.
         """
 
-        model: Language | Callable[[], Language]
+        model: Language
 
-        def __init__(self, model: str | Language | Callable[[], Language]):
+        def __init__(self, model: str | Language):
             if isinstance(model, str):
                 self.model = spacy_load(model)
             else:
@@ -241,9 +257,6 @@ with optional_dependencies():
 
         @override
         def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-            if not isinstance(self.model, Language):
-                self.model = self.model()
-
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 
@@ -259,17 +272,13 @@ with optional_dependencies():
 
         Args:
             model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
-                or a `SentenceTransformer` model instance. If a callable is provided, it will be called
-                the first time the function is used to create the model instance. This is useful for
-                lazy loading of the model.
+                or a `SentenceTransformer` model instance.
         """
 
-        model: SentenceTransformer | Callable[[], SentenceTransformer]
+        model: SentenceTransformer
         _metadata: JsonDict
 
-        def __init__(
-            self, model: str | SentenceTransformer | Callable[[], SentenceTransformer]
-        ):
+        def __init__(self, model: str | SentenceTransformer):
             self._metadata = {}
 
             if isinstance(model, str):
@@ -289,9 +298,6 @@ with optional_dependencies():
             if not texts:
                 return []
 
-            if not isinstance(self.model, SentenceTransformer):
-                self.model = self.model()
-
             return self.model.encode(
                 cast(list[str], texts), convert_to_numpy=True
             ).tolist()
@@ -310,40 +316,29 @@ with optional_dependencies():
         """
 
         model: str
-        client: AsyncOpenAI | Callable[[], AsyncOpenAI] = field(
-            default=AsyncOpenAI, repr=False
-        )
+        client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         chunk_size: int = 2048
         context_size: int = 8192
         truncate: Literal["start", "end"] | None = "end"
 
         @override
         def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
-            client = (
-                self.client if isinstance(self.client, AsyncOpenAI) else self.client()
-            )
-            return event_loop.get().run_until_complete(
-                self.__call_batches__(batches, client)
-            )
+            return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
         async def __call_batches__(
-            self, batches: Sequence[str], client: AsyncOpenAI
+            self, batches: Sequence[str]
         ) -> Sequence[NumpyArray]:
             chunk_results = await asyncio.gather(
                 *(
-                    self.__call_chunk__(chunk, client)
+                    self.__call_chunk__(chunk)
                     for chunk in chunkify(batches, self.chunk_size)
                 )
             )
 
             return list(itertools.chain.from_iterable(chunk_results))
 
-        async def __call_chunk__(
-            self,
-            batches: Sequence[str],
-            client: AsyncOpenAI,
-        ) -> Sequence[NumpyArray]:
-            res = await client.embeddings.create(
+        async def __call_chunk__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
+            res = await self.client.embeddings.create(
                 input=[self.encode(text) for text in batches],
                 model=self.model,
                 encoding_format="float",

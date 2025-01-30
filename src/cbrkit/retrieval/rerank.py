@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
@@ -129,7 +129,7 @@ with optional_dependencies():
             model: Name of the [sentence transformer model](https://www.sbert.net/docs/pretrained_models.html).
         """
 
-        model: SentenceTransformer | str | Callable[[], SentenceTransformer]
+        model: SentenceTransformer | str
         query_chunk_size: int = 100
         corpus_chunk_size: int = 500000
         device: str | None = None
@@ -151,10 +151,8 @@ with optional_dependencies():
         ) -> Sequence[dict[K, float]]:
             if isinstance(self.model, str):
                 model = SentenceTransformer(self.model, device=self.device)
-            elif isinstance(self.model, SentenceTransformer):
-                model = self.model
             else:
-                model = self.model()
+                model = self.model
 
             model.to(self.device)
 

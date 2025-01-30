@@ -7,12 +7,6 @@ from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 
 # https://amenra.github.io/ranx/metrics/
 
-__all__ = [
-    "compute",
-    "generate_metrics",
-    "parse_metric",
-]
-
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
     rel_lvl = 1
@@ -27,20 +21,52 @@ def parse_metric(spec: str) -> tuple[str, int, int]:
     return m, k, int(rel_lvl)
 
 
-def generate_metrics(
-    metrics: Iterable[str],
-    ks: Iterable[int | None],
-) -> list[str]:
-    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]
-
-
 def concordances(
     qrel: Mapping[str, int],
     run: Mapping[str, float],
     k: int,
 ) -> tuple[int, int, int]:
+    """Compute the number of concordant and discordant pairs in a ranking.
+
+    Args:
+        qrel: The query relevance judgments.
+        run: The ranking produced by the system.
+        k: The number of top documents to consider.
+
+    Returns:
+        A tuple with the number of concordant pairs, discordant pairs, and total pairs.
+
+    Examples:
+        >>> qrel = {
+        ...     "case1": 3,
+        ...     "case2": 4,
+        ...     "case3": 8,
+        ...     "case4": 5,
+        ...     "case5": 10,
+        ... }
+        >>> run1 = {
+        ...     "case1": 0.3,
+        ...     "case2": 0.1,
+        ...     "case3": 0.65,
+        ...     "case4": 0.55,
+        ...     "case5": 0.8,
+        ... }
+        >>> concordances(qrel, run1, 0)
+        (9, 1, 10)
+        >>> run2 = {
+        ...     "case1": 0.6,
+        ...     "case2": 0.4,
+        ...     "case3": 0.55,
+        ...     "case4": 0.7,
+        ...     "case5": 0.58,
+        ... }
+        >>> concordances(qrel, run2, 0)
+        (5, 5, 10)
+    """
+    # We only inverse the similarities to compute the ranking and get the top k
+    # Later, we us the original similarities as their ordering corresponds to the qrel odering
     sorted_run = sorted(run.items(), key=lambda x: x[1], reverse=True)
-    run_k = {x[0]: x[1] for x in sorted_run[: k if k > 0 else len(sorted_run)]}
+    run_k = dict(sorted_run[: k if k > 0 else len(sorted_run)])
 
     concordant_pairs = 0
     discordant_pairs = 0
@@ -136,10 +162,42 @@ def mean_score(
     scores: list[float] = []
 
     for key in keys:
-        sorted_run = sorted(run[key].items(), key=lambda x: x[1], reverse=True)
-        run_k = {x[0]: x[1] for x in sorted_run[: k if k > 0 else len(sorted_run)]}
+        sorted_run = sorted(run[key].values(), reverse=True)
+        run_k = sorted_run[: k if k > 0 else len(sorted_run)]
 
-        scores.append(statistics.mean(run_k.values()))
+        scores.append(statistics.mean(run_k))
+
+    try:
+        return statistics.mean(scores)
+    except statistics.StatisticsError:
+        return float("nan")
+
+
+def kendall_tau(
+    qrels: Mapping[str, Mapping[str, int]],
+    run: Mapping[str, Mapping[str, float]],
+    k: int,
+    relevance_level: int,
+) -> float:
+    from scipy.stats import kendalltau
+
+    keys = set(qrels.keys()).intersection(set(run.keys()))
+
+    scores: list[float] = []
+
+    for key in keys:
+        sorted_run = sorted(run.keys(), key=lambda x: run[key][x], reverse=True)
+        sorted_qrel = sorted(qrels[key].keys(), key=lambda x: qrels[key][x])
+
+        max_idx = min(len(sorted_run), len(sorted_qrel))
+
+        if k > 0:
+            max_idx = min(max_idx, k)
+
+        run_ranking = sorted_run[:max_idx]
+        qrel_ranking = sorted_qrel[:max_idx]
+
+        scores = kendalltau(run_ranking, qrel_ranking).statistic
 
     try:
         return statistics.mean(scores)
@@ -161,6 +219,7 @@ CBRKIT_METRICS: dict[str, EvalMetricFunc] = {
     "correctness": correctness,
     "completeness": completeness,
     "mean_score": mean_score,
+    "kendall_tau": kendall_tau,
 }
 
 
@@ -214,3 +273,13 @@ def compute[Q, C, S: Float](
             )
 
     return eval_results
+
+
+def generate_metrics(
+    metrics: Iterable[str] = DEFAULT_METRICS,
+    ks: Iterable[int | None] | int | None = None,
+) -> list[str]:
+    if not isinstance(ks, Iterable):
+        ks = [ks]
+
+    return [metric if k is None else f"{metric}@{k}" for metric in metrics for k in ks]

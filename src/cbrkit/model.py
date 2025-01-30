@@ -15,8 +15,13 @@ from .typing import (
 class QueryResultStep[K, V, S: Float]:
     similarities: SimMap[K, S]
     ranking: Sequence[K]
-    casebase: Casebase[K, V]
+    filtered_casebase: Casebase[K, V]
+    unfiltered_casebase: Casebase[K, V]
     query: V
+
+    @property
+    def casebase(self) -> Casebase[K, V]:
+        return self.filtered_casebase
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
@@ -34,16 +39,19 @@ class QueryResultStep[K, V, S: Float]:
 
     @classmethod
     def build(
-        cls, similarities: Mapping[K, S], full_casebase: Casebase[K, V], query: V
+        cls, similarities: Mapping[K, S], unfiltered_casebase: Casebase[K, V], query: V
     ) -> "QueryResultStep[K, V, S]":
         ranking = sim_map2ranking(similarities)
-        casebase = {key: full_casebase[key] for key in similarities}
+        filtered_casebase = {key: unfiltered_casebase[key] for key in similarities}
 
-        return cls(similarities, tuple(ranking), casebase, query)
+        return cls(
+            similarities, tuple(ranking), filtered_casebase, unfiltered_casebase, query
+        )
 
     def as_dict(self) -> dict[str, Any]:
         x = asdict(self)
-        del x["casebase"]
+        del x["filtered_casebase"]
+        del x["unfiltered_casebase"]
         del x["query"]
 
         return x
@@ -82,6 +90,10 @@ class ResultStep[Q, C, V, S: Float]:
 @dataclass(slots=True, frozen=True)
 class Result[Q, C, V, S: Float]:
     steps: list[ResultStep[Q, C, V, S]]
+
+    @property
+    def first_step(self) -> ResultStep[Q, C, V, S]:
+        return self.steps[0]
 
     @property
     def final_step(self) -> ResultStep[Q, C, V, S]:
@@ -124,7 +136,8 @@ class Result[Q, C, V, S: Float]:
 
         for step in x["steps"]:
             for item in step["queries"].values():
-                del item["casebase"]
+                del item["filtered_casebase"]
+                del item["unfiltered_casebase"]
                 del item["query"]
 
         return x
