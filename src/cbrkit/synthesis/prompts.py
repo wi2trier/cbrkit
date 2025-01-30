@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from textwrap import dedent
 from typing import Any
 
 from ..dumpers import markdown
@@ -83,15 +82,15 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
             result += self.instructions
 
         if query is not None:
-            result += dedent(f"""
-                ## Query
+            result += f"""
+## Query
 
-                {self.encoder(query)}
-            """)
+{self.encoder(query)}
+"""
 
-        result += dedent("""
-            ## Documents Collection
-        """)
+        result += """
+## Documents Collection
+"""
 
         ranking = (
             sim_map2ranking(similarities)
@@ -101,24 +100,24 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 
         for rank, key in enumerate(ranking, start=1):
             if similarities is not None:
-                result += dedent(f"""
-                    ### {key} (Rank: {rank}, Similarity: {unpack_float(similarities[key]):.3f})
-                """)
+                result += f"""
+### {key} (Rank: {rank}, Similarity: {unpack_float(similarities[key]):.3f})
+"""
             else:
-                result += dedent(f"""
-                    ### {key}
-                """)
+                result += f"""
+### {key}
+"""
 
-            result += dedent(f"""
-                {self.encoder(casebase[key])}
-            """)
+            result += f"""
+{self.encoder(casebase[key])}
+"""
 
         if self.metadata is not None:
-            result += dedent(f"""
-                ## Metadata
+            result += f"""
+## Metadata
 
-                {self.encoder(self.metadata)}
-            """)
+{self.encoder(self.metadata)}
+"""
 
         return result
 
@@ -154,18 +153,18 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
             result += self.instructions
 
         if query is not None:
-            result += dedent(f"""
-                ## Query
+            result += f"""
+## Query
 
-                {self.encoder(query)}
-            """)
+{self.encoder(query)}
+"""
 
         if self.metadata is not None:
-            result += dedent(f"""
-                ## Metadata
+            result += f"""
+## Metadata
 
-                {self.encoder(self.metadata)}
-            """)
+{self.encoder(self.metadata)}
+"""
 
         ranking = (
             sim_map2ranking(similarities)
@@ -218,20 +217,22 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         if self.instructions is not None:
             result += self.instructions
 
-        result += dedent("""
-            ## Documents Collection
-        """)
+        result += """
+## Partial Results
+"""
 
-        for value in values:
-            result += dedent(f"""
-                {self.encoder(value)}
-            """)
+        for idx, value in enumerate(values, start=1):
+            result += f"""
+### Result {idx}
+
+{self.encoder(value)}
+"""
 
         if self.metadata is not None:
-            result += dedent(f"""
-                ## Metadata
+            result += f"""
+## Metadata
 
-                {self.encoder(self.metadata)}
-            """)
+{self.encoder(self.metadata)}
+"""
 
         return result
