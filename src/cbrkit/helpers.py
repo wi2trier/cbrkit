@@ -55,6 +55,7 @@ __all__ = [
     "batchify_positional",
     "callable2model",
     "chunkify",
+    "chunkify_overlap",
     "dist2sim",
     "event_loop",
     "get_hash",
@@ -242,19 +243,41 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
     raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
 
 
-def chunkify[V](val: Sequence[V], k: int) -> Iterator[Sequence[V]]:
-    """Yield chunks of size `k` from the input sequence.
+def chunkify[V](val: Sequence[V], size: int) -> Iterator[Sequence[V]]:
+    """Yield chunks with a fixed size.
 
     Examples:
         >>> list(chunkify([1, 2, 3, 4, 5, 6, 7, 8, 9], 4))
         [[1, 2, 3, 4], [5, 6, 7, 8], [9]]
     """
 
-    if k < 1:
+    if size < 1:
         raise ValueError("Chunk size must be greater than 0")
 
-    for i in range(0, len(val), k):
-        yield val[i : i + k]
+    for i in range(0, len(val), size):
+        yield val[i : i + size]
+
+
+def chunkify_overlap[V](
+    val: Sequence[V],
+    size: int,
+    overlap: int,
+    direction: Literal["left", "right", "both"] = "both",
+) -> Iterator[Sequence[V]]:
+    chunks = list(chunkify(val, size))
+
+    for i, chunk in enumerate(chunks):
+        # Get the previous, current, and next chunk based on the overlap
+        prev_chunk = chunks[i - 1] if i > 0 and overlap > 0 else []
+        next_chunk = chunks[i + 1] if i < len(chunks) - 1 and overlap > 0 else []
+
+        if direction == "left" or direction == "both":
+            prev_chunk = prev_chunk[-overlap:]
+
+        if direction == "right" or direction == "both":
+            next_chunk = next_chunk[:overlap]
+
+        yield [*prev_chunk, *chunk, *next_chunk]
 
 
 def dist2sim(distance: float) -> float:

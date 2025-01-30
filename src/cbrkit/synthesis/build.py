@@ -1,7 +1,13 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
-from ..helpers import batchify_conversion, chunkify, unbatchify_conversion
+from ..helpers import (
+    batchify_conversion,
+    chunkify,
+    chunkify_overlap,
+    unbatchify_conversion,
+)
 from ..typing import (
     AnyConversionFunc,
     BatchPoolingFunc,
@@ -20,7 +26,9 @@ from ..typing import (
 class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     synthesis_func: SynthesizerFunc[R, K, V, S]
     pooling_func: BatchPoolingFunc[R]
-    chunk_size: int
+    size: int
+    overlap: int = 0
+    direction: Literal["left", "right", "both"] = "both"
 
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
@@ -29,7 +37,14 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
         batch2chunk_indexes: list[list[int]] = []
 
         for casebase, query, similarities in batches:
-            key_chunks = list(chunkify(list(casebase.keys()), self.chunk_size))
+            key_chunks = list(
+                chunkify_overlap(
+                    list(casebase.keys()),
+                    self.size,
+                    self.overlap,
+                    self.direction,
+                )
+            )
             last_idx = len(batch2chunk_indexes)
             batch2chunk_indexes.append(
                 list(range(last_idx, last_idx + len(key_chunks)))

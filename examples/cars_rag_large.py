@@ -44,7 +44,7 @@ pooling_prompt = cbrkit.synthesis.prompts.pooling(
     "Which of the following cars is the best replacement for the queried cars?"
 )
 pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)
-get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10)
+get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, size=10)
 response = get_result(batches)
 print("Response:")
 print(response)
