@@ -801,4 +801,4 @@ def callable2model(func: Callable[..., Any]) -> type[BaseModel]:
         )
         fields[param.name] = (field_type, field_config)
 
-    return create_model(f"{func.__name__}Model", **fields)
+    return create_model(f"{func.__name__.title()}Model", **fields)
