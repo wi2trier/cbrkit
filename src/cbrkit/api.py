@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import ConfigDict
@@ -6,7 +7,7 @@ from pydantic.dataclasses import dataclass
 import cbrkit
 
 with cbrkit.helpers.optional_dependencies("raise", "api"):
-    from fastapi import FastAPI
+    from fastapi import FastAPI, UploadFile
     from fastapi.openapi.utils import get_openapi
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,113 +35,106 @@ settings = Settings()
 app = FastAPI()
 
 
+def load_callables(value: str | None) -> dict[str, Any]:
+    if value is None:
+        return {}
+
+    return cbrkit.helpers.load_callables_map(value.split(","))
+
+
 loaded_retrievers: dict[
     str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]
-] = (
-    cbrkit.helpers.load_callables_map(settings.retriever.split(","))
-    if settings.retriever is not None
-    else {}
-)
+] = load_callables(settings.retriever)
 
 loaded_reusers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
-    cbrkit.helpers.load_callables_map(settings.reuser.split(","))
-    if settings.reuser is not None
-    else {}
+    load_callables(settings.reuser)
 )
 
 loaded_synthesizers: dict[
     str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc]
-] = (
-    cbrkit.helpers.load_callables_map(settings.synthesizer.split(","))
-    if settings.synthesizer is not None
-    else {}
-)
+] = load_callables(settings.synthesizer)
+
+
+def parse_dataset(obj: dict[str, Any] | UploadFile) -> Mapping[str, Any]:
+    if isinstance(obj, UploadFile):
+        assert obj.content_type is not None
+        loader = cbrkit.loaders.structured_loaders[f".{obj.content_type}"]
+        data = loader(obj.file)
+
+        if not all(isinstance(key, str) for key in data.keys()):
+            return {str(key): value for key, value in loader(obj.file).items()}
+
+        return data
+
+    return obj
+
+
+def parse_callables[T](
+    keys: list[str] | str | None,
+    loaded: dict[str, T],
+) -> list[T]:
+    if keys is None:
+        keys = list(loaded.keys())
+    elif isinstance(keys, str):
+        keys = [keys]
+
+    return [loaded[name] for name in keys]
 
 
 @app.post("/retrieve", response_model=RetrievalResult)
 def retrieve(
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
-    retriever: list[str] | str | None = None,
+    casebase: dict[str, Any] | UploadFile,
+    queries: dict[str, Any] | UploadFile,
+    retrievers: list[str] | None = None,
 ) -> cbrkit.retrieval.Result:
-    if retriever is None:
-        retriever = list(loaded_retrievers.keys())
-    elif isinstance(retriever, str):
-        retriever = [retriever]
-
     return cbrkit.retrieval.apply_queries(
-        casebase,
-        queries,
-        [loaded_retrievers[x] for x in retriever],
+        parse_dataset(casebase),
+        parse_dataset(queries),
+        parse_callables(retrievers, loaded_retrievers),
     )
 
 
 @app.post("/reuse", response_model=ReuseResult)
 def reuse(
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
-    reuser: list[str] | str | None = None,
+    casebase: dict[str, Any] | UploadFile,
+    queries: dict[str, Any] | UploadFile,
+    reusers: list[str] | None = None,
 ) -> cbrkit.reuse.Result:
-    if reuser is None:
-        reuser = list(loaded_reusers.keys())
-    elif isinstance(reuser, str):
-        reuser = [reuser]
-
     return cbrkit.reuse.apply_queries(
-        casebase,
-        queries,
-        [loaded_reusers[x] for x in reuser],
+        parse_dataset(casebase),
+        parse_dataset(queries),
+        parse_callables(reusers, loaded_reusers),
     )
 
 
 @app.post("/cycle", response_model=CycleResult)
 def cycle(
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
-    retriever: list[str] | str | None = None,
-    reuser: list[str] | str | None = None,
+    casebase: dict[str, Any] | UploadFile,
+    queries: dict[str, Any] | UploadFile,
+    retrievers: list[str] | None = None,
+    reusers: list[str] | None = None,
 ) -> cbrkit.cycle.Result:
-    if retriever is None:
-        retriever = list(loaded_retrievers.keys())
-    elif isinstance(retriever, str):
-        retriever = [retriever]
-
-    if reuser is None:
-        reuser = list(loaded_reusers.keys())
-    elif isinstance(reuser, str):
-        reuser = [reuser]
-
     return cbrkit.cycle.apply_queries(
-        casebase,
-        queries,
-        [loaded_retrievers[x] for x in retriever],
-        [loaded_reusers[x] for x in reuser],
+        parse_dataset(casebase),
+        parse_dataset(queries),
+        parse_callables(retrievers, loaded_retrievers),
+        parse_callables(reusers, loaded_reusers),
     )
 
 
 @app.post("/synthesize", response_model=SynthesisResult)
 def synthesize(
-    casebase: dict[str, Any],
-    queries: dict[str, Any],
+    casebase: dict[str, Any] | UploadFile,
+    queries: dict[str, Any] | UploadFile,
     synthesizer: str,
-    retriever: list[str] | str | None = None,
-    reuser: list[str] | str | None = None,
+    retrievers: list[str] | None = None,
+    reusers: list[str] | None = None,
 ) -> cbrkit.synthesis.Result:
-    if retriever is None:
-        retriever = list(loaded_retrievers.keys())
-    elif isinstance(retriever, str):
-        retriever = [retriever]
-
-    if reuser is None:
-        reuser = list(loaded_reusers.keys())
-    elif isinstance(reuser, str):
-        reuser = [reuser]
-
     result = cbrkit.cycle.apply_queries(
-        casebase,
-        queries,
-        [loaded_retrievers[x] for x in retriever],
-        [loaded_reusers[x] for x in reuser],
+        parse_dataset(casebase),
+        parse_dataset(queries),
+        parse_callables(retrievers, loaded_retrievers),
+        parse_callables(reusers, loaded_reusers),
     )
 
     return cbrkit.synthesis.apply_result(
