@@ -263,7 +263,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     node_sim_func: AnySimFunc[Node[K, N], Float]
     edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
     dataflow_in_sim_func: Optional[AnySimFunc] = None  # No specific typing needed here
-    dataflow_out_sim_func: Optional[AnySimFunc] = None # No specific typing needed here
+    dataflow_out_sim_func: Optional[AnySimFunc] = None  # No specific typing needed here
     l_t: float = 1.0
     l_i: float = 0.0
     l_o: float = 0.0
