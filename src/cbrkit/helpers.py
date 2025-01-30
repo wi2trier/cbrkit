@@ -159,7 +159,7 @@ def get_name(obj: Any) -> str:
     if isinstance(obj, str):
         return obj
 
-    if isinstance(obj, type):
+    if hasattr(obj, "__name__"):
         return obj.__name__
 
     return type(obj).__name__
@@ -626,6 +626,8 @@ def load_callables_map(
         if isinstance(obj, Mapping):
             assert all(isinstance(func, Callable) for func in obj.values())
             functions.update(obj)
+        elif isinstance(obj, Callable):
+            functions[import_name] = obj
 
     return functions
 
