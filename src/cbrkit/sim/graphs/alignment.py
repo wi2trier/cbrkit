@@ -1,37 +1,36 @@
-# alignment.py
-
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Tuple
 from .model import Graph, Node, Edge, GraphSim, to_sequence
-from ...helpers import batchify_sim, unbatchify_sim
-from ...typing import AnySimFunc, SimFunc, Float
+
+from ...helpers import batchify_sim, unbatchify_sim, unpack_float, unpack_floats
+from ...typing import AnySimFunc, Float, SimFunc
 from ..collections import dtw as dtwmodule
 from ..collections import smith_waterman as minineedle_sw
 
-__all__ = ["dtw", "smith_waterman"]
+__all__ = [
+    "dtw",
+    "smith_waterman",
+]
 
 
 @dataclass(slots=True, frozen=True)
 class SimilarityData[K]:
     """Dataclass to hold similarity data."""
 
-    node_mapping: Dict[K, K]
-    node_similarities: Dict[K, float]
-    edge_mapping: Dict[K, K]
-    edge_similarities: Dict[K, float]
+    node_mapping: dict[K, K]
+    node_similarities: dict[K, float]
+    edge_mapping: dict[K, K]
+    edge_similarities: dict[K, float]
     node_similarity: float
-    edge_similarity: Optional[float]
+    edge_similarity: float | None
 
 
-###############################################################################
-# Private helper to build mappings and compute average node/edge similarity.
-###############################################################################
-def _build_node_edge_mappings_and_similarity[N, E](
-    alignment: List[Tuple[Optional[N], Optional[N]]],
-    node_sim_func: AnySimFunc,
-    edges_x: List[E],
-    edges_y: List[E],
-    edge_sim_func: Optional[AnySimFunc] = None,
+def _build_node_edge_mappings_and_similarity[K, N, E](
+    alignment: Sequence[tuple[Node[K, N], Node[K, N]]] | None,
+    node_sim_func: AnySimFunc[Node[K, N], Float],
+    edges_x: list[Edge[K, N, E]],
+    edges_y: list[Edge[K, N, E]],
+    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
 ) -> SimilarityData:
     """
     Internal helper for building node/edge mappings & computing average similarities.
@@ -45,29 +44,34 @@ def _build_node_edge_mappings_and_similarity[N, E](
         SimilarityData object containing node/edge mappings and similarities.
     """
     batch_node_sim_func = batchify_sim(node_sim_func)
-    node_pairs = [(xn, yn) for (xn, yn) in alignment if xn and yn]
+    node_pairs = [(xn, yn) for (xn, yn) in alignment if xn and yn] if alignment else []
     node_sims = batch_node_sim_func(node_pairs) if node_pairs else []
-    node_similarity = sum(node_sims) / len(node_sims) if node_sims else 0.0
+    node_similarity = (
+        sum(unpack_floats(node_sims)) / len(node_sims) if node_sims else 0.0
+    )
 
-    node_mapping: Dict = {}
-    node_similarities: Dict = {}
-    for (xn, yn), sim_val in zip(node_pairs, node_sims):
+    node_mapping: dict = {}
+    node_similarities: dict = {}
+
+    for (xn, yn), sim_val in zip(node_pairs, node_sims, strict=True):
         node_mapping[yn.key] = xn.key
-        node_similarities[yn.key] = float(sim_val)
+        node_similarities[yn.key] = unpack_float(sim_val)
 
     edge_similarity = None
-    edge_mapping: Dict = {}
-    edge_similarities: Dict = {}
+    edge_mapping: dict = {}
+    edge_similarities: dict = {}
     if edge_sim_func:
         batch_edge_sim_func = batchify_sim(edge_sim_func)
-        edge_pairs = list(zip(edges_x, edges_y))
+        edge_pairs = list(zip(edges_x, edges_y, strict=True))
         edge_sims = batch_edge_sim_func(edge_pairs) if edge_pairs else []
-        edge_similarity = sum(edge_sims) / len(edge_sims) if edge_sims else 0.0
+        edge_similarity = (
+            sum(unpack_floats(edge_sims)) / len(edge_sims) if edge_sims else 0.0
+        )
 
-        for (xe, ye), es in zip(edge_pairs, edge_sims):
+        for (xe, ye), es in zip(edge_pairs, edge_sims, strict=True):
             if xe and ye:
                 edge_mapping[ye.key] = xe.key
-                edge_similarities[ye.key] = float(es)
+                edge_similarities[ye.key] = unpack_float(es)
 
     return SimilarityData(
         node_mapping,
@@ -262,8 +266,8 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     node_sim_func: AnySimFunc[Node[K, N], Float]
     edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None
-    dataflow_in_sim_func: Optional[AnySimFunc] = None  # No specific typing needed here
-    dataflow_out_sim_func: Optional[AnySimFunc] = None  # No specific typing needed here
+    dataflow_in_sim_func: SimFunc | None = None
+    dataflow_out_sim_func: SimFunc | None = None
     l_t: float = 1.0
     l_i: float = 0.0
     l_o: float = 0.0
@@ -275,37 +279,38 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     use_procake_formula: bool = False
 
+    def local_node_sim(self, q_node: Node[K, N], c_node: Node[K, N]) -> float:
+        base = unpack_float(
+            unbatchify_sim(self.node_sim_func)(q_node, c_node)
+            if self.node_sim_func
+            else 0.0
+        )
+
+        if self.use_procake_formula:
+            in_flow = 0.0
+            if self.l_i != 0.0 and self.dataflow_in_sim_func:
+                # In real usage, pass appropriate node/edge data
+                in_flow = self.dataflow_in_sim_func(None, None)
+
+            out_flow = 0.0
+            if self.l_o != 0.0 and self.dataflow_out_sim_func:
+                out_flow = self.dataflow_out_sim_func(None, None)
+
+            total_weight = self.l_t + self.l_i + self.l_o
+
+            if total_weight == 0:
+                return 0.0
+
+            return (
+                self.l_t * base + self.l_i * in_flow + self.l_o * out_flow
+            ) / total_weight
+
+        return base
+
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
         # 1) Convert graphs to sequences
         sequence_x, edges_x = to_sequence(x)
         sequence_y, edges_y = to_sequence(y)
-
-        # 2) Decide how to compute local similarity for each node pair
-        if self.use_procake_formula:
-
-            def local_node_sim(q_node, c_node):
-                base = self.node_sim_func(q_node, c_node) if self.node_sim_func else 0.0
-
-                in_flow = 0.0
-                if self.l_i != 0.0 and self.dataflow_in_sim_func:
-                    # In real usage, pass appropriate node/edge data
-                    in_flow = self.dataflow_in_sim_func(None, None)
-
-                out_flow = 0.0
-                if self.l_o != 0.0 and self.dataflow_out_sim_func:
-                    out_flow = self.dataflow_out_sim_func(None, None)
-
-                total_weight = self.l_t + self.l_i + self.l_o
-                if total_weight == 0:
-                    return 0.0
-                return (
-                    self.l_t * base + self.l_i * in_flow + self.l_o * out_flow
-                ) / total_weight
-
-        else:
-            # Naive approach: just call the node_sim_func
-            def local_node_sim(q_node, c_node):
-                return self.node_sim_func(q_node, c_node) if self.node_sim_func else 0.0
 
         # 3) We'll rely on the minineedle-based SW for a raw score.
         sw_obj = minineedle_sw(
@@ -327,7 +332,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         # 5) Build node/edge mappings & average similarities using local_node_sim
         similarity_data = _build_node_edge_mappings_and_similarity(
             alignment,
-            local_node_sim,
+            self.local_node_sim,
             edges_x,
             edges_y,
             self.edge_sim_func,
