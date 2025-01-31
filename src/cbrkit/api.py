@@ -2,9 +2,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from pydantic import ConfigDict
-from pydantic.dataclasses import dataclass
-
 import cbrkit
 
 with cbrkit.helpers.optional_dependencies("raise", "api"):
@@ -13,56 +10,56 @@ with cbrkit.helpers.optional_dependencies("raise", "api"):
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-dataclass_config = ConfigDict(arbitrary_types_allowed=True)
+# dataclass_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-@dataclass(slots=True, frozen=True, config=dataclass_config)
-class RetrievalResult:
-    steps: list[cbrkit.retrieval.ResultStep[str, str, Any, cbrkit.typing.Float]]
+# @dataclass(slots=True, frozen=True, config=dataclass_config)
+# class RetrievalResult:
+#     steps: list[cbrkit.retrieval.ResultStep[str, str, Any, cbrkit.typing.Float]]
 
-    @classmethod
-    def build(
-        cls,
-        obj: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float],
-    ) -> "RetrievalResult":
-        return cls(obj.steps)
-
-
-@dataclass(slots=True, frozen=True, config=dataclass_config)
-class ReuseResult:
-    steps: list[cbrkit.reuse.ResultStep[str, str, Any, cbrkit.typing.Float]]
-
-    @classmethod
-    def build(
-        cls,
-        obj: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float],
-    ) -> "ReuseResult":
-        return cls(obj.steps)
+#     @classmethod
+#     def build(
+#         cls,
+#         obj: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float],
+#     ) -> "RetrievalResult":
+#         return cls(obj.steps)
 
 
-@dataclass(slots=True, frozen=True, config=dataclass_config)
-class CycleResult:
-    retrieval: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]
-    reuse: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]
+# @dataclass(slots=True, frozen=True, config=dataclass_config)
+# class ReuseResult:
+#     steps: list[cbrkit.reuse.ResultStep[str, str, Any, cbrkit.typing.Float]]
 
-    @classmethod
-    def build(
-        cls,
-        obj: cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float],
-    ) -> "CycleResult":
-        return cls(obj.retrieval, obj.reuse)
+#     @classmethod
+#     def build(
+#         cls,
+#         obj: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float],
+#     ) -> "ReuseResult":
+#         return cls(obj.steps)
 
 
-@dataclass(slots=True, frozen=True, config=dataclass_config)
-class SynthesisResult:
-    steps: list[cbrkit.synthesis.ResultStep[str, Any]]
+# @dataclass(slots=True, frozen=True, config=dataclass_config)
+# class CycleResult:
+#     retrieval: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]
+#     reuse: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]
 
-    @classmethod
-    def build(
-        cls,
-        obj: cbrkit.synthesis.Result[str, Any],
-    ) -> "SynthesisResult":
-        return cls(obj.steps)
+#     @classmethod
+#     def build(
+#         cls,
+#         obj: cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float],
+#     ) -> "CycleResult":
+#         return cls(obj.retrieval, obj.reuse)
+
+
+# @dataclass(slots=True, frozen=True, config=dataclass_config)
+# class SynthesisResult:
+#     steps: list[cbrkit.synthesis.ResultStep[str, Any]]
+
+#     @classmethod
+#     def build(
+#         cls,
+#         obj: cbrkit.synthesis.Result[str, Any],
+#     ) -> "SynthesisResult":
+#         return cls(obj.steps)
 
 
 class Settings(BaseSettings):
@@ -132,14 +129,12 @@ def retrieve(
     casebase: dict[str, Any] | UploadFile | Path,
     queries: dict[str, Any] | UploadFile | Path,
     retrievers: list[str] | None = None,
-) -> RetrievalResult:
-    result = cbrkit.retrieval.apply_queries(
+) -> cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]:
+    return cbrkit.retrieval.apply_queries(
         parse_dataset(casebase),
         parse_dataset(queries),
         parse_callables(retrievers, loaded_retrievers),
     )
-
-    return RetrievalResult.build(result)
 
 
 @app.post("/reuse")
@@ -147,14 +142,12 @@ def reuse(
     casebase: dict[str, Any] | UploadFile | Path,
     queries: dict[str, Any] | UploadFile | Path,
     reusers: list[str] | None = None,
-) -> ReuseResult:
-    result = cbrkit.reuse.apply_queries(
+) -> cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]:
+    return cbrkit.reuse.apply_queries(
         parse_dataset(casebase),
         parse_dataset(queries),
         parse_callables(reusers, loaded_reusers),
     )
-
-    return ReuseResult.build(result)
 
 
 @app.post("/cycle")
@@ -163,15 +156,13 @@ def cycle(
     queries: dict[str, Any] | UploadFile | Path,
     retrievers: list[str] | None = None,
     reusers: list[str] | None = None,
-) -> CycleResult:
-    result = cbrkit.cycle.apply_queries(
+) -> cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float]:
+    return cbrkit.cycle.apply_queries(
         parse_dataset(casebase),
         parse_dataset(queries),
         parse_callables(retrievers, loaded_retrievers),
         parse_callables(reusers, loaded_reusers),
     )
-
-    return CycleResult.build(result)
 
 
 @app.post("/synthesize")
@@ -181,7 +172,7 @@ def synthesize(
     synthesizer: str,
     retrievers: list[str] | None = None,
     reusers: list[str] | None = None,
-) -> SynthesisResult:
+) -> cbrkit.synthesis.Result[str, Any]:
     cycle_result = cbrkit.cycle.apply_queries(
         parse_dataset(casebase),
         parse_dataset(queries),
@@ -189,12 +180,10 @@ def synthesize(
         parse_callables(reusers, loaded_reusers),
     )
 
-    synthesis_result = cbrkit.synthesis.apply_result(
+    return cbrkit.synthesis.apply_result(
         cycle_result.final_step,
         loaded_synthesizers[synthesizer],
     )
-
-    return SynthesisResult.build(synthesis_result)
 
 
 def openapi_generator():

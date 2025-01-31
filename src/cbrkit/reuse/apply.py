@@ -57,13 +57,13 @@ def apply_batches[Q, C, V, S: Float](
             )
         }
 
-        steps.append(ResultStep(step_queries, get_metadata(reuser)))
+        steps.append(ResultStep(queries=step_queries, metadata=get_metadata(reuser)))
         current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
             for query_key in current_batches.keys()
         }
 
-    return Result(steps)
+    return Result(steps=steps)
 
 
 def apply_queries[Q, C, V, S: Float](

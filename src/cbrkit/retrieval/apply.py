@@ -28,7 +28,9 @@ def apply_batches[Q, C, V, S: Float](
             )
         }
 
-        steps.append(ResultStep(step_queries, get_metadata(retriever_func)))
+        steps.append(
+            ResultStep(queries=step_queries, metadata=get_metadata(retriever_func))
+        )
         current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
             for query_key in current_batches
@@ -36,7 +38,7 @@ def apply_batches[Q, C, V, S: Float](
 
     logger.info("Finished processing all retrievers")
 
-    return Result(steps)
+    return Result(steps=steps)
 
 
 def apply_queries[Q, C, V, S: Float](

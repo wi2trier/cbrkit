@@ -11,6 +11,9 @@ from ..typing import (
     SynthesizerFunc,
 )
 
+# TODO: return ranking that is transformed to a similarity map
+# todo: compute mean average error between similarities from llm and benchmark
+
 
 class SynthesisResponse[K](BaseModel):
     similarities: Mapping[K, float]

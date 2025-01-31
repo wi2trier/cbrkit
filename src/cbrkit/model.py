@@ -1,6 +1,7 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .helpers import sim_map2ranking, singleton
 from .typing import (
@@ -10,18 +11,20 @@ from .typing import (
     SimMap,
 )
 
+__all__ = [
+    "QueryResultStep",
+    "ResultStep",
+    "Result",
+    "CycleResult",
+]
 
-@dataclass(slots=True, frozen=True)
-class QueryResultStep[K, V, S: Float]:
+
+class QueryResultStep[K, V, S: Float](BaseModel):
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
     similarities: SimMap[K, S]
     ranking: Sequence[K]
-    filtered_casebase: Casebase[K, V]
-    unfiltered_casebase: Casebase[K, V]
-    query: V
-
-    @property
-    def casebase(self) -> Casebase[K, V]:
-        return self.filtered_casebase
+    casebase: Annotated[Casebase[K, V], Field(exclude=True)]
+    query: Annotated[V, Field(exclude=True)]
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
@@ -45,20 +48,15 @@ class QueryResultStep[K, V, S: Float]:
         filtered_casebase = {key: unfiltered_casebase[key] for key in similarities}
 
         return cls(
-            similarities, tuple(ranking), filtered_casebase, unfiltered_casebase, query
+            similarities=similarities,
+            ranking=tuple(ranking),
+            casebase=filtered_casebase,
+            query=query,
         )
 
-    def as_dict(self) -> dict[str, Any]:
-        x = asdict(self)
-        del x["filtered_casebase"]
-        del x["unfiltered_casebase"]
-        del x["query"]
 
-        return x
-
-
-@dataclass(slots=True, frozen=True)
-class ResultStep[Q, C, V, S: Float]:
+class ResultStep[Q, C, V, S: Float](BaseModel):
+    model_config = ConfigDict(frozen=True)
     queries: Mapping[Q, QueryResultStep[C, V, S]]
     metadata: JsonEntry
 
@@ -87,8 +85,8 @@ class ResultStep[Q, C, V, S: Float]:
         return self.default_query.case
 
 
-@dataclass(slots=True, frozen=True)
-class Result[Q, C, V, S: Float]:
+class Result[Q, C, V, S: Float](BaseModel):
+    model_config = ConfigDict(frozen=True)
     steps: list[ResultStep[Q, C, V, S]]
 
     @property
@@ -131,13 +129,15 @@ class Result[Q, C, V, S: Float]:
     def case(self) -> V:
         return self.final_step.case
 
-    def as_dict(self) -> dict[str, Any]:
-        x = asdict(self)
 
-        for step in x["steps"]:
-            for item in step["queries"].values():
-                del item["filtered_casebase"]
-                del item["unfiltered_casebase"]
-                del item["query"]
+class CycleResult[Q, C, V, S: Float](BaseModel):
+    model_config = ConfigDict(frozen=True)
+    retrieval: Result[Q, C, V, S]
+    reuse: Result[Q, C, V, S]
 
-        return x
+    @property
+    def final_step(self) -> ResultStep[Q, C, V, S]:
+        if len(self.reuse.steps) > 0:
+            return self.reuse.final_step
+
+        return self.retrieval.final_step

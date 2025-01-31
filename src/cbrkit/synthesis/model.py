@@ -1,21 +1,18 @@
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
-from typing import Any
+
+from pydantic import BaseModel, ConfigDict
 
 from ..helpers import singleton
 from ..typing import JsonEntry
 
 
-@dataclass(slots=True, frozen=True)
-class QueryResultStep[T]:
+class QueryResultStep[T](BaseModel):
+    model_config = ConfigDict(frozen=True)
     response: T
 
-    def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
-
-@dataclass(slots=True, frozen=True)
-class ResultStep[Q, T]:
+class ResultStep[Q, T](BaseModel):
+    model_config = ConfigDict(frozen=True)
     queries: Mapping[Q, QueryResultStep[T]]
     metadata: JsonEntry
 
@@ -28,8 +25,8 @@ class ResultStep[Q, T]:
         return self.default_query.response
 
 
-@dataclass(slots=True, frozen=True)
-class Result[Q, T]:
+class Result[Q, T](BaseModel):
+    model_config = ConfigDict(frozen=True)
     steps: list[ResultStep[Q, T]]
 
     @property
@@ -51,6 +48,3 @@ class Result[Q, T]:
     @property
     def response(self) -> T:
         return self.final_step.response
-
-    def as_dict(self) -> dict[str, Any]:
-        return asdict(self)

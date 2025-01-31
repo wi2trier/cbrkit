@@ -19,6 +19,43 @@ from ..typing import (
     SynthesizerPromptFunc,
 )
 
+# todo: how to replace generation_func/prompt_func with synthesis_func?
+# todo: how to batchify this?
+# @dataclass(slots=True, frozen=True)
+# class sequential_chunks[P, R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
+#     generation_func: MaybeFactory[AnyConversionFunc[P, R]]
+#     prompt_func: SynthesizerPromptFunc[P, K, V, S]
+#     conversion_func: ConversionFunc[tuple[P, list[R]], P]
+#     chunk_size: int
+
+#     def __call__(
+#         self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
+#     ) -> Sequence[R]:
+#         func = unbatchify_conversion(self.generation_func)
+#         result_chunks: list[Sequence[R]] = []
+
+#         for casebase, query, similarities in batches:
+#             key_chunks = chunkify(list(casebase.keys()), self.chunk_size)
+#             chunk_batches = [
+#                 (
+#                     {key: casebase[key] for key in chunk},
+#                     query,
+#                     {key: similarities[key] for key in chunk}
+#                     if similarities is not None
+#                     else None,
+#                 )
+#                 for chunk in key_chunks
+#             ]
+#             chunk_results: list[R] = []
+
+#             for chunk in chunk_batches:
+#                 prompt = self.conversion_func((self.prompt_func(*chunk), chunk_results))
+#                 chunk_results.append(func(prompt))
+
+#             result_chunks.append(chunk_results)
+
+#         return [result for chunk in result_chunks for result in chunk]
+
 
 @dataclass(slots=True, frozen=True)
 class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):

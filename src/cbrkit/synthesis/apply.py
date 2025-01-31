@@ -30,15 +30,15 @@ def apply_batches[R, Q, C, V, S: Float](
     synthesis_results = synthesis_func(list(batches.values()))
 
     return Result(
-        [
+        steps=[
             ResultStep(
-                {
-                    key: QueryResultStep(value)
+                queries={
+                    key: QueryResultStep(response=value)
                     for key, value in zip(
                         batches.keys(), synthesis_results, strict=True
                     )
                 },
-                get_metadata(synthesis_func),
+                metadata=get_metadata(synthesis_func),
             )
         ]
     )

@@ -46,7 +46,7 @@ def retrieve(
     result = cbrkit.retrieval.apply_queries(casebase, queries, retrievers)
 
     if output_path:
-        cbrkit.dumpers.file(output_path, result.as_dict())
+        cbrkit.dumpers.file(output_path, result)
 
     if print_ranking or print_similarities:
         for query_key, query_result in result.final_step.queries.items():
@@ -81,7 +81,7 @@ def reuse(
     result = cbrkit.reuse.apply_queries(casebase, queries, reusers)
 
     if output_path:
-        cbrkit.dumpers.file(output_path, result.as_dict())
+        cbrkit.dumpers.file(output_path, result)
 
 
 @app.command()
@@ -106,7 +106,7 @@ def cycle(
     result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
 
     if output_path:
-        cbrkit.dumpers.file(output_path, result.as_dict())
+        cbrkit.dumpers.file(output_path, result)
 
 
 @app.command()
@@ -138,7 +138,7 @@ def synthesis(
     )
 
     if output_path:
-        cbrkit.dumpers.file(output_path, synthesis_result.as_dict())
+        cbrkit.dumpers.file(output_path, synthesis_result)
 
 
 @app.command()
