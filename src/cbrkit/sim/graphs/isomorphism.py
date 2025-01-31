@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from ...helpers import batchify_sim, optional_dependencies, unpack_float
+from ...model.graph import Graph, Node
 from ...typing import (
     AggregatorFunc,
     AnySimFunc,
@@ -10,12 +11,12 @@ from ...typing import (
     SimFunc,
 )
 from ..aggregator import default_aggregator
-from .model import ElementMatcher, Graph, GraphSim, Node, default_element_matcher
+from .common import ElementMatcher, GraphSim, default_element_matcher
 
 with optional_dependencies():
     import rustworkx
 
-    from .model import to_rustworkx_with_lookup
+    from ...model.graph import to_rustworkx_with_lookup
 
 
 @dataclass(slots=True, frozen=True)

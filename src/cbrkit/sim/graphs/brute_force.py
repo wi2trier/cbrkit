@@ -4,18 +4,18 @@ from dataclasses import dataclass
 from typing import override
 
 from ...helpers import batchify_sim, unpack_float, unpack_floats
+from ...model.graph import (
+    Edge,
+    Graph,
+    Node,
+)
 from ...typing import (
     AnySimFunc,
     BatchSimFunc,
     Float,
     SimFunc,
 )
-from .model import (
-    Edge,
-    Graph,
-    GraphSim,
-    Node,
-)
+from .common import GraphSim
 
 
 @dataclass(slots=True, frozen=True)

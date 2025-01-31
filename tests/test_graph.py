@@ -3,14 +3,14 @@ import cbrkit
 
 def test_astar():
     casebase: cbrkit.typing.Casebase[
-        str, cbrkit.sim.graphs.Graph[str, str | int, None, str]
+        str, cbrkit.model.graph.Graph[str, str | int, None, str]
     ] = {
-        k: cbrkit.sim.graphs.from_dict(v)
-        for k, v in cbrkit.loaders.file("./data/graphs.json").items()
+        key: cbrkit.model.graph.load(value)
+        for key, value in cbrkit.loaders.file("./data/graphs.json").items()
     }
 
-    query: cbrkit.sim.graphs.Graph[str, str | int, None, str] = (
-        cbrkit.sim.graphs.from_dict(
+    query: cbrkit.model.graph.Graph[str, str | int, None, str] = (
+        cbrkit.model.graph.load(
             {
                 "nodes": {
                     "node1": {"value": "A string value"},
@@ -25,7 +25,7 @@ def test_astar():
     )
 
     node_sim: cbrkit.typing.BatchSimFunc[
-        cbrkit.sim.graphs.Node[str, str | int], float
+        cbrkit.model.graph.Node[str, str | int], float
     ] = cbrkit.sim.transpose_value(
         cbrkit.sim.type_table(
             {

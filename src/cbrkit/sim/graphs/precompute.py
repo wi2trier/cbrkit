@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from ...helpers import (
     batchify_sim,
 )
-from ...typing import AnySimFunc, BatchSimFunc, Float
-from .model import (
+from ...model.graph import (
     Edge,
     Graph,
     Node,
 )
+from ...typing import AnySimFunc, BatchSimFunc, Float
 
 
 @dataclass(slots=True, frozen=True)

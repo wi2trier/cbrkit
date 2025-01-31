@@ -2,32 +2,34 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal
 
 from frozendict import frozendict
 from pydantic import BaseModel
 
-from ...helpers import identity, optional_dependencies
-from ...typing import ConversionFunc, StructuredValue
+from ..helpers import identity, optional_dependencies
+from ..typing import ConversionFunc, StructuredValue
 
-type ElementType = Literal["node", "edge"]
+__all__ = [
+    "Node",
+    "Edge",
+    "Graph",
+    "GraphElementType",
+    "SerializedNode",
+    "SerializedEdge",
+    "SerializedGraph",
+    "dump",
+    "load",
+    "is_sequential",
+    "from_rustworkx",
+    "to_rustworkx",
+    "to_rustworkx_with_lookup",
+    "from_networkx",
+    "to_networkx",
+    "to_sequence",
+]
 
-
-@dataclass(slots=True, frozen=True)
-class GraphSim[K](StructuredValue[float]):
-    value: float
-    node_mapping: dict[K, K]
-    edge_mapping: dict[K, K]
-    node_similarities: dict[K, float]
-    edge_similarities: dict[K, float]
-
-
-class ElementMatcher[T](Protocol):
-    def __call__(self, x: T, y: T, /) -> bool: ...
-
-
-def default_element_matcher(x: Any, y: Any) -> bool:
-    return type(x) is type(y)
+type GraphElementType = Literal["node", "edge"]
 
 
 class SerializedNode[N](BaseModel):
@@ -143,7 +145,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         return cls(node_map, edge_map, value)
 
 
-def to_dict[K, N, E, G](
+def dump[K, N, E, G](
     g: Graph[K, N, E, G],
     node_converter: ConversionFunc[N, N] = identity,
     edge_converter: ConversionFunc[E, E] = identity,
@@ -152,7 +154,7 @@ def to_dict[K, N, E, G](
     return g.dump(node_converter, edge_converter, graph_converter).model_dump()
 
 
-def from_dict(
+def load(
     g: Any,
     node_converter: ConversionFunc[Any, Any] = identity,
     edge_converter: ConversionFunc[Any, Any] = identity,
@@ -164,35 +166,6 @@ def from_dict(
         edge_converter,
         graph_converter,
     )
-
-
-def load[K](
-    data: Mapping[K, Any],
-    node_converter: ConversionFunc[Any, Any] = identity,
-    edge_converter: ConversionFunc[Any, Any] = identity,
-    graph_converter: ConversionFunc[Any, Any] = identity,
-) -> dict[K, Graph[Any, Any, Any, Any]]:
-    return {
-        key: from_dict(
-            value,
-            node_converter,
-            edge_converter,
-            graph_converter,
-        )
-        for key, value in data.items()
-    }
-
-
-def dump[T, K, N, E, G](
-    data: Mapping[T, Graph[K, N, E, G]],
-    node_converter: ConversionFunc[N, N] = identity,
-    edge_converter: ConversionFunc[E, E] = identity,
-    graph_converter: ConversionFunc[G, G] = identity,
-) -> dict[T, SerializedGraph[K, N, E, G]]:
-    return {
-        key: value.dump(node_converter, edge_converter, graph_converter)
-        for key, value in data.items()
-    }
 
 
 def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:

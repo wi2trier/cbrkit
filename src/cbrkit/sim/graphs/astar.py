@@ -15,16 +15,14 @@ from ...helpers import (
     unpack_float,
     unpack_floats,
 )
-from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
-from .model import (
+from ...model.graph import (
     Edge,
-    ElementMatcher,
-    ElementType,
     Graph,
-    GraphSim,
+    GraphElementType,
     Node,
-    default_element_matcher,
 )
+from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
+from .common import ElementMatcher, GraphSim, default_element_matcher
 
 __all__ = [
     "PastSimFunc",
@@ -98,7 +96,7 @@ class SelectionFunc[K, N, E, G](Protocol):
         y: Graph[K, N, E, G],
         s: State[K],
         /,
-    ) -> None | tuple[K, ElementType]: ...
+    ) -> None | tuple[K, GraphElementType]: ...
 
 
 class InitFunc[K, N, E, G](Protocol):
@@ -314,7 +312,7 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
-    ) -> None | tuple[K, ElementType]:
+    ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
         if s.remaining_nodes:
@@ -333,7 +331,7 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
-    ) -> None | tuple[K, ElementType]:
+    ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
         edge_candidates = (
@@ -366,10 +364,10 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
-    ) -> None | tuple[K, ElementType]:
+    ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        heuristic_scores: list[tuple[K, ElementType, float]] = []
+        heuristic_scores: list[tuple[K, GraphElementType, float]] = []
 
         for y_key in s.remaining_nodes:
             heuristic_scores.append((y_key, "node", self.heuristic_func(x, y, s)))

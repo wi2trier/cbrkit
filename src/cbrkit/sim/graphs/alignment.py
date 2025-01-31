@@ -1,11 +1,12 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from .model import Graph, Node, Edge, GraphSim, to_sequence
 
 from ...helpers import batchify_sim, unbatchify_sim, unpack_float, unpack_floats
+from ...model.graph import Edge, Graph, Node, to_sequence
 from ...typing import AnySimFunc, Float, SimFunc
 from ..collections import dtw as dtwmodule
 from ..collections import smith_waterman as minineedle_sw
+from .common import GraphSim
 
 __all__ = [
     "dtw",
@@ -94,7 +95,7 @@ class dtw[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         normalize: Whether to normalize the similarity score by the alignment length (default: True).
 
     Examples:
-        >>> from .model import Node, Edge, Graph, SerializedGraph
+        >>> from ...model.graph import Node, Edge, Graph, SerializedGraph
         >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
         >>> edge_similarity = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
 
@@ -207,7 +208,7 @@ class smith_waterman[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         normalize: Whether to normalize the final similarity (default True).
 
     Examples:
-        >>> from .model import Node, Edge, Graph, SerializedGraph
+        >>> from ...model.graph import Node, Edge, Graph, SerializedGraph
         >>> node_similarity = lambda n1, n2: 1.0 if n1.value == n2.value else 0.0
         >>> edge_sim_func = lambda e1, e2: 1.0 if e1.value == e2.value else 0.0
         >>> def dataflow_dummy(a, b): return 0.5  # pretend data flow sim
