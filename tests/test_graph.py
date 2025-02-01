@@ -5,12 +5,12 @@ def test_astar():
     casebase: cbrkit.typing.Casebase[
         str, cbrkit.model.graph.Graph[str, str | int, None, str]
     ] = {
-        key: cbrkit.model.graph.load(value)
+        key: cbrkit.model.graph.from_dict(value)
         for key, value in cbrkit.loaders.file("./data/graphs.json").items()
     }
 
     query: cbrkit.model.graph.Graph[str, str | int, None, str] = (
-        cbrkit.model.graph.load(
+        cbrkit.model.graph.from_dict(
             {
                 "nodes": {
                     "node1": {"value": "A string value"},

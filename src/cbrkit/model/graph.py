@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from frozendict import frozendict
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..helpers import identity, optional_dependencies
 from ..typing import ConversionFunc, StructuredValue
@@ -18,8 +18,8 @@ __all__ = [
     "SerializedNode",
     "SerializedEdge",
     "SerializedGraph",
-    "dump",
-    "load",
+    "to_dict",
+    "from_dict",
     "is_sequential",
     "from_rustworkx",
     "to_rustworkx",
@@ -39,13 +39,13 @@ class SerializedNode[N](BaseModel):
 class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
-    value: E
+    value: Annotated[E, Field(default=None)]
 
 
 class SerializedGraph[K, N, E, G](BaseModel):
-    nodes: Mapping[K, SerializedNode[N]]
+    nodes: Mapping[K, N | SerializedNode[N]]
     edges: Mapping[K, SerializedEdge[K, E]]
-    value: G
+    value: Annotated[G, Field(default=None)]
 
 
 @dataclass(slots=True, frozen=True)
@@ -57,10 +57,13 @@ class Node[K, N](StructuredValue[N]):
 
     @classmethod
     def load(
-        cls, key: K, obj: SerializedNode[N], converter: ConversionFunc[N, N] = identity
+        cls,
+        key: K,
+        obj: N | SerializedNode[N],
+        converter: ConversionFunc[N, N] = identity,
     ) -> Node[K, N]:
         return cls(
-            converter(obj.value),
+            converter(obj.value) if isinstance(obj, SerializedNode) else obj,
             key,
         )
 
@@ -114,7 +117,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
     @classmethod
     def load(
         cls,
-        g: SerializedGraph[K, N, E, G],
+        g: Any | SerializedGraph[K, N, E, G],
         node_converter: ConversionFunc[N, N] = identity,
         edge_converter: ConversionFunc[E, E] = identity,
         graph_converter: ConversionFunc[G, G] = identity,
@@ -142,7 +145,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         return cls(value, node_map, edge_map)
 
 
-def dump[K, N, E, G](
+def to_dict[K, N, E, G](
     g: Graph[K, N, E, G],
     node_converter: ConversionFunc[N, N] = identity,
     edge_converter: ConversionFunc[E, E] = identity,
@@ -151,7 +154,7 @@ def dump[K, N, E, G](
     return g.dump(node_converter, edge_converter, graph_converter).model_dump()
 
 
-def load(
+def from_dict(
     g: Any,
     node_converter: ConversionFunc[Any, Any] = identity,
     edge_converter: ConversionFunc[Any, Any] = identity,
