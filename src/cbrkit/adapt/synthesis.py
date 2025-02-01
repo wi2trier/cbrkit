@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ..synthesis.build import transpose
 from ..typing import (
@@ -13,6 +13,7 @@ from ..typing import (
 
 
 class SynthesisResponse[K, V](BaseModel):
+    model_config = ConfigDict(frozen=True)
     casebase: Mapping[K, V]
 
 

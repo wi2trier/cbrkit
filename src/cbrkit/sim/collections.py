@@ -97,7 +97,6 @@ class SequenceSim[V, S: Float](StructuredValue[float]):
         mapping: Optional alignment information as a sequence of tuples.
     """
 
-    value: float
     similarities: Sequence[S] | None = field(default=None)
     mapping: Sequence[tuple[V, V]] | None = field(default=None)
 

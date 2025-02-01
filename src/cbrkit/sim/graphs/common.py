@@ -6,7 +6,6 @@ from ...typing import StructuredValue
 
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
-    value: float
     node_mapping: dict[K, K]
     edge_mapping: dict[K, K]
     node_similarities: dict[K, float]

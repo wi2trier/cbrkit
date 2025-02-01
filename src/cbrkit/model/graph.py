@@ -51,7 +51,6 @@ class SerializedGraph[K, N, E, G](BaseModel):
 @dataclass(slots=True, frozen=True)
 class Node[K, N](StructuredValue[N]):
     key: K
-    value: N
 
     def dump(self, converter: ConversionFunc[N, N] = identity) -> SerializedNode[N]:
         return SerializedNode(value=converter(self.value))
@@ -61,8 +60,8 @@ class Node[K, N](StructuredValue[N]):
         cls, key: K, obj: SerializedNode[N], converter: ConversionFunc[N, N] = identity
     ) -> Node[K, N]:
         return cls(
-            key,
             converter(obj.value),
+            key,
         )
 
 
@@ -71,7 +70,6 @@ class Edge[K, N, E](StructuredValue[E]):
     key: K
     source: Node[K, N]
     target: Node[K, N]
-    value: E
 
     def dump(self, converter: ConversionFunc[E, E] = identity) -> SerializedEdge[K, E]:
         return SerializedEdge(
@@ -89,10 +87,10 @@ class Edge[K, N, E](StructuredValue[E]):
         converter: ConversionFunc[E, E] = identity,
     ) -> Edge[K, N, E]:
         return cls(
+            converter(obj.value),
             key,
             nodes[obj.source],
             nodes[obj.target],
-            converter(obj.value),
         )
 
 
@@ -100,7 +98,6 @@ class Edge[K, N, E](StructuredValue[E]):
 class Graph[K, N, E, G](StructuredValue[G]):
     nodes: frozendict[K, Node[K, N]]
     edges: frozendict[K, Edge[K, N, E]]
-    value: G
 
     def dump(
         self,
@@ -130,7 +127,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
             (key, Edge.load(key, value, nodes, edge_converter))
             for key, value in g.edges.items()
         )
-        return cls(nodes, edges, graph_converter(g.value))
+        return cls(graph_converter(g.value), nodes, edges)
 
     @classmethod
     def build(
@@ -142,7 +139,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         node_map = frozendict((node.key, node) for node in nodes)
         edge_map = frozendict((edge.key, edge) for edge in edges)
 
-        return cls(node_map, edge_map, value)
+        return cls(value, node_map, edge_map)
 
 
 def dump[K, N, E, G](
@@ -293,14 +290,22 @@ with optional_dependencies():
 
     def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
         nodes = frozendict(
-            (idx, Node(idx, g.get_node_data(idx))) for idx in g.node_indices()
+            (idx, Node(key=idx, value=g.get_node_data(idx))) for idx in g.node_indices()
         )
         edges = frozendict(
-            (edge_id, Edge(edge_id, nodes[source_id], nodes[target_id], edge_data))
+            (
+                edge_id,
+                Edge(
+                    key=edge_id,
+                    source=nodes[source_id],
+                    target=nodes[target_id],
+                    value=edge_data,
+                ),
+            )
             for edge_id, (source_id, target_id, edge_data) in g.edge_index_map().items()
         )
 
-        return Graph(nodes, edges, g.attrs)
+        return Graph(nodes=nodes, edges=edges, value=g.attrs)
 
 
 with optional_dependencies():
@@ -338,11 +343,21 @@ with optional_dependencies():
         return ng
 
     def from_networkx(g: nx.DiGraph) -> Graph[Any, Any, Any, Any]:
-        nodes = frozendict((idx, Node(idx, data)) for idx, data in g.nodes(data=True))
+        nodes = frozendict(
+            (idx, Node(key=idx, value=data)) for idx, data in g.nodes(data=True)
+        )
 
         edges = frozendict(
-            (idx, Edge(idx, nodes[source_id], nodes[target_id], edge_data))
+            (
+                idx,
+                Edge(
+                    key=idx,
+                    source=nodes[source_id],
+                    target=nodes[target_id],
+                    value=edge_data,
+                ),
+            )
             for idx, (source_id, target_id, edge_data) in enumerate(g.edges(data=True))
         )
 
-        return Graph(nodes, edges, g.graph)
+        return Graph(nodes=nodes, edges=edges, value=g.graph)

@@ -20,7 +20,6 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class AttributeValueSim[S: Float](StructuredValue[float]):
-    value: float
     attributes: Mapping[str, S]
 
 

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -59,7 +60,8 @@ type JsonDict = dict[str, JsonEntry]
 type NumpyArray = npt.NDArray[np.float64]
 
 
-class StructuredValue[T](ABC):
+@dataclass(slots=True, frozen=True)
+class StructuredValue[T]:
     value: T
 
 

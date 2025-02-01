@@ -62,7 +62,6 @@ class PriorityState[K]:
 
 @dataclass(slots=True, frozen=True)
 class PastSim[K](StructuredValue[float]):
-    value: float
     node_similarities: Mapping[K, float]
     edge_similarities: Mapping[K, float]
 

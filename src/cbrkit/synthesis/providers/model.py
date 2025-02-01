@@ -18,13 +18,11 @@ class ChatMessage:
 
 @dataclass(slots=True, frozen=True)
 class ChatPrompt[P](StructuredValue[P]):
-    value: P
     messages: Sequence[ChatMessage]
 
 
 @dataclass(slots=True, frozen=True)
 class DocumentsPrompt[P](StructuredValue[P]):
-    value: P
     documents: Mapping[str, Mapping[str, str]]
 
 

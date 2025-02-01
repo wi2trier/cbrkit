@@ -16,8 +16,8 @@ class QueryResultStep[K, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
     similarities: SimMap[K, S]
     ranking: Sequence[K]
-    casebase: Annotated[Casebase[K, V], Field(exclude=True)]
-    query: Annotated[V, Field(exclude=True)]
+    casebase: Annotated[Casebase[K, V], Field(default=None, exclude=True)]
+    query: Annotated[V, Field(default=None, exclude=True)]
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
