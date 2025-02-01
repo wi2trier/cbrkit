@@ -9,7 +9,7 @@ from .model import ChatPrompt, ChatProvider
 
 with optional_dependencies():
     from openai import AsyncOpenAI, pydantic_function_tool
-    from openai._types import NOT_GIVEN
+    from openai._types import NOT_GIVEN, NotGiven
     from openai.types.chat import (
         ChatCompletionMessageParam,
         ChatCompletionNamedToolChoiceParam,
@@ -17,6 +17,9 @@ with optional_dependencies():
     )
 
     type OpenaiPrompt = str | ChatPrompt[str]
+
+    def if_given[T](value: T | None) -> T | NotGiven:
+        return value if value is not None else NOT_GIVEN
 
     @dataclass(slots=True)
     class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
@@ -101,25 +104,25 @@ with optional_dependencies():
                 model=self.model,
                 messages=messages,
                 response_format=self.response_type
-                if not tools and issubclass(self.response_type, BaseModel)
+                if tools is None and issubclass(self.response_type, BaseModel)
                 else NOT_GIVEN,
-                tools=tools or NOT_GIVEN,
-                tool_choice=tool_choice or NOT_GIVEN,
-                frequency_penalty=self.frequency_penalty,
-                logit_bias=self.logit_bias,
-                logprobs=self.logprobs,
-                max_completion_tokens=self.max_completion_tokens,
-                metadata=self.metadata,
-                n=self.n,
-                presence_penalty=self.presence_penalty,
-                seed=self.seed,
-                stop=self.stop,
-                store=self.store,
-                reasoning_effort=self.reasoning_effort or NOT_GIVEN,
-                temperature=self.temperature,
-                timeout=self.timeout,
-                top_logprobs=self.top_logprobs,
-                top_p=self.top_p,
+                tools=if_given(tools),
+                tool_choice=if_given(tool_choice),
+                frequency_penalty=if_given(self.frequency_penalty),
+                logit_bias=if_given(self.logit_bias),
+                logprobs=if_given(self.logprobs),
+                max_completion_tokens=if_given(self.max_completion_tokens),
+                metadata=if_given(self.metadata),
+                n=if_given(self.n),
+                presence_penalty=if_given(self.presence_penalty),
+                seed=if_given(self.seed),
+                stop=if_given(self.stop),
+                store=if_given(self.store),
+                reasoning_effort=if_given(self.reasoning_effort),
+                temperature=if_given(self.temperature),
+                timeout=if_given(self.timeout),
+                top_logprobs=if_given(self.top_logprobs),
+                top_p=if_given(self.top_p),
                 **self.extra_kwargs,
             )
 
