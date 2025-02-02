@@ -13,13 +13,10 @@ def test_astar():
         cbrkit.model.graph.from_dict(
             {
                 "nodes": {
-                    "node1": {"value": "A string value"},
-                    "node2": {"value": 42},
+                    "node1": "A string value",
+                    "node2": 42,
                 },
-                "edges": {
-                    "edge1": {"source": "node1", "target": "node2", "value": None}
-                },
-                "value": "Some query",
+                "edges": {"edge1": {"source": "node1", "target": "node2"}},
             }
         )
     )

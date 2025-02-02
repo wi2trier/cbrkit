@@ -15,7 +15,6 @@ __all__ = [
     "Edge",
     "Graph",
     "GraphElementType",
-    "SerializedNode",
     "SerializedEdge",
     "SerializedGraph",
     "to_dict",
@@ -32,10 +31,6 @@ __all__ = [
 type GraphElementType = Literal["node", "edge"]
 
 
-class SerializedNode[N](BaseModel):
-    value: N
-
-
 class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
@@ -43,7 +38,7 @@ class SerializedEdge[K, E](BaseModel):
 
 
 class SerializedGraph[K, N, E, G](BaseModel):
-    nodes: Mapping[K, N | SerializedNode[N]]
+    nodes: Mapping[K, N]
     edges: Mapping[K, SerializedEdge[K, E]]
     value: Annotated[G, Field(default=None)]
 
@@ -52,18 +47,18 @@ class SerializedGraph[K, N, E, G](BaseModel):
 class Node[K, N](StructuredValue[N]):
     key: K
 
-    def dump(self, converter: ConversionFunc[N, N] = identity) -> SerializedNode[N]:
-        return SerializedNode(value=converter(self.value))
+    def dump(self, converter: ConversionFunc[N, N] = identity) -> N:
+        return converter(self.value)
 
     @classmethod
     def load(
         cls,
         key: K,
-        obj: N | SerializedNode[N],
+        obj: N,
         converter: ConversionFunc[N, N] = identity,
     ) -> Node[K, N]:
         return cls(
-            converter(obj.value) if isinstance(obj, SerializedNode) else obj,
+            converter(obj),
             key,
         )
 
