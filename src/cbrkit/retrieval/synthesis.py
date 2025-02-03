@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -10,9 +9,6 @@ from ..typing import (
     RetrieverFunc,
     SynthesizerFunc,
 )
-
-# TODO: return ranking that is transformed to a similarity map
-# todo: compute mean average error between similarities from llm and benchmark
 
 
 class SynthesisResponse[K](BaseModel):
@@ -25,7 +21,7 @@ def _from_pydantic[K](obj: SynthesisResponse[K]) -> Mapping[K, float]:
 
 @dataclass(slots=True, frozen=True)
 class synthesis[K, V](RetrieverFunc[K, V, float]):
-    func: SynthesizerFunc[SynthesisResponse[K], K, V, Any]
+    func: SynthesizerFunc[SynthesisResponse[K], K, V, float]
 
     def __call__(
         self,
