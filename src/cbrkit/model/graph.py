@@ -112,7 +112,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
     @classmethod
     def load(
         cls,
-        g: Any | SerializedGraph[K, N, E, G],
+        g: SerializedGraph[K, N, E, G],
         node_converter: ConversionFunc[N, N] = identity,
         edge_converter: ConversionFunc[E, E] = identity,
         graph_converter: ConversionFunc[G, G] = identity,

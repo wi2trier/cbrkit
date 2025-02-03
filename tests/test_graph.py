@@ -21,16 +21,12 @@ def test_astar():
         )
     )
 
-    node_sim: cbrkit.typing.BatchSimFunc[
-        cbrkit.model.graph.Node[str, str | int], float
-    ] = cbrkit.sim.transpose_value(
-        cbrkit.sim.type_table(
-            {
-                str: cbrkit.sim.generic.equality(),
-                int: cbrkit.sim.numbers.linear_interval(0, 200),
-            },
-            default=cbrkit.sim.generic.static(0.0),
-        )
+    node_sim = cbrkit.sim.type_table(
+        {
+            str: cbrkit.sim.generic.equality(),
+            int: cbrkit.sim.numbers.linear_interval(0, 200),
+        },
+        default=cbrkit.sim.generic.static(0.0),
     )
 
     graph_sim = cbrkit.sim.graphs.astar.build(

@@ -20,6 +20,7 @@ from ...model.graph import (
     Node,
 )
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
+from ..wrappers import transpose_value
 from .common import ElementMatcher, GraphSim, default_element_matcher
 
 __all__ = [
@@ -138,10 +139,10 @@ class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
     def __init__(
         self,
-        node_sim_func: AnySimFunc[Node[K, N], Float],
+        node_sim_func: AnySimFunc[N, Float],
         edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
     ) -> None:
-        self.node_sim_func = batchify_sim(node_sim_func)
+        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
         self.edge_sim_func = (
             default_edge_sim(self.node_sim_func)
             if edge_sim_func is None
@@ -190,10 +191,10 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
     def __init__(
         self,
-        node_sim_func: AnySimFunc[Node[K, N], Float],
+        node_sim_func: AnySimFunc[N, Float],
         edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
     ) -> None:
-        self.node_sim_func = batchify_sim(node_sim_func)
+        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
         self.edge_sim_func = (
             default_edge_sim(self.node_sim_func)
             if edge_sim_func is None
@@ -256,10 +257,10 @@ class g1[K, N, E, G](PastSimFunc[K, N, E, G]):
 
     def __init__(
         self,
-        node_sim_func: AnySimFunc[Node[K, N], Float],
+        node_sim_func: AnySimFunc[N, Float],
         edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
     ) -> None:
-        self.node_sim_func = batchify_sim(node_sim_func)
+        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
         self.edge_sim_func = (
             default_edge_sim(self.node_sim_func)
             if edge_sim_func is None

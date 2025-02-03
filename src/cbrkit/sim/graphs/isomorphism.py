@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from ...helpers import batchify_sim, optional_dependencies, unpack_float
-from ...model.graph import Graph, Node
+from ...model.graph import Graph
 from ...typing import (
     AggregatorFunc,
     AnySimFunc,
@@ -11,6 +11,7 @@ from ...typing import (
     SimFunc,
 )
 from ..aggregator import default_aggregator
+from ..wrappers import transpose_value
 from .common import ElementMatcher, GraphSim, default_element_matcher
 
 with optional_dependencies():
@@ -29,7 +30,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     - Return the isomorphism mapping with the highest similarity.
     """
 
-    node_sim_func: AnySimFunc[Node[K, N], Float]
+    node_sim_func: AnySimFunc[N, Float]
     aggregator: AggregatorFunc[Any, Float] = default_aggregator
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
@@ -44,7 +45,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        node_sim_func = batchify_sim(self.node_sim_func)
+        node_sim_func = batchify_sim(transpose_value(self.node_sim_func))
 
         x_rw, x_lookup = to_rustworkx_with_lookup(x)
         y_rw, y_lookup = to_rustworkx_with_lookup(y)

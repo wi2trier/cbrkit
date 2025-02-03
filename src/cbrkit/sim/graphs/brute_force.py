@@ -15,6 +15,7 @@ from ...typing import (
     Float,
     SimFunc,
 )
+from ..wrappers import transpose_value
 from .common import GraphSim
 
 
@@ -54,10 +55,10 @@ class brute_force[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     def __init__(
         self,
-        node_sim_func: AnySimFunc[Node[K, N], Float],
+        node_sim_func: AnySimFunc[N, Float],
         edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
     ) -> None:
-        self.node_sim_func = batchify_sim(node_sim_func)
+        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
         if edge_sim_func is None:
             self.edge_sim_func = default_edge_sim(self.node_sim_func)
         else:

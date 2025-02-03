@@ -1,13 +1,26 @@
 import heapq
-from collections.abc import Callable, Collection, Sequence, Set
+from collections.abc import Collection, Sequence, Set
 from dataclasses import asdict, dataclass, field
 from itertools import product
 from typing import cast, override
 
 import numpy as np
 
-from ..helpers import dist2sim, get_metadata, optional_dependencies, unpack_float
-from ..typing import Float, HasMetadata, JsonDict, SimFunc, StructuredValue
+from ..helpers import (
+    dist2sim,
+    get_metadata,
+    optional_dependencies,
+    unbatchify_sim,
+    unpack_float,
+)
+from ..typing import (
+    AnySimFunc,
+    Float,
+    HasMetadata,
+    JsonDict,
+    SimFunc,
+    StructuredValue,
+)
 
 Number = float | int
 
@@ -101,7 +114,7 @@ class SequenceSim[V, S: Float](StructuredValue[float]):
     mapping: Sequence[tuple[V, V]] | None = field(default=None)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
     """
     Dynamic Time Warping similarity function with optional backtracking for alignment.
@@ -121,7 +134,10 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (3, 4)])
     """
 
-    distance_func: Callable[[V, V], Float] | None = None
+    distance_func: SimFunc[V, Float] | None
+
+    def __init__(self, distance_func: AnySimFunc[V, Float] | None = None):
+        self.distance_func = unbatchify_sim(distance_func) if distance_func else None
 
     def __call__(
         self,
