@@ -410,10 +410,11 @@ In the context of CBRkit, synthesis refers to creating new insights from the cas
 
 The following **providers** are currently supported if a valid API key is stored the respective environment variable:
 
-- OpenAI (`OPENAI_API_KEY`)
 - Anthropic (`ANTHROPIC_API_KEY`)
 - Cohere (`CO_API_KEY`)
+- Google (`GOOGLE_API_KEY`)
 - Ollama
+- OpenAI (`OPENAI_API_KEY`)
 
 The respective provider class in `cbrkit.synthesis.providers` has to be initialized with the model name and a response type (either `str` or a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/) for structured output). Further model options like `temperature`, `seed`, `max_tokens`, etc. can also be specified here.
 
@@ -424,10 +425,10 @@ If the casebase is small enough, that it fits inside the LLM's context window, y
 ```python
 import cbrkit
 
-casebase = cbrkit.loaders...
-retriever = cbrkit.retrieval...
+casebase = cbrkit.loaders.LOADER(...)
+retriever = cbrkit.retrieval.build(...)
 retrieval = cbrkit.retrieval.apply_query(...)
-provider = cbrkit.synthesis.providers...
+provider = cbrkit.synthesis.providers.PROVIDER(...)
 prompt = cbrkit.synthesis.prompts.default(instructions)
 synthesizer = cbrkit.synthesis.build(provider, prompt)
 response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
@@ -444,7 +445,7 @@ CBRKit's `transpose` prompt allows to transpose cases and queries before they ar
 ```python
 from cbrkit.typing import JsonEntry
 from cbrkit.dumpers import json_markdown
-...
+
 def encoder(value) -> dict:
     ...
 baseprompt = cbrkit.synthesis.prompts.default(instructions, encoder=encoder)
@@ -478,13 +479,13 @@ batches = [(casebase, query, retrieval.similarities) for query, retrieval in zip
 
 # Prompt which should be evaluated on each batch
 prompt = cbrkit.synthesis.prompts.default(instructions="...")
-provider = cbrkit.synthesis.providers...
+provider = cbrkit.synthesis.providers.PROVIDER(...)
 synthesizer = cbrkit.synthesis.build(provider, prompt)
 
 # prompt to aggregate the partial results into a final result
 pooling_prompt = cbrkit.synthesis.prompts.pooling(instructions="...")
 pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)
-get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, chunk_size=10)
+get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, size=10)
 response = get_result(batches)
 ```
 
@@ -544,4 +545,4 @@ When installing with the `api` extra, CBRkit provides a REST API server:
 cbrkit serve --help
 ```
 
-After starting the server, you can access the API documentation at `http://localhost:8000/docs`.
+After starting the server, you can access the API documentation at `http://localhost:8080/docs`.
