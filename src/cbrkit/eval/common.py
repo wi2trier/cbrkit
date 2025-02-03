@@ -1,12 +1,48 @@
 import itertools
 import statistics
 import warnings
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import cast
 
 from ..helpers import unpack_float
-from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
+from ..typing import ConversionFunc, EvalMetricFunc, Float, QueryCaseMatrix
 
 # https://amenra.github.io/ranx/metrics/
+
+
+def _compute_score_metric[T](
+    qrel_scores: Mapping[str, float],
+    run_scores: Mapping[str, float],
+    metric_func: Callable[[list[float], list[float]], T],
+) -> T:
+    keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
+
+    return metric_func(
+        [qrel_scores[key] for key in keys],
+        [run_scores[key] for key in keys],
+    )
+
+
+def compute_score_metric[T](
+    qrel_scores: Mapping[str, Mapping[str, float]],
+    run_scores: Mapping[str, Mapping[str, float]],
+    metric_func: Callable[[list[float], list[float]], T],
+    aggregation_func: ConversionFunc[list[T], T] | None = None,
+) -> T | float:
+    keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
+
+    scores = [
+        _compute_score_metric(qrel_scores[key], run_scores[key], metric_func)
+        for key in keys
+    ]
+
+    if len(scores) == 0:
+        return float("nan")
+
+    if aggregation_func is None:
+        return statistics.mean(cast(list[float], scores))
+
+    return aggregation_func(scores)
 
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
