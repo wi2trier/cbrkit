@@ -64,6 +64,7 @@ where `EXTRA_NAME` is one of the following:
 - `api`: REST API Server
 - `cli`: Command Line Interface (CLI)
 - `eval`: Evaluation tools for common metrics like `precision` and `recall`
+- `graphs`: Graph libraries like `networkx` and `rustworkx`
 - `llm`: Large Language Models (LLM) APIs like Ollama and OpenAI
 - `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
 - `timeseries`: Time series similarity measures like `dtw` and `smith_waterman`
