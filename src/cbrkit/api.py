@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import BaseModel, Field
 
 import cbrkit
 
@@ -8,6 +10,8 @@ with cbrkit.helpers.optional_dependencies("raise", "api"):
     from fastapi import FastAPI, UploadFile
     from fastapi.openapi.utils import get_openapi
     from pydantic_settings import BaseSettings, SettingsConfigDict
+
+type CasebaseSpec = dict[str, Any] | UploadFile | Path
 
 
 class Settings(BaseSettings):
@@ -41,7 +45,7 @@ loaded_synthesizers: dict[
 ] = load_callables(settings.synthesizer)
 
 
-def parse_dataset(obj: dict[str, Any] | UploadFile | Path) -> Mapping[str, Any]:
+def parse_dataset(obj: CasebaseSpec) -> Mapping[str, Any]:
     if isinstance(obj, dict):
         return obj
 
@@ -64,7 +68,7 @@ def parse_callables[T](
     keys: list[str] | str | None,
     loaded: dict[str, T],
 ) -> list[T]:
-    if keys is None:
+    if not keys:
         keys = list(loaded.keys())
     elif isinstance(keys, str):
         keys = [keys]
@@ -72,65 +76,81 @@ def parse_callables[T](
     return [loaded[name] for name in keys]
 
 
+class RetrieveRequest(BaseModel):
+    casebase: CasebaseSpec
+    queries: CasebaseSpec
+    retrievers: Annotated[list[str] | str, Field(default_factory=list)]
+
+
 @app.post("/retrieve")
 def retrieve(
-    casebase: dict[str, Any] | UploadFile | Path,
-    queries: dict[str, Any] | UploadFile | Path,
-    retrievers: list[str] | None = None,
+    request: RetrieveRequest,
 ) -> cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]:
     return cbrkit.retrieval.apply_queries(
-        parse_dataset(casebase),
-        parse_dataset(queries),
-        parse_callables(retrievers, loaded_retrievers),
+        parse_dataset(request.casebase),
+        parse_dataset(request.queries),
+        parse_callables(request.retrievers, loaded_retrievers),
     )
+
+
+class ReuseRequest(BaseModel):
+    casebase: CasebaseSpec
+    queries: CasebaseSpec
+    reusers: Annotated[list[str] | str, Field(default_factory=list)]
 
 
 @app.post("/reuse")
 def reuse(
-    casebase: dict[str, Any] | UploadFile | Path,
-    queries: dict[str, Any] | UploadFile | Path,
-    reusers: list[str] | None = None,
+    request: ReuseRequest,
 ) -> cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]:
     return cbrkit.reuse.apply_queries(
-        parse_dataset(casebase),
-        parse_dataset(queries),
-        parse_callables(reusers, loaded_reusers),
+        parse_dataset(request.casebase),
+        parse_dataset(request.queries),
+        parse_callables(request.reusers, loaded_reusers),
     )
+
+
+class CycleRequest(BaseModel):
+    casebase: CasebaseSpec
+    queries: CasebaseSpec
+    retrievers: Annotated[list[str] | str, Field(default_factory=list)]
+    reusers: Annotated[list[str] | str, Field(default_factory=list)]
 
 
 @app.post("/cycle")
 def cycle(
-    casebase: dict[str, Any] | UploadFile | Path,
-    queries: dict[str, Any] | UploadFile | Path,
-    retrievers: list[str] | None = None,
-    reusers: list[str] | None = None,
+    request: CycleRequest,
 ) -> cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float]:
     return cbrkit.cycle.apply_queries(
-        parse_dataset(casebase),
-        parse_dataset(queries),
-        parse_callables(retrievers, loaded_retrievers),
-        parse_callables(reusers, loaded_reusers),
+        parse_dataset(request.casebase),
+        parse_dataset(request.queries),
+        parse_callables(request.retrievers, loaded_retrievers),
+        parse_callables(request.reusers, loaded_reusers),
     )
+
+
+class SynthesizeRequest(BaseModel):
+    casebase: CasebaseSpec
+    queries: CasebaseSpec
+    synthesizer: str
+    retrievers: Annotated[list[str] | str, Field(default_factory=list)]
+    reusers: Annotated[list[str] | str, Field(default_factory=list)]
 
 
 @app.post("/synthesize")
 def synthesize(
-    casebase: dict[str, Any] | UploadFile | Path,
-    queries: dict[str, Any] | UploadFile | Path,
-    synthesizer: str,
-    retrievers: list[str] | None = None,
-    reusers: list[str] | None = None,
+    request: SynthesizeRequest,
 ) -> cbrkit.synthesis.Result[str, Any]:
     cycle_result = cbrkit.cycle.apply_queries(
-        parse_dataset(casebase),
-        parse_dataset(queries),
-        parse_callables(retrievers, loaded_retrievers),
-        parse_callables(reusers, loaded_reusers),
+        parse_dataset(request.casebase),
+        parse_dataset(request.queries),
+        parse_callables(request.retrievers, loaded_retrievers),
+        parse_callables(request.reusers, loaded_reusers),
     )
 
     return cbrkit.synthesis.apply_result(
         cycle_result.final_step,
-        loaded_synthesizers[synthesizer],
+        loaded_synthesizers[request.synthesizer],
     )
 
 
