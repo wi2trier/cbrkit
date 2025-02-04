@@ -10,58 +10,6 @@ with cbrkit.helpers.optional_dependencies("raise", "api"):
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-# dataclass_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-# @dataclass(slots=True, frozen=True, config=dataclass_config)
-# class RetrievalResult:
-#     steps: list[cbrkit.retrieval.ResultStep[str, str, Any, cbrkit.typing.Float]]
-
-#     @classmethod
-#     def build(
-#         cls,
-#         obj: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float],
-#     ) -> "RetrievalResult":
-#         return cls(obj.steps)
-
-
-# @dataclass(slots=True, frozen=True, config=dataclass_config)
-# class ReuseResult:
-#     steps: list[cbrkit.reuse.ResultStep[str, str, Any, cbrkit.typing.Float]]
-
-#     @classmethod
-#     def build(
-#         cls,
-#         obj: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float],
-#     ) -> "ReuseResult":
-#         return cls(obj.steps)
-
-
-# @dataclass(slots=True, frozen=True, config=dataclass_config)
-# class CycleResult:
-#     retrieval: cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]
-#     reuse: cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]
-
-#     @classmethod
-#     def build(
-#         cls,
-#         obj: cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float],
-#     ) -> "CycleResult":
-#         return cls(obj.retrieval, obj.reuse)
-
-
-# @dataclass(slots=True, frozen=True, config=dataclass_config)
-# class SynthesisResult:
-#     steps: list[cbrkit.synthesis.ResultStep[str, Any]]
-
-#     @classmethod
-#     def build(
-#         cls,
-#         obj: cbrkit.synthesis.Result[str, Any],
-#     ) -> "SynthesisResult":
-#         return cls(obj.steps)
-
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
     retriever: str = ""
