@@ -4,45 +4,50 @@ import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import cast
 
-from ..helpers import unpack_float
+from ..helpers import get_logger, unpack_float, unpack_floats
 from ..typing import ConversionFunc, EvalMetricFunc, Float, QueryCaseMatrix
 
-# https://amenra.github.io/ranx/metrics/
+logger = get_logger(__name__)
 
 
-def _compute_score_metric[T](
-    qrel_scores: Mapping[str, float],
-    run_scores: Mapping[str, float],
+def compute_score_metric[C, S: Float, T](
+    qrel_scores: Mapping[C, S],
+    run_scores: Mapping[C, S],
     metric_func: Callable[[list[float], list[float]], T],
 ) -> T:
     keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
 
     return metric_func(
-        [qrel_scores[key] for key in keys],
-        [run_scores[key] for key in keys],
+        unpack_floats(qrel_scores[key] for key in keys),
+        unpack_floats(run_scores[key] for key in keys),
     )
 
 
-def compute_score_metric[T](
-    qrel_scores: Mapping[str, Mapping[str, float]],
-    run_scores: Mapping[str, Mapping[str, float]],
-    metric_func: Callable[[list[float], list[float]], T],
+def compute_score_metrics[Q, C, S: Float, T](
+    qrel_scores: QueryCaseMatrix[Q, C, S],
+    run_scores: QueryCaseMatrix[Q, C, S],
+    metric_funcs: dict[str, Callable[[list[float], list[float]], T]],
     aggregation_func: ConversionFunc[list[T], T] | None = None,
-) -> T | float:
+) -> dict[str, T | float]:
+    metric_values: dict[str, T | float] = {}
     keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
 
-    scores = [
-        _compute_score_metric(qrel_scores[key], run_scores[key], metric_func)
-        for key in keys
-    ]
+    for metric_name, metric_func in metric_funcs.items():
+        scores = [
+            compute_score_metric(qrel_scores[key], run_scores[key], metric_func)
+            for key in keys
+        ]
 
-    if len(scores) == 0:
-        return float("nan")
+        if len(scores) == 0:
+            metric_value = float("nan")
+        elif aggregation_func is None:
+            metric_value = statistics.mean(cast(list[float], scores))
+        else:
+            metric_value = aggregation_func(scores)
 
-    if aggregation_func is None:
-        return statistics.mean(cast(list[float], scores))
+        metric_values[metric_name] = metric_value
 
-    return aggregation_func(scores)
+    return metric_values
 
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
@@ -153,8 +158,8 @@ def _correctness_single(
 
 
 def correctness(
-    qrels: Mapping[str, Mapping[str, int]],
-    run: Mapping[str, Mapping[str, float]],
+    qrels: QueryCaseMatrix[str, str, int],
+    run: QueryCaseMatrix[str, str, float],
     k: int,
     relevance_level: int,
 ) -> float:
@@ -185,8 +190,8 @@ def _completeness_single(
 
 
 def completeness(
-    qrels: Mapping[str, Mapping[str, int]],
-    run: Mapping[str, Mapping[str, float]],
+    qrels: QueryCaseMatrix[str, str, int],
+    run: QueryCaseMatrix[str, str, float],
     k: int,
     relevance_level: int,
 ) -> float:
@@ -202,8 +207,8 @@ def completeness(
 
 
 def mean_score(
-    qrels: Mapping[str, Mapping[str, int]],
-    run: Mapping[str, Mapping[str, float]],
+    qrels: QueryCaseMatrix[str, str, int],
+    run: QueryCaseMatrix[str, str, float],
     k: int,
     relevance_level: int,
 ) -> float:
@@ -224,8 +229,8 @@ def mean_score(
 
 
 def kendall_tau(
-    qrels: Mapping[str, Mapping[str, int]],
-    run: Mapping[str, Mapping[str, float]],
+    qrels: QueryCaseMatrix[str, str, int],
+    run: QueryCaseMatrix[str, str, float],
     k: int,
     relevance_level: int,
 ) -> float:
@@ -290,12 +295,33 @@ def compute[Q, C, S: Float](
     ]
     custom_metrics = [x for x in metrics if x not in ranx_metrics]
 
+    keys = set(qrels.keys()).intersection(set(run.keys()))
+    missing_qrel_keys = set(run.keys()).difference(keys)
+    missing_run_keys = set(qrels.keys()).difference(keys)
+
+    if len(missing_run_keys) > 0:
+        sorted_keys = sorted([str(x) for x in missing_run_keys])
+        logger.warning(
+            f"Missing keys in qrels: {', '.join(sorted_keys)}. "
+            "Ignoring these keys for evaluation."
+        )
+
+    if len(missing_qrel_keys) > 0:
+        sorted_keys = sorted([str(x) for x in missing_qrel_keys])
+        logger.warning(
+            f"Missing keys in run: {', '.join(sorted_keys)}. "
+            "Ignoring these keys for evaluation."
+        )
+
     parsed_qrels = {
-        str(qk): {str(ck): cv for ck, cv in qv.items()} for qk, qv in qrels.items()
+        str(qk): {str(ck): cv for ck, cv in qv.items()}
+        for qk, qv in qrels.items()
+        if qk in keys
     }
     parsed_run = {
         str(qk): {str(ck): unpack_float(cv) for ck, cv in qv.items()}
         for qk, qv in run.items()
+        if qk in keys
     }
 
     with warnings.catch_warnings():
