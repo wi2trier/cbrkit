@@ -9,13 +9,10 @@ there is also a function for attribute-value data.
 
 from . import generic, numbers, strings
 from .attribute_value import attribute_value
-from .synthesis import SynthesisResponse, synthesis
 
 __all__ = [
     "generic",
     "strings",
     "numbers",
     "attribute_value",
-    "synthesis",
-    "SynthesisResponse",
 ]
