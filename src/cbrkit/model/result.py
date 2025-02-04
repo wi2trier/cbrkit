@@ -1,7 +1,6 @@
 from collections.abc import Mapping, Sequence
-from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from ..helpers import sim_map2ranking, singleton
 from ..typing import (
@@ -16,8 +15,8 @@ class QueryResultStep[K, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
     similarities: SimMap[K, S]
     ranking: Sequence[K]
-    casebase: Annotated[Casebase[K, V], Field(default=None, exclude=True)]
-    query: Annotated[V, Field(default=None, exclude=True)]
+    casebase: Casebase[K, V]
+    query: V
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
