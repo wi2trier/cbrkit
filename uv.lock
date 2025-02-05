@@ -241,6 +241,7 @@ dependencies = [
     { name = "polars" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "rich" },
     { name = "rtoml" },
     { name = "scipy" },
     { name = "xmltodict" },
@@ -262,7 +263,6 @@ all = [
     { name = "pydantic-settings" },
     { name = "python-multipart" },
     { name = "ranx" },
-    { name = "rich" },
     { name = "rustworkx" },
     { name = "sentence-transformers" },
     { name = "spacy", version = "3.7.5", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
@@ -279,12 +279,10 @@ api = [
     { name = "fastapi" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
-    { name = "rich" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 cli = [
-    { name = "rich" },
     { name = "typer" },
 ]
 eval = [
@@ -355,7 +353,7 @@ requires-dist = [
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.15,<1" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "ranx", marker = "extra == 'eval'", specifier = ">=0.3,<1" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=13,<14" },
+    { name = "rich", specifier = ">=13,<14" },
     { name = "rtoml", specifier = ">=0.12,<1" },
     { name = "rustworkx", marker = "extra == 'graphs'", specifier = ">=0.15,<1" },
     { name = "scipy", specifier = ">=1,<2" },

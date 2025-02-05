@@ -11,6 +11,7 @@ import logging
 
 from . import (
     adapt,
+    constants,
     cycle,
     dumpers,
     eval,
@@ -37,6 +38,7 @@ __all__ = [
     "sim",
     "synthesis",
     "typing",
+    "constants",
 ]
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
