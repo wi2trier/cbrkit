@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 from frozendict import frozendict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ..helpers import identity, optional_dependencies
 from ..typing import ConversionFunc, StructuredValue
@@ -34,13 +34,13 @@ type GraphElementType = Literal["node", "edge"]
 class SerializedEdge[K, E](BaseModel):
     source: K
     target: K
-    value: Annotated[E, Field(default=None)]
+    value: E
 
 
 class SerializedGraph[K, N, E, G](BaseModel):
     nodes: Mapping[K, N]
     edges: Mapping[K, SerializedEdge[K, E]]
-    value: Annotated[G, Field(default=None)]
+    value: G
 
 
 @dataclass(slots=True, frozen=True)

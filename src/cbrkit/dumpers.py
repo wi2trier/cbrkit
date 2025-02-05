@@ -24,11 +24,20 @@ __all__ = [
 ]
 
 
-def preprocess(obj: Any) -> Any:
+def default_conversion_func(obj: Any) -> Any:
     if isinstance(obj, BaseModel):
-        return obj.model_dump()
+        return obj.model_dump(
+            exclude_unset=True,
+            exclude_none=True,
+        )
 
-    if isinstance(obj, dict) and any(not isinstance(obj, str) for t in (dict, list)):
+    if hasattr(obj, "to_dict"):
+        return default_conversion_func(obj.to_dict())
+
+    if hasattr(obj, "dump"):
+        return default_conversion_func(obj.dump())
+
+    if isinstance(obj, dict) and any(not isinstance(k, str) for k in obj.keys()):
         return {str(k): v for k, v in obj.items()}
 
     return obj
@@ -38,8 +47,10 @@ def preprocess(obj: Any) -> Any:
 class toml(ConversionFunc[Any, str]):
     """Writes an object to toml."""
 
+    conversion_func: ConversionFunc[Any, Any] = default_conversion_func
+
     def __call__(self, obj: Any) -> str:
-        return rtoml.dumps(preprocess(obj))
+        return rtoml.dumps(self.conversion_func(obj))
 
 
 @dataclass(slots=True, frozen=True)
@@ -83,8 +94,10 @@ class csv(ConversionFunc[Any, str]):
 class yaml(ConversionFunc[Any, str]):
     """Writes an object to a csv file."""
 
+    conversion_func: ConversionFunc[Any, Any] = default_conversion_func
+
     def __call__(self, obj: Any) -> str:
-        return yamllib.dump(preprocess(obj))
+        return yamllib.dump(self.conversion_func(obj))
 
 
 @dataclass(slots=True, frozen=True)
@@ -99,10 +112,11 @@ class json(ConversionFunc[Any, bytes]):
 
     default: Callable[[Any], Any] | None = None
     option: int | None = None
+    conversion_func: ConversionFunc[Any, Any] = default_conversion_func
 
     def __call__(self, obj: Any) -> bytes:
         return orjson.dumps(
-            preprocess(obj),
+            self.conversion_func(obj),
             default=self.default,
             option=self.option,
         )
@@ -134,7 +148,12 @@ class markdown(ConversionFunc[Any, str]):
     def __call__(self, obj: Any) -> str:
         language = get_name(self.dumper) if self.language is None else self.language
 
-        return f"```{language}\n{str(self.dumper(obj))}\n```"
+        dumped_obj = self.dumper(obj)
+
+        if isinstance(dumped_obj, bytes | bytearray):
+            dumped_obj = dumped_obj.decode("utf-8")
+
+        return f"```{language}\n{dumped_obj}\n```"
 
 
 def file(
