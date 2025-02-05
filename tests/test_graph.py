@@ -16,7 +16,10 @@ def test_astar():
                     "node1": "A string value",
                     "node2": 42,
                 },
-                "edges": {"edge1": {"source": "node1", "target": "node2"}},
+                "edges": {
+                    "edge1": {"source": "node1", "target": "node2", "value": None}
+                },
+                "value": None,
             }
         )
     )

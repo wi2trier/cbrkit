@@ -1,5 +1,6 @@
 {
   "first": {
+    "value": null,
     "nodes": {
       "node1": "A string value",
       "node2": 42,
@@ -9,17 +10,20 @@
     "edges": {
       "edge1": {
         "source": "node1",
-        "target": "node2"
+        "target": "node2",
+        "value": null
       },
-      "edge2": { "source": "node2", "target": "node3" },
+      "edge2": { "source": "node2", "target": "node3", "value": null },
       "edge3": {
         "source": "node3",
-        "target": "node4"
+        "target": "node4",
+        "value": null
       },
-      "edge4": { "source": "node4", "target": "node1" }
+      "edge4": { "source": "node4", "target": "node1", "value": null }
     }
   },
   "second": {
+    "value": null,
     "nodes": {
       "nodeA": "Alpha",
       "nodeB": 75,
@@ -29,14 +33,16 @@
     "edges": {
       "edgeA": {
         "source": "nodeA",
-        "target": "nodeB"
+        "target": "nodeB",
+        "value": null
       },
-      "edgeB": { "source": "nodeB", "target": "nodeC" },
+      "edgeB": { "source": "nodeB", "target": "nodeC", "value": null },
       "edgeC": {
         "source": "nodeC",
-        "target": "nodeD"
+        "target": "nodeD",
+        "value": null
       },
-      "edgeD": { "source": "nodeD", "target": "nodeA" }
+      "edgeD": { "source": "nodeD", "target": "nodeA", "value": null }
     }
   }
 }
