@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -66,7 +66,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
         >>> prompt(casebase, query, similarities) # doctest: +SKIP
     """
 
-    instructions: str | None = None
+    instructions: str | SynthesizerPromptFunc[str, Any, V, Float] | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
@@ -78,7 +78,9 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     ) -> str:
         result = ""
 
-        if self.instructions is not None:
+        if isinstance(self.instructions, Callable):
+            result += self.instructions(casebase, query, similarities)
+        elif isinstance(self.instructions, str):
             result += self.instructions
 
         if query is not None:
@@ -137,7 +139,7 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
         >>> prompt(casebase, query, similarities) # doctest: +SKIP
     """
 
-    instructions: str | None = None
+    instructions: str | SynthesizerPromptFunc[str, Any, V, Float] | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
@@ -149,7 +151,9 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
     ) -> DocumentsPrompt:
         result = ""
 
-        if self.instructions is not None:
+        if isinstance(self.instructions, Callable):
+            result += self.instructions(casebase, query, similarities)
+        elif isinstance(self.instructions, str):
             result += self.instructions
 
         if query is not None:
@@ -204,7 +208,7 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         >>> prompt([partial1, partial2, partial3]) # doctest: +SKIP
     """
 
-    instructions: str | None = None
+    instructions: str | ConversionPoolingFunc[V, str] | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
@@ -214,7 +218,9 @@ class pooling[V](ConversionPoolingFunc[V, str]):
     ) -> str:
         result = ""
 
-        if self.instructions is not None:
+        if isinstance(self.instructions, Callable):
+            result += self.instructions(values)
+        elif isinstance(self.instructions, str):
             result += self.instructions
 
         result += """
