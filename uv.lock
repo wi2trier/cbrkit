@@ -337,7 +337,7 @@ requires-dist = [
     { name = "cohere", marker = "extra == 'llm'", specifier = ">=5,<6" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.100,<1" },
     { name = "frozendict", specifier = ">=2,<3" },
-    { name = "google-genai", marker = "extra == 'llm'", specifier = ">=0.2,<1" },
+    { name = "google-genai", marker = "extra == 'llm'", specifier = ">=1,<2" },
     { name = "levenshtein", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'nlp') or (sys_platform == 'linux' and extra == 'nlp')", specifier = ">=0.26,<1" },
     { name = "levenshtein", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'nlp'", specifier = ">=0.23,<0.26" },
     { name = "minineedle", marker = "extra == 'timeseries'", specifier = ">=3,<4" },
@@ -815,7 +815,7 @@ wheels = [
 
 [[package]]
 name = "google-genai"
-version = "0.8.0"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "google-auth" },
@@ -823,9 +823,9 @@ dependencies = [
     { name = "requests" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d2/ef/d5a57aa9360f31b3a3b726fa4d0cc8b2ea14e3a6a0c482cca74a28ab5392/google_genai-0.8.0.tar.gz", hash = "sha256:b5730bcb144177cfcf6cfe44ab59611f8dec3f7c44599cfb321d5d71856a910e", size = 118835 }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/c3/fba38ba11a9b97b0a6ca6d46ec0dcd3c7bdf3ecf83eec6e6117ac25106c7/google_genai-1.0.0.tar.gz", hash = "sha256:15712abb808f891a14eafc9edf21b8cf92ea952f627dd0e2e939657efd234acd", size = 122958 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/6d/c5b1757ffe28fdfb38df3fda79c614ec840ebac0b72a3fcbe2ed969e254d/google_genai-0.8.0-py3-none-any.whl", hash = "sha256:dbaea9054f0e3547d9e5810390304574808d9cb5d77198b8a247f497271c8254", size = 125385 },
+    { url = "https://files.pythonhosted.org/packages/24/9d/63dbd2b6c630f44cbbf09c4e04b4c9012da01f6e585d34ae53d07931bb67/google_genai-1.0.0-py3-none-any.whl", hash = "sha256:e9c3abd48f46ecb2b0a51efa7f65c6830b50f9784df603a91019b43918a7531f", size = 129418 },
 ]
 
 [[package]]
