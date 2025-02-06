@@ -49,6 +49,17 @@ def transpose_value[P, K, V, S: Float](
     return transpose(func, get_value)
 
 
+def encode[T](value: T, encoder: ConversionFunc[T, str]) -> str:
+    if value is None:
+        return ""
+    elif isinstance(value, str):
+        return value
+    elif isinstance(value, int | float | bool):
+        return str(value)
+
+    return encoder(value)
+
+
 @dataclass(slots=True, frozen=True)
 class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     """Produces an LLM input which provides context for the LLM to be able to perform instructions.
@@ -87,7 +98,7 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
             result += f"""
 ## Query
 
-{self.encoder(query)}
+{encode(query, self.encoder)}
 """
 
         result += """
@@ -111,14 +122,14 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 """
 
             result += f"""
-{self.encoder(casebase[key])}
+{encode(casebase[key], self.encoder)}
 """
 
         if self.metadata is not None:
             result += f"""
 ## Metadata
 
-{self.encoder(self.metadata)}
+{encode(self.metadata, self.encoder)}
 """
 
         return result
@@ -160,14 +171,14 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
             result += f"""
 ## Query
 
-{self.encoder(query)}
+{encode(query, self.encoder)}
 """
 
         if self.metadata is not None:
             result += f"""
 ## Metadata
 
-{self.encoder(self.metadata)}
+{encode(self.metadata, self.encoder)}
 """
 
         ranking = (
@@ -180,13 +191,13 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
             result,
             {
                 key: {
-                    "text": self.encoder(casebase[key]),
+                    "text": encode(casebase[key], self.encoder),
                     "similarity": f"{unpack_float(similarities[key]):.3f}",
                     "rank": str(rank),
                 }
                 if similarities is not None
                 else {
-                    "text": self.encoder(casebase[key]),
+                    "text": encode(casebase[key], self.encoder),
                 }
                 for rank, key in enumerate(ranking)
             },
@@ -231,14 +242,14 @@ class pooling[V](ConversionPoolingFunc[V, str]):
             result += f"""
 ### Result {idx}
 
-{self.encoder(value)}
+{encode(value, self.encoder)}
 """
 
         if self.metadata is not None:
             result += f"""
 ## Metadata
 
-{self.encoder(self.metadata)}
+{encode(self.metadata, self.encoder)}
 """
 
         return result
