@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.1](https://github.com/wi2trier/cbrkit/compare/v0.21.0...v0.21.1) (2025-02-06)
+
+### Bug Fixes
+
+* **sim/embed:** add `load_spacy` to download models on demand ([babc594](https://github.com/wi2trier/cbrkit/commit/babc5947619381a8c9e20bf00b2e0df09ba3f911))
+
 ## [0.21.0](https://github.com/wi2trier/cbrkit/compare/v0.20.4...v0.21.0) (2025-02-05)
 
 ### ⚠ BREAKING CHANGES
