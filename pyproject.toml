@@ -95,6 +95,7 @@ Changelog = "https://github.com/wi2trier/cbrkit/releases"
 cbrkit = "cbrkit.cli:app"
 
 [dependency-groups]
+dev = ["pandas-stubs>=2,<3"]
 test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
 docs = ["pdoc>=15,<16"]
 
@@ -107,7 +108,10 @@ addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore dat
 doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
 
 [tool.uv]
-default-groups = ["test", "docs"]
+default-groups = ["dev", "test", "docs"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
