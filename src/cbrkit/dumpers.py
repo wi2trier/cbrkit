@@ -69,8 +69,8 @@ class csv(ConversionFunc[Any, str]):
         return flat_item
 
     @staticmethod
-    def __flatten_dict(nested_dict: dict) -> list[dict[str, Any]]:
-        flattened = []
+    def __flatten_dict(nested_dict: Any) -> list[dict[str, Any]]:
+        flattened: list[dict[str, Any]] = []
 
         # Handle both dict with numeric keys and list inputs
         items = nested_dict.values() if isinstance(nested_dict, dict) else nested_dict

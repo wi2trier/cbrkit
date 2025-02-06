@@ -5,9 +5,8 @@ This module provides several loaders to read data from different file formats an
 import csv as csvlib
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from io import IOBase
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import Any, BinaryIO, TextIO, cast
 
 import orjson
 import pandas as pd
@@ -36,7 +35,8 @@ __all__ = [
     "yaml",
 ]
 
-type ReadableType = str | bytes | IO | IOBase
+AnyIO = TextIO | BinaryIO
+ReadableType = str | bytes | TextIO | BinaryIO
 
 
 def read(data: ReadableType) -> str:
@@ -46,10 +46,7 @@ def read(data: ReadableType) -> str:
     elif isinstance(data, bytes | bytearray):
         return data.decode("utf-8")
 
-    elif isinstance(data, IO | IOBase):
-        return read(data.read())
-
-    raise TypeError(f"Invalid data type: {type(data)}")
+    return read(data.read())
 
 
 @dataclass(slots=True, frozen=True)
@@ -62,7 +59,7 @@ class pandas(Mapping[int, pd.Series]):
         if isinstance(key, str):
             return cast(pd.Series, self.df.loc[key])
 
-        return self.df.iloc[key]
+        return cast(pd.Series, self.df.iloc[key])
 
     def __iter__(self) -> Iterator[int]:
         return iter(range(self.df.shape[0]))
@@ -96,12 +93,17 @@ class py(ConversionFunc[str, Any]):
 
 
 @dataclass(slots=True, frozen=True)
-class csv(ConversionFunc[Iterable[str] | IO, dict[int, dict[str, str]]]):
+class csv(ConversionFunc[Iterable[str] | ReadableType, dict[int, dict[str, str]]]):
     """Reads a csv file and converts it into a dict representation"""
 
-    def __call__(self, source: Iterable[str] | IO) -> dict[int, dict[str, str]]:
-        data: dict[int, dict[str, str]] = {}
+    def __call__(
+        self, source: Iterable[str] | ReadableType
+    ) -> dict[int, dict[str, str]]:
+        if isinstance(source, ReadableType):
+            source = read(source).splitlines()
+
         reader = csvlib.DictReader(source)
+        data: dict[int, dict[str, str]] = {}
         row: dict[str, str]
 
         for idx, row in enumerate(reader):
@@ -175,12 +177,12 @@ class txt(ConversionFunc[ReadableType, str]):
         return read(source)
 
 
-def _csv_polars(source: IO | Path | str | bytes) -> Mapping[int, dict[str, Any]]:
+def _csv_polars(source: Path | ReadableType) -> Mapping[int, dict[str, Any]]:
     return polars(pl.read_csv(source))
 
 
-StructuredLoader = Callable[[IO], Mapping[Any, Any]]
-AnyLoader = Callable[[IO], Any]
+StructuredLoader = Callable[[AnyIO], Mapping[Any, Any]]
+AnyLoader = Callable[[AnyIO], Any]
 
 structured_loaders: dict[str, StructuredLoader] = {
     ".json": json(),
