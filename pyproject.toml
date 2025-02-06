@@ -112,6 +112,3 @@ default-groups = ["dev", "test", "docs"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.basedpyright]
-typeCheckingMode = "standard"
