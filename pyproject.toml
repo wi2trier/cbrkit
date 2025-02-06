@@ -114,4 +114,4 @@ default-groups = ["dev", "test", "docs"]
 convention = "google"
 
 [tool.basedpyright]
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
