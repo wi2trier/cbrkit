@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.2](https://github.com/wi2trier/cbrkit/compare/v0.21.1...v0.21.2) (2025-02-13)
+
+### Bug Fixes
+
+* **synthesis:** improve encoding of data for prompts ([d37c70f](https://github.com/wi2trier/cbrkit/commit/d37c70f5c9663317a3651a9c9ca9e638159a18f2))
+
 ## [0.21.1](https://github.com/wi2trier/cbrkit/compare/v0.21.0...v0.21.1) (2025-02-06)
 
 ### Bug Fixes
