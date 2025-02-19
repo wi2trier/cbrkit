@@ -17,12 +17,30 @@ from ..typing import (
 from .providers.model import DocumentsPrompt
 
 __all__ = [
+    "concat",
     "transpose",
     "transpose_value",
     "default",
     "documents_aware",
     "pooling",
 ]
+
+
+@dataclass(slots=True, frozen=True)
+class concat[K, V, S: Float](SynthesizerPromptFunc[str, K, V, S]):
+    prompts: Sequence[SynthesizerPromptFunc[str, K, V, S] | str]
+    separator: str = "\n\n"
+
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V | None,
+        similarities: SimMap[K, S] | None,
+    ) -> str:
+        return self.separator.join(
+            prompt if isinstance(prompt, str) else prompt(casebase, query, similarities)
+            for prompt in self.prompts
+        )
 
 
 @dataclass(slots=True, frozen=True)
