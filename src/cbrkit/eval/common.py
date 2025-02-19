@@ -2,7 +2,7 @@ import itertools
 import statistics
 import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import cast
+from typing import Any, cast
 
 from ..helpers import get_logger, unpack_float, unpack_floats
 from ..typing import ConversionFunc, EvalMetricFunc, Float, QueryCaseMatrix
@@ -250,8 +250,9 @@ def kendall_tau(
         max_idx = min(len(run_k), len(sorted_qrel_relevant))
         run_ranking = sorted_run[:max_idx]
         qrel_ranking = sorted_qrel_relevant[:max_idx]
+        score: Any = kendalltau(run_ranking, qrel_ranking)
 
-        scores.append(kendalltau(run_ranking, qrel_ranking).statistic)
+        scores.append(score.statistic)
 
     try:
         return statistics.mean(scores)
