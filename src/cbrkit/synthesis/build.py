@@ -4,12 +4,10 @@ from typing import Literal
 
 from ..helpers import (
     batchify_conversion,
-    batchify_positional,
     chunkify_overlap,
 )
 from ..typing import (
     AnyConversionFunc,
-    AnyPoolingFunc,
     BatchPoolingFunc,
     Casebase,
     ConversionFunc,
@@ -59,19 +57,19 @@ from ..typing import (
 
 
 @dataclass(slots=True, frozen=True)
-class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
-    synthesis_func: SynthesizerFunc[R, K, V, S]
-    pooling_func: AnyPoolingFunc[R]
+class chunks[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
+    synthesis_func: SynthesizerFunc[R2, K, V, S]
+    conversion_func: AnyConversionFunc[Sequence[R2], R1]
     size: int
     overlap: int = 0
     direction: Literal["left", "right", "both"] = "both"
 
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
-    ) -> Sequence[R]:
+    ) -> Sequence[R1]:
         chunked_batches: list[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]] = []
         batch2chunk_indexes: list[list[int]] = []
-        pooling_func = batchify_positional(self.pooling_func)
+        conversion_func = batchify_conversion(self.conversion_func)
 
         for casebase, query, similarities in batches:
             key_chunks = list(
@@ -102,12 +100,12 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
         results = self.synthesis_func(chunked_batches)
 
         # now reconstruct the original batches to apply the pooling function
-        results_per_batch: list[Sequence[R]] = [
+        results_per_batch: list[Sequence[R2]] = [
             [results[idx] for idx in chunk_indexes]
             for chunk_indexes in batch2chunk_indexes
         ]
 
-        return pooling_func(results_per_batch)
+        return conversion_func(results_per_batch)
 
 
 @dataclass(slots=True, frozen=True)
