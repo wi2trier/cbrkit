@@ -4,6 +4,7 @@ from typing import Literal
 
 from ..helpers import (
     batchify_conversion,
+    chain_map_chunks,
     chunkify_overlap,
 )
 from ..typing import (
@@ -67,43 +68,28 @@ class chunks[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]]
     ) -> Sequence[R1]:
-        chunked_batches: list[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]] = []
-        batch2chunk_indexes: list[list[int]] = []
         conversion_func = batchify_conversion(self.conversion_func)
 
-        for casebase, query, similarities in batches:
-            key_chunks = list(
-                chunkify_overlap(
+        chunked_batches = [
+            [
+                (
+                    {key: casebase[key] for key in chunked_keys},
+                    query,
+                    {key: similarities[key] for key in chunked_keys}
+                    if similarities is not None
+                    else None,
+                )
+                for chunked_keys in chunkify_overlap(
                     list(casebase.keys()),
                     self.size,
                     self.overlap,
                     self.direction,
                 )
-            )
-            last_idx = len(batch2chunk_indexes)
-            batch2chunk_indexes.append(
-                list(range(last_idx, last_idx + len(key_chunks)))
-            )
-            chunked_batches.extend(
-                [
-                    (
-                        {key: casebase[key] for key in chunk},
-                        query,
-                        {key: similarities[key] for key in chunk}
-                        if similarities is not None
-                        else None,
-                    )
-                    for chunk in key_chunks
-                ]
-            )
-
-        results = self.synthesis_func(chunked_batches)
-
-        # now reconstruct the original batches to apply the pooling function
-        results_per_batch: list[Sequence[R2]] = [
-            [results[idx] for idx in chunk_indexes]
-            for chunk_indexes in batch2chunk_indexes
+            ]
+            for casebase, query, similarities in batches
         ]
+
+        results_per_batch = chain_map_chunks(chunked_batches, self.synthesis_func)
 
         return conversion_func(results_per_batch)
 

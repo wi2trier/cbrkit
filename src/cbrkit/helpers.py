@@ -76,6 +76,7 @@ __all__ = [
     "mp_pool",
     "mp_starmap",
     "optional_dependencies",
+    "chain_map_chunks",
     "produce_factories",
     "produce_factory",
     "produce_sequence",
@@ -278,6 +279,26 @@ def chunkify_overlap[V](
             next_chunk = next_chunk[:overlap]
 
         yield [*prev_chunk, *chunk, *next_chunk]
+
+
+def chain_map_chunks[U, V](
+    batches: Sequence[Sequence[U]],
+    func: AnyConversionFunc[U, V],
+) -> Sequence[Sequence[V]]:
+    batched_func = batchify_conversion(func)
+    batch2chunk_indexes: list[list[int]] = []
+    flat_batches: list[U] = []
+
+    for batch in batches:
+        last_idx = len(batch2chunk_indexes)
+        batch2chunk_indexes.append(list(range(last_idx, last_idx + len(batch))))
+        flat_batches.extend(batch)
+
+    results = batched_func(flat_batches)
+
+    return [
+        [results[idx] for idx in chunk_indexes] for chunk_indexes in batch2chunk_indexes
+    ]
 
 
 def dist2sim(distance: float) -> float:
