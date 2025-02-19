@@ -359,7 +359,7 @@ class batchify_positional[T](
         self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
-    def __call__(self, batches: Sequence[tuple[Any, ...]]) -> Sequence[T]:
+    def __call__(self, batches: Sequence[Any]) -> Sequence[T]:
         if self.parameters == 0:
             func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
             parameters = total_params(func)
@@ -393,7 +393,7 @@ class unbatchify_positional[T](
         self.parameters = total_params(func)
 
     @override
-    def __call__(self, *args: Any) -> T:
+    def __call__(self, *args: Any, **kwargs: Any) -> T:
         if self.parameters == 0:
             func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
             parameters = total_params(func)
@@ -424,7 +424,7 @@ class batchify_named[T](
         self.logger = logger if logger.isEnabledFor(BATCH_LOGGING_LEVEL) else None
 
     @override
-    def __call__(self, batches: Sequence[dict[str, Any]]) -> Sequence[T]:
+    def __call__(self, batches: Sequence[Any]) -> Sequence[T]:
         if self.parameters == 0:
             func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
             parameters = total_params(func)
@@ -456,7 +456,7 @@ class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFun
         self.parameters = total_params(func)
 
     @override
-    def __call__(self, **kwargs: Any) -> T:
+    def __call__(self, *args: Any, **kwargs: Any) -> T:
         if self.parameters == 0:
             func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
             parameters = total_params(func)
@@ -475,32 +475,23 @@ class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFun
 def batchify_sim[V, S: Float](
     func: MaybeFactory[AnySimFunc[V, S]],
 ) -> BatchSimFunc[V, S]:
-    return batchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func))
+    return batchify_positional(func)
 
 
 def unbatchify_sim[V, S: Float](func: MaybeFactory[AnySimFunc[V, S]]) -> SimFunc[V, S]:
-    return cast(
-        SimFunc[V, S],
-        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[S]], func)),
-    )
+    return unbatchify_positional(func)
 
 
 def batchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> BatchConversionFunc[P, R]:
-    return cast(
-        BatchConversionFunc[P, R],
-        batchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
-    )
+    return batchify_positional(func)
 
 
 def unbatchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
-    return cast(
-        ConversionFunc[P, R],
-        unbatchify_positional(cast(MaybeFactory[AnyPositionalFunc[R]], func)),
-    )
+    return unbatchify_positional(func)
 
 
 def get_value[T](arg: StructuredValue[T]) -> T:

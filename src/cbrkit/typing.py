@@ -13,6 +13,7 @@ __all__ = [
     "AnyAdaptationFunc",
     "AnyConversionFunc",
     "AnyNamedFunc",
+    "AnyPoolingFunc",
     "AnyPositionalFunc",
     "AnySimFunc",
     "BatchAdaptationFunc",
@@ -111,13 +112,14 @@ class PositionalFunc[T](Protocol):
     def __call__(
         self,
         *args: Any,
+        **kwargs: Any,
     ) -> T: ...
 
 
 class BatchPositionalFunc[T](Protocol):
     def __call__(
         self,
-        batches: Sequence[tuple[Any, ...]],
+        batches: Sequence[Any],
         /,
     ) -> Sequence[T]: ...
 
@@ -126,13 +128,13 @@ type AnyPositionalFunc[T] = PositionalFunc[T] | BatchPositionalFunc[T]
 
 
 class NamedFunc[T](Protocol):
-    def __call__(self, **kwargs: Any) -> T: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> T: ...
 
 
 class BatchNamedFunc[T](Protocol):
     def __call__(
         self,
-        batches: Sequence[dict[str, Any]],
+        batches: Sequence[Any],
         /,
     ) -> Sequence[T]: ...
 
@@ -238,6 +240,9 @@ class BatchPoolingFunc[T](Protocol):
         batches: Sequence[Sequence[T]],
         /,
     ) -> Sequence[T]: ...
+
+
+type AnyPoolingFunc[T] = PoolingFunc[T] | BatchPoolingFunc[T]
 
 
 class ConversionPoolingFunc[U, V](Protocol):
