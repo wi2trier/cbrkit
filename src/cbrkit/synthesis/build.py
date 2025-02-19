@@ -4,10 +4,12 @@ from typing import Literal
 
 from ..helpers import (
     batchify_conversion,
+    batchify_positional,
     chunkify_overlap,
 )
 from ..typing import (
     AnyConversionFunc,
+    AnyPoolingFunc,
     BatchPoolingFunc,
     Casebase,
     ConversionFunc,
@@ -60,7 +62,7 @@ from ..typing import (
 @dataclass(slots=True, frozen=True)
 class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     synthesis_func: SynthesizerFunc[R, K, V, S]
-    pooling_func: BatchPoolingFunc[R]
+    pooling_func: AnyPoolingFunc[R]
     size: int
     overlap: int = 0
     direction: Literal["left", "right", "both"] = "both"
@@ -70,6 +72,7 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
     ) -> Sequence[R]:
         chunked_batches: list[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]] = []
         batch2chunk_indexes: list[list[int]] = []
+        pooling_func = batchify_positional(self.pooling_func)
 
         for casebase, query, similarities in batches:
             key_chunks = list(
@@ -105,7 +108,7 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
             for chunk_indexes in batch2chunk_indexes
         ]
 
-        return self.pooling_func(results_per_batch)
+        return pooling_func(results_per_batch)
 
 
 @dataclass(slots=True, frozen=True)
