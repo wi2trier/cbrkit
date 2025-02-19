@@ -13,7 +13,6 @@ from ..typing import (
     BatchPoolingFunc,
     Casebase,
     ConversionFunc,
-    ConversionPoolingFunc,
     Float,
     MaybeFactory,
     SimMap,
@@ -114,13 +113,14 @@ class chunks[R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
 @dataclass(slots=True, frozen=True)
 class pooling[P, R](BatchPoolingFunc[R]):
     generation_func: AnyConversionFunc[P, R]
-    prompt_func: ConversionPoolingFunc[R, P]
+    prompt_func: AnyConversionFunc[Sequence[R], P]
 
     def __call__(self, batches: Sequence[Sequence[R]]) -> Sequence[R]:
-        func = batchify_conversion(self.generation_func)
-        prompts = [self.prompt_func(batch) for batch in batches]
+        generation_func = batchify_conversion(self.generation_func)
+        prompt_func = batchify_conversion(self.prompt_func)
+        prompts = prompt_func([batch for batch in batches])
 
-        return func(prompts)
+        return generation_func(prompts)
 
 
 @dataclass(slots=True, frozen=True)

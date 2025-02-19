@@ -24,7 +24,6 @@ __all__ = [
     "BatchSimFunc",
     "Casebase",
     "ConversionFunc",
-    "ConversionPoolingFunc",
     "EvalMetricFunc",
     "Factory",
     "FilePath",
@@ -243,14 +242,6 @@ class BatchPoolingFunc[T](Protocol):
 
 
 type AnyPoolingFunc[T] = PoolingFunc[T] | BatchPoolingFunc[T]
-
-
-class ConversionPoolingFunc[U, V](Protocol):
-    def __call__(
-        self,
-        values: Sequence[U],
-        /,
-    ) -> V: ...
 
 
 class EvalMetricFunc(Protocol):

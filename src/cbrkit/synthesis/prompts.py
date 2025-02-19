@@ -7,7 +7,6 @@ from ..helpers import get_value, sim_map2ranking, unpack_float
 from ..typing import (
     Casebase,
     ConversionFunc,
-    ConversionPoolingFunc,
     Float,
     JsonEntry,
     SimMap,
@@ -223,7 +222,7 @@ class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any
 
 
 @dataclass(slots=True, frozen=True)
-class pooling[V](ConversionPoolingFunc[V, str]):
+class pooling[V](ConversionFunc[Sequence[V], str]):
     """
     Produces an LLM input to aggregate partial results (i.e., the LLM output for single chunks) to a final, global result.
 
@@ -237,7 +236,7 @@ class pooling[V](ConversionPoolingFunc[V, str]):
         >>> prompt([partial1, partial2, partial3]) # doctest: +SKIP
     """
 
-    instructions: str | ConversionPoolingFunc[V, str] | None = None
+    instructions: str | ConversionFunc[Sequence[V], str] | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
 
