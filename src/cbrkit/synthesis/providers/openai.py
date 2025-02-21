@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from types import UnionType
 from typing import Literal, Union, cast, get_args, get_origin, override
 
 from pydantic import BaseModel
@@ -77,8 +78,9 @@ with optional_dependencies():
 
             tools: list[ChatCompletionToolParam] | None = None
             tool_choice: ChatCompletionNamedToolChoiceParam | None = None
+            response_type_origin = get_origin(self.response_type)
 
-            if get_origin(self.response_type) is Union:
+            if response_type_origin is UnionType or response_type_origin is Union:
                 tools = [
                     pydantic_function_tool(tool)
                     for tool in get_args(self.response_type)
