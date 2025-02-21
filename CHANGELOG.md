@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.3](https://github.com/wi2trier/cbrkit/compare/v0.21.2...v0.21.3) (2025-02-21)
+
+### Bug Fixes
+
+* **helpers:** add chain_map_chunks function ([a567e30](https://github.com/wi2trier/cbrkit/commit/a567e304547a297aad4d62a54933a42e3a73b7e4))
+* **helpers:** allow omitting default values when converting functions to pydantic ([047f3a7](https://github.com/wi2trier/cbrkit/commit/047f3a7b3a0945daa7892ec0469953fc87eead6a))
+* **synthesis/openai:** improve tool usage logic ([549511c](https://github.com/wi2trier/cbrkit/commit/549511c6b0719d448cb17b04f2939f80cb9a1491))
+* **synthesis/prompts:** add concat wrapper function ([55ac06d](https://github.com/wi2trier/cbrkit/commit/55ac06de02f116941b080e8a728d4e7e014f02cf))
+* **synthesis:** allow arbitrary chunk conversion functions ([49b07bc](https://github.com/wi2trier/cbrkit/commit/49b07bc8db808e28693654f311fa056ab636921a))
+* **synthesis:** allow non-batched pooling functions ([4a95350](https://github.com/wi2trier/cbrkit/commit/4a95350808c9b505447234531d3a17df02a6c1e6))
+* **typing:** generalize positional/named function types ([b68e822](https://github.com/wi2trier/cbrkit/commit/b68e822888ccc3f49b0a5f58d4cac6672be62725))
+
 ## [0.21.2](https://github.com/wi2trier/cbrkit/compare/v0.21.1...v0.21.2) (2025-02-13)
 
 ### Bug Fixes
