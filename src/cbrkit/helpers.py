@@ -788,7 +788,9 @@ def get_hash(file: Path | bytes | BytesIO) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def callable2model(func: Callable[..., Any]) -> type[BaseModel]:
+def callable2model(
+    func: Callable[..., Any], with_default: bool = True
+) -> type[BaseModel]:
     sig = inspect.signature(func)
     fields: dict[str, Any] = {}
 
@@ -801,15 +803,13 @@ def callable2model(func: Callable[..., Any]) -> type[BaseModel]:
             continue
 
         field_type = (
-            cast(type[Any], param.annotation)
-            if param.annotation is not inspect.Parameter.empty
-            else Any
+            param.annotation if param.annotation is not inspect.Parameter.empty else Any
         )
         field_config = (
-            Field(...)
-            if param.default is inspect.Parameter.empty
-            else Field(default=param.default)
+            Field(default=param.default)
+            if param.default is not inspect.Parameter.empty and with_default
+            else Field(...)
         )
         fields[param.name] = (field_type, field_config)
 
-    return create_model(f"{func.__name__.title()}Model", **fields)
+    return create_model(func.__name__, **fields)
