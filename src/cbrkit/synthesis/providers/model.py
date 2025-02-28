@@ -31,6 +31,8 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
     model: str
     response_type: type[R]
     delay: float = 0
+    retries: int = 0
+    default_response: R | None = None
     extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
@@ -41,19 +43,30 @@ class BaseProvider[P, R](BatchConversionFunc[P, R], ABC):
 
         return await asyncio.gather(
             *(
-                self.__call_batch_with_delay__(batch, idx)
+                self.__call_batch_wrapper__(batch, idx)
                 for idx, batch in enumerate(batches)
             )
         )
 
-    async def __call_batch_with_delay__(self, prompt: P, idx: int) -> R:
-        if self.delay > 0:
+    async def __call_batch_wrapper__(self, prompt: P, idx: int, retry: int = 0) -> R:
+        if self.delay > 0 and retry == 0:
             await asyncio.sleep(idx * self.delay)
 
-        result = await self.__call_batch__(prompt)
-        logger.debug(f"Result of batch {idx + 1}: {result}")
+        try:
+            result = await self.__call_batch__(prompt)
+            logger.debug(f"Result of batch {idx + 1}: {result}")
+            return result
 
-        return result
+        except Exception as e:
+            if retry < self.retries:
+                logger.info(f"Retrying batch {idx + 1}...")
+                return await self.__call_batch_wrapper__(prompt, idx, retry + 1)
+
+            if self.default_response is not None:
+                logger.error(f"Error processing batch {idx + 1}: {e}")
+                return self.default_response
+
+            raise e
 
     @abstractmethod
     async def __call_batch__(self, prompt: P) -> R: ...
