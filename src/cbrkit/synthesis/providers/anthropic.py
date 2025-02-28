@@ -129,4 +129,4 @@ with optional_dependencies():
                         str_res += block.text
                 return cast(R, str_res)
 
-            raise ValueError("Problem with response type", res.content)
+            raise ValueError("Invalid response", res)

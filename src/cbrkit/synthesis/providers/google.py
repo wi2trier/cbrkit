@@ -47,4 +47,4 @@ with optional_dependencies():
             elif issubclass(self.response_type, str) and (text := res.text):
                 return cast(R, text)
 
-            raise ValueError("Invalid response type")
+            raise ValueError("Invalid response", res)

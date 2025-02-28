@@ -147,4 +147,4 @@ with optional_dependencies():
             ):
                 return cast(R, content)
 
-            raise ValueError("The completion is empty")
+            raise ValueError("Invalid response", res)
