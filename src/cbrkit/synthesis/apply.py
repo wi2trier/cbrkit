@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from timeit import default_timer
 
 from .. import model
 from ..helpers import get_logger, get_metadata, produce_factory
@@ -27,20 +28,24 @@ def apply_batches[R, Q, C, V, S: Float](
 ) -> Result[Q, R]:
     synthesis_func = produce_factory(synthesizer)
     logger.info(f"Processing {len(batches)} batches")
+    start_time = default_timer()
     synthesis_results = synthesis_func(list(batches.values()))
+    end_time = default_timer()
 
     return Result(
         steps=[
             ResultStep(
                 queries={
-                    key: QueryResultStep(response=value)
+                    key: QueryResultStep(response=value, duration=0.0)
                     for key, value in zip(
                         batches.keys(), synthesis_results, strict=True
                     )
                 },
                 metadata=get_metadata(synthesis_func),
+                duration=end_time - start_time,
             )
-        ]
+        ],
+        duration=end_time - start_time,
     )
 
 

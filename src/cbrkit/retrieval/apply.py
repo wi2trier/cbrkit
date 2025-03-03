@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from timeit import default_timer
 
 from ..helpers import get_logger, get_metadata, produce_factories
 from ..model import QueryResultStep, Result, ResultStep
@@ -12,24 +13,33 @@ def apply_batches[Q, C, V, S: Float](
     retrievers: MaybeFactories[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
     retriever_funcs = produce_factories(retrievers)
-
     assert len(retriever_funcs) > 0
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batches
 
+    loop_start_time = default_timer()
+
     for i, retriever_func in enumerate(retriever_funcs, start=1):
         logger.info(f"Processing retriever {i}/{len(retriever_funcs)}")
+        start_time = default_timer()
         queries_results = retriever_func(list(current_batches.values()))
+        end_time = default_timer()
 
         step_queries = {
-            query_key: QueryResultStep.build(similarities, casebase, query)
+            query_key: QueryResultStep.build(
+                similarities, casebase, query, duration=0.0
+            )
             for (query_key, (casebase, query)), similarities in zip(
                 current_batches.items(), queries_results, strict=True
             )
         }
 
         steps.append(
-            ResultStep(queries=step_queries, metadata=get_metadata(retriever_func))
+            ResultStep(
+                queries=step_queries,
+                metadata=get_metadata(retriever_func),
+                duration=end_time - start_time,
+            )
         )
         current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
@@ -38,7 +48,7 @@ def apply_batches[Q, C, V, S: Float](
 
     logger.info("Finished processing all retrievers")
 
-    return Result(steps=steps)
+    return Result(steps=steps, duration=default_timer() - loop_start_time)
 
 
 def apply_queries[Q, C, V, S: Float](

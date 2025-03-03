@@ -17,6 +17,7 @@ class QueryResultStep[K, V, S: Float](BaseModel):
     ranking: Sequence[K]
     casebase: Casebase[K, V]
     query: V
+    duration: float
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
@@ -34,7 +35,11 @@ class QueryResultStep[K, V, S: Float](BaseModel):
 
     @classmethod
     def build(
-        cls, similarities: Mapping[K, S], unfiltered_casebase: Casebase[K, V], query: V
+        cls,
+        similarities: Mapping[K, S],
+        unfiltered_casebase: Casebase[K, V],
+        query: V,
+        duration: float,
     ) -> "QueryResultStep[K, V, S]":
         ranking = sim_map2ranking(similarities)
         filtered_casebase = {key: unfiltered_casebase[key] for key in similarities}
@@ -44,6 +49,7 @@ class QueryResultStep[K, V, S: Float](BaseModel):
             ranking=tuple(ranking),
             casebase=filtered_casebase,
             query=query,
+            duration=duration,
         )
 
 
@@ -51,6 +57,7 @@ class ResultStep[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
     queries: Mapping[Q, QueryResultStep[C, V, S]]
     metadata: JsonEntry
+    duration: float
 
     @property
     def default_query(self) -> QueryResultStep[C, V, S]:
@@ -80,6 +87,7 @@ class ResultStep[Q, C, V, S: Float](BaseModel):
 class Result[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
     steps: list[ResultStep[Q, C, V, S]]
+    duration: float
 
     @property
     def first_step(self) -> ResultStep[Q, C, V, S]:
@@ -126,6 +134,7 @@ class CycleResult[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
     retrieval: Result[Q, C, V, S]
     reuse: Result[Q, C, V, S]
+    duration: float
 
     @property
     def final_step(self) -> ResultStep[Q, C, V, S]:
