@@ -9,8 +9,9 @@ from ...helpers import optional_dependencies, unpack_value
 from .model import ChatPrompt, ChatProvider
 
 with optional_dependencies():
+    from httpx import Timeout
     from openai import AsyncOpenAI, pydantic_function_tool
-    from openai._types import NOT_GIVEN, NotGiven
+    from openai._types import NOT_GIVEN, Body, Headers, NotGiven, Query
     from openai.types.chat import (
         ChatCompletionMessageParam,
         ChatCompletionNamedToolChoiceParam,
@@ -38,9 +39,12 @@ with optional_dependencies():
         store: bool | None = None
         reasoning_effort: Literal["low", "medium", "high"] | None = None
         temperature: float | None = None
-        timeout: float | None = None
         top_logprobs: int | None = None
         top_p: float | None = None
+        extra_headers: Headers | None = None
+        extra_query: Query | None = None
+        extra_body: Body | None = None
+        timeout: float | Timeout | None = None
 
         @override
         async def __call_batch__(self, prompt: OpenaiPrompt) -> R:
@@ -122,9 +126,12 @@ with optional_dependencies():
                 store=if_given(self.store),
                 reasoning_effort=if_given(self.reasoning_effort),
                 temperature=if_given(self.temperature),
-                timeout=if_given(self.timeout),
                 top_logprobs=if_given(self.top_logprobs),
                 top_p=if_given(self.top_p),
+                extra_headers=self.extra_headers,
+                extra_query=self.extra_query,
+                extra_body=self.extra_body,
+                timeout=if_given(self.timeout),
                 **self.extra_kwargs,
             )
 
