@@ -324,6 +324,7 @@ transformers = [
 [package.dev-dependencies]
 dev = [
     { name = "pandas-stubs" },
+    { name = "scipy-stubs" },
 ]
 docs = [
     { name = "pdoc" },
@@ -378,7 +379,10 @@ requires-dist = [
 provides-extras = ["all", "api", "cli", "eval", "graphs", "llm", "nlp", "timeseries", "transformers"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pandas-stubs", specifier = ">=2,<3" }]
+dev = [
+    { name = "pandas-stubs", specifier = ">=2,<3" },
+    { name = "scipy-stubs", specifier = ">=1,<2" },
+]
 docs = [{ name = "pdoc", specifier = ">=15,<16" }]
 test = [
     { name = "pytest", specifier = ">=8,<9" },
@@ -1719,6 +1723,18 @@ wheels = [
 ]
 
 [[package]]
+name = "optype"
+version = "0.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/42/b5/bc62c3de61b8ae97cf861c7402cecd9874937a8295089271714c16bcd245/optype-0.9.1.tar.gz", hash = "sha256:f3096963195b9f83e72e1be2f7e7140bbeb30ee5565a28fd207f3e552dd18411", size = 93575 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/2f/d66a2a485916f2c918409a0d4fdb80a84d22ee81d8073f1d7e8e402dc475/optype-0.9.1-py3-none-any.whl", hash = "sha256:4b843085a39a07a3d2ebe9b531eecfabcb523d22a334376488aa583601897caf", size = 81811 },
+]
+
+[[package]]
 name = "orjson"
 version = "3.10.15"
 source = { registry = "https://pypi.org/simple" }
@@ -2435,6 +2451,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/03/f3/e699e19cabe96bbac5189c04aaa970718f0105cff03d458dc5e2b6bd1e8c/scipy-1.15.2-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:bae43364d600fdc3ac327db99659dcb79e6e7ecd279a75fe1266669d9a652828", size = 36545159 },
     { url = "https://files.pythonhosted.org/packages/af/f5/ab3838e56fe5cc22383d6fcf2336e48c8fe33e944b9037fbf6cbdf5a11f8/scipy-1.15.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:f031846580d9acccd0044efd1a90e6f4df3a6e12b4b6bd694a7bc03a89892b28", size = 39136566 },
     { url = "https://files.pythonhosted.org/packages/0a/c8/b3f566db71461cabd4b2d5b39bcc24a7e1c119535c8361f81426be39bb47/scipy-1.15.2-cp313-cp313t-win_amd64.whl", hash = "sha256:fe8a9eb875d430d81755472c5ba75e84acc980e4a8f6204d402849234d3017db", size = 40477705 },
+]
+
+[[package]]
+name = "scipy-stubs"
+version = "1.15.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "optype" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/26/84/0e08774fe4339acf33305e34926663ef8993743df43a81e2097d3611b985/scipy_stubs-1.15.2.0.tar.gz", hash = "sha256:d93b9d3fac23d28f7dadbe46a666e59ba7d269a7ac75de1939e5e73cec848b7d", size = 273393 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/81/8fa612c984f96edc3beeb35ad61c0229a6b8c2d0b87c3c80a5b17974b310/scipy_stubs-1.15.2.0-py3-none-any.whl", hash = "sha256:fb6eddf98184711402a8d25744729823dc909667ccaa64b45db4b26e50451843", size = 457211 },
 ]
 
 [[package]]

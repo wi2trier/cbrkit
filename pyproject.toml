@@ -95,7 +95,7 @@ Changelog = "https://github.com/wi2trier/cbrkit/releases"
 cbrkit = "cbrkit.cli:app"
 
 [dependency-groups]
-dev = ["pandas-stubs>=2,<3"]
+dev = ["pandas-stubs>=2,<3", "scipy-stubs>=1,<2"]
 test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
 docs = ["pdoc>=15,<16"]
 
