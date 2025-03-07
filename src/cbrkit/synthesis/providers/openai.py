@@ -3,10 +3,12 @@ from dataclasses import dataclass, field
 from types import UnionType
 from typing import Literal, Union, cast, get_args, get_origin, override
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from ...helpers import optional_dependencies, unpack_value
+from ...helpers import get_logger, optional_dependencies, unpack_value
 from .model import ChatPrompt, ChatProvider
+
+logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx import Timeout
@@ -106,51 +108,61 @@ with optional_dependencies():
                     },
                 }
 
-            res = await self.client.beta.chat.completions.parse(
-                model=self.model,
-                messages=messages,
-                response_format=self.response_type
-                if tools is None and issubclass(self.response_type, BaseModel)
-                else NOT_GIVEN,
-                tools=if_given(tools),
-                tool_choice=if_given(tool_choice),
-                frequency_penalty=if_given(self.frequency_penalty),
-                logit_bias=if_given(self.logit_bias),
-                logprobs=if_given(self.logprobs),
-                max_completion_tokens=if_given(self.max_completion_tokens),
-                metadata=if_given(self.metadata),
-                n=if_given(self.n),
-                presence_penalty=if_given(self.presence_penalty),
-                seed=if_given(self.seed),
-                stop=if_given(self.stop),
-                store=if_given(self.store),
-                reasoning_effort=if_given(self.reasoning_effort),
-                temperature=if_given(self.temperature),
-                top_logprobs=if_given(self.top_logprobs),
-                top_p=if_given(self.top_p),
-                extra_headers=self.extra_headers,
-                extra_query=self.extra_query,
-                extra_body=self.extra_body,
-                timeout=if_given(self.timeout),
-                **self.extra_kwargs,
-            )
+            try:
+                res = await self.client.beta.chat.completions.parse(
+                    model=self.model,
+                    messages=messages,
+                    response_format=self.response_type
+                    if tools is None and issubclass(self.response_type, BaseModel)
+                    else NOT_GIVEN,
+                    tools=if_given(tools),
+                    tool_choice=if_given(tool_choice),
+                    frequency_penalty=if_given(self.frequency_penalty),
+                    logit_bias=if_given(self.logit_bias),
+                    logprobs=if_given(self.logprobs),
+                    max_completion_tokens=if_given(self.max_completion_tokens),
+                    metadata=if_given(self.metadata),
+                    n=if_given(self.n),
+                    presence_penalty=if_given(self.presence_penalty),
+                    seed=if_given(self.seed),
+                    stop=if_given(self.stop),
+                    store=if_given(self.store),
+                    reasoning_effort=if_given(self.reasoning_effort),
+                    temperature=if_given(self.temperature),
+                    top_logprobs=if_given(self.top_logprobs),
+                    top_p=if_given(self.top_p),
+                    extra_headers=self.extra_headers,
+                    extra_query=self.extra_query,
+                    extra_body=self.extra_body,
+                    timeout=if_given(self.timeout),
+                    **self.extra_kwargs,
+                )
+            except ValidationError as e:
+                for error in e.errors():
+                    logger.error(f"Invalid response ({error['msg']}): {error['input']}")
+                raise
 
-            if (
+            message = res.choices[0].message
+
+            if message.refusal:
+                raise ValueError("Refusal", res)
+
+            elif (
+                issubclass(self.response_type, BaseModel)
+                and (parsed := message.parsed) is not None
+            ):
+                return parsed
+
+            elif (
                 tools is not None
-                and (tool_calls := res.choices[0].message.tool_calls) is not None
+                and (tool_calls := message.tool_calls) is not None
                 and (parsed := tool_calls[0].function.parsed_arguments) is not None
             ):
                 return cast(R, parsed)
 
             elif (
-                issubclass(self.response_type, BaseModel)
-                and (parsed := res.choices[0].message.parsed) is not None
-            ):
-                return parsed
-
-            elif (
                 issubclass(self.response_type, str)
-                and (content := res.choices[0].message.content) is not None
+                and (content := message.content) is not None
             ):
                 return cast(R, content)
 
