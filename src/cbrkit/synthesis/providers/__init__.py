@@ -10,6 +10,8 @@ with optional_dependencies():
     from .cohere import cohere
 with optional_dependencies():
     from .anthropic import anthropic
+with optional_dependencies():
+    from .instructor import instructor
 
 __all__ = [
     "openai",
@@ -23,4 +25,5 @@ __all__ = [
     "ChatPrompt",
     "DocumentsPrompt",
     "anthropic",
+    "instructor",
 ]
