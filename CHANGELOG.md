@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/wi2trier/cbrkit/compare/v0.21.3...v0.22.0) (2025-03-07)
+
+### Features
+
+* **model:** add duration to result of retrieval/reuse/synthesis/cycle ([b1c5071](https://github.com/wi2trier/cbrkit/commit/b1c5071cc367103e3630af6490f1e1f804117c08))
+* **synthesis/providers:** add instructor provider ([b831426](https://github.com/wi2trier/cbrkit/commit/b831426593ff846efe871f0d59beac256bcaab3e))
+* **synthesis/providers:** add parameters retried and default_response ([c019ebe](https://github.com/wi2trier/cbrkit/commit/c019ebec18e359abd6a3c03b2a6ac501320d025a))
+* **synthesis/providers:** print response in case of an exception ([209a358](https://github.com/wi2trier/cbrkit/commit/209a358bd53c349be7e6b902f96f6fb2ff001c23))
+
+### Bug Fixes
+
+* **synthesis/openai:** add missing parameters ([4c4b8d4](https://github.com/wi2trier/cbrkit/commit/4c4b8d45bc046111edff9e4310dfb40d7567a64d))
+* **synthesis/openai:** improve error handling ([c77ef56](https://github.com/wi2trier/cbrkit/commit/c77ef56ade5666188fd963e2bad56717d331ae14))
+
 ## [0.21.3](https://github.com/wi2trier/cbrkit/compare/v0.21.2...v0.21.3) (2025-02-21)
 
 ### Bug Fixes
