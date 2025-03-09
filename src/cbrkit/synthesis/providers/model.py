@@ -13,14 +13,14 @@ logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
-class ChatMessage:
+class ChatMessage[P]:
     role: Literal["user", "assistant"]
-    content: str
+    content: P
 
 
 @dataclass(slots=True, frozen=True)
 class ChatPrompt[P](StructuredValue[P]):
-    messages: Sequence[ChatMessage]
+    messages: Sequence[ChatMessage[P]]
 
 
 @dataclass(slots=True, frozen=True)

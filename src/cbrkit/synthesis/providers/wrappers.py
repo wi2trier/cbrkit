@@ -1,34 +1,46 @@
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from ...helpers import (
     batchify_conversion,
     produce_sequence,
     unbatchify_conversion,
+    unpack_value,
+    unpack_values,
 )
 from ...typing import (
     AnyConversionFunc,
     BatchConversionFunc,
     ConversionFunc,
     MaybeSequence,
+    Value,
 )
 from .model import ChatMessage, ChatPrompt
 
 
 @dataclass(slots=True, frozen=True)
-class conversation[R](ConversionFunc[Iterable[str], R]):
-    generation_func: AnyConversionFunc[ChatPrompt[str], R]
-    conversion_func: ConversionFunc[R, str]
+class conversation[P, R](ConversionFunc[P, R]):
+    generation_func: AnyConversionFunc[ChatPrompt[P], Value[R]]
+    conversion_func: ConversionFunc[R, P]
+    chat_func: ConversionFunc[list[ChatMessage], P | None]
 
-    def __call__(self, prompts: Iterable[str]) -> R:
+    def __call__(self, batch: P) -> R:
         func = unbatchify_conversion(self.generation_func)
 
-        messages: list[ChatMessage] = []
-        last_assistant_message: R | None = None
+        messages: list[ChatMessage] = [ChatMessage(role="user", content=batch)]
+        last_assistant_message: R = unpack_value(func(ChatPrompt(batch, messages)))
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content=self.conversion_func(last_assistant_message),
+            )
+        )
 
-        for prompt in prompts:
-            messages.append(ChatMessage(role="user", content=prompt))
-            last_assistant_message = func(ChatPrompt(prompt, messages))
+        while next_batch := self.chat_func(messages):
+            messages.append(ChatMessage(role="user", content=next_batch))
+            last_assistant_message = unpack_value(
+                func(ChatPrompt(next_batch, messages))
+            )
 
             messages.append(
                 ChatMessage(
@@ -36,9 +48,6 @@ class conversation[R](ConversionFunc[Iterable[str], R]):
                     content=self.conversion_func(last_assistant_message),
                 )
             )
-
-        if last_assistant_message is None:
-            raise ValueError("The last assistant message is empty")
 
         return last_assistant_message
 
