@@ -1,5 +1,13 @@
 from ...helpers import optional_dependencies
-from .model import BaseProvider, ChatMessage, ChatPrompt, ChatProvider, DocumentsPrompt
+from .model import (
+    BaseProvider,
+    ChatMessage,
+    ChatPrompt,
+    ChatProvider,
+    DocumentsPrompt,
+    Response,
+    Usage,
+)
 from .wrappers import conversation, pipe
 
 with optional_dependencies():
@@ -24,6 +32,8 @@ __all__ = [
     "ChatMessage",
     "ChatPrompt",
     "DocumentsPrompt",
+    "Response",
+    "Usage",
     "anthropic",
     "instructor",
 ]

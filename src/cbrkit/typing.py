@@ -39,7 +39,6 @@ __all__ = [
     "NumpyArray",
     "PoolingFunc",
     "PositionalFunc",
-    "Prompt",
     "QueryCaseMatrix",
     "ReduceAdaptationFunc",
     "RetrieverFunc",
@@ -50,6 +49,7 @@ __all__ = [
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
+    "Value",
     "WrappedObject",
 ]
 
@@ -75,8 +75,8 @@ class HasMetadata(ABC):
     def metadata(self) -> JsonDict: ...
 
 
-type Float = float | StructuredValue[float]
-type Prompt[P] = P | StructuredValue[P]
+type Value[T] = T | StructuredValue[T]
+type Float = Value[float]
 type FilePath = str | Path
 type Casebase[K, V] = Mapping[K, V]
 type SimMap[K, S: Float] = Mapping[K, S]

@@ -6,7 +6,7 @@ from typing import Literal, Union, cast, get_args, get_origin, override
 from pydantic import BaseModel, ValidationError
 
 from ...helpers import get_logger, optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider
+from .model import ChatPrompt, ChatProvider, Response, Usage
 
 logger = get_logger(__name__)
 
@@ -49,7 +49,7 @@ with optional_dependencies():
         timeout: float | Timeout | None = None
 
         @override
-        async def __call_batch__(self, prompt: OpenaiPrompt) -> R:
+        async def __call_batch__(self, prompt: OpenaiPrompt) -> Response[R]:
             messages: list[ChatCompletionMessageParam] = []
 
             if self.system_message is not None:
@@ -143,6 +143,10 @@ with optional_dependencies():
                 raise
 
             message = res.choices[0].message
+            raw_usage = res.usage
+            assert raw_usage is not None
+
+            usage = Usage(raw_usage.prompt_tokens, raw_usage.completion_tokens)
 
             if message.refusal:
                 raise ValueError("Refusal", res)
@@ -151,19 +155,19 @@ with optional_dependencies():
                 issubclass(self.response_type, BaseModel)
                 and (parsed := message.parsed) is not None
             ):
-                return parsed
+                return Response(cast(R, parsed), usage)
 
             elif (
                 tools is not None
                 and (tool_calls := message.tool_calls) is not None
                 and (parsed := tool_calls[0].function.parsed_arguments) is not None
             ):
-                return cast(R, parsed)
+                return Response(cast(R, parsed), usage)
 
             elif (
                 issubclass(self.response_type, str)
                 and (content := message.content) is not None
             ):
-                return cast(R, content)
+                return Response(cast(R, content), usage)
 
             raise ValueError("Invalid response", res)

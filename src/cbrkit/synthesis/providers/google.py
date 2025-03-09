@@ -4,7 +4,7 @@ from typing import cast, override
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies
-from .model import BaseProvider
+from .model import BaseProvider, Response
 
 with optional_dependencies():
     from google.genai import Client
@@ -29,7 +29,7 @@ with optional_dependencies():
                 self.config.system_instruction = self.system_message
 
         @override
-        async def __call_batch__(self, prompt: GooglePrompt) -> R:
+        async def __call_batch__(self, prompt: GooglePrompt) -> Response[R]:
             res = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
@@ -42,9 +42,9 @@ with optional_dependencies():
                 and (parsed := res.parsed)
                 and isinstance(parsed, self.response_type)
             ):
-                return cast(R, parsed)
+                return Response(cast(R, parsed))
 
             elif issubclass(self.response_type, str) and (text := res.text):
-                return cast(R, text)
+                return Response(cast(R, text))
 
             raise ValueError("Invalid response", res)

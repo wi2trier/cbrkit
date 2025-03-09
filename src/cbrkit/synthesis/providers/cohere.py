@@ -5,7 +5,7 @@ from typing import cast, override
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, DocumentsPrompt
+from .model import ChatPrompt, ChatProvider, DocumentsPrompt, Response
 
 with optional_dependencies():
     from cohere import (
@@ -40,7 +40,7 @@ with optional_dependencies():
         logprobs: bool | None = None
 
         @override
-        async def __call_batch__(self, prompt: CoherePrompt) -> R:
+        async def __call_batch__(self, prompt: CoherePrompt) -> Response[R]:
             if isinstance(prompt, DocumentsPrompt) and issubclass(
                 self.response_type, BaseModel
             ):
@@ -104,6 +104,6 @@ with optional_dependencies():
                 if len(content) != 1:
                     raise ValueError("The completion is empty or has multiple outputs")
 
-                return self.response_type.model_validate_json(content[0].text)
+                return Response(self.response_type.model_validate_json(content[0].text))
 
-            return cast(R, "\n".join(x.text for x in content))
+            return Response(cast(R, "\n".join(x.text for x in content)))

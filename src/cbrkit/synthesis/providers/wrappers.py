@@ -45,7 +45,7 @@ class conversation[R](ConversionFunc[Iterable[str], R]):
 
 @dataclass(slots=True, frozen=True)
 class pipe[P, R](BatchConversionFunc[P, R]):
-    generation_funcs: MaybeSequence[AnyConversionFunc[P, R]]
+    generation_funcs: MaybeSequence[AnyConversionFunc[P, Value[R]]]
     conversion_func: ConversionFunc[R, P]
 
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
@@ -54,8 +54,8 @@ class pipe[P, R](BatchConversionFunc[P, R]):
         current_output: Sequence[R] = []
 
         for func in funcs:
-            wrapped_func = batchify_conversion(func)
-            current_output = wrapped_func(current_input)
+            batch_func = batchify_conversion(func)
+            current_output = unpack_values(batch_func(current_input))
             current_input = [self.conversion_func(output) for output in current_output]
 
         if not len(current_output) == len(batches):

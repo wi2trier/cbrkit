@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..dumpers import markdown
-from ..helpers import get_value, sim_map2ranking, unpack_float
+from ..helpers import get_value, sim_map2ranking, unpack_float, unpack_value
 from ..typing import (
     Casebase,
     ConversionFunc,
@@ -239,6 +239,7 @@ class pooling[V](ConversionFunc[Sequence[V], str]):
     instructions: str | ConversionFunc[Sequence[V], str] | None = None
     encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
     metadata: JsonEntry | None = None
+    unpack: bool = True
 
     def __call__(
         self,
@@ -256,6 +257,9 @@ class pooling[V](ConversionFunc[Sequence[V], str]):
 """
 
         for idx, value in enumerate(values, start=1):
+            if self.unpack:
+                value = unpack_value(value)
+
             result += f"""
 ### Result {idx}
 

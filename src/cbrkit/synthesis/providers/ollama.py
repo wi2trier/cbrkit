@@ -5,7 +5,7 @@ from typing import override
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider
+from .model import ChatPrompt, ChatProvider, Response
 
 with optional_dependencies():
     from ollama import AsyncClient, Message, Options
@@ -19,7 +19,7 @@ with optional_dependencies():
         keep_alive: float | str | None = None
 
         @override
-        async def __call_batch__(self, prompt: OllamaPrompt) -> R:
+        async def __call_batch__(self, prompt: OllamaPrompt) -> Response[R]:
             messages: list[Message] = []
 
             if self.system_message is not None:
@@ -54,6 +54,6 @@ with optional_dependencies():
             content = res["message"]["content"]
 
             if self.response_type is str:
-                return content
+                return Response(content)
 
-            return json.loads(content)
+            return Response(json.loads(content))

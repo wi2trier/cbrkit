@@ -5,7 +5,7 @@ from typing import Literal, cast, override
 from pydantic import BaseModel
 
 from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider
+from .model import ChatPrompt, ChatProvider, Response
 
 
 def pydantic_to_anthropic_schema(model: type[BaseModel], description: str = "") -> dict:
@@ -74,7 +74,7 @@ with optional_dependencies():
         timeout: float | Timeout | NotGiven | None = NOT_GIVEN
 
         @override
-        async def __call_batch__(self, prompt: AnthropicPrompt) -> R:
+        async def __call_batch__(self, prompt: AnthropicPrompt) -> Response[R]:
             messages: list[MessageParam] = []
 
             if self.system_message is not None:
@@ -120,13 +120,13 @@ with optional_dependencies():
                 block = res.content[0]
                 if block.type != "tool_use":
                     raise ValueError("Expected one ToolUseBlock, got", block.type)
-                return self.response_type.model_validate(block.input)
+                return Response(self.response_type.model_validate(block.input))
 
             elif self.response_type is str:
                 str_res = ""
                 for block in res.content:
                     if block.type == "text":
                         str_res += block.text
-                return cast(R, str_res)
+                return Response(cast(R, str_res))
 
             raise ValueError("Invalid response", res)
