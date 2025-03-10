@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx import Timeout
+
     from openai import AsyncOpenAI, pydantic_function_tool
     from openai._types import NOT_GIVEN, Body, Headers, NotGiven, Query
     from openai.types.chat import (
@@ -152,10 +153,18 @@ with optional_dependencies():
                 raise ValueError("Refusal", res)
 
             elif (
-                issubclass(self.response_type, BaseModel)
+                isinstance(self.response_type, type)
+                and issubclass(self.response_type, BaseModel)
                 and (parsed := message.parsed) is not None
             ):
                 return Response(cast(R, parsed), usage)
+
+            elif (
+                isinstance(self.response_type, type)
+                and issubclass(self.response_type, str)
+                and (content := message.content) is not None
+            ):
+                return Response(cast(R, content), usage)
 
             elif (
                 tools is not None
@@ -163,11 +172,5 @@ with optional_dependencies():
                 and (parsed := tool_calls[0].function.parsed_arguments) is not None
             ):
                 return Response(cast(R, parsed), usage)
-
-            elif (
-                issubclass(self.response_type, str)
-                and (content := message.content) is not None
-            ):
-                return Response(cast(R, content), usage)
 
             raise ValueError("Invalid response", res)
