@@ -12,7 +12,6 @@ logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx import Timeout
-
     from openai import AsyncOpenAI, pydantic_function_tool
     from openai._types import NOT_GIVEN, Body, Headers, NotGiven, Query
     from openai.types.chat import (
