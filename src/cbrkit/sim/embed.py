@@ -188,7 +188,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
             logger.warning("Cache is empty, skipping dump")
             return
 
-        if self.mtime != self.path.stat().st_mtime:
+        if self.path.exists() and self.mtime != self.path.stat().st_mtime:
             logger.warning("Cache file has been modified, skipping dump")
             return
 
