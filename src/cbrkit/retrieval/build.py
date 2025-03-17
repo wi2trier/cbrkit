@@ -31,6 +31,19 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
+    """Filters the retrieved cases based on the similarity values.
+
+    Args:
+        retriever_func: The retriever function to be used.
+            Typically constructed with the `build` function.
+        limit: The maximum number of cases to be returned.
+        min_similarity: The minimum similarity value to be considered.
+        max_similarity: The maximum similarity value to be considered.
+
+    Returns:
+        A retriever function that filters the retrieved cases based on the similarity values.
+    """
+
     retriever_func: RetrieverFunc[K, V, S]
     limit: int | None = None
     min_similarity: float | None = None
@@ -67,9 +80,15 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
 class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
     """Transforms a retriever function from one type to another.
 
+    Useful when the input values need to be converted before retrieval,
+    for instance, when the cases are nested and you only need to compare a subset of the values.
+
     Args:
         conversion_func: A function that converts the input values from one type to another.
         retriever_func: The retriever function to be used on the converted values.
+
+    Returns:
+        A retriever function that works on the converted values
     """
 
     retriever_func: RetrieverFunc[K, V2, S]
@@ -103,15 +122,15 @@ def transpose_value[K, V, S: Float](
 class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     """Based on the similarity function this function creates a retriever function.
 
-    The given limit will be applied after filtering for min/max similarity.
-
     Args:
         similarity_func: Similarity function to compute the similarity between cases.
-        processes: Number of processes to use. If processes is less than 1, the number returned by os.cpu_count() is used.
-        similarity_chunksize: Number of batches to process in each chunk.
+        multiprocessing: Either a boolean to enable multiprocessing with all cores
+            or an integer to specify the number of processes to use or a multiprocessing.Pool object.
+        chunksize: Number of batches to process at a time using the similarity function.
+            If None, it will be set to the number of batches divided by the number of processes.
 
     Returns:
-        Returns the retriever function.
+        A retriever function that computes the similarity between cases.
 
     Examples:
         >>> import cbrkit

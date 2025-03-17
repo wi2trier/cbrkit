@@ -12,6 +12,15 @@ def apply_batches[Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V]],
     retrievers: MaybeFactories[RetrieverFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
+    """Applies batches containing a casebase and a query using retriever functions.
+
+    Args:
+        batches: A mapping of queries to casebases and queries.
+        retrievers: Retriever functions that will retrieve similar cases (compared to the query) from the casebase
+
+    Returns:
+        Retrieval result object
+    """
     retriever_funcs = produce_factories(retrievers)
     assert len(retriever_funcs) > 0
     steps: list[ResultStep[Q, C, V, S]] = []
@@ -64,7 +73,7 @@ def apply_queries[Q, C, V, S: Float](
         retrievers: Retriever functions that will retrieve similar cases (compared to the query) from the casebase
 
     Returns:
-        Returns an object of type Result.
+        Retrieval result object
 
     Examples:
         >>> import cbrkit
@@ -94,6 +103,16 @@ def apply_query[K, V, S: Float](
     query: V,
     retrievers: MaybeFactories[RetrieverFunc[K, V, S]],
 ) -> Result[str, K, V, S]:
+    """Applies a single query to a Casebase using retriever functions.
+
+    Args:
+        casebase: The casebase that will be used to retrieve similar cases.
+        query: The query that will be used to retrieve similar cases.
+        retrievers: Retriever functions that will retrieve similar cases (compared to the query) from the casebase
+
+    Returns:
+        Retrieval result object
+    """
     return apply_queries(
         casebase,
         {"default": query},
