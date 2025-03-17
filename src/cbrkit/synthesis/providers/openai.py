@@ -142,30 +142,36 @@ with optional_dependencies():
                     logger.error(f"Invalid response ({error['msg']}): {error['input']}")
                 raise
 
-            message = res.choices[0].message
-            raw_usage = res.usage
-            assert raw_usage is not None
+            choice = res.choices[0]
+            message = choice.message
 
-            usage = Usage(raw_usage.prompt_tokens, raw_usage.completion_tokens)
+            assert res.usage is not None
+            usage = Usage(res.usage.prompt_tokens, res.usage.completion_tokens)
+
+            if choice.finish_reason == "length":
+                raise ValueError("Length limit", res)
+
+            if choice.finish_reason == "content_filter":
+                raise ValueError("Content filter", res)
 
             if message.refusal:
                 raise ValueError("Refusal", res)
 
-            elif (
+            if (
                 isinstance(self.response_type, type)
                 and issubclass(self.response_type, BaseModel)
                 and (parsed := message.parsed) is not None
             ):
                 return Response(cast(R, parsed), usage)
 
-            elif (
+            if (
                 isinstance(self.response_type, type)
                 and issubclass(self.response_type, str)
                 and (content := message.content) is not None
             ):
                 return Response(cast(R, content), usage)
 
-            elif (
+            if (
                 tools is not None
                 and (tool_calls := message.tool_calls) is not None
                 and (parsed := tool_calls[0].function.parsed_arguments) is not None
