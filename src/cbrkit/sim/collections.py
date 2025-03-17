@@ -25,14 +25,15 @@ from ..typing import (
 Number = float | int
 
 __all__ = [
+    "dtw",
+    "smith_waterman",
+    "jaccard",
+    "mapping",
     "isolated_mapping",
     "sequence_mapping",
     "sequence_correctness",
     "SequenceSim",
     "Weight",
-    "jaccard",
-    "smith_waterman",
-    "dtw",
 ]
 
 with optional_dependencies():
