@@ -325,16 +325,23 @@ def compute[Q, C, S: Float](
         if qk in keys
     }
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=RuntimeWarning)
+    eval_results: dict[str, float] = {}
 
-        eval_results = ranx.evaluate(
-            ranx.Qrels(parsed_qrels),
-            ranx.Run(parsed_run),
-            metrics=ranx_metrics,
-        )
+    if ranx_metrics:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-    assert isinstance(eval_results, dict)
+            ranx_results = ranx.evaluate(
+                ranx.Qrels(parsed_qrels),
+                ranx.Run(parsed_run),
+                metrics=ranx_metrics,
+            )
+
+        if isinstance(ranx_results, dict):
+            eval_results.update(ranx_results)
+        else:
+            assert len(ranx_metrics) == 1
+            eval_results = {ranx_metrics[0]: ranx_results}
 
     for metric_spec in custom_metrics:
         metric, k, relevance_level = parse_metric(metric_spec)
