@@ -84,6 +84,7 @@ def retrieval_to_qrels[Q, C, S: Float](
     max_qrel: int = 5,
     min_qrel: int = 1,
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
+    auto_scale: bool = True,
 ) -> list[QueryCaseMatrix[Q, C, int]]:
     return [
         retrieval_step_to_qrels(
@@ -91,6 +92,7 @@ def retrieval_to_qrels[Q, C, S: Float](
             max_qrel,
             min_qrel,
             round_mode,
+            auto_scale,
         )
         for step in result.steps
     ]
