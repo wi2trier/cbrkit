@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.0](https://github.com/wi2trier/cbrkit/compare/v0.22.0...v0.23.0) (2025-03-22)
+
+### Features
+
+* **synthesis:** allow responses to be structured to pass down metadata like usage ([a9dc237](https://github.com/wi2trier/cbrkit/commit/a9dc23709a32dc1881933fc49092eb39cfdfafb3))
+
+### Bug Fixes
+
+* **eval:** add missing auto scale parameter ([3e2f55a](https://github.com/wi2trier/cbrkit/commit/3e2f55a39b747c8ea282efe755fbfcc396a7db93))
+* **eval:** handle single-valued metric return values from ranx ([29b5344](https://github.com/wi2trier/cbrkit/commit/29b53447e0902cebd7d94ab934356d5cb306a524))
+* **sim/collections:** update exported members ([0b1bfe7](https://github.com/wi2trier/cbrkit/commit/0b1bfe78d40874785abe157036d49ddb9adbe498))
+* **sim/embed:** correctly check if cache file already exists ([aace36d](https://github.com/wi2trier/cbrkit/commit/aace36d19d3396aaf8782ccd557a605611169ae0))
+* **synthesis/openai:** handle finish reasons ([531f903](https://github.com/wi2trier/cbrkit/commit/531f9034219adc24de25b0037960c7482e6c6b49))
+* **synthesis/openai:** properly handle response type ([762ce0f](https://github.com/wi2trier/cbrkit/commit/762ce0f3f8e3061b838132e7ba9e67182343ab5d))
+* **synthesis:** make chat message type generic ([5f1a1d4](https://github.com/wi2trier/cbrkit/commit/5f1a1d458ecf76ac58c71f831c0bbd7e7290bc9b))
+
 ## [0.22.0](https://github.com/wi2trier/cbrkit/compare/v0.21.3...v0.22.0) (2025-03-07)
 
 ### Features
