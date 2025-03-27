@@ -81,7 +81,7 @@ nlp = [
 ]
 timeseries = ["minineedle>=3,<4"]
 transformers = [
-    "sentence-transformers>=3,<4",
+    "sentence-transformers>=3,<5",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch>=2.5,<3; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
     "transformers>=4,<5",
