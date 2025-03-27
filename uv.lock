@@ -265,6 +265,7 @@ all = [
     { name = "ollama" },
     { name = "openai" },
     { name = "pydantic-settings" },
+    { name = "pygraphviz" },
     { name = "python-multipart" },
     { name = "ranx" },
     { name = "rustworkx" },
@@ -295,6 +296,9 @@ eval = [
 graphs = [
     { name = "networkx" },
     { name = "rustworkx" },
+]
+graphviz = [
+    { name = "pygraphviz" },
 ]
 llm = [
     { name = "anthropic" },
@@ -339,7 +343,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.40,<1" },
-    { name = "cbrkit", extras = ["api", "cli", "eval", "graphs", "llm", "nlp", "timeseries", "transformers"], marker = "extra == 'all'" },
+    { name = "cbrkit", extras = ["api", "cli", "eval", "graphs", "graphviz", "llm", "nlp", "timeseries", "transformers"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "cohere", marker = "extra == 'llm'", specifier = ">=5,<6" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.100,<1" },
@@ -360,6 +364,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1,<2" },
     { name = "pydantic", specifier = ">=2,<3" },
     { name = "pydantic-settings", marker = "extra == 'api'", specifier = ">=2,<3" },
+    { name = "pygraphviz", marker = "extra == 'graphviz'", specifier = ">=1,<2" },
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.15,<1" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "ranx", marker = "extra == 'eval'", specifier = ">=0.3,<1" },
@@ -379,7 +384,7 @@ requires-dist = [
     { name = "voyageai", marker = "extra == 'llm'", specifier = ">=0.3,<1" },
     { name = "xmltodict", specifier = ">=0.13,<1" },
 ]
-provides-extras = ["all", "api", "cli", "eval", "graphs", "llm", "nlp", "timeseries", "transformers"]
+provides-extras = ["all", "api", "cli", "eval", "graphs", "graphviz", "llm", "nlp", "timeseries", "transformers"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2148,6 +2153,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/7c/2d/c3338d48ea6cc0feb
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/0b/9fcc47d19c48b59121088dd6da2488a49d5f72dacf8262e2790a1d2c7d15/pygments-2.19.1-py3-none-any.whl", hash = "sha256:9ea1544ad55cecf4b8242fab6dd35a93bbce657034b0611ee383099054ab6d8c", size = 1225293 },
 ]
+
+[[package]]
+name = "pygraphviz"
+version = "1.14"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/ca/823d5c74a73d6b8b08e1f5aea12468ef334f0732c65cbb18df2a7f285c87/pygraphviz-1.14.tar.gz", hash = "sha256:c10df02377f4e39b00ae17c862f4ee7e5767317f1c6b2dfd04cea6acc7fc2bea", size = 106003 }
 
 [[package]]
 name = "pyparsing"

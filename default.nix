@@ -9,6 +9,7 @@
   python3,
   tbb_2021_11,
   cacert,
+  graphviz,
 }:
 let
   pdocRepo = fetchFromGitHub {
@@ -40,6 +41,9 @@ let
         })
       )
       {
+        pygraphviz = {
+          setuptools = [ ];
+        };
         cbor = {
           setuptools = [ ];
         };
@@ -50,6 +54,9 @@ let
   packageOverlay =
     final: prev:
     lib.mapAttrs (name: value: prev.${name}.overrideAttrs value) {
+      pygraphviz = old: {
+        buildInputs = (old.buildInputs or [ ]) ++ [ graphviz ];
+      };
       torch = old: {
         autoPatchelfIgnoreMissingDeps = true;
       };
