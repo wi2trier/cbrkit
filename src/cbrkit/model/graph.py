@@ -26,6 +26,7 @@ __all__ = [
     "from_networkx",
     "to_networkx",
     "to_sequence",
+    "to_graphviz",
 ]
 
 type GraphElementType = Literal["node", "edge"]
@@ -359,3 +360,46 @@ with optional_dependencies():
         )
 
         return Graph(nodes=nodes, edges=edges, value=g.graph)
+
+
+with optional_dependencies():
+    from pygraphviz import AGraph
+
+    def to_graphviz[N, E, G](
+        g: Graph[Any, N, E, G],
+        name: str,
+        strict: bool,
+        directed: bool,
+        node_converter: ConversionFunc[N, Mapping[str, str]] | None = None,
+        edge_converter: ConversionFunc[E, Mapping[str, str]] | None = None,
+        graph_converter: ConversionFunc[G, Mapping[str, str]] | None = None,
+        node_attr: Mapping[str, str] | None = None,
+        edge_attr: Mapping[str, str] | None = None,
+        graph_attr: Mapping[str, str] | None = None,
+    ) -> AGraph:
+        gv = AGraph(
+            name=name,
+            strict=strict,
+            directed=directed,
+        )
+        gv.graph_attr.update(graph_attr or {})
+        gv.node_attr.update(node_attr or {})
+        gv.edge_attr.update(edge_attr or {})
+
+        if node_converter is not None:
+            for node in g.nodes.values():
+                gv.add_node(node.key, **node_converter(node.value))
+
+        if edge_converter is not None:
+            for edge in g.edges.values():
+                gv.add_edge(
+                    edge.source.key,
+                    edge.target.key,
+                    key=edge.key,
+                    **edge_converter(edge.value),
+                )
+
+        if graph_converter is not None:
+            gv.graph_attr.update(graph_converter(g.value))
+
+        return gv

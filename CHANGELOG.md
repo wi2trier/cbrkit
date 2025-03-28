@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.1](https://github.com/wi2trier/cbrkit/compare/v0.23.0...v0.23.1) (2025-03-27)
+
+### Bug Fixes
+
+* **deps:** add graphviz library ([273a807](https://github.com/wi2trier/cbrkit/commit/273a807a0e0f4eb0e05250d87323e42bd6f50509))
+* **model:** add graphviz export ([2e003fd](https://github.com/wi2trier/cbrkit/commit/2e003fde941e9ac3b24ba8702276def8e4738c25))
+* only deconstruct casebases once for multiprocessing if they are identical ([0b11f0a](https://github.com/wi2trier/cbrkit/commit/0b11f0a076b2a5fc88c9f425927f8276ddab9a31))
+
 ## [0.23.0](https://github.com/wi2trier/cbrkit/compare/v0.22.0...v0.23.0) (2025-03-22)
 
 ### Features

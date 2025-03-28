@@ -1,6 +1,6 @@
 [project]
 name = "cbrkit"
-version = "0.23.0"
+version = "0.23.1"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI"
 authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 readme = "README.md"
@@ -50,7 +50,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all = ["cbrkit[api,cli,eval,graphs,llm,nlp,timeseries,transformers]"]
+all = ["cbrkit[api,cli,eval,graphs,graphviz,llm,nlp,timeseries,transformers]"]
 api = [
     "cbrkit[cli]",
     "fastapi>=0.100,<1",
@@ -61,6 +61,7 @@ api = [
 cli = ["typer>=0.9,<1"]
 eval = ["ranx>=0.3,<1"]
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
+graphviz = ["pygraphviz>=1,<2"]
 llm = [
     "cohere>=5,<6",
     "voyageai>=0.3,<1",
@@ -80,7 +81,7 @@ nlp = [
 ]
 timeseries = ["minineedle>=3,<4"]
 transformers = [
-    "sentence-transformers>=3,<4",
+    "sentence-transformers>=3,<5",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch>=2.5,<3; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
     "transformers>=4,<5",
