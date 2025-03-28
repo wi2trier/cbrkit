@@ -280,14 +280,14 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
     """
-    Isolated Mapping similarity function that compares each element in 'x'
-    with all elements in 'y'
-    and takes the maximum similarity for each element in 'x', then averages
-    these maximums.
+    Isolated Mapping similarity function that compares each element in 'y' (query)
+    with all elements in 'x' (case)
+    and takes the maximum similarity for each element in 'y', then averages
+    these maximums. Assumes y -> x (query operated onto case).
 
     Args:
-        element_similarity: A function that takes two elements and returns
-        a similarity score between them.
+        element_similarity: A function that takes two elements (query_item, case_item)
+        and returns a similarity score between them.
 
     Examples:
         >>> from cbrkit.sim.strings import levenshtein
@@ -300,13 +300,25 @@ class isolated_mapping[V](SimFunc[Sequence[V], float]):
 
     @override
     def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
-        total_similarity = 0.0
+        # x = case sequence, y = query sequence
+        # Logic: For each element in query y, find its best match in case x. Average these best scores.
 
-        for xi in x:
-            max_similarity = max(self.element_similarity(xi, yi) for yi in y)
+        if not y:  # If the query is empty, similarity is undefined or trivially 0 or 1? Let's return 0.
+            return 0.0
+        # Avoid division by zero if x is empty but y is not. max default handles this.
+
+        total_similarity = 0.0
+        for yi in y:  # Iterate through QUERY (y)
+            # Find the best match for the current query element yi within the CASE sequence x
+            # Pass (query_item, case_item) to element_similarity, assuming sim(query, case) convention
+            # Use default=0.0 for max() in case the case sequence x is empty
+            max_similarity = max(
+                (self.element_similarity(yi, xi) for xi in x), default=0.0
+            )
             total_similarity += max_similarity
 
-        average_similarity = total_similarity / len(x)
+        # Normalize by the length of the QUERY sequence (y)
+        average_similarity = total_similarity / len(y)
 
         return average_similarity
 
