@@ -11,6 +11,7 @@ from ..helpers import (
     get_value,
     mp_count,
     mp_map,
+    mp_starmap,
     sim_map2ranking,
     unpack_float,
     use_mp,
@@ -154,10 +155,22 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     multiprocessing: Pool | int | bool = False
     chunksize: int | None = None
 
+    def __call_single__(self, x: Casebase[K, V], y: V) -> SimMap[K, S]:
+        sim_func = batchify_sim(self.similarity_func)
+        flat_batches = [(x, y) for x in x.values()]
+        flat_sims: Sequence[S] = sim_func(flat_batches)
+
+        return {key: sim for key, sim in zip(x.keys(), flat_sims, strict=True)}
+
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
+        if self.chunksize is None:
+            return mp_starmap(
+                self.__call_single__, batches, self.multiprocessing, logger
+            )
+
         sim_func = batchify_sim(self.similarity_func)
         similarities: list[dict[K, S]] = [{} for _ in range(len(batches))]
 
@@ -165,27 +178,17 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         flat_batches_index: list[tuple[int, K]] = []
         flat_batches: list[tuple[V, V]] = []
 
-        # if all case bases are the same object, only deconstruct it once
-        if all(casebase is batches[0][0] for casebase, _ in batches):
-            casebase = batches[0][0]
-
+        for idx, (casebase, query) in enumerate(batches):
             for key, case in casebase.items():
-                for idx, (_, query) in enumerate(batches):
-                    flat_batches_index.append((idx, key))
-                    flat_batches.append((case, query))
-
-        else:
-            for idx, (casebase, query) in enumerate(batches):
-                for key, case in casebase.items():
-                    flat_batches_index.append((idx, key))
-                    flat_batches.append((case, query))
+                flat_batches_index.append((idx, key))
+                flat_batches.append((case, query))
 
         if use_mp(self.multiprocessing):
             chunksize = self.chunksize or math.ceil(
                 len(flat_batches) / mp_count(self.multiprocessing)
             )
-            pair_chunks = list(chunkify(flat_batches, chunksize))
-            sim_chunks = mp_map(sim_func, pair_chunks, self.multiprocessing, logger)
+            batch_chunks = list(chunkify(flat_batches, chunksize))
+            sim_chunks = mp_map(sim_func, batch_chunks, self.multiprocessing, logger)
 
             for sim_chunk in sim_chunks:
                 flat_sims.extend(sim_chunk)

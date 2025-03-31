@@ -92,20 +92,10 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         batches_index: list[tuple[int, K]] = []
         flat_batches: list[tuple[V, V]] = []
 
-        # if all case bases are the same object, only deconstruct it once
-        if all(casebase is batches[0][0] for casebase, _ in batches):
-            casebase = batches[0][0]
-
+        for idx, (casebase, query) in enumerate(batches):
             for key, case in casebase.items():
-                for idx, (_, query) in enumerate(batches):
-                    batches_index.append((idx, key))
-                    flat_batches.append((case, query))
-
-        else:
-            for idx, (casebase, query) in enumerate(batches):
-                for key, case in casebase.items():
-                    batches_index.append((idx, key))
-                    flat_batches.append((case, query))
+                batches_index.append((idx, key))
+                flat_batches.append((case, query))
 
         adapted_cases = mp_starmap(
             adapt_func,
