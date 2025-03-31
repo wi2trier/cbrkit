@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.23.2](https://github.com/wi2trier/cbrkit/compare/v0.23.1...v0.23.2) (2025-03-31)
+
+### Bug Fixes
+
+* **retrieval/build:** if no chunksize given, do not compute pairwise batches in advance ([0e21714](https://github.com/wi2trier/cbrkit/commit/0e2171465c87c23d073149c9b832e408a6ea952f))
+
 ## [0.23.1](https://github.com/wi2trier/cbrkit/compare/v0.23.0...v0.23.1) (2025-03-27)
 
 ### Bug Fixes
