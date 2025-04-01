@@ -132,8 +132,7 @@ with optional_dependencies():
             >>> g_dtw = dtw(node_sim_func, edge_sim_func)
             >>> result = g_dtw(graph_x, graph_y)
             >>> print(result)
-            GraphSim(value=0.05555555555555555, node_mapping={'1': '1', '2': '2'},
-                    edge_mapping={'e1': 'e1'}, node_similarities=..., edge_similarities=...)
+            GraphSim(value=0.05555555555555555, node_mapping={'1': '2', '2': '2'}, edge_mapping={'e1': 'e1'}, node_similarities={'1': 0.0, '2': 0.0}, edge_similarities={'e1': 0.0})
         """
 
         node_sim_func: AnySimFunc[N, Float]
