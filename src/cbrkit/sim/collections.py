@@ -129,10 +129,10 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         SequenceSim(value=0.14285714285714285, similarities=None, mapping=None)
         >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
         >>> sim(["a", "bb", "ccc"], ["aa", "bbb", "c"], return_alignment=True)
-        SequenceSim(value=0.25, similarities=[0.5, 1.0, 1.0, 0.3333333333333333], mapping=[('a', 'aa'), ('bb', 'aa'), ('ccc', 'bbb'), ('ccc', 'c')])
+        SequenceSim(value=0.25, similarities=[0.5, 1.0, 1.0, 0.3333333333333333], mapping=[('aa', 'a'), ('aa', 'bb'), ('bbb', 'ccc'), ('c', 'ccc')])
         >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
         >>> sim([1, 2, 3], [1, 2, 3, 4], return_alignment=True)
-        SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (3, 4)])
+        SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (4, 3)])
     """
 
     distance_func: SimFunc[V, Float] | None
@@ -198,9 +198,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         for i in range(1, n + 1):
             for j in range(1, m + 1):
                 cost = unpack_float(
-                    self.distance_func(x[i - 1], y[j - 1])
+                    self.distance_func(y[j - 1], x[i - 1])
                     if self.distance_func
-                    else abs(x[i - 1] - y[j - 1])
+                    else abs(y[j - 1] - x[i - 1])
                 )
                 # Take last min from a square box
                 last_min: float = min(
@@ -240,11 +240,11 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         local_similarities = []
 
         while i > 0 and j > 0:
-            alignment.append((x[i - 1], y[j - 1]))  # Align elements
+            alignment.append((y[j - 1], x[i - 1]))  # Align elements as (query, case)
             cost = unpack_float(
-                self.distance_func(x[i - 1], y[j - 1])
+                self.distance_func(y[j - 1], x[i - 1])
                 if self.distance_func
-                else abs(x[i - 1] - y[j - 1])
+                else abs(y[j - 1] - x[i - 1])
             )
             local_similarities.append(dist2sim(cost))  # Convert cost to similarity
             # Move in the direction of the minimum cost
@@ -262,17 +262,15 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
         # Handle remaining elements in i or j
         while i > 0:
-            alignment.append((x[i - 1], None))  # Unmatched element from x
+            alignment.append((None, x[i - 1]))  # Unmatched element from x (case)
             local_similarities.append(0.0)  # No similarity for unmatched
             i -= 1
         while j > 0:
-            alignment.append((None, y[j - 1]))  # Unmatched element from y
+            alignment.append((y[j - 1], None))  # Unmatched element from y (query)
             local_similarities.append(0.0)  # No similarity for unmatched
             j -= 1
 
-        return alignment[::-1], local_similarities[
-            ::-1
-        ]  # Reverse to start from the beginning
+        return alignment[::-1], local_similarities[::-1]  # Reverse to start from the beginning
 
 
 @dataclass(slots=True, frozen=True)
