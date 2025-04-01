@@ -274,8 +274,6 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             ::-1
         ]  # Reverse to start from the beginning
 
-    __all__ += ["dtw"]
-
 
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
