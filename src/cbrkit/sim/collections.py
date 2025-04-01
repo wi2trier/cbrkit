@@ -270,7 +270,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             local_similarities.append(0.0)  # No similarity for unmatched
             j -= 1
 
-        return alignment[::-1], local_similarities[::-1]  # Reverse to start from the beginning
+        return alignment[::-1], local_similarities[
+            ::-1
+        ]  # Reverse to start from the beginning
 
 
 @dataclass(slots=True, frozen=True)
@@ -345,7 +347,7 @@ class mapping[V](SimFunc[Sequence[V], float]):
     max_queue_size: int = 1000
 
     @override
-    def __call__(self,  x: Sequence[V], y: Sequence[V]) -> float:
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         # Priority queue to store potential solutions with their scores
         pq = []
         initial_solution = (0.0, set(), frozenset(y), frozenset(x))
@@ -459,7 +461,9 @@ class sequence_mapping[V, S: Float](
 
         for i in range(len(larger_list) - len(smaller_list) + 1):
             sublist = larger_list[i : i + len(smaller_list)]
-            sim_result = self.compute_contains_exact(smaller_list, sublist) #smaller_list(from y) -> sublist(from x)
+            sim_result = self.compute_contains_exact(
+                smaller_list, sublist
+            )  # smaller_list(from y) -> sublist(from x)
 
             if sim_result.value > max_similarity:
                 max_similarity = sim_result.value
@@ -472,7 +476,9 @@ class sequence_mapping[V, S: Float](
     def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
         # Always treat x as the case and y as the query.
         if self.exact:
-            result = self.compute_contains_exact(y, x) #(y, x) to ensure it maps y(query) -> x(case) in the method
+            result = self.compute_contains_exact(
+                y, x
+            )  # (y, x) to ensure it maps y(query) -> x(case) in the method
         else:
             if len(x) >= len(y):
                 result = self.compute_contains_inexact(x, y)
@@ -487,7 +493,9 @@ class sequence_mapping[V, S: Float](
                         max_similarity = sim_result.value
                         best_local_similarities = sim_result.similarities or []
                 result = SequenceSim(
-                    value=max_similarity, similarities=best_local_similarities, mapping=None
+                    value=max_similarity,
+                    similarities=best_local_similarities,
+                    mapping=None,
                 )
 
         if self.weights and result.similarities:
