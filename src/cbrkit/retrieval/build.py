@@ -159,18 +159,26 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
         sim_func = batchify_sim(self.similarity_func)
-        similarities: list[dict[K, S]] = []
+        similarities: list[dict[K, S]] = [{} for _ in range(len(batches))]
 
         flat_sims: Sequence[S] = []
         flat_batches_index: list[tuple[int, K]] = []
         flat_batches: list[tuple[V, V]] = []
 
-        for idx, (casebase, query) in enumerate(batches):
-            similarities.append({})
+        # if all case bases are the same object, only deconstruct it once
+        if all(casebase is batches[0][0] for casebase, _ in batches):
+            casebase = batches[0][0]
 
             for key, case in casebase.items():
-                flat_batches_index.append((idx, key))
-                flat_batches.append((case, query))
+                for idx, (_, query) in enumerate(batches):
+                    flat_batches_index.append((idx, key))
+                    flat_batches.append((case, query))
+
+        else:
+            for idx, (casebase, query) in enumerate(batches):
+                for key, case in casebase.items():
+                    flat_batches_index.append((idx, key))
+                    flat_batches.append((case, query))
 
         if use_mp(self.multiprocessing):
             chunksize = self.chunksize or math.ceil(
