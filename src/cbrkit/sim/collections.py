@@ -349,10 +349,10 @@ class mapping[V](SimFunc[Sequence[V], float]):
     max_queue_size: int = 1000
 
     @override
-    def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
+    def __call__(self,  x: Sequence[V], y: Sequence[V]) -> float:
         # Priority queue to store potential solutions with their scores
         pq = []
-        initial_solution = (0.0, set(), frozenset(query), frozenset(case))
+        initial_solution = (0.0, set(), frozenset(y), frozenset(x))
         heapq.heappush(pq, initial_solution)
 
         best_score = 0.0
@@ -363,7 +363,7 @@ class mapping[V](SimFunc[Sequence[V], float]):
             )
 
             if not remaining_query:  # All query items are mapped
-                best_score = max(best_score, current_score / len(query))
+                best_score = max(best_score, current_score / len(y))
                 continue  # Continue to process remaining potential mappings
 
             for query_item in remaining_query:
