@@ -2,7 +2,7 @@ import heapq
 import itertools
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Protocol, override
 
 from frozendict import frozendict
@@ -406,14 +406,18 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
         )
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, init=False)
 class init2[K, N, E, G](InitFunc[K, N, E, G]):
-    legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(
-        default_factory=lambda: legal_node_mapping(default_element_matcher)
-    )
-    legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(
-        default_factory=lambda: legal_edge_mapping(default_element_matcher)
-    )
+    legal_node_mapping: LegalMappingFunc[K, N, E, G]
+    legal_edge_mapping: LegalMappingFunc[K, N, E, G]
+
+    def __init__(
+        self,
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E] = default_element_matcher,
+    ):
+        self.legal_node_mapping = legal_node_mapping(node_matcher)
+        self.legal_edge_mapping = legal_edge_mapping(edge_matcher)
 
     def __call__(
         self,
@@ -525,7 +529,7 @@ class legal_edge_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
         )
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
@@ -546,17 +550,21 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
     past_cost_func: PastSimFunc[K, N, E, G]
     future_cost_func: FutureSimFunc[K, N, E, G]
+    node_matcher: InitVar[ElementMatcher[N]]
+    edge_matcher: InitVar[ElementMatcher[E]] = default_element_matcher
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
-    legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(
-        default_factory=lambda: legal_node_mapping(default_element_matcher)
-    )
-    legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(
-        default_factory=lambda: legal_edge_mapping(default_element_matcher)
-    )
     queue_limit: int = 10000
+    legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
+    legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
+
+    def __post_init__(
+        self, node_matcher: ElementMatcher[N], edge_matcher: ElementMatcher[E]
+    ) -> None:
+        self.legal_node_mapping = legal_node_mapping(node_matcher)
+        self.legal_edge_mapping = legal_edge_mapping(edge_matcher)
 
     def expand_node(
         self,

@@ -17,4 +17,8 @@ class ElementMatcher[T](Protocol):
 
 
 def default_element_matcher(x: Any, y: Any) -> bool:
+    return True
+
+
+def type_element_matcher(x: Any, y: Any) -> bool:
     return type(x) is type(y)

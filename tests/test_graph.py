@@ -35,6 +35,7 @@ def test_astar():
     graph_sim = cbrkit.sim.graphs.astar.build(
         cbrkit.sim.graphs.astar.g1(node_sim),
         cbrkit.sim.graphs.astar.h2(node_sim),
+        node_matcher=cbrkit.sim.graphs.type_element_matcher,
     )
     retriever = cbrkit.retrieval.build(graph_sim)
 

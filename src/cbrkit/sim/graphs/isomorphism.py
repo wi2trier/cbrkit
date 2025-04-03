@@ -31,9 +31,9 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
 
     node_sim_func: AnySimFunc[N, Float]
-    aggregator: AggregatorFunc[Any, Float] = default_aggregator
-    node_matcher: ElementMatcher[N] = default_element_matcher
+    node_matcher: ElementMatcher[N]
     edge_matcher: ElementMatcher[E] = default_element_matcher
+    aggregator: AggregatorFunc[Any, Float] = default_aggregator
     id_order: bool = True
     subgraph: bool = True
     induced: bool = True
