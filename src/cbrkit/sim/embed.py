@@ -357,7 +357,7 @@ with optional_dependencies():
             self._metadata = {}
 
             if isinstance(model, str):
-                self.model = SentenceTransformer(model)
+                self.model = SentenceTransformer(model)  # pyright: ignore
                 self._metadata["model"] = model
             else:
                 self.model = model

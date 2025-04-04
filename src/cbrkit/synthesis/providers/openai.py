@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from types import UnionType
-from typing import Literal, Union, cast, get_args, get_origin, override
+from typing import Any, Literal, Union, cast, get_args, get_origin, override
 
 from pydantic import BaseModel, ValidationError
 
@@ -12,8 +12,7 @@ logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx import Timeout
-    from openai import AsyncOpenAI, pydantic_function_tool
-    from openai._types import NOT_GIVEN, Body, Headers, NotGiven, Query
+    from openai import NOT_GIVEN, AsyncOpenAI, NotGiven, pydantic_function_tool
     from openai.types.chat import (
         ChatCompletionMessageParam,
         ChatCompletionNamedToolChoiceParam,
@@ -43,9 +42,9 @@ with optional_dependencies():
         temperature: float | None = None
         top_logprobs: int | None = None
         top_p: float | None = None
-        extra_headers: Headers | None = None
-        extra_query: Query | None = None
-        extra_body: Body | None = None
+        extra_headers: Any | None = None
+        extra_query: Any | None = None
+        extra_body: Any | None = None
         timeout: float | Timeout | None = None
 
         @override

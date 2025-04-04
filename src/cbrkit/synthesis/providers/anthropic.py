@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, cast, override
+from typing import Any, Literal, cast, override
 
 from pydantic import BaseModel
 
@@ -40,8 +40,7 @@ def pydantic_to_anthropic_schema(model: type[BaseModel], description: str = "") 
 
 
 with optional_dependencies():
-    from anthropic import AsyncAnthropic
-    from anthropic._types import NOT_GIVEN, Body, Headers, NotGiven, Query
+    from anthropic import NOT_GIVEN, AsyncAnthropic, NotGiven
     from anthropic.types import (
         MessageParam,
         MetadataParam,
@@ -68,9 +67,9 @@ with optional_dependencies():
         tools: Iterable[ToolParam] | NotGiven = NOT_GIVEN
         top_k: int | NotGiven = NOT_GIVEN
         top_p: float | NotGiven = NOT_GIVEN
-        extra_headers: Headers | None = None
-        extra_query: Query | None = None
-        extra_body: Body | None = None
+        extra_headers: Any | None = None
+        extra_query: Any | None = None
+        extra_body: Any | None = None
         timeout: float | Timeout | NotGiven | None = NOT_GIVEN
 
         @override

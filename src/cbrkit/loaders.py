@@ -46,7 +46,7 @@ def read(data: ReadableType) -> str:
     elif isinstance(data, bytes | bytearray):
         return data.decode("utf-8")
 
-    return read(data.read())
+    return read(data.read())  # pyright: ignore
 
 
 @dataclass(slots=True, frozen=True)
@@ -102,7 +102,7 @@ class csv(ConversionFunc[Iterable[str] | ReadableType, dict[int, dict[str, str]]
         if isinstance(source, ReadableType):
             source = read(source).splitlines()
 
-        reader = csvlib.DictReader(source)
+        reader = csvlib.DictReader(source)  # pyright: ignore
         data: dict[int, dict[str, str]] = {}
         row: dict[str, str]
 

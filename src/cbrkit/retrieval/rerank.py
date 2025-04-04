@@ -150,7 +150,7 @@ with optional_dependencies():
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
             if isinstance(self.model, str):
-                model = SentenceTransformer(self.model, device=self.device)
+                model = SentenceTransformer(self.model, device=self.device)  # pyright: ignore
             else:
                 model = self.model
 
