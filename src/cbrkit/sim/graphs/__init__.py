@@ -1,5 +1,5 @@
 from ...helpers import optional_dependencies
-from . import astar
+from . import astar, greedy
 from .brute_force import brute_force
 from .common import (
     ElementMatcher,
@@ -18,6 +18,7 @@ with optional_dependencies():
 
 __all__ = [
     "astar",
+    "greedy",
     "brute_force",
     "isomorphism",
     "precompute",
