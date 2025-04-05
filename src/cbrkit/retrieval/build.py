@@ -2,7 +2,7 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
-from typing import Literal, override
+from typing import override
 
 from ..helpers import (
     batchify_sim,
@@ -120,6 +120,33 @@ def transpose_value[K, V, S: Float](
 
 
 @dataclass(slots=True, frozen=True)
+class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
+    """Distributes the retrieval process by passing each batch separately to the retriever function.
+
+    Args:
+        retriever_func: The retriever function to be used.
+            Typically constructed with the `build` function.
+        multiprocessing: Either a boolean to enable multiprocessing with all cores
+            or an integer to specify the number of processes to use or a multiprocessing.Pool object.
+
+    Returns:
+        A retriever function that distributes the retrieval process.
+    """
+
+    retriever_func: RetrieverFunc[K, V, S]
+    multiprocessing: Pool | int | bool
+
+    def __call_batch__(self, x: Casebase[K, V], y: V) -> SimMap[K, S]:
+        return self.retriever_func([(x, y)])[0]
+
+    @override
+    def __call__(
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[SimMap[K, S]]:
+        return mp_starmap(self.__call_batch__, batches, self.multiprocessing, logger)
+
+
+@dataclass(slots=True, frozen=True)
 class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     """Based on the similarity function this function creates a retriever function.
 
@@ -153,24 +180,12 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
 
     similarity_func: MaybeFactory[AnySimFunc[V, S]]
     multiprocessing: Pool | int | bool = False
-    chunksize: int | Literal["auto", "skip"] = "auto"
-
-    def __call_batch__(self, x: Casebase[K, V], y: V) -> SimMap[K, S]:
-        sim_func = batchify_sim(self.similarity_func)
-        flat_batches = [(x, y) for x in x.values()]
-        flat_sims: Sequence[S] = sim_func(flat_batches)
-
-        return {key: sim for key, sim in zip(x.keys(), flat_sims, strict=True)}
+    chunksize: int = 0
 
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, S]]:
-        if self.chunksize == "skip":
-            return mp_starmap(
-                self.__call_batch__, batches, self.multiprocessing, logger
-            )
-
         sim_func = batchify_sim(self.similarity_func)
         similarities: list[dict[K, S]] = [{} for _ in range(len(batches))]
 
@@ -183,10 +198,10 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
                 flat_batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        if use_mp(self.multiprocessing) or isinstance(self.chunksize, int):
+        if use_mp(self.multiprocessing) or self.chunksize > 0:
             chunksize = (
                 self.chunksize
-                if isinstance(self.chunksize, int)
+                if self.chunksize > 0
                 else len(flat_batches) // mp_count(self.multiprocessing)
             )
             batch_chunks = list(chunkify(flat_batches, chunksize))

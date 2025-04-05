@@ -18,7 +18,6 @@ if __name__ == "__main__":
                 },
                 aggregator=cbrkit.sim.aggregator(pooling="mean"),
             ),
-            chunksize="skip",
             multiprocessing=True,
         ),
         limit=5,
