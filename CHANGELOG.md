@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.24.0](https://github.com/wi2trier/cbrkit/compare/v0.23.2...v0.24.0) (2025-04-10)
+
+### ⚠ BREAKING CHANGES
+
+* **retrieval:** The new helper `cbrkit.retrieval.distribute` allows to process each batch separately.
+This is useful when dealing with many cases/queries, as it allows to use dropout within each subprocess,
+meaning that the amount of data to be passed can be greatly reduced.
+
+### Features
+
+* **retrieval:** add distribute wrapper ([a78edf3](https://github.com/wi2trier/cbrkit/commit/a78edf38a4e06ebd68edbf3feadc86ee014e8051))
+* **sim/graphs:** add greedy mapping function ([1076974](https://github.com/wi2trier/cbrkit/commit/107697412e305fe40d756d6452fc3afac2911305))
+
+### Bug Fixes
+
+* **retrieval/build:** improve chunking strategy ([a3c1d1d](https://github.com/wi2trier/cbrkit/commit/a3c1d1d03c016d815507c811ac7bafd9f329098b))
+* **sim/graphs:** require users to pass node matching functions ([5bfed77](https://github.com/wi2trier/cbrkit/commit/5bfed77c7c337927ee2a6c5c85735c3de4387f5f))
+
 ## [0.23.2](https://github.com/wi2trier/cbrkit/compare/v0.23.1...v0.23.2) (2025-03-31)
 
 ### Bug Fixes
