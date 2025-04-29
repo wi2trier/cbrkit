@@ -398,8 +398,7 @@ class Weight:
 
 @dataclass(slots=True, frozen=True)
 class sequence_mapping[V, S: Float](
-    SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata
-):
+    SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata):
     """
     List Mapping similarity function.
 
@@ -432,73 +431,72 @@ class sequence_mapping[V, S: Float](
         }
 
     def compute_contains_exact(
-        self, list1: Sequence[V], list2: Sequence[V]
+        self, query: Sequence[V], case: Sequence[V]
     ) -> SequenceSim[V, S]:
-        if len(list1) != len(list2):
+        if len(query) != len(case):
             return SequenceSim(value=0.0, similarities=None, mapping=None)
 
         sim_sum = 0.0
         local_similarities: list[S] = []
 
-        for elem1, elem2 in zip(list1, list2, strict=False):
-            sim = self.element_similarity(elem1, elem2)
+        for elem_q, elem_c in zip(query, case, strict=False):
+            sim = self.element_similarity(elem_q, elem_c)
             sim_sum += unpack_float(sim)
             local_similarities.append(sim)
 
         return SequenceSim(
-            value=sim_sum / len(list1),
+            value=sim_sum / len(query),
             similarities=local_similarities,
             mapping=None,
         )
 
     def compute_contains_inexact(
-        self, larger_list: Sequence[V], smaller_list: Sequence[V]
+        self, case_list: Sequence[V], query_list: Sequence[V]
     ) -> SequenceSim[V, S]:
-        max_similarity = -1.0
-        best_local_similarities: Sequence[S] = []
-
-        for i in range(len(larger_list) - len(smaller_list) + 1):
-            sublist = larger_list[i : i + len(smaller_list)]
-            sim_result = self.compute_contains_exact(smaller_list, sublist) #smaller_list(from y) -> sublist(from x)
-
-            if sim_result.value > max_similarity:
-                max_similarity = sim_result.value
-                best_local_similarities = sim_result.similarities or []
-
-        return SequenceSim(
-            value=max_similarity, similarities=best_local_similarities, mapping=None
+        """
+        Slides the *shorter* sequence across the *longer* one and always
+        evaluates   query → case   (i.e. query elements are compared against
+        the current window cut from the case list).
+        """
+        case_is_longer = len(case_list) >= len(query_list)
+        larger, smaller = (
+            (case_list, query_list) if case_is_longer else (query_list, case_list)
         )
 
-    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
-        # Always treat x as the case and y as the query.
-        if self.exact:
-            result = self.compute_contains_exact(y, x) #(y, x) to ensure it maps y(query) -> x(case) in the method
-        else:
-            if len(x) >= len(y):
-                result = self.compute_contains_inexact(x, y)
+        best_value = -1.0
+        best_sims: Sequence[S] = []
+
+        for start in range(len(larger) - len(smaller) + 1):
+            window = larger[start : start + len(smaller)]
+
+            if case_is_longer:
+                sim_res = self.compute_contains_exact(smaller, window)
             else:
-                # Here, x is the case and y is the query, but y is larger.
-                max_similarity = -1.0
-                best_local_similarities: Sequence[S] = []
-                for i in range(len(y) - len(x) + 1):
-                    sub_query = y[i : i + len(x)]
-                    sim_result = self.compute_contains_exact(sub_query, x)
-                    if sim_result.value > max_similarity:
-                        max_similarity = sim_result.value
-                        best_local_similarities = sim_result.similarities or []
-                result = SequenceSim(
-                    value=max_similarity, similarities=best_local_similarities, mapping=None
-                )
+                sim_res = self.compute_contains_exact(window, smaller)
+
+            if sim_res.value > best_value:
+                best_value = sim_res.value
+                best_sims = sim_res.similarities or []
+
+        return SequenceSim(value=best_value, similarities=best_sims, mapping=None)
+
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
+        # x is the “case”, y is the “query”
+        if self.exact:
+            result = self.compute_contains_exact(y, x)
+        else:
+            result = self.compute_contains_inexact(x, y)
 
         if self.weights and result.similarities:
             total_weighted_sim = 0.0
             total_weight = 0.0
 
-            # Arrange and normalize weights
+            # Normalize weights
             for weight in self.weights:
                 weight_range = weight.upper_bound - weight.lower_bound
                 weight.normalized_weight = weight.weight / weight_range
 
+            # Apply weights
             for sim in result.similarities:
                 sim_val = unpack_float(sim)
 
@@ -508,7 +506,6 @@ class sequence_mapping[V, S: Float](
                     inclusive_lower = weight.inclusive_lower
                     inclusive_upper = weight.inclusive_upper
 
-                    # Check if sim_val falls within weight's bounds
                     if (
                         (inclusive_lower and lower_bound <= sim_val <= upper_bound)
                         or (
