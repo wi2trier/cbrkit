@@ -270,7 +270,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             local_similarities.append(0.0)  # No similarity for unmatched
             j -= 1
 
-        return alignment[::-1], local_similarities[::-1]  # Reverse to start from the beginning
+        return alignment[::-1], local_similarities[
+            ::-1
+        ]  # Reverse to start from the beginning
 
 
 @dataclass(slots=True, frozen=True)
@@ -345,7 +347,7 @@ class mapping[V](SimFunc[Sequence[V], float]):
     max_queue_size: int = 1000
 
     @override
-    def __call__(self,  x: Sequence[V], y: Sequence[V]) -> float:
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         # Priority queue to store potential solutions with their scores
         pq = []
         initial_solution = (0.0, set(), frozenset(y), frozenset(x))
@@ -398,7 +400,8 @@ class Weight:
 
 @dataclass(slots=True, frozen=True)
 class sequence_mapping[V, S: Float](
-    SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata):
+    SimFunc[Sequence[V], SequenceSim[V, S]], HasMetadata
+):
     """
     List Mapping similarity function.
 
