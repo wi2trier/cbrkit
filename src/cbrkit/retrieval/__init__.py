@@ -1,7 +1,7 @@
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import apply_batches, apply_queries, apply_query
-from .build import build, distribute, dropout, transpose, transpose_value
+from .build import build, combine, distribute, dropout, transpose, transpose_value
 
 with optional_dependencies():
     from .rerank import cohere
@@ -18,6 +18,7 @@ __all__ = [
     "transpose_value",
     "dropout",
     "distribute",
+    "combine",
     "apply_batches",
     "apply_queries",
     "apply_query",

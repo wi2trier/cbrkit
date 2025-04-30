@@ -2,7 +2,7 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
-from typing import override
+from typing import Any, Literal, override
 
 from ..helpers import (
     batchify_sim,
@@ -16,7 +16,9 @@ from ..helpers import (
     unpack_float,
     use_mp,
 )
+from ..sim.aggregator import default_aggregator
 from ..typing import (
+    AggregatorFunc,
     AnySimFunc,
     Casebase,
     ConversionFunc,
@@ -117,6 +119,62 @@ def transpose_value[K, V, S: Float](
     retriever_func: RetrieverFunc[K, V, S],
 ) -> RetrieverFunc[K, StructuredValue[V], S]:
     return transpose(retriever_func, get_value)
+
+
+@dataclass(slots=True, frozen=True)
+class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
+    """Combines multiple retriever functions into one.
+
+    Args:
+        retriever_funcs: A list of retriever functions to be combined.
+        aggregator: A function to aggregate the results from the retriever functions.
+        strategy: The strategy to combine the results. Either "intersection" or "union".
+
+    Returns:
+        A retriever function that combines the results from multiple retrievers.
+    """
+
+    retriever_funcs: list[RetrieverFunc[K, V, S]]
+    aggregator: AggregatorFunc[Any, S] = default_aggregator
+    strategy: Literal["intersection", "union"] = "union"
+
+    @override
+    def __call__(
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[SimMap[K, float]]:
+        results = [retriever_func(batches) for retriever_func in self.retriever_funcs]
+
+        return [
+            self.__call_batch__(
+                [
+                    results[retriever_idx][batch_idx]
+                    for retriever_idx in range(len(self.retriever_funcs))
+                ]
+            )
+            for batch_idx in range(len(batches))
+        ]
+
+    def __call_batch__(self, results: list[SimMap[K, S]]) -> SimMap[K, float]:
+        if self.strategy == "intersection":
+            return {
+                key: self.aggregator(
+                    [result[key] for result in results if key in result]
+                )
+                for key in set().intersection(
+                    *[set(result.keys()) for result in results]
+                )
+            }
+
+        elif self.strategy == "union":
+            return {
+                key: self.aggregator(
+                    [result[key] for result in results if key in result]
+                )
+                for result in results
+                for key in result.keys()
+            }
+
+        raise ValueError(f"Unknown strategy: {self.strategy}")
 
 
 @dataclass(slots=True, frozen=True)
