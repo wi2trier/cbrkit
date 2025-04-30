@@ -129,10 +129,10 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         SequenceSim(value=0.14285714285714285, similarities=None, mapping=None)
         >>> sim = dtw(distance_func=lambda a, b: abs(len(str(a)) - len(str(b))))
         >>> sim(["a", "bb", "ccc"], ["aa", "bbb", "c"], return_alignment=True)
-        SequenceSim(value=0.25, similarities=[0.5, 1.0, 1.0, 0.3333333333333333], mapping=[('a', 'aa'), ('bb', 'aa'), ('ccc', 'bbb'), ('ccc', 'c')])
+        SequenceSim(value=0.25, similarities=[0.5, 1.0, 1.0, 0.3333333333333333], mapping=[('aa', 'a'), ('aa', 'bb'), ('bbb', 'ccc'), ('c', 'ccc')])
         >>> sim = dtw(distance_func=lambda a, b: abs(a - b))
         >>> sim([1, 2, 3], [1, 2, 3, 4], return_alignment=True)
-        SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (3, 4)])
+        SequenceSim(value=0.5, similarities=[1.0, 1.0, 1.0, 0.5], mapping=[(1, 1), (2, 2), (3, 3), (4, 3)])
     """
 
     distance_func: SimFunc[V, Float] | None
@@ -198,9 +198,9 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         for i in range(1, n + 1):
             for j in range(1, m + 1):
                 cost = unpack_float(
-                    self.distance_func(x[i - 1], y[j - 1])
+                    self.distance_func(y[j - 1], x[i - 1])
                     if self.distance_func
-                    else abs(x[i - 1] - y[j - 1])
+                    else abs(y[j - 1] - x[i - 1])
                 )
                 # Take last min from a square box
                 last_min: float = min(
@@ -240,11 +240,11 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
         local_similarities = []
 
         while i > 0 and j > 0:
-            alignment.append((x[i - 1], y[j - 1]))  # Align elements
+            alignment.append((y[j - 1], x[i - 1]))  # Align elements as (query, case)
             cost = unpack_float(
-                self.distance_func(x[i - 1], y[j - 1])
+                self.distance_func(y[j - 1], x[i - 1])
                 if self.distance_func
-                else abs(x[i - 1] - y[j - 1])
+                else abs(y[j - 1] - x[i - 1])
             )
             local_similarities.append(dist2sim(cost))  # Convert cost to similarity
             # Move in the direction of the minimum cost
@@ -262,11 +262,11 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
         # Handle remaining elements in i or j
         while i > 0:
-            alignment.append((x[i - 1], None))  # Unmatched element from x
+            alignment.append((None, x[i - 1]))  # Unmatched element from x (case)
             local_similarities.append(0.0)  # No similarity for unmatched
             i -= 1
         while j > 0:
-            alignment.append((None, y[j - 1]))  # Unmatched element from y
+            alignment.append((y[j - 1], None))  # Unmatched element from y (query)
             local_similarities.append(0.0)  # No similarity for unmatched
             j -= 1
 
@@ -274,20 +274,18 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
             ::-1
         ]  # Reverse to start from the beginning
 
-    __all__ += ["dtw"]
-
 
 @dataclass(slots=True, frozen=True)
 class isolated_mapping[V](SimFunc[Sequence[V], float]):
     """
-    Isolated Mapping similarity function that compares each element in 'x'
-    with all elements in 'y'
-    and takes the maximum similarity for each element in 'x', then averages
-    these maximums.
+    Isolated Mapping similarity function that compares each element in 'y' (query)
+    with all elements in 'x' (case)
+    and takes the maximum similarity for each element in 'y', then averages
+    these maximums. Assumes y -> x (query operated onto case).
 
     Args:
-        element_similarity: A function that takes two elements and returns
-        a similarity score between them.
+        element_similarity: A function that takes two elements (query_item, case_item)
+        and returns a similarity score between them.
 
     Examples:
         >>> from cbrkit.sim.strings import levenshtein
@@ -300,13 +298,25 @@ class isolated_mapping[V](SimFunc[Sequence[V], float]):
 
     @override
     def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
-        total_similarity = 0.0
+        # x = case sequence, y = query sequence
+        # Logic: For each element in query y, find its best match in case x. Average these best scores.
 
-        for xi in x:
-            max_similarity = max(self.element_similarity(xi, yi) for yi in y)
+        if not y:  # If the query is empty, similarity is undefined or trivially 0 or 1? Let's return 0.
+            return 0.0
+        # Avoid division by zero if x is empty but y is not. max default handles this.
+
+        total_similarity = 0.0
+        for yi in y:  # Iterate through QUERY (y)
+            # Find the best match for the current query element yi within the CASE sequence x
+            # Pass (query_item, case_item) to element_similarity, assuming sim(query, case) convention
+            # Use default=0.0 for max() in case the case sequence x is empty
+            max_similarity = max(
+                (self.element_similarity(yi, xi) for xi in x), default=0.0
+            )
             total_similarity += max_similarity
 
-        average_similarity = total_similarity / len(x)
+        # Normalize by the length of the QUERY sequence (y)
+        average_similarity = total_similarity / len(y)
 
         return average_similarity
 
@@ -337,10 +347,10 @@ class mapping[V](SimFunc[Sequence[V], float]):
     max_queue_size: int = 1000
 
     @override
-    def __call__(self, query: Sequence[V], case: Sequence[V]) -> float:
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
         # Priority queue to store potential solutions with their scores
         pq = []
-        initial_solution = (0.0, set(), frozenset(query), frozenset(case))
+        initial_solution = (0.0, set(), frozenset(y), frozenset(x))
         heapq.heappush(pq, initial_solution)
 
         best_score = 0.0
@@ -351,7 +361,7 @@ class mapping[V](SimFunc[Sequence[V], float]):
             )
 
             if not remaining_query:  # All query items are mapped
-                best_score = max(best_score, current_score / len(query))
+                best_score = max(best_score, current_score / len(y))
                 continue  # Continue to process remaining potential mappings
 
             for query_item in remaining_query:
@@ -424,61 +434,72 @@ class sequence_mapping[V, S: Float](
         }
 
     def compute_contains_exact(
-        self, list1: Sequence[V], list2: Sequence[V]
+        self, query: Sequence[V], case: Sequence[V]
     ) -> SequenceSim[V, S]:
-        if len(list1) != len(list2):
+        if len(query) != len(case):
             return SequenceSim(value=0.0, similarities=None, mapping=None)
 
         sim_sum = 0.0
         local_similarities: list[S] = []
 
-        for elem1, elem2 in zip(list1, list2, strict=False):
-            sim = self.element_similarity(elem1, elem2)
+        for elem_q, elem_c in zip(query, case, strict=False):
+            sim = self.element_similarity(elem_q, elem_c)
             sim_sum += unpack_float(sim)
             local_similarities.append(sim)
 
         return SequenceSim(
-            value=sim_sum / len(list1),
+            value=sim_sum / len(query),
             similarities=local_similarities,
             mapping=None,
         )
 
     def compute_contains_inexact(
-        self, larger_list: Sequence[V], smaller_list: Sequence[V]
+        self, case_list: Sequence[V], query_list: Sequence[V]
     ) -> SequenceSim[V, S]:
-        max_similarity = -1.0
-        best_local_similarities: Sequence[S] = []
-
-        for i in range(len(larger_list) - len(smaller_list) + 1):
-            sublist = larger_list[i : i + len(smaller_list)]
-            sim_result = self.compute_contains_exact(sublist, smaller_list)
-
-            if sim_result.value > max_similarity:
-                max_similarity = sim_result.value
-                best_local_similarities = sim_result.similarities or []
-
-        return SequenceSim(
-            value=max_similarity, similarities=best_local_similarities, mapping=None
+        """
+        Slides the *shorter* sequence across the *longer* one and always
+        evaluates   query → case   (i.e. query elements are compared against
+        the current window cut from the case list).
+        """
+        case_is_longer = len(case_list) >= len(query_list)
+        larger, smaller = (
+            (case_list, query_list) if case_is_longer else (query_list, case_list)
         )
 
-    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
-        if self.exact:
-            result = self.compute_contains_exact(x, y)
-        else:
-            if len(x) >= len(y):
-                result = self.compute_contains_inexact(x, y)
+        best_value = -1.0
+        best_sims: Sequence[S] = []
+
+        for start in range(len(larger) - len(smaller) + 1):
+            window = larger[start : start + len(smaller)]
+
+            if case_is_longer:
+                sim_res = self.compute_contains_exact(smaller, window)
             else:
-                result = self.compute_contains_inexact(y, x)
+                sim_res = self.compute_contains_exact(window, smaller)
+
+            if sim_res.value > best_value:
+                best_value = sim_res.value
+                best_sims = sim_res.similarities or []
+
+        return SequenceSim(value=best_value, similarities=best_sims, mapping=None)
+
+    def __call__(self, x: Sequence[V], y: Sequence[V]) -> SequenceSim[V, S]:
+        # x is the “case”, y is the “query”
+        if self.exact:
+            result = self.compute_contains_exact(y, x)
+        else:
+            result = self.compute_contains_inexact(x, y)
 
         if self.weights and result.similarities:
             total_weighted_sim = 0.0
             total_weight = 0.0
 
-            # Arrange and normalize weights
+            # Normalize weights
             for weight in self.weights:
                 weight_range = weight.upper_bound - weight.lower_bound
                 weight.normalized_weight = weight.weight / weight_range
 
+            # Apply weights
             for sim in result.similarities:
                 sim_val = unpack_float(sim)
 
@@ -488,7 +509,6 @@ class sequence_mapping[V, S: Float](
                     inclusive_lower = weight.inclusive_lower
                     inclusive_upper = weight.inclusive_upper
 
-                    # Check if sim_val falls within weight's bounds
                     if (
                         (inclusive_lower and lower_bound <= sim_val <= upper_bound)
                         or (
