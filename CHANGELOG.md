@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.24.1](https://github.com/wi2trier/cbrkit/compare/v0.24.0...v0.24.1) (2025-04-30)
+
+### Bug Fixes
+
+* **sim/collections:** always map elements from y to x ([#233](https://github.com/wi2trier/cbrkit/issues/233)) ([9dac5bc](https://github.com/wi2trier/cbrkit/commit/9dac5bc7d5280cdc6b59b31f63d8d8fc3460d6fb))
+
 ## [0.24.0](https://github.com/wi2trier/cbrkit/compare/v0.23.2...v0.24.0) (2025-04-10)
 
 ### ⚠ BREAKING CHANGES
