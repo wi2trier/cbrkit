@@ -73,6 +73,7 @@ llm = [
     "instructor>=1,<2",
 ]
 nlp = [
+    "bm25s[core,stem]>=0.2,<1",
     "levenshtein>=0.23,<0.26; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "levenshtein>=0.26,<1; (sys_platform == 'darwin' and platform_machine == 'arm64') or sys_platform == 'linux'",
     "nltk>=3,<4",

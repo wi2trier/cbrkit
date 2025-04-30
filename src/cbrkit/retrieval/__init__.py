@@ -12,6 +12,9 @@ with optional_dependencies():
 with optional_dependencies():
     from .rerank import sentence_transformers
 
+with optional_dependencies():
+    from .rerank import bm25
+
 __all__ = [
     "build",
     "transpose",
@@ -28,4 +31,5 @@ __all__ = [
     "cohere",
     "voyageai",
     "sentence_transformers",
+    "bm25",
 ]

@@ -1,7 +1,7 @@
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import cast, override
+from typing import Any, cast, override
 
 from ..helpers import event_loop, get_logger, optional_dependencies
 from ..typing import (
@@ -238,3 +238,77 @@ with optional_dependencies():
                 key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
                 for res in response
             }
+
+
+with optional_dependencies():
+    import bm25s
+    import numpy as np
+    import Stemmer
+
+    @dataclass(slots=True, frozen=True)
+    class bm25[K](RetrieverFunc[K, str, float]):
+        """BM25 retriever based on bm25s"""
+
+        primary_language: str
+        additional_languages: list[str] = field(default_factory=list)
+
+        @override
+        def __call__(
+            self,
+            batches: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[dict[K, float]]:
+            stemmer = Stemmer.Stemmer(self.primary_language)
+            stopwords = [self.primary_language] + self.additional_languages
+
+            # if all casebases are the same, we can optimize the retrieval
+            first_casebase = batches[0][0]
+
+            if all(casebase == first_casebase for casebase, _ in batches):
+                logger.debug(
+                    "All casebases are the same, performing for all queries in one go"
+                )
+                return self.__call_queries__(
+                    [query for _, query in batches], first_casebase, stemmer, stopwords
+                )
+
+            logger.debug("Casebases are different, performing retrieval for each query")
+            return [
+                self.__call_queries__([query], casebase, stemmer, stopwords)[0]
+                for casebase, query in batches
+            ]
+
+        def __call_queries__(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+            stemmer: Callable[..., Any],
+            stopwords: list[str],
+        ) -> Sequence[dict[K, float]]:
+            cases_tokens = bm25s.tokenize(
+                list(casebase.values()), stemmer=stemmer, stopwords=stopwords
+            )
+            queries_tokens = bm25s.tokenize(
+                cast(list[str], queries), stemmer=stemmer, stopwords=stopwords
+            )
+
+            retriever = bm25s.BM25()
+            retriever.index(cases_tokens)
+
+            results, scores = retriever.retrieve(
+                queries_tokens,
+                sorted=False,
+                k=len(casebase),
+            )
+            max_score = np.max(scores)
+
+            key_index = {idx: key for idx, key in enumerate(casebase)}
+
+            return [
+                {
+                    key_index[case_id]: float(score / max_score)
+                    for case_id, score in zip(
+                        results[query_id], scores[query_id], strict=True
+                    )
+                }
+                for query_id in range(len(queries))
+            ]
