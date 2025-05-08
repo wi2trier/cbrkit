@@ -103,8 +103,8 @@ test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
 docs = ["pdoc>=15,<16"]
 
 [build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+requires = ["uv-build>=0.7,<1"]
+build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore data --ignore examples --ignore result"
