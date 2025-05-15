@@ -245,12 +245,18 @@ with optional_dependencies():
     import numpy as np
     import Stemmer
 
-    @dataclass(slots=True, frozen=True)
+    @dataclass(slots=True)
     class bm25[K](RetrieverFunc[K, str, float]):
         """BM25 retriever based on bm25s"""
 
         primary_language: str
         additional_languages: list[str] = field(default_factory=list)
+        _indexed_retriever: bm25s.BM25 | None = field(
+            default=None, init=False, repr=False
+        )
+        _indexed_casebase: Casebase[K, str] | None = field(
+            default=None, init=False, repr=False
+        )
 
         @override
         def __call__(
@@ -284,15 +290,20 @@ with optional_dependencies():
             stemmer: Callable[..., Any],
             stopwords: list[str],
         ) -> Sequence[dict[K, float]]:
-            cases_tokens = bm25s.tokenize(
-                list(casebase.values()), stemmer=stemmer, stopwords=stopwords
-            )
+            if self._indexed_retriever and self._indexed_casebase == casebase:
+                retriever = self._indexed_retriever
+            else:
+                cases_tokens = bm25s.tokenize(
+                    list(casebase.values()), stemmer=stemmer, stopwords=stopwords
+                )
+                retriever = bm25s.BM25()
+                retriever.index(cases_tokens)
+                self._indexed_retriever = retriever
+                self._indexed_casebase = casebase
+
             queries_tokens = bm25s.tokenize(
                 cast(list[str], queries), stemmer=stemmer, stopwords=stopwords
             )
-
-            retriever = bm25s.BM25()
-            retriever.index(cases_tokens)
 
             results, scores = retriever.retrieve(
                 queries_tokens,
