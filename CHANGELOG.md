@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.25.0](https://github.com/wi2trier/cbrkit/compare/v0.24.1...v0.25.0) (2025-05-15)
+
+### Features
+
+* **retrieval:** add bm25 retriever ([bb06f4a](https://github.com/wi2trier/cbrkit/commit/bb06f4ad6c8f6c95d37aa8486c732fa753cc6f26))
+* **retrieval:** add combine wrapper to merge results from multiple retrievers ([f303421](https://github.com/wi2trier/cbrkit/commit/f303421c82f6b3acd274155d369e489a86ceccd6))
+
+### Bug Fixes
+
+* **retrieval/bm25:** add simple cache to improve performance ([148d75e](https://github.com/wi2trier/cbrkit/commit/148d75ea2d738a273dd4b4f69d4d72a22c9b0cf8))
+
 ## [0.24.1](https://github.com/wi2trier/cbrkit/compare/v0.24.0...v0.24.1) (2025-04-30)
 
 ### Bug Fixes
