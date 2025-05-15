@@ -249,8 +249,8 @@ with optional_dependencies():
     class bm25[K](RetrieverFunc[K, str, float]):
         """BM25 retriever based on bm25s"""
 
-        primary_language: str
-        additional_languages: list[str] = field(default_factory=list)
+        language: str
+        stopwords: list[str] | None = None
         _indexed_retriever: bm25s.BM25 | None = field(
             default=None, init=False, repr=False
         )
@@ -263,8 +263,8 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            stemmer = Stemmer.Stemmer(self.primary_language)
-            stopwords = [self.primary_language] + self.additional_languages
+            stemmer = Stemmer.Stemmer(self.language)
+            stopwords: str | list[str] = self.stopwords or self.language
 
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
@@ -288,7 +288,7 @@ with optional_dependencies():
             queries: Sequence[str],
             casebase: Casebase[K, str],
             stemmer: Callable[..., Any],
-            stopwords: list[str],
+            stopwords: str | list[str],
         ) -> Sequence[dict[K, float]]:
             if self._indexed_retriever and self._indexed_casebase == casebase:
                 retriever = self._indexed_retriever
