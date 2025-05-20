@@ -156,17 +156,15 @@ class legal_edge_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
 @dataclass(slots=True, init=False)
 class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     """
-    Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
+    Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5).
 
     Args:
-        past_cost_func: A heuristic function to compute the costs of all previous steps.
-        future_cost_func: A heuristic function to compute the future costs.
-        selection_func: A function to select the next node or edge to be mapped.
-        init_func: A function to initialize the state.
+        node_sim_func: A function to compute the similarity between two nodes.
         node_matcher: A function that returns true if two nodes can be mapped legally.
+        edge_sim_func: A function to compute the similarity between two edges.
         edge_matcher: A function that returns true if two edges can be mapped legally.
-        queue_limit: Limits the queue size which prunes the search space.
-            This leads to a faster search and less memory usage but also introduces a similarity error.
+        init_func: A function to initialize the state.
+        start_with: A string indicating whether to start with nodes or edges.
 
     Returns:
         The similarity between the query graph and the most similar graph in the casebase.
