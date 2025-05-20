@@ -1,3 +1,4 @@
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, override
@@ -38,6 +39,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     subgraph: bool = True
     induced: bool = True
     call_limit: int | None = None
+    max_iterations: int = 0
 
     @override
     def __call__(
@@ -50,7 +52,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         x_rw, x_lookup = to_rustworkx_with_lookup(x)
         y_rw, y_lookup = to_rustworkx_with_lookup(y)
 
-        rw_mappings = rustworkx.vf2_mapping(
+        mappings_iter = rustworkx.vf2_mapping(
             y_rw,
             x_rw,
             node_matcher=self.node_matcher,
@@ -61,10 +63,21 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             call_limit=self.call_limit,
         )
 
-        node_mappings: list[dict[K, K]] = [
-            {y_lookup[y_key]: x_lookup[x_key] for y_key, x_key in mapping.items()}
-            for mapping in rw_mappings
-        ]
+        node_mappings: list[dict[K, K]] = []
+
+        for idx in itertools.count():
+            if self.max_iterations > 0 and idx >= self.max_iterations:
+                break
+
+            try:
+                node_mappings.append(
+                    {
+                        y_lookup[y_key]: x_lookup[x_key]
+                        for y_key, x_key in next(mappings_iter).items()
+                    }
+                )
+            except StopIteration:
+                break
 
         if len(node_mappings) == 0:
             return GraphSim(0.0, {}, {}, {}, {})
