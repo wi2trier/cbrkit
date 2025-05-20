@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 from frozendict import frozendict
 from pydantic import BaseModel
@@ -25,6 +25,8 @@ __all__ = [
     "to_rustworkx_with_lookup",
     "from_networkx",
     "to_networkx",
+    "NetworkxNode",
+    "NetworkxEdge",
     "to_sequence",
     "to_graphviz",
 ]
@@ -307,6 +309,18 @@ with optional_dependencies():
         return Graph(nodes=nodes, edges=edges, value=g.attrs)
 
 
+class NetworkxNode[K, N](TypedDict):
+    key: K
+    value: N
+
+
+class NetworkxEdge[K, N, E](TypedDict):
+    key: K
+    source: K
+    target: K
+    value: E
+
+
 with optional_dependencies():
     import networkx as nx
 
@@ -317,11 +331,7 @@ with optional_dependencies():
         ng.add_nodes_from(
             (
                 node.key,
-                (
-                    node.value
-                    if isinstance(node.value, Mapping)
-                    else {"data": node.value}
-                ),
+                NetworkxNode(key=node.key, value=node.value),
             )
             for node in g.nodes.values()
         )
@@ -330,10 +340,11 @@ with optional_dependencies():
             (
                 edge.source.key,
                 edge.target.key,
-                (
-                    {**edge.value, "key": edge.key}
-                    if isinstance(edge.value, Mapping)
-                    else {"data": edge.value, "key": edge.key}
+                NetworkxEdge(
+                    key=edge.key,
+                    source=edge.source.key,
+                    target=edge.target.key,
+                    value=edge.value,
                 ),
             )
             for edge in g.edges.values()
