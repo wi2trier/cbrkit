@@ -299,7 +299,7 @@ with optional_dependencies():
                 retriever = bm25s.BM25()
                 retriever.index(cases_tokens)
                 self._indexed_retriever = retriever
-                self._indexed_casebase = casebase
+                self._indexed_casebase = dict(casebase)
 
             queries_tokens = bm25s.tokenize(
                 cast(list[str], queries), stemmer=stemmer, stopwords=stopwords
