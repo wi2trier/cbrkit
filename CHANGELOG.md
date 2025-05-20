@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.1](https://github.com/wi2trier/cbrkit/compare/v0.25.0...v0.25.1) (2025-05-20)
+
+### Bug Fixes
+
+* **model/graph:** networkx converter now encodes everything into the attributes ([8cced6a](https://github.com/wi2trier/cbrkit/commit/8cced6a3e39d447daf9309c13b0511de6ee8ef27))
+* **retrieval/bm25:** do shallow copy of casebase when indexing ([0dfabec](https://github.com/wi2trier/cbrkit/commit/0dfabecb40223a0c429e8e515a08840123d0ec48))
+* **sim/graphs:** add max iterations param to isomorphism algorithm ([96873c5](https://github.com/wi2trier/cbrkit/commit/96873c58892d8b882dd53b1c10b269533b405153))
+* **sim/graphs:** update docstring of greedy ([e55be5a](https://github.com/wi2trier/cbrkit/commit/e55be5a7f2fdfa707da50697180bf0dd467c5806))
+
 ## [0.25.0](https://github.com/wi2trier/cbrkit/compare/v0.24.1...v0.25.0) (2025-05-15)
 
 ### Features
