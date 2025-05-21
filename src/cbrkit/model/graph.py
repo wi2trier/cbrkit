@@ -310,15 +310,13 @@ with optional_dependencies():
 
 
 class NetworkxNode[K, N](TypedDict):
-    key: K
     value: N
+    obj: Node[K, N]
 
 
 class NetworkxEdge[K, N, E](TypedDict):
-    key: K
-    source: K
-    target: K
     value: E
+    obj: Edge[K, N, E]
 
 
 with optional_dependencies():
@@ -331,7 +329,10 @@ with optional_dependencies():
         ng.add_nodes_from(
             (
                 node.key,
-                NetworkxNode(key=node.key, value=node.value),
+                NetworkxNode(
+                    value=node.value,
+                    obj=node,
+                ),
             )
             for node in g.nodes.values()
         )
@@ -341,10 +342,8 @@ with optional_dependencies():
                 edge.source.key,
                 edge.target.key,
                 NetworkxEdge(
-                    key=edge.key,
-                    source=edge.source.key,
-                    target=edge.target.key,
                     value=edge.value,
+                    obj=edge,
                 ),
             )
             for edge in g.edges.values()
