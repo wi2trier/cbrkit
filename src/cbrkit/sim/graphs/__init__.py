@@ -17,9 +17,13 @@ with optional_dependencies():
 with optional_dependencies():
     from .alignment import smith_waterman
 
+with optional_dependencies():
+    from .ged import ged
+
 __all__ = [
     "astar",
     "greedy",
+    "ged",
     "brute_force",
     "isomorphism",
     "precompute",
