@@ -524,8 +524,11 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         init_func: A function to initialize the state.
         node_matcher: A function that returns true if two nodes can be mapped legally.
         edge_matcher: A function that returns true if two edges can be mapped legally.
-        queue_limit: Limits the queue size which prunes the search space.
+        beam_width: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
+            Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
+        pathlength_weight: Add a penalty for states with few mapped elements that already have a low similarity.
+            Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
 
     Returns:
         The similarity between the query graph and the most similar graph in the casebase.
@@ -537,7 +540,8 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     edge_matcher: InitVar[ElementMatcher[E]] = default_element_matcher
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
-    queue_limit: int = 10000
+    beam_width: int = 0
+    pathlength_weight: int = 0
     legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
     legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
     # TODO: Currently not implemented as described in the paper, needs further investigation
@@ -636,6 +640,22 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         raise ValueError(f"Unknown element type: {y_type}")
 
+    def compute_priority(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: State[K],
+    ) -> float:
+        past_cost = unpack_float(self.past_cost_func(x, y, state))
+        future_cost = self.future_cost_func(x, y, state)
+        prio = 1 - (past_cost + future_cost)
+
+        if self.pathlength_weight > 0:
+            num_paths = len(state.mapped_nodes) + len(state.mapped_edges)
+            return prio / (self.pathlength_weight**num_paths)
+
+        return prio
+
     def __call_case_oriented__(
         self,
         x: Graph[K, N, E, G],
@@ -675,13 +695,11 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 break
 
             for next_state in self.expand(x, y, current_state):
-                next_sim = unpack_float(
-                    self.past_cost_func(x, y, next_state)
-                ) + self.future_cost_func(x, y, next_state)
-                heapq.heappush(open_set, PriorityState(1 - next_sim, next_state))
+                next_prio = self.compute_priority(x, y, next_state)
+                heapq.heappush(open_set, PriorityState(next_prio, next_state))
 
-            if self.queue_limit > 0 and len(open_set) > self.queue_limit:
-                open_set = open_set[: self.queue_limit]
+            if self.beam_width > 0 and len(open_set) > self.beam_width:
+                open_set = open_set[: self.beam_width]
 
         sim = self.past_cost_func(x, y, best_state)
 
