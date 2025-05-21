@@ -1,14 +1,13 @@
 import itertools
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal, Protocol, override
+from typing import Literal, Protocol
 
 from frozendict import frozendict
 
 from ...helpers import (
     batchify_sim,
     get_logger,
-    unpack_float,
     unpack_floats,
 )
 from ...model.graph import (
@@ -18,7 +17,7 @@ from ...model.graph import (
 )
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from ..wrappers import transpose_value
-from .common import ElementMatcher, GraphSim, default_element_matcher
+from .common import ElementMatcher, GraphSim, default_edge_sim, default_element_matcher
 
 logger = get_logger(__name__)
 
@@ -84,23 +83,6 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
             frozenset(itertools.product(y.nodes.keys(), x.nodes.keys())),
             frozenset(itertools.product(y.edges.keys(), x.edges.keys())),
         )
-
-
-@dataclass(slots=True, frozen=True)
-class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-
-    @override
-    def __call__(
-        self, batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
-    ) -> list[float]:
-        source_sims = self.node_sim_func([(x.source, y.source) for x, y in batches])
-        target_sims = self.node_sim_func([(x.target, y.target) for x, y in batches])
-
-        return [
-            0.5 * (unpack_float(source) + unpack_float(target))
-            for source, target in zip(source_sims, target_sims, strict=True)
-        ]
 
 
 @dataclass(slots=True, frozen=True)

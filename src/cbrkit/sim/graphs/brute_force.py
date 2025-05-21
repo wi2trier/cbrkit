@@ -1,9 +1,7 @@
 import itertools
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import override
 
-from ...helpers import batchify_sim, unpack_float, unpack_floats
+from ...helpers import batchify_sim, unpack_floats
 from ...model.graph import (
     Edge,
     Graph,
@@ -16,24 +14,7 @@ from ...typing import (
     SimFunc,
 )
 from ..wrappers import transpose_value
-from .common import GraphSim
-
-
-@dataclass(slots=True, frozen=True)
-class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-
-    @override
-    def __call__(
-        self, batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
-    ) -> list[float]:
-        source_sims = self.node_sim_func([(x.source, y.source) for x, y in batches])
-        target_sims = self.node_sim_func([(x.target, y.target) for x, y in batches])
-
-        return [
-            0.5 * (unpack_float(source) + unpack_float(target))
-            for source, target in zip(source_sims, target_sims, strict=True)
-        ]
+from .common import GraphSim, default_edge_sim
 
 
 @dataclass

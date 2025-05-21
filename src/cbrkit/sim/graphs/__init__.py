@@ -4,6 +4,7 @@ from .brute_force import brute_force
 from .common import (
     ElementMatcher,
     GraphSim,
+    default_edge_sim,
     default_element_matcher,
     type_element_matcher,
 )
@@ -28,4 +29,5 @@ __all__ = [
     "ElementMatcher",
     "default_element_matcher",
     "type_element_matcher",
+    "default_edge_sim",
 ]

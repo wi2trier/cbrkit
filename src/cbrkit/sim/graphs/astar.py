@@ -1,9 +1,9 @@
 import heapq
 import itertools
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import InitVar, dataclass, field
-from typing import Protocol, override
+from typing import Protocol
 
 from frozendict import frozendict
 
@@ -21,7 +21,7 @@ from ...model.graph import (
 )
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from ..wrappers import transpose_value
-from .common import ElementMatcher, GraphSim, default_element_matcher
+from .common import ElementMatcher, GraphSim, default_edge_sim, default_element_matcher
 
 __all__ = [
     "PastSimFunc",
@@ -460,23 +460,6 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
             frozenset(y.nodes.keys() - node_mappings.keys()),
             frozenset(y.edges.keys() - edge_mappings.keys()),
         )
-
-
-@dataclass(slots=True, frozen=True)
-class default_edge_sim[K, N, E](BatchSimFunc[Edge[K, N, E], Float]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-
-    @override
-    def __call__(
-        self, batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E]]]
-    ) -> list[float]:
-        source_sims = self.node_sim_func([(x.source, y.source) for x, y in batches])
-        target_sims = self.node_sim_func([(x.target, y.target) for x, y in batches])
-
-        return [
-            0.5 * (unpack_float(source) + unpack_float(target))
-            for source, target in zip(source_sims, target_sims, strict=True)
-        ]
 
 
 @dataclass(slots=True, frozen=True)
