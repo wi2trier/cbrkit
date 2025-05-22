@@ -73,6 +73,8 @@ class FutureSimFunc[K, N, E, G](Protocol):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
         /,
     ) -> float: ...
 
@@ -83,6 +85,8 @@ class PastSimFunc[K, N, E, G](Protocol):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
         /,
     ) -> float | PastSim[K]: ...
 
@@ -93,6 +97,9 @@ class SelectionFunc[K, N, E, G](Protocol):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
+        future_sim_func: FutureSimFunc[K, N, E, G],
         /,
     ) -> None | tuple[K, GraphElementType]: ...
 
@@ -102,6 +109,8 @@ class InitFunc[K, N, E, G](Protocol):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
         /,
     ) -> State[K]: ...
 
@@ -124,6 +133,8 @@ class h1[K, N, E, G](FutureSimFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
     ) -> float:
         """Heuristic to compute future costs"""
 
@@ -134,33 +145,20 @@ class h1[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
-
-    def __init__(
-        self,
-        node_sim_func: AnySimFunc[N, Float],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
-    ) -> None:
-        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
-        self.edge_sim_func = (
-            default_edge_sim(self.node_sim_func)
-            if edge_sim_func is None
-            else batchify_sim(edge_sim_func)
-        )
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
     ) -> float:
         h_val = 0
 
         for y_name in s.remaining_nodes:
             max_sim = max(
                 unpack_floats(
-                    self.node_sim_func(
+                    node_sim_func(
                         [(x_node, y.nodes[y_name]) for x_node in x.nodes.values()]
                     )
                 ),
@@ -172,7 +170,7 @@ class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
         for y_name in s.remaining_edges:
             max_sim = max(
                 unpack_floats(
-                    self.edge_sim_func(
+                    edge_sim_func(
                         [(x_edge, y.edges[y_name]) for x_edge in x.edges.values()]
                     )
                 ),
@@ -186,26 +184,13 @@ class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
-
-    def __init__(
-        self,
-        node_sim_func: AnySimFunc[N, Float],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
-    ) -> None:
-        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
-        self.edge_sim_func = (
-            default_edge_sim(self.node_sim_func)
-            if edge_sim_func is None
-            else batchify_sim(edge_sim_func)
-        )
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
     ) -> float:
         h_val = 0
 
@@ -213,7 +198,7 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
             y_node = y.nodes[y_name]
             max_sim = max(
                 unpack_floats(
-                    self.node_sim_func(
+                    node_sim_func(
                         [
                             (x_node, y_node)
                             for x_name, x_node in x.nodes.items()
@@ -230,7 +215,7 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
             y_edge = y.edges[y_name]
             max_sim = max(
                 unpack_floats(
-                    self.edge_sim_func(
+                    edge_sim_func(
                         [
                             (x_edge, y_edge)
                             for x_name, x_edge in x.edges.items()
@@ -252,31 +237,18 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class g1[K, N, E, G](PastSimFunc[K, N, E, G]):
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
-
-    def __init__(
-        self,
-        node_sim_func: AnySimFunc[N, Float],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
-    ) -> None:
-        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
-        self.edge_sim_func = (
-            default_edge_sim(self.node_sim_func)
-            if edge_sim_func is None
-            else batchify_sim(edge_sim_func)
-        )
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
     ) -> PastSim[K]:
         """Function to compute the costs of all previous steps"""
 
         node_sims = unpack_floats(
-            self.node_sim_func(
+            node_sim_func(
                 [
                     (x.nodes[x_key], y.nodes[y_key])
                     for y_key, x_key in s.mapped_nodes.items()
@@ -285,7 +257,7 @@ class g1[K, N, E, G](PastSimFunc[K, N, E, G]):
         )
 
         edge_sims = unpack_floats(
-            self.edge_sim_func(
+            edge_sim_func(
                 [
                     (x.edges[x_key], y.edges[y_key])
                     for y_key, x_key in s.mapped_edges.items()
@@ -310,6 +282,9 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
+        future_sim_func: FutureSimFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
@@ -329,6 +304,9 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
+        future_sim_func: FutureSimFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
@@ -355,23 +333,28 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
-    heuristic_func: FutureSimFunc[K, N, E, G]
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         s: State[K],
+        node_sim_func: BatchSimFunc[Node[K, N], Float],
+        edge_sim_func: BatchSimFunc[Edge[K, N, E], Float],
+        future_sim_func: FutureSimFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
         heuristic_scores: list[tuple[K, GraphElementType, float]] = []
 
         for y_key in s.remaining_nodes:
-            heuristic_scores.append((y_key, "node", self.heuristic_func(x, y, s)))
+            heuristic_scores.append(
+                (y_key, "node", future_sim_func(x, y, s, node_sim_func, edge_sim_func))
+            )
 
         for y_key in s.remaining_edges:
-            heuristic_scores.append((y_key, "edge", self.heuristic_func(x, y, s)))
+            heuristic_scores.append(
+                (y_key, "edge", future_sim_func(x, y, s, node_sim_func, edge_sim_func))
+            )
 
         if not heuristic_scores:
             return None
@@ -397,6 +380,8 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
     ) -> State[K]:
         return State(
             frozendict(),
@@ -408,39 +393,23 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
 
 @dataclass(slots=True, init=False)
 class init2[K, N, E, G](InitFunc[K, N, E, G]):
-    legal_node_mapping: LegalMappingFunc[K, N, E, G]
-    legal_edge_mapping: LegalMappingFunc[K, N, E, G]
-
-    def __init__(
-        self,
-        node_matcher: ElementMatcher[N],
-        edge_matcher: ElementMatcher[E] = default_element_matcher,
-    ):
-        self.legal_node_mapping = legal_node_mapping(node_matcher)
-        self.legal_edge_mapping = legal_edge_mapping(edge_matcher)
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
     ) -> State[K]:
         # pre-populate the mapping with nodes/edges that only have one possible legal mapping
         possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
         possible_edge_mappings: defaultdict[K, set[K]] = defaultdict(set)
 
-        state = State(
-            frozendict(),
-            frozendict(),
-            frozenset(y.nodes.keys()),
-            frozenset(y.edges.keys()),
-        )
-
         for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
-            if self.legal_node_mapping(x, y, state, x_key, y_key):
+            if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
                 possible_node_mappings[y_key].add(x_key)
 
         for y_key, x_key in itertools.product(y.edges.keys(), x.edges.keys()):
-            if self.legal_edge_mapping(x, y, state, x_key, y_key):
+            if edge_matcher(x.edges[x_key].value, y.edges[y_key].value):
                 possible_edge_mappings[y_key].add(x_key)
 
         node_mappings: dict[K, K] = {
@@ -518,8 +487,8 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
     Args:
-        past_cost_func: A heuristic function to compute the costs of all previous steps.
-        future_cost_func: A heuristic function to compute the future costs.
+        past_sim_func: A heuristic function to compute the costs of all previous steps.
+        future_sim_func: A heuristic function to compute the future costs.
         selection_func: A function to select the next node or edge to be mapped.
         init_func: A function to initialize the state.
         node_matcher: A function that returns true if two nodes can be mapped legally.
@@ -534,24 +503,39 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    past_cost_func: PastSimFunc[K, N, E, G]
-    future_cost_func: FutureSimFunc[K, N, E, G]
-    node_matcher: InitVar[ElementMatcher[N]]
-    edge_matcher: InitVar[ElementMatcher[E]] = default_element_matcher
+    past_sim_func: PastSimFunc[K, N, E, G]
+    future_sim_func: FutureSimFunc[K, N, E, G]
+    node_sim_func: InitVar[AnySimFunc[N, Float]]
+    node_matcher: ElementMatcher[N]
+    edge_sim_func: InitVar[AnySimFunc[Edge[K, N, E], Float] | None] = None
+    edge_matcher: ElementMatcher[E] = default_element_matcher
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     beam_width: int = 0
     pathlength_weight: int = 0
+    precompute_node_similarities: bool = False
+    precompute_edge_similarities: bool = False
     legal_node_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
     legal_edge_mapping: LegalMappingFunc[K, N, E, G] = field(init=False)
+    batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
+    batch_edge_sim_func: BatchSimFunc[Edge[K, N, E], Float] = field(init=False)
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
 
     def __post_init__(
-        self, node_matcher: ElementMatcher[N], edge_matcher: ElementMatcher[E]
+        self,
+        any_node_sim_func: AnySimFunc[N, Float],
+        any_edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None,
     ) -> None:
-        self.legal_node_mapping = legal_node_mapping(node_matcher)
-        self.legal_edge_mapping = legal_edge_mapping(edge_matcher)
+        self.legal_node_mapping = legal_node_mapping(self.node_matcher)
+        self.legal_edge_mapping = legal_edge_mapping(self.edge_matcher)
+
+        self.batch_node_sim_func = batchify_sim(transpose_value(any_node_sim_func))
+        self.batch_edge_sim_func = (
+            default_edge_sim(self.batch_node_sim_func)
+            if any_edge_sim_func is None
+            else batchify_sim(any_edge_sim_func)
+        )
 
     def expand_node(
         self,
@@ -625,7 +609,14 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> list[State[K]]:
         """Expand a given node and its queue"""
 
-        selection = self.selection_func(x, y, state)
+        selection = self.selection_func(
+            x,
+            y,
+            state,
+            self.batch_node_sim_func,
+            self.batch_edge_sim_func,
+            self.future_sim_func,
+        )
 
         if selection is None:
             return []
@@ -646,8 +637,14 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         y: Graph[K, N, E, G],
         state: State[K],
     ) -> float:
-        past_cost = unpack_float(self.past_cost_func(x, y, state))
-        future_cost = self.future_cost_func(x, y, state)
+        past_cost = unpack_float(
+            self.past_sim_func(
+                x, y, state, self.batch_node_sim_func, self.batch_edge_sim_func
+            )
+        )
+        future_cost = self.future_sim_func(
+            x, y, state, self.batch_node_sim_func, self.batch_edge_sim_func
+        )
         prio = 1 - (past_cost + future_cost)
 
         if self.pathlength_weight > 0:
@@ -682,8 +679,30 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         ) and self.allow_case_oriented_mapping:
             return self.__call_case_oriented__(x, y)
 
+        if self.precompute_node_similarities:
+            self.batch_node_sim_func(
+                [
+                    (x_node, y_node)
+                    for x_node, y_node in itertools.product(
+                        x.nodes.values(), y.nodes.values()
+                    )
+                    if self.node_matcher(x_node.value, y_node.value)
+                ]
+            )
+
+        if self.precompute_edge_similarities:
+            self.batch_edge_sim_func(
+                [
+                    (x_edge, y_edge)
+                    for x_edge, y_edge in itertools.product(
+                        x.edges.values(), y.edges.values()
+                    )
+                    if self.edge_matcher(x_edge.value, y_edge.value)
+                ]
+            )
+
         open_set: list[PriorityState[K]] = []
-        best_state = self.init_func(x, y)
+        best_state = self.init_func(x, y, self.node_matcher, self.edge_matcher)
         heapq.heappush(open_set, PriorityState(0, best_state))
 
         while open_set:
@@ -701,7 +720,9 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             if self.beam_width > 0 and len(open_set) > self.beam_width:
                 open_set = open_set[: self.beam_width]
 
-        sim = self.past_cost_func(x, y, best_state)
+        sim = self.past_sim_func(
+            x, y, best_state, self.batch_node_sim_func, self.batch_edge_sim_func
+        )
 
         return GraphSim(
             unpack_float(sim),
