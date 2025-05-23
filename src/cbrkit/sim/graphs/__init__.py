@@ -1,5 +1,5 @@
 from ...helpers import optional_dependencies
-from . import astar, greedy
+from . import astar
 from .brute_force import brute_force
 from .common import (
     BaseGraphSimFunc,
@@ -11,6 +11,7 @@ from .common import (
     default_element_matcher,
     type_element_matcher,
 )
+from .greedy import greedy
 from .isomorphism import isomorphism
 from .precompute import precompute
 
