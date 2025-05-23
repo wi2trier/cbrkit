@@ -3,6 +3,7 @@ from timeit import default_timer
 
 from ..helpers import get_logger, get_metadata, produce_factories
 from ..model import QueryResultStep, Result, ResultStep
+from ..sim.graphs.precompute import precompute
 from ..typing import Float, MaybeFactories, RetrieverFunc
 
 logger = get_logger(__name__)
@@ -43,17 +44,20 @@ def apply_batches[Q, C, V, S: Float](
             )
         }
 
-        steps.append(
-            ResultStep(
-                queries=step_queries,
-                metadata=get_metadata(retriever_func),
-                duration=end_time - start_time,
-            )
-        )
         current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
             for query_key in current_batches
         }
+
+        # TODO: Maybe make this generic via some class property
+        if not isinstance(retriever_func, precompute):
+            steps.append(
+                ResultStep(
+                    queries=step_queries,
+                    metadata=get_metadata(retriever_func),
+                    duration=end_time - start_time,
+                )
+            )
 
     logger.info("Finished processing all retrievers")
 
