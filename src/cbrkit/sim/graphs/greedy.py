@@ -1,142 +1,27 @@
-import itertools
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal
 
 from frozendict import frozendict
 
 from ...helpers import (
-    batchify_sim,
     get_logger,
-    unpack_floats,
 )
 from ...model.graph import (
-    Edge,
     Graph,
-    Node,
 )
-from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
-from ..wrappers import transpose_value
-from .common import ElementMatcher, GraphSim, default_edge_sim, default_element_matcher
+from ...typing import SimFunc
+from .common import GraphSim, SearchGraphSimFunc, SearchState
 
 logger = get_logger(__name__)
 
-__all__ = [
-    "build",
-    "init1",
-    "default_edge_sim",
-    "State",
-    "StateSim",
-    "InitFunc",
-    "LegalMappingFunc",
-    "build",
-    "legal_node_mapping",
-    "legal_edge_mapping",
-]
+__all__ = ["greedy"]
 
 
-@dataclass(slots=True, frozen=True)
-class State[K]:
-    # mappings are from y to x
-    mapped_nodes: frozendict[K, K]
-    mapped_edges: frozendict[K, K]
-    open_node_pairs: frozenset[tuple[K, K]]
-    open_edge_pairs: frozenset[tuple[K, K]]
-
-
-@dataclass(slots=True, frozen=True)
-class StateSim[K](StructuredValue[float]):
-    node_similarities: Mapping[K, float]
-    edge_similarities: Mapping[K, float]
-
-
-class InitFunc[K, N, E, G](Protocol):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        /,
-    ) -> State[K]: ...
-
-
-class LegalMappingFunc[K, N, E, G](Protocol):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        x_key: K,
-        y_key: K,
-    ) -> bool: ...
-
-
-@dataclass(slots=True, frozen=True)
-class init1[K, N, E, G](InitFunc[K, N, E, G]):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-    ) -> State[K]:
-        return State(
-            frozendict(),
-            frozendict(),
-            frozenset(itertools.product(y.nodes.keys(), x.nodes.keys())),
-            frozenset(itertools.product(y.edges.keys(), x.edges.keys())),
-        )
-
-
-@dataclass(slots=True, frozen=True)
-class legal_node_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
-    matcher: ElementMatcher[N]
-
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        x_key: K,
-        y_key: K,
-    ) -> bool:
-        return (
-            y_key not in state.mapped_nodes.keys()
-            and x_key not in state.mapped_nodes.values()
-            and self.matcher(x.nodes[x_key].value, y.nodes[y_key].value)
-        )
-
-
-@dataclass(slots=True, frozen=True)
-class legal_edge_mapping[K, N, E, G](LegalMappingFunc[K, N, E, G]):
-    matcher: ElementMatcher[E]
-
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        x_key: K,
-        y_key: K,
-    ) -> bool:
-        x_value = x.edges[x_key]
-        y_value = y.edges[y_key]
-        mapped_x_source_key = state.mapped_nodes.get(y_value.source.key)
-        mapped_x_target_key = state.mapped_nodes.get(y_value.target.key)
-
-        return (
-            y_key not in state.mapped_edges.keys()
-            and x_key not in state.mapped_edges.values()
-            and self.matcher(x_value.value, y_value.value)
-            # if the nodes are already mapped, check if they are mapped legally
-            and (
-                mapped_x_source_key is None or x_value.source.key == mapped_x_source_key
-            )
-            and (
-                mapped_x_target_key is None or x_value.target.key == mapped_x_target_key
-            )
-        )
-
-
-@dataclass(slots=True, init=False)
-class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+@dataclass(slots=True)
+class greedy[K, N, E, G](
+    SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
+):
     """
     Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5).
 
@@ -145,154 +30,86 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         node_matcher: A function that returns true if two nodes can be mapped legally.
         edge_sim_func: A function to compute the similarity between two edges.
         edge_matcher: A function that returns true if two edges can be mapped legally.
-        init_func: A function to initialize the state.
         start_with: A string indicating whether to start with nodes or edges.
 
     Returns:
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
-    init_func: InitFunc[K, N, E, G]
-    legal_node_mapping: LegalMappingFunc[K, N, E, G]
-    legal_edge_mapping: LegalMappingFunc[K, N, E, G]
-    start_with: Literal["nodes", "edges"]
-
-    def __init__(
-        self,
-        node_sim_func: AnySimFunc[N, Float],
-        node_matcher: ElementMatcher[N],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
-        edge_matcher: ElementMatcher[E] = default_element_matcher,
-        init_func: InitFunc[K, N, E, G] | None = None,
-        start_with: Literal["nodes", "edges"] = "nodes",
-    ) -> None:
-        self.legal_node_mapping = legal_node_mapping(node_matcher)
-        self.legal_edge_mapping = legal_edge_mapping(edge_matcher)
-
-        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
-        self.edge_sim_func = (
-            default_edge_sim(self.node_sim_func)
-            if edge_sim_func is None
-            else batchify_sim(edge_sim_func)
-        )
-        self.init_func = init_func if init_func else init1()
-
-        self.start_with = start_with
-
-    def compute_similarity(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        s: State[K],
-    ) -> StateSim[K]:
-        """Function to compute the similarity based on the current state"""
-
-        node_sims = unpack_floats(
-            self.node_sim_func(
-                [
-                    (x.nodes[x_key], y.nodes[y_key])
-                    for y_key, x_key in s.mapped_nodes.items()
-                ]
-            )
-        )
-
-        edge_sims = unpack_floats(
-            self.edge_sim_func(
-                [
-                    (x.edges[x_key], y.edges[y_key])
-                    for y_key, x_key in s.mapped_edges.items()
-                ]
-            )
-        )
-
-        all_sims = itertools.chain(node_sims, edge_sims)
-        total_elements = len(y.nodes) + len(y.edges)
-
-        return StateSim(
-            sum(all_sims) / total_elements,
-            dict(zip(s.mapped_nodes.keys(), node_sims, strict=True)),
-            dict(zip(s.mapped_edges.keys(), edge_sims, strict=True)),
-        )
+    start_with: Literal["nodes", "edges"] = "nodes"
 
     def expand_edges(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        state: State[K],
-    ) -> list[State[K]]:
+        state: SearchState[K],
+    ) -> list[SearchState[K]]:
         """Expand the current state by adding all possible edge mappings"""
 
-        new_states = []
+        next_states: list[SearchState[K]] = []
 
-        for y_key, x_key in state.open_edge_pairs:
-            if self.legal_edge_mapping(x, y, state, x_key, y_key):
-                new_state = State(
-                    state.mapped_nodes,
-                    state.mapped_edges.set(y_key, x_key),
-                    state.open_node_pairs,
-                    state.open_edge_pairs
-                    - {
-                        (y, x)
-                        for y, x in itertools.product(y.edges.keys(), x.edges.keys())
-                        if y == y_key or x == x_key
-                    },
-                )
-                new_states.append(new_state)
+        for y_key in state.open_edges:
+            next_states.extend(self.expand_edge(x, y, state, y_key))
 
-        return new_states
+        return next_states
 
     def expand_nodes(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        state: State[K],
-    ) -> list[State[K]]:
+        state: SearchState[K],
+    ) -> list[SearchState[K]]:
         """Expand the current state by adding all possible node mappings"""
 
-        new_states = []
+        next_states: list[SearchState[K]] = []
 
-        for y_key, x_key in state.open_node_pairs:
-            if self.legal_node_mapping(x, y, state, x_key, y_key):
-                new_state = State(
-                    state.mapped_nodes.set(y_key, x_key),
-                    state.mapped_edges,
-                    state.open_node_pairs
-                    - {
-                        (y, x)
-                        for y, x in itertools.product(y.nodes.keys(), x.nodes.keys())
-                        if y == y_key or x == x_key
-                    },
-                    state.open_edge_pairs,
-                )
-                new_states.append(new_state)
+        for y_key in state.open_nodes:
+            next_states.extend(self.expand_node(x, y, state, y_key))
 
-        return new_states
+        return next_states
 
     def expand(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        current_state: State[K],
-        current_sim: StateSim[K],
+        current_state: SearchState[K],
+        current_sim: GraphSim[K],
         expand_func: Callable[
-            [Graph[K, N, E, G], Graph[K, N, E, G], State[K]], list[State[K]]
+            [Graph[K, N, E, G], Graph[K, N, E, G], SearchState[K]], list[SearchState[K]]
         ],
-    ) -> tuple[State[K], StateSim[K]]:
+        node_pair_sims: Mapping[tuple[K, K], float],
+        edge_pair_sims: Mapping[tuple[K, K], float],
+    ) -> tuple[SearchState[K], GraphSim[K]]:
         """Expand the current state by adding all possible mappings"""
 
-        while True:
+        while current_state.open_nodes or current_state.open_edges:
             # Iterate over all open pairs and find the best pair
-            new_states = expand_func(x, y, current_state)
-            new_sims = [self.compute_similarity(x, y, state) for state in new_states]
+            next_states = expand_func(x, y, current_state)
+            new_sims = [
+                self.similarity(
+                    x,
+                    y,
+                    state.mapped_nodes,
+                    state.mapped_edges,
+                    node_pair_sims,
+                    edge_pair_sims,
+                )
+                for state in next_states
+            ]
 
             best_sim, best_state = max(
-                zip(new_sims, new_states, strict=True), key=lambda item: item[0].value
+                zip(new_sims, next_states, strict=True),
+                key=lambda item: item[0].value,
             )
 
             # If no better pair is found, break the loop
-            if best_state == current_state and best_sim == current_sim:
+            if best_sim.value <= current_sim.value:
+                current_state = SearchState(
+                    current_state.mapped_nodes,
+                    current_state.mapped_edges,
+                    frozenset(),
+                    frozenset(),
+                )
                 break
 
             # Update the current state and similarity
@@ -308,36 +125,35 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     ) -> GraphSim[K]:
         """Perform greedy graph matching of the query y against the case x"""
 
-        current_state = self.init_func(x, y)
-        current_sim = self.compute_similarity(x, y, current_state)
+        state = SearchState(
+            frozendict(),
+            frozendict(),
+            frozenset(y.nodes.keys()),
+            frozenset(y.edges.keys()),
+        )
+        sim = GraphSim(0.0, frozendict(), frozendict(), frozendict(), frozendict())
 
-        if self.start_with == "edges":
-            current_state, current_sim = self.expand(
-                x, y, current_state, current_sim, self.expand_edges
+        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+
+        if self.start_with == "nodes":
+            state, sim = self.expand(
+                x, y, state, sim, self.expand_nodes, node_pair_sims, edge_pair_sims
             )
-            current_state, current_sim = self.expand(
-                x, y, current_state, current_sim, self.expand_nodes
+            state, sim = self.expand(
+                x, y, state, sim, self.expand_edges, node_pair_sims, edge_pair_sims
             )
-        elif self.start_with == "nodes":
-            current_state, current_sim = self.expand(
-                x, y, current_state, current_sim, self.expand_nodes
+
+        elif self.start_with == "edges":
+            state, sim = self.expand(
+                x, y, state, sim, self.expand_edges, node_pair_sims, edge_pair_sims
             )
-            current_state, current_sim = self.expand(
-                x, y, current_state, current_sim, self.expand_edges
+            state, sim = self.expand(
+                x, y, state, sim, self.expand_nodes, node_pair_sims, edge_pair_sims
             )
+
         else:
             raise ValueError(
                 f"Invalid start_with value: {self.start_with}. Expected 'nodes' or 'edges'."
             )
 
-        return GraphSim(
-            current_sim.value,
-            dict(current_state.mapped_nodes),
-            dict(current_state.mapped_edges),
-            dict(current_sim.node_similarities)
-            if isinstance(current_sim, StateSim)
-            else {},
-            dict(current_sim.edge_similarities)
-            if isinstance(current_sim, StateSim)
-            else {},
-        )
+        return sim

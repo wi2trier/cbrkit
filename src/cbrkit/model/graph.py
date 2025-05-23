@@ -310,11 +310,13 @@ with optional_dependencies():
 
 
 class NetworkxNode[K, N](TypedDict):
+    key: K
     value: N
     obj: Node[K, N]
 
 
 class NetworkxEdge[K, N, E](TypedDict):
+    key: K
     value: E
     obj: Edge[K, N, E]
 
@@ -330,6 +332,7 @@ with optional_dependencies():
             (
                 node.key,
                 NetworkxNode(
+                    key=node.key,
                     value=node.value,
                     obj=node,
                 ),
@@ -342,6 +345,7 @@ with optional_dependencies():
                 edge.source.key,
                 edge.target.key,
                 NetworkxEdge(
+                    key=edge.key,
                     value=edge.value,
                     obj=edge,
                 ),

@@ -2,9 +2,12 @@ from ...helpers import optional_dependencies
 from . import astar, greedy
 from .brute_force import brute_force
 from .common import (
+    BaseGraphSimFunc,
     ElementMatcher,
     GraphSim,
-    default_edge_sim,
+    SearchGraphSimFunc,
+    SearchState,
+    SemanticEdgeSim,
     default_element_matcher,
     type_element_matcher,
 )
@@ -33,5 +36,8 @@ __all__ = [
     "ElementMatcher",
     "default_element_matcher",
     "type_element_matcher",
-    "default_edge_sim",
+    "SemanticEdgeSim",
+    "BaseGraphSimFunc",
+    "SearchGraphSimFunc",
+    "SearchState",
 ]

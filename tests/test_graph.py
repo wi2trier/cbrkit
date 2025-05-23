@@ -33,8 +33,6 @@ def test_astar():
     )
 
     graph_sim = cbrkit.sim.graphs.astar.build(
-        cbrkit.sim.graphs.astar.g1(),
-        cbrkit.sim.graphs.astar.h2(),
         node_sim_func=node_sim,
         node_matcher=cbrkit.sim.graphs.type_element_matcher,
     )

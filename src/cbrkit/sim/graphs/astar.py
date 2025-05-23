@@ -2,35 +2,29 @@ import heapq
 import itertools
 from collections import defaultdict
 from collections.abc import Mapping
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from frozendict import frozendict
 
 from ...helpers import (
-    batchify_sim,
     get_logger,
     unpack_float,
 )
 from ...model.graph import (
-    Edge,
     Graph,
     GraphElementType,
-    Node,
 )
-from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
-from ..wrappers import transpose_value
-from .common import ElementMatcher, GraphSim, default_edge_sim, default_element_matcher
+from ...typing import SimFunc
+from .common import ElementMatcher, GraphSim, SearchGraphSimFunc, SearchState
 
 __all__ = [
-    "PastSimFunc",
-    "FutureSimFunc",
+    "HeuristicFunc",
     "SelectionFunc",
     "InitFunc",
     "h1",
     "h2",
     "h3",
-    "g1",
     "select1",
     "select2",
     "select3",
@@ -42,49 +36,22 @@ __all__ = [
 logger = get_logger(__name__)
 
 
-@dataclass(slots=True, frozen=True)
-class State[K]:
-    # mappings are from y to x
-    mapped_nodes: frozendict[K, K]
-    mapped_edges: frozendict[K, K]
-    remaining_nodes: frozenset[K]
-    remaining_edges: frozenset[K]
-
-
 @dataclass(slots=True, frozen=True, order=True)
 class PriorityState[K]:
     priority: float
-    state: State[K] = field(compare=False)
+    state: SearchState[K] = field(compare=False)
 
 
-@dataclass(slots=True, frozen=True)
-class PastSim[K](StructuredValue[float]):
-    node_similarities: Mapping[K, float]
-    edge_similarities: Mapping[K, float]
-
-
-class FutureSimFunc[K, N, E, G](Protocol):
+class HeuristicFunc[K, N, E, G](Protocol):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
         /,
     ) -> float: ...
-
-
-class PastSimFunc[K, N, E, G](Protocol):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        s: State[K],
-        node_pair_sims: Mapping[tuple[K, K], float],
-        edge_pair_sims: Mapping[tuple[K, K], float],
-        /,
-    ) -> float | PastSim[K]: ...
 
 
 class SelectionFunc[K, N, E, G](Protocol):
@@ -92,12 +59,10 @@ class SelectionFunc[K, N, E, G](Protocol):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        future_sim_func: FutureSimFunc[K, N, E, G],
-        x_centralities: Mapping[K, float],
-        y_centralities: Mapping[K, float],
+        heuristic_func: HeuristicFunc[K, N, E, G],
         /,
     ) -> None | tuple[K, GraphElementType]: ...
 
@@ -110,39 +75,37 @@ class InitFunc[K, N, E, G](Protocol):
         node_matcher: ElementMatcher[N],
         edge_matcher: ElementMatcher[E],
         /,
-    ) -> State[K]: ...
+    ) -> SearchState[K]: ...
 
 
 @dataclass(slots=True, frozen=True)
-class h1[K, N, E, G](FutureSimFunc[K, N, E, G]):
+class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         """Heuristic to compute future similarity"""
 
-        return (len(s.remaining_nodes) + len(s.remaining_edges)) / (
-            len(y.nodes) + len(y.edges)
-        )
+        return (len(s.open_nodes) + len(s.open_edges)) / (len(y.nodes) + len(y.edges))
 
 
 @dataclass(slots=True)
-class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
+class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         h_val = 0
 
-        for y_key in s.remaining_nodes:
+        for y_key in s.open_nodes:
             max_sim = max(
                 (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes.keys()),
                 default=0.0,
@@ -150,7 +113,7 @@ class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
             h_val += max_sim
 
-        for y_key in s.remaining_edges:
+        for y_key in s.open_edges:
             max_sim = max(
                 (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges.keys()),
                 default=0.0,
@@ -162,18 +125,18 @@ class h2[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
 
 @dataclass(slots=True)
-class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
+class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         h_val = 0
 
-        for y_key in s.remaining_nodes:
+        for y_key in s.open_nodes:
             max_sim = max(
                 (
                     node_pair_sims.get((y_key, x_key), 0.0)
@@ -185,7 +148,7 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
 
             h_val += max_sim
 
-        for y_key in s.remaining_edges:
+        for y_key in s.open_edges:
             y_edge = y.edges[y_key]
             max_sim = max(
                 (
@@ -205,56 +168,24 @@ class h3[K, N, E, G](FutureSimFunc[K, N, E, G]):
         return h_val / (len(y.nodes) + len(y.edges))
 
 
-@dataclass(slots=True)
-class g1[K, N, E, G](PastSimFunc[K, N, E, G]):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        s: State[K],
-        node_pair_sims: Mapping[tuple[K, K], float],
-        edge_pair_sims: Mapping[tuple[K, K], float],
-    ) -> PastSim[K]:
-        """Function to compute the similarity of all previous steps"""
-
-        node_sims = (
-            node_pair_sims[(y_key, x_key)] for y_key, x_key in s.mapped_nodes.items()
-        )
-
-        edge_sims = (
-            edge_pair_sims[(y_key, x_key)] for y_key, x_key in s.mapped_edges.items()
-        )
-
-        all_sims = itertools.chain(node_sims, edge_sims)
-        total_elements = len(y.nodes) + len(y.edges)
-
-        return PastSim(
-            sum(all_sims) / total_elements,
-            dict(zip(s.mapped_nodes.keys(), node_sims, strict=True)),
-            dict(zip(s.mapped_edges.keys(), edge_sims, strict=True)),
-        )
-
-
 @dataclass(slots=True, frozen=True)
 class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        future_sim_func: FutureSimFunc[K, N, E, G],
-        x_centralities: Mapping[K, float],
-        y_centralities: Mapping[K, float],
+        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        if s.remaining_nodes:
-            return next(iter(s.remaining_nodes)), "node"
+        if s.open_nodes:
+            return next(iter(s.open_nodes)), "node"
 
-        if s.remaining_edges:
-            return next(iter(s.remaining_edges)), "edge"
+        if s.open_edges:
+            return next(iter(s.open_edges)), "edge"
 
         return None
 
@@ -265,18 +196,16 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        future_sim_func: FutureSimFunc[K, N, E, G],
-        x_centralities: Mapping[K, float],
-        y_centralities: Mapping[K, float],
+        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
         edge_candidates = (
             key
-            for key in s.remaining_edges
+            for key in s.open_edges
             if y.edges[key].source.key not in s.mapped_nodes
             and y.edges[key].target.key not in s.mapped_nodes
         )
@@ -286,11 +215,11 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         except StopIteration:
             pass
 
-        if s.remaining_nodes:
-            return next(iter(s.remaining_nodes)), "node"
+        if s.open_nodes:
+            return next(iter(s.open_nodes)), "node"
 
-        if s.remaining_edges:
-            return next(iter(s.remaining_edges)), "edge"
+        if s.open_edges:
+            return next(iter(s.open_edges)), "edge"
 
         return None
 
@@ -301,32 +230,30 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        s: State[K],
+        s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        future_sim_func: FutureSimFunc[K, N, E, G],
-        x_centralities: Mapping[K, float],
-        y_centralities: Mapping[K, float],
+        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
         heuristic_scores: list[tuple[K, GraphElementType, float]] = []
 
-        for y_key in s.remaining_nodes:
+        for y_key in s.open_nodes:
             heuristic_scores.append(
                 (
                     y_key,
                     "node",
-                    future_sim_func(x, y, s, node_pair_sims, edge_pair_sims),
+                    heuristic_func(x, y, s, node_pair_sims, edge_pair_sims),
                 )
             )
 
-        for y_key in s.remaining_edges:
+        for y_key in s.open_edges:
             heuristic_scores.append(
                 (
                     y_key,
                     "edge",
-                    future_sim_func(x, y, s, node_pair_sims, edge_pair_sims),
+                    heuristic_func(x, y, s, node_pair_sims, edge_pair_sims),
                 )
             )
 
@@ -340,9 +267,9 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         if selection_type == "edge":
             edge = y.edges[selection_key]
 
-            if edge.source.key in s.remaining_nodes:
+            if edge.source.key in s.open_nodes:
                 return edge.source.key, "node"
-            elif edge.target.key in s.remaining_nodes:
+            elif edge.target.key in s.open_nodes:
                 return edge.target.key, "node"
 
         return selection_key, selection_type
@@ -356,8 +283,8 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
         node_matcher: ElementMatcher[N],
         edge_matcher: ElementMatcher[E],
-    ) -> State[K]:
-        return State(
+    ) -> SearchState[K]:
+        return SearchState(
             frozendict(),
             frozendict(),
             frozenset(y.nodes.keys()),
@@ -373,7 +300,7 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
         node_matcher: ElementMatcher[N],
         edge_matcher: ElementMatcher[E],
-    ) -> State[K]:
+    ) -> SearchState[K]:
         # pre-populate the mapping with nodes/edges that only have one possible legal mapping
         possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
         possible_edge_mappings: defaultdict[K, set[K]] = defaultdict(set)
@@ -397,7 +324,7 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
             if len(x_keys) == 1
         }
 
-        return State(
+        return SearchState(
             frozendict(node_mappings),
             frozendict(edge_mappings),
             frozenset(y.nodes.keys() - node_mappings.keys()),
@@ -406,13 +333,14 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
 
 
 @dataclass(slots=True)
-class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+class build[K, N, E, G](
+    SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
+):
     """
     Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
 
     Args:
-        past_sim_func: A heuristic function to compute the similarity of all previous steps.
-        future_sim_func: A heuristic function to compute the future similarity.
+        heuristic_func: A heuristic function to compute the future similarity.
         selection_func: A function to select the next node or edge to be mapped.
         init_func: A function to initialize the state.
         node_matcher: A function that returns true if two nodes can be mapped legally.
@@ -427,147 +355,22 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    past_sim_func: PastSimFunc[K, N, E, G]
-    future_sim_func: FutureSimFunc[K, N, E, G]
-    node_sim_func: InitVar[AnySimFunc[N, Float]]
-    node_matcher: ElementMatcher[N]
-    edge_sim_func: InitVar[AnySimFunc[Edge[K, N, E], Float] | None] = None
-    edge_matcher: ElementMatcher[E] = default_element_matcher
-    selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select2)
+    heuristic_func: HeuristicFunc[K, N, E, G] = field(default_factory=h3)
+    selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select3)
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     beam_width: int = 0
     pathlength_weight: int = 0
-    batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
-    batch_edge_sim_func: BatchSimFunc[Edge[K, N, E], Float] = field(init=False)
     # TODO: Currently not implemented as described in the paper, needs further investigation
     allow_case_oriented_mapping: bool = False
-
-    def __post_init__(
-        self,
-        any_node_sim_func: AnySimFunc[N, Float],
-        any_edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None,
-    ) -> None:
-        self.batch_node_sim_func = batchify_sim(transpose_value(any_node_sim_func))
-        self.batch_edge_sim_func = (
-            default_edge_sim(self.batch_node_sim_func)
-            if any_edge_sim_func is None
-            else batchify_sim(any_edge_sim_func)
-        )
-
-    def legal_node_mapping(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        x_key: K,
-        y_key: K,
-    ) -> bool:
-        return (
-            y_key not in state.mapped_nodes.keys()
-            and x_key not in state.mapped_nodes.values()
-            and self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
-        )
-
-    def legal_edge_mapping(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        x_key: K,
-        y_key: K,
-    ) -> bool:
-        x_value = x.edges[x_key]
-        y_value = y.edges[y_key]
-        mapped_x_source_key = state.mapped_nodes.get(y_value.source.key)
-        mapped_x_target_key = state.mapped_nodes.get(y_value.target.key)
-
-        return (
-            y_key not in state.mapped_edges.keys()
-            and x_key not in state.mapped_edges.values()
-            and self.edge_matcher(x_value.value, y_value.value)
-            # if the nodes are already mapped, check if they are mapped legally
-            and (
-                mapped_x_source_key is None or x_value.source.key == mapped_x_source_key
-            )
-            and (
-                mapped_x_target_key is None or x_value.target.key == mapped_x_target_key
-            )
-        )
-
-    def expand_node(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        y_key: K,
-    ) -> list[State[K]]:
-        """Expand a given node and its queue"""
-
-        next_states: list[State[K]] = [
-            State(
-                state.mapped_nodes.set(y_key, x_key),
-                state.mapped_edges,
-                state.remaining_nodes - {y_key},
-                state.remaining_edges,
-            )
-            for x_key in x.nodes.keys()
-            if self.legal_node_mapping(x, y, state, x_key, y_key)
-        ]
-
-        if not next_states:
-            return [
-                State(
-                    state.mapped_nodes,
-                    state.mapped_edges,
-                    state.remaining_nodes - {y_key},
-                    state.remaining_edges,
-                )
-            ]
-
-        return next_states
-
-    def expand_edge(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        state: State[K],
-        y_key: K,
-    ) -> list[State[K]]:
-        """Expand a given edge and its queue"""
-
-        next_states: list[State[K]] = [
-            State(
-                state.mapped_nodes,
-                state.mapped_edges.set(y_key, x_key),
-                state.remaining_nodes,
-                state.remaining_edges - {y_key},
-            )
-            for x_key in x.edges.keys()
-            if self.legal_edge_mapping(x, y, state, x_key, y_key)
-        ]
-
-        if not next_states:
-            next_states.append(
-                State(
-                    state.mapped_nodes,
-                    state.mapped_edges,
-                    state.remaining_nodes,
-                    state.remaining_edges - {y_key},
-                )
-            )
-
-        return next_states
 
     def expand(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        state: State[K],
+        state: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        x_centralities: Mapping[K, float],
-        y_centralities: Mapping[K, float],
-    ) -> list[State[K]]:
+    ) -> list[SearchState[K]]:
         """Expand a given node and its queue"""
 
         selection = self.selection_func(
@@ -576,9 +379,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             state,
             node_pair_sims,
             edge_pair_sims,
-            self.future_sim_func,
-            x_centralities,
-            y_centralities,
+            self.heuristic_func,
         )
 
         if selection is None:
@@ -598,14 +399,21 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        state: State[K],
+        state: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         past_sim = unpack_float(
-            self.past_sim_func(x, y, state, node_pair_sims, edge_pair_sims)
+            self.similarity(
+                x,
+                y,
+                state.mapped_nodes,
+                state.mapped_edges,
+                node_pair_sims,
+                edge_pair_sims,
+            )
         )
-        future_sim = self.future_sim_func(x, y, state, node_pair_sims, edge_pair_sims)
+        future_sim = self.heuristic_func(x, y, state, node_pair_sims, edge_pair_sims)
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
@@ -623,10 +431,14 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
 
         return GraphSim(
             result.value,
-            {v: k for k, v in result.node_mapping.items()},
-            {v: k for k, v in result.edge_mapping.items()},
-            {result.node_mapping[k]: v for k, v in result.node_similarities.items()},
-            {result.edge_mapping[k]: v for k, v in result.edge_similarities.items()},
+            frozendict((v, k) for k, v in result.node_mapping.items()),
+            frozendict((v, k) for k, v in result.edge_mapping.items()),
+            frozendict(
+                (result.node_mapping[k], v) for k, v in result.node_similarities.items()
+            ),
+            frozendict(
+                (result.edge_mapping[k], v) for k, v in result.edge_similarities.items()
+            ),
         )
 
     def __call__(
@@ -640,41 +452,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         ) and self.allow_case_oriented_mapping:
             return self.__call_case_oriented__(x, y)
 
-        # TODO: compute node centrality scores using rustworkx
-        x_centralities: dict[K, float] = {}
-        y_centralities: dict[K, float] = {}
-
-        node_pairs = [
-            (x_node, y_node)
-            for x_node, y_node in itertools.product(x.nodes.values(), y.nodes.values())
-            if self.node_matcher(x_node.value, y_node.value)
-        ]
-        node_pair_sims = {
-            (y_node.key, x_node.key): unpack_float(sim)
-            for (x_node, y_node), sim in zip(
-                node_pairs, self.batch_node_sim_func(node_pairs), strict=True
-            )
-        }
-
-        edge_pairs = [
-            (x_edge, y_edge)
-            for x_edge, y_edge in itertools.product(x.edges.values(), y.edges.values())
-            if self.edge_matcher(x_edge.value, y_edge.value)
-            and self.node_matcher(
-                x.nodes[x_edge.source.key].value,
-                y.nodes[y_edge.source.key].value,
-            )
-            and self.node_matcher(
-                x.nodes[x_edge.target.key].value,
-                y.nodes[y_edge.target.key].value,
-            )
-        ]
-        edge_pair_sims = {
-            (y_edge.key, x_edge.key): unpack_float(sim)
-            for (x_edge, y_edge), sim in zip(
-                edge_pairs, self.batch_edge_sim_func(edge_pairs), strict=True
-            )
-        }
+        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
         open_set: list[PriorityState[K]] = []
         best_state = self.init_func(x, y, self.node_matcher, self.edge_matcher)
@@ -684,7 +462,7 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             first_elem = heapq.heappop(open_set)
             current_state = first_elem.state
 
-            if not current_state.remaining_nodes and not current_state.remaining_edges:
+            if not current_state.open_nodes and not current_state.open_edges:
                 best_state = current_state
                 break
 
@@ -694,8 +472,6 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
                 current_state,
                 node_pair_sims,
                 edge_pair_sims,
-                x_centralities,
-                y_centralities,
             )
 
             for next_state in next_states:
@@ -707,12 +483,11 @@ class build[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             if self.beam_width > 0 and len(open_set) > self.beam_width:
                 open_set = open_set[: self.beam_width]
 
-        sim = self.past_sim_func(x, y, best_state, node_pair_sims, edge_pair_sims)
-
-        return GraphSim(
-            unpack_float(sim),
-            dict(best_state.mapped_nodes),
-            dict(best_state.mapped_edges),
-            dict(sim.node_similarities) if isinstance(sim, PastSim) else {},
-            dict(sim.edge_similarities) if isinstance(sim, PastSim) else {},
+        return self.similarity(
+            x,
+            y,
+            best_state.mapped_nodes,
+            best_state.mapped_edges,
+            node_pair_sims,
+            edge_pair_sims,
         )

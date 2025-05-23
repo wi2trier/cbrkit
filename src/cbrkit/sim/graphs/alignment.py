@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from dataclasses import InitVar, dataclass, field
 
+from frozendict import frozendict
+
 from ...helpers import (
     batchify_sim,
     optional_dependencies,
@@ -176,10 +178,10 @@ with optional_dependencies():
 
             return GraphSim(
                 value=total_similarity,
-                node_mapping=similarity_data.node_mapping,
-                edge_mapping=similarity_data.edge_mapping,
-                node_similarities=similarity_data.node_similarities,
-                edge_similarities=similarity_data.edge_similarities,
+                node_mapping=frozendict(similarity_data.node_mapping),
+                edge_mapping=frozendict(similarity_data.edge_mapping),
+                node_similarities=frozendict(similarity_data.node_similarities),
+                edge_similarities=frozendict(similarity_data.edge_similarities),
             )
 
 
@@ -368,8 +370,8 @@ with optional_dependencies():
 
             return GraphSim(
                 value=total_similarity,
-                node_mapping=similarity_data.node_mapping,
-                edge_mapping=similarity_data.edge_mapping,
-                node_similarities=similarity_data.node_similarities,
-                edge_similarities=similarity_data.edge_similarities,
+                node_mapping=frozendict(similarity_data.node_mapping),
+                edge_mapping=frozendict(similarity_data.edge_mapping),
+                node_similarities=frozendict(similarity_data.node_similarities),
+                edge_similarities=frozendict(similarity_data.edge_similarities),
             )

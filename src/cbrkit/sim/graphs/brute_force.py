@@ -1,24 +1,20 @@
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ...helpers import batchify_sim, unpack_floats
+from frozendict import frozendict
+
 from ...model.graph import (
-    Edge,
     Graph,
-    Node,
 )
-from ...typing import (
-    AnySimFunc,
-    BatchSimFunc,
-    Float,
-    SimFunc,
-)
-from ..wrappers import transpose_value
-from .common import GraphSim, default_edge_sim
+from ...typing import SimFunc
+from .common import BaseGraphSimFunc, GraphSim
 
 
-@dataclass
-class brute_force[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+@dataclass(slots=True)
+class brute_force[K, N, E, G](
+    BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
+):
     """
     Computes the similarity between two graphs by exhaustively computing all possible mappings
     and selecting the one with the highest similarity score.
@@ -31,91 +27,73 @@ class brute_force[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         The similarity between the two graphs and the best mapping.
     """
 
-    node_sim_func: BatchSimFunc[Node[K, N], Float]
-    edge_sim_func: BatchSimFunc[Edge[K, N, E], Float]
-
-    def __init__(
+    def expand(
         self,
-        node_sim_func: AnySimFunc[N, Float],
-        edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | None = None,
-    ) -> None:
-        self.node_sim_func = batchify_sim(transpose_value(node_sim_func))
-        if edge_sim_func is None:
-            self.edge_sim_func = default_edge_sim(self.node_sim_func)
-        else:
-            self.edge_sim_func = batchify_sim(edge_sim_func)
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        y_nodes: Sequence[K],
+        x_nodes: Sequence[K],
+    ) -> GraphSim[K] | None:
+        mapped_nodes = dict(zip(y_nodes, x_nodes, strict=True))
+
+        # if one node can't be matched to another, skip this permutation
+        for y_key, x_key in mapped_nodes.items():
+            if not self.node_matcher(y.nodes[y_key].value, x.nodes[x_key].value):
+                return None
+
+        node_pair_sims = self.node_pair_similarities(x, y, mapped_nodes)
+
+        # compute edge similarities among matched nodes
+        mapped_edges: dict[K, K] = {}
+
+        for y_key, y_edge in y.edges.items():
+            # only consider edges whose both endpoints are in our subset
+            if y_edge.source.key in mapped_nodes and y_edge.target.key in mapped_nodes:
+                y_source = mapped_nodes[y_edge.source.key]
+                y_target = mapped_nodes[y_edge.target.key]
+
+                for x_key, x_edge in x.edges.items():
+                    if (
+                        x_edge.source.key == y_source
+                        and x_edge.target.key == y_target
+                        and self.edge_matcher(y_edge.value, x_edge.value)
+                    ):
+                        mapped_edges[y_key] = x_key
+                        break
+
+        # batch sim for edges
+        edge_pair_sims = self.edge_pair_similarities(
+            x,
+            y,
+            node_pair_sims,
+            mapped_edges,
+        )
+
+        return self.similarity(
+            x,
+            y,
+            frozendict(mapped_nodes),
+            frozendict(mapped_edges),
+            frozendict(node_pair_sims),
+            frozendict(edge_pair_sims),
+        )
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
-        best_sim = 0.0
-        best_node_mapping: dict[K, K] = {}
-        best_edge_mapping: dict[K, K] = {}
+        y_node_keys = list(y.nodes.keys())
+        x_node_keys = list(x.nodes.keys())
+        best_sim: GraphSim[K] = GraphSim(
+            0.0, frozendict(), frozendict(), frozendict(), frozendict()
+        )
 
-        x_nodes = list(x.nodes.values())
-        y_nodes = list(y.nodes.values())
+        # iterate all possible subset sizes of query (up to target size)
+        for k in range(1, min(len(y_node_keys), len(x_node_keys)) + 1):
+            # all subsets of query nodes of size k
+            for y_candidates in itertools.combinations(y_node_keys, k):
+                # all injective mappings from this subset to target nodes
+                for x_candidates in itertools.permutations(x_node_keys, k):
+                    sim_candidate = self.expand(x, y, y_candidates, x_candidates)
 
-        x_node_keys = [node.key for node in x_nodes]
-        y_node_keys = [node.key for node in y_nodes]
+                    if sim_candidate and sim_candidate.value > best_sim.value:
+                        best_sim = sim_candidate
 
-        # Only consider mappings when y has equal or fewer nodes than x
-        if len(y_nodes) > len(x_nodes):
-            raise ValueError("Graph y has more nodes than graph x")
-
-        # Generate all possible injective mappings from y_nodes to subsets of x_nodes
-        x_node_combinations = itertools.combinations(x_node_keys, len(y_nodes))
-
-        for x_combination in x_node_combinations:
-            x_permutations = itertools.permutations(x_combination)
-
-            for x_perm in x_permutations:
-                node_mapping = dict(zip(y_node_keys, x_perm, strict=False))
-
-                # Compute node similarities
-                node_pairs = [
-                    (y.nodes[y_key], x.nodes[x_key])
-                    for y_key, x_key in node_mapping.items()
-                ]
-                node_sims = self.node_sim_func(node_pairs)
-                total_node_sim = (
-                    sum(unpack_floats(node_sims)) / len(node_sims) if node_sims else 0.0
-                )
-
-                # Build edge mappings based on node mappings
-                edge_pairs = []
-
-                for y_edge in y.edges.values():
-                    y_source_key = y_edge.source.key
-                    y_target_key = y_edge.target.key
-
-                    if y_source_key in node_mapping and y_target_key in node_mapping:
-                        x_source_key = node_mapping[y_source_key]
-                        x_target_key = node_mapping[y_target_key]
-                        # Find corresponding edge in x
-                        x_edge = next(
-                            (
-                                e
-                                for e in x.edges.values()
-                                if e.source.key == x_source_key
-                                and e.target.key == x_target_key
-                            ),
-                            None,
-                        )
-
-                        if x_edge is not None:
-                            edge_pairs.append((y_edge, x_edge))
-
-                # Compute edge similarities
-                edge_sims = self.edge_sim_func(edge_pairs)
-                total_edge_sim = (
-                    sum(unpack_floats(edge_sims)) / len(edge_sims) if edge_sims else 0.0
-                )
-
-                total_sim = (total_node_sim + total_edge_sim) / 2.0
-
-                if total_sim > best_sim:
-                    best_sim = total_sim
-                    best_node_mapping = {**node_mapping}
-                    best_edge_mapping = {
-                        y_edge.key: x_edge.key for y_edge, x_edge in edge_pairs
-                    }
-
-        return GraphSim(best_sim, best_node_mapping, best_edge_mapping, {}, {})
+        return best_sim

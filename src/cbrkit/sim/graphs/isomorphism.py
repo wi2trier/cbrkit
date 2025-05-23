@@ -1,19 +1,13 @@
 import itertools
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, override
+from typing import override
 
-from ...helpers import batchify_sim, optional_dependencies, unpack_float
+from frozendict import frozendict
+
+from ...helpers import optional_dependencies
 from ...model.graph import Graph
-from ...typing import (
-    AggregatorFunc,
-    AnySimFunc,
-    Float,
-    SimFunc,
-)
-from ..aggregator import default_aggregator
-from ..wrappers import transpose_value
-from .common import ElementMatcher, GraphSim, default_element_matcher
+from ...typing import SimFunc
+from .common import BaseGraphSimFunc, GraphSim
 
 with optional_dependencies():
     import rustworkx
@@ -21,8 +15,10 @@ with optional_dependencies():
     from ...model.graph import to_rustworkx_with_lookup
 
 
-@dataclass(slots=True, frozen=True)
-class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
+@dataclass(slots=True)
+class isomorphism[K, N, E, G](
+    BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
+):
     """Compute subgraph isomorphisms between two graphs.
 
     - Convert the input graphs to Rustworkx graphs.
@@ -31,10 +27,6 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
     - Return the isomorphism mapping with the highest similarity.
     """
 
-    node_sim_func: AnySimFunc[N, Float]
-    node_matcher: ElementMatcher[N]
-    edge_matcher: ElementMatcher[E] = default_element_matcher
-    aggregator: AggregatorFunc[Any, Float] = default_aggregator
     id_order: bool = True
     subgraph: bool = True
     induced: bool = True
@@ -47,8 +39,6 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        node_sim_func = batchify_sim(transpose_value(self.node_sim_func))
-
         x_rw, x_lookup = to_rustworkx_with_lookup(x)
         y_rw, y_lookup = to_rustworkx_with_lookup(y)
 
@@ -64,6 +54,7 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
         )
 
         node_mappings: list[dict[K, K]] = []
+        graph_sims: list[GraphSim[K]] = []
 
         for idx in itertools.count():
             if self.max_iterations > 0 and idx >= self.max_iterations:
@@ -79,33 +70,24 @@ class isomorphism[K, N, E, G](SimFunc[Graph[K, N, E, G], GraphSim[K]]):
             except StopIteration:
                 break
 
-        if len(node_mappings) == 0:
-            return GraphSim(0.0, {}, {}, {}, {})
-
-        global_sims: list[float] = []
-        local_sims: list[Sequence[Float]] = []
-
         for node_mapping in node_mappings:
-            node_pairs = [
-                (x.nodes[x_key], y.nodes[y_key])
-                for y_key, x_key in node_mapping.items()
-            ]
-            node_similarities = node_sim_func(node_pairs)
-            local_sims.append(node_similarities)
-            global_sims.append(self.aggregator(node_similarities))
-
-        best_mapping_id, best_global_sim = max(
-            enumerate(global_sims),
-            key=lambda x: x[1],
-        )
-        best_mapping = node_mappings[best_mapping_id]
-        best_local_sims = {
-            y_key: unpack_float(local_sim)
-            for y_key, local_sim in zip(
-                best_mapping.keys(),
-                local_sims[best_mapping_id],
-                strict=True,
+            node_pair_sims = self.node_pair_similarities(
+                x,
+                y,
+                node_mapping,
             )
-        }
+            graph_sims.append(
+                self.similarity(
+                    x,
+                    y,
+                    frozendict(node_mapping),
+                    frozendict(),
+                    node_pair_sims,
+                    frozendict(),
+                )
+            )
 
-        return GraphSim(best_global_sim, best_mapping, {}, best_local_sims, {})
+        if len(graph_sims) == 0:
+            return GraphSim(0.0, frozendict(), frozendict(), frozendict(), frozendict())
+
+        return max(graph_sims, key=lambda sim: sim.value)
