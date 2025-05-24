@@ -1,0 +1,153 @@
+{
+  "graph1": {
+    "node_mapping": {
+      "q1": "n1",
+      "q2": "n2"
+    },
+    "edge_mapping": {
+      "qe1": "e1"
+    },
+    "node_similarities": {
+      "q1": 1.0,
+      "q2": 1.0
+    },
+    "edge_similarities": {
+      "qe1": 1.0
+    },
+    "value": 1.0
+  },
+
+  "graph2": {
+    "node_mapping": {
+      "q1": "n1",
+      "q2": "n2"
+    },
+    "edge_mapping": {
+      "qe1": "e1"
+    },
+    "node_similarities": {
+      "q1": 0.0,
+      "q2": 0.0
+    },
+    "edge_similarities": {
+      "qe1": 0.0
+    },
+    "value": 0.0
+  },
+
+  "graph3": {
+    "node_mapping": {
+      "q1": "n1",
+      "q2": "n2"
+    },
+    "edge_mapping": {
+      "qe1": "e1"
+    },
+    "node_similarities": {
+      "q1": 1.0,
+      "q2": 0.0
+    },
+    "edge_similarities": {
+      "qe1": 0.5
+    },
+    "value": 0.5
+  },
+
+  "graph4": {
+    "node_mapping": {
+      "q1": "n1",
+      "q2": "n2"
+    },
+    "edge_mapping": {
+      "qe1": "e1"
+    },
+    "node_similarities": {
+      "q1": 0.0,
+      "q2": 1.0
+    },
+    "edge_similarities": {
+      "qe1": 0.5
+    },
+    "value": 0.5
+  },
+
+  "graph5": {
+    "node_mapping": {
+      "q1": "n1"
+    },
+    "edge_mapping": {},
+    "node_similarities": {
+      "q1": 0.0
+    },
+    "edge_similarities": {},
+    "value": 0.0
+  },
+
+  "graph6": {
+    "node_mapping": {
+      "q2": "n2"
+    },
+    "edge_mapping": {},
+    "node_similarities": {
+      "q2": 0.0
+    },
+    "edge_similarities": {},
+    "value": 0.0
+  },
+
+  "graph7": {
+    "node_mapping": {
+      "q1": "n1"
+    },
+    "edge_mapping": {},
+    "node_similarities": {
+      "q1": 1.0
+    },
+    "edge_similarities": {},
+    "value": 0.3333333333333333
+  },
+
+  "graph8": {
+    "node_mapping": {
+      "q1": "n2",
+      "q2": "n1"
+    },
+    "edge_mapping": {},
+    "node_similarities": {
+      "q1": 1.0,
+      "q2": 1.0
+    },
+    "edge_similarities": {},
+    "value": 0.6666666666666666
+  },
+
+  "graph9": {
+    "node_mapping": {
+      "q1": "n1"
+    },
+    "edge_mapping": {},
+    "node_similarities": {
+      "q1": 1.0
+    },
+    "edge_similarities": {},
+    "value": 0.3333333333333333
+  },
+
+  "graph10": {
+    "node_mapping": {
+      "q1": "n1",
+      "q2": "n2"
+    },
+    "edge_mapping": {
+      "qe1": "e1"
+    },
+    "node_similarities": {
+      "q1": 0.0,
+      "q2": 1.0
+    },
+    "edge_similarities": {
+      "qe1": 0.5
+    },
+    "value": 0.5
+  }
+}

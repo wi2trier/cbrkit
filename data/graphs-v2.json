@@ -1,0 +1,116 @@
+{
+  "graph1": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Alice" },
+      "n2": { "type": "Company", "text": "Acme Corp" },
+      "n3": { "type": "City", "text": "Berlin" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null },
+      "e2": { "source": "n2", "target": "n3", "value": null }
+    }
+  },
+
+  "graph2": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Bob" },
+      "n2": { "type": "Company", "text": "Beta LLC" },
+      "n3": { "type": "City", "text": "Munich" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null },
+      "e2": { "source": "n2", "target": "n3", "value": null }
+    }
+  },
+
+  "graph3": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Alice" },
+      "n2": { "type": "Company", "text": "Omega Inc" },
+      "n3": { "type": "City", "text": "Hamburg" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null },
+      "e2": { "source": "n1", "target": "n3", "value": null }
+    }
+  },
+
+  "graph4": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Charlie" },
+      "n2": { "type": "Company", "text": "Acme Corp" },
+      "n3": { "type": "City", "text": "Berlin" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null },
+      "e2": { "source": "n1", "target": "n3", "value": null }
+    }
+  },
+
+  "graph5": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "David" },
+      "n2": { "type": "Event", "text": "Conference 2025" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null }
+    }
+  },
+
+  "graph6": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Car", "text": "Tesla Model 3" },
+      "n2": { "type": "Company", "text": "Tesla" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null }
+    }
+  },
+
+  "graph7": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Alice" }
+    },
+    "edges": {}
+  },
+
+  "graph8": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Company", "text": "Acme Corp" },
+      "n2": { "type": "Person", "text": "Alice" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null }
+    }
+  },
+
+  "graph9": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Alice" },
+      "n2": { "type": "Person", "text": "Eve" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null }
+    }
+  },
+
+  "graph10": {
+    "value": null,
+    "nodes": {
+      "n1": { "type": "Person", "text": "Eve" },
+      "n2": { "type": "Company", "text": "Acme Corp" }
+    },
+    "edges": {
+      "e1": { "source": "n1", "target": "n2", "value": null }
+    }
+  }
+}
