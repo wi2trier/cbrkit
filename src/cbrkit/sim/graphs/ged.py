@@ -48,16 +48,16 @@ with optional_dependencies():
             node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
             def node_subst_cost(x: NetworkxNode[K, N], y: NetworkxNode[K, N]) -> float:
-                if x["key"] in node_pair_sims and y["key"] in node_pair_sims:
-                    return 1.0 - node_pair_sims[(x["key"], y["key"])]
+                if sim := node_pair_sims.get((y["key"], x["key"])):
+                    return 1.0 - sim
 
                 return float("inf")
 
             def edge_subst_cost(
                 x: NetworkxEdge[K, N, E], y: NetworkxEdge[K, N, E]
             ) -> float:
-                if x["key"] in edge_pair_sims and y["key"] in edge_pair_sims:
-                    return 1.0 - edge_pair_sims[(x["key"], y["key"])]
+                if sim := edge_pair_sims.get((y["key"], x["key"])):
+                    return 1.0 - sim
 
                 return float("inf")
 
@@ -88,12 +88,14 @@ with optional_dependencies():
             )
             mapped_edges = frozendict(
                 (
-                    y_edges_lookup[(y_source, y_target)],
-                    x_edges_lookup[(x_source, x_target)],
+                    y_edges_lookup[y_key],
+                    x_edges_lookup[x_key],
                 )
-                for (y_source, y_target), (x_source, x_target) in edge_edit_path
-                if (y_source, y_target) in y_edges_lookup
-                and (x_source, x_target) in x_edges_lookup
+                for y_key, x_key in edge_edit_path
+                if x_key is not None
+                and y_key is not None
+                and x_key in x_edges_lookup
+                and y_key in y_edges_lookup
             )
 
             return self.similarity(
