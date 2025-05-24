@@ -192,11 +192,17 @@ class BaseGraphSimFunc[K, N, E, G]:
 
 @dataclass(slots=True, frozen=True)
 class SearchState[K]:
-    # mappings are from y to x
-    mapped_nodes: frozendict[K, K]
-    mapped_edges: frozendict[K, K]
-    open_nodes: frozenset[K]
-    open_edges: frozenset[K]
+    # mappings are from y/query to x/case
+    node_mapping: frozendict[K, K]
+    edge_mapping: frozendict[K, K]
+    # contains all elements from the query that are not yet mapped
+    # can be different from mapping.keys() if no candidate in x/case exists
+    open_y_nodes: frozenset[K]
+    open_y_edges: frozenset[K]
+    # contains all elements from the case that are not yet mapped
+    # must be identical to mapping.values() but is stored to optimize lookup
+    open_x_nodes: frozenset[K]
+    open_x_edges: frozenset[K]
 
 
 class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
@@ -209,9 +215,9 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         y_key: K,
     ) -> bool:
         return (
-            y_key not in state.mapped_nodes.keys()
-            and x_key not in state.mapped_nodes.values()
-            and self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+            self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+            and y_key in state.open_y_nodes
+            and x_key in state.open_x_nodes
         )
 
     def legal_edge_mapping(
@@ -226,12 +232,12 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         y_value = y.edges[y_key]
 
         return (
-            y_key not in state.mapped_edges.keys()
-            and x_key not in state.mapped_edges.values()
-            and self.edge_matcher(x_value.value, y_value.value)
+            self.edge_matcher(x_value.value, y_value.value)
+            and y_key in state.open_y_edges
+            and x_key in state.open_x_edges
             # source and target of the edge must be mapped to the same nodes
-            and x_value.source.key == state.mapped_nodes.get(y_value.source.key)
-            and x_value.target.key == state.mapped_nodes.get(y_value.target.key)
+            and x_value.source.key == state.node_mapping.get(y_value.source.key)
+            and x_value.target.key == state.node_mapping.get(y_value.target.key)
         )
 
     def expand_node(
@@ -245,24 +251,28 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
 
         next_states: list[SearchState[K]] = [
             SearchState(
-                state.mapped_nodes.set(y_key, x_key),
-                state.mapped_edges,
-                state.open_nodes - {y_key},
-                state.open_edges,
+                state.node_mapping.set(y_key, x_key),
+                state.edge_mapping,
+                state.open_y_nodes - {y_key},
+                state.open_y_edges,
+                state.open_x_nodes - {x_key},
+                state.open_x_edges,
             )
-            for x_key in x.nodes.keys()
+            for x_key in state.open_x_nodes
             if self.legal_node_mapping(x, y, state, x_key, y_key)
         ]
 
         if not next_states:
-            return [
+            next_states.append(
                 SearchState(
-                    state.mapped_nodes,
-                    state.mapped_edges,
-                    state.open_nodes - {y_key},
-                    state.open_edges,
+                    state.node_mapping,
+                    state.edge_mapping,
+                    state.open_y_nodes - {y_key},
+                    state.open_y_edges,
+                    state.open_x_nodes,
+                    state.open_x_edges,
                 )
-            ]
+            )
 
         return next_states
 
@@ -277,7 +287,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
 
         next_states: list[SearchState[K]] = []
 
-        for x_key in x.edges.keys():
+        for x_key in state.open_x_edges:
             next_state = state
             x_source_key = x.edges[x_key].source.key
             x_target_key = x.edges[x_key].target.key
@@ -285,50 +295,58 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
             y_target_key = y.edges[y_key].target.key
 
             if (
-                y_source_key not in next_state.mapped_nodes.keys()
-                and x_source_key not in next_state.mapped_nodes.values()
+                y_source_key in next_state.open_y_nodes
+                and x_source_key in next_state.open_x_nodes
                 and self.legal_node_mapping(
                     x, y, next_state, x_source_key, y_source_key
                 )
             ):
                 next_state = SearchState(
-                    next_state.mapped_nodes.set(y_source_key, x_source_key),
-                    next_state.mapped_edges,
-                    next_state.open_nodes - {y_source_key},
-                    next_state.open_edges,
+                    next_state.node_mapping.set(y_source_key, x_source_key),
+                    next_state.edge_mapping,
+                    next_state.open_y_nodes - {y_source_key},
+                    next_state.open_y_edges,
+                    next_state.open_x_nodes - {x_source_key},
+                    next_state.open_x_edges,
                 )
 
             if (
-                y_target_key not in next_state.mapped_nodes.keys()
-                and x_target_key not in next_state.mapped_nodes.values()
+                y_target_key in next_state.open_y_nodes
+                and x_target_key in next_state.open_x_nodes
                 and self.legal_node_mapping(
                     x, y, next_state, x_target_key, y_target_key
                 )
             ):
                 next_state = SearchState(
-                    next_state.mapped_nodes.set(y_target_key, x_target_key),
-                    next_state.mapped_edges,
-                    next_state.open_nodes - {y_target_key},
-                    next_state.open_edges,
+                    next_state.node_mapping.set(y_target_key, x_target_key),
+                    next_state.edge_mapping,
+                    next_state.open_y_nodes - {y_target_key},
+                    next_state.open_y_edges,
+                    next_state.open_x_nodes - {x_target_key},
+                    next_state.open_x_edges,
                 )
 
             if self.legal_edge_mapping(x, y, next_state, x_key, y_key):
                 next_states.append(
                     SearchState(
-                        next_state.mapped_nodes,
-                        next_state.mapped_edges.set(y_key, x_key),
-                        next_state.open_nodes,
-                        next_state.open_edges - {y_key},
+                        next_state.node_mapping,
+                        next_state.edge_mapping.set(y_key, x_key),
+                        next_state.open_y_nodes,
+                        next_state.open_y_edges - {y_key},
+                        next_state.open_x_nodes,
+                        next_state.open_x_edges - {x_key},
                     )
                 )
 
         if not next_states:
             next_states.append(
                 SearchState(
-                    state.mapped_nodes,
-                    state.mapped_edges,
-                    state.open_nodes,
-                    state.open_edges - {y_key},
+                    state.node_mapping,
+                    state.edge_mapping,
+                    state.open_y_nodes,
+                    state.open_y_edges - {y_key},
+                    state.open_x_nodes,
+                    state.open_x_edges,
                 )
             )
 

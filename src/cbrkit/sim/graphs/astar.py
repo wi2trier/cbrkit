@@ -90,7 +90,9 @@ class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
     ) -> float:
         """Heuristic to compute future similarity"""
 
-        return (len(s.open_nodes) + len(s.open_edges)) / (len(y.nodes) + len(y.edges))
+        return (len(s.open_y_nodes) + len(s.open_y_edges)) / (
+            len(y.nodes) + len(y.edges)
+        )
 
 
 @dataclass(slots=True)
@@ -105,7 +107,7 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
     ) -> float:
         h_val = 0
 
-        for y_key in s.open_nodes:
+        for y_key in s.open_y_nodes:
             max_sim = max(
                 (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes.keys()),
                 default=0.0,
@@ -113,7 +115,7 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
             h_val += max_sim
 
-        for y_key in s.open_edges:
+        for y_key in s.open_y_edges:
             max_sim = max(
                 (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges.keys()),
                 default=0.0,
@@ -136,29 +138,29 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
     ) -> float:
         h_val = 0
 
-        for y_key in s.open_nodes:
+        for y_key in s.open_y_nodes:
             max_sim = max(
                 (
                     node_pair_sims.get((y_key, x_key), 0.0)
                     for x_key in x.nodes.keys()
-                    if x_key not in s.mapped_nodes.values()
+                    if x_key not in s.node_mapping.values()
                 ),
                 default=0.0,
             )
 
             h_val += max_sim
 
-        for y_key in s.open_edges:
+        for y_key in s.open_y_edges:
             y_edge = y.edges[y_key]
             max_sim = max(
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
                     for x_key, x_edge in x.edges.items()
-                    if x_key not in s.mapped_edges.values()
-                    and y_edge.source.key not in s.mapped_nodes
-                    and y_edge.target.key not in s.mapped_nodes
-                    and x_edge.source.key not in s.mapped_nodes.values()
-                    and x_edge.target.key not in s.mapped_nodes.values()
+                    if x_key not in s.edge_mapping.values()
+                    and y_edge.source.key not in s.node_mapping
+                    and y_edge.target.key not in s.node_mapping
+                    and x_edge.source.key not in s.node_mapping.values()
+                    and x_edge.target.key not in s.node_mapping.values()
                 ),
                 default=0.0,
             )
@@ -181,11 +183,11 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        if s.open_nodes:
-            return next(iter(s.open_nodes)), "node"
+        if s.open_y_nodes:
+            return next(iter(s.open_y_nodes)), "node"
 
-        if s.open_edges:
-            return next(iter(s.open_edges)), "edge"
+        if s.open_y_edges:
+            return next(iter(s.open_y_edges)), "edge"
 
         return None
 
@@ -205,9 +207,9 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         edge_candidates = (
             key
-            for key in s.open_edges
-            if y.edges[key].source.key not in s.mapped_nodes
-            and y.edges[key].target.key not in s.mapped_nodes
+            for key in s.open_y_edges
+            if y.edges[key].source.key not in s.node_mapping
+            and y.edges[key].target.key not in s.node_mapping
         )
 
         try:
@@ -215,11 +217,11 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         except StopIteration:
             pass
 
-        if s.open_nodes:
-            return next(iter(s.open_nodes)), "node"
+        if s.open_y_nodes:
+            return next(iter(s.open_y_nodes)), "node"
 
-        if s.open_edges:
-            return next(iter(s.open_edges)), "edge"
+        if s.open_y_edges:
+            return next(iter(s.open_y_edges)), "edge"
 
         return None
 
@@ -239,7 +241,7 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         heuristic_scores: list[tuple[K, GraphElementType, float]] = []
 
-        for y_key in s.open_nodes:
+        for y_key in s.open_y_nodes:
             heuristic_scores.append(
                 (
                     y_key,
@@ -248,7 +250,7 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
                 )
             )
 
-        for y_key in s.open_edges:
+        for y_key in s.open_y_edges:
             heuristic_scores.append(
                 (
                     y_key,
@@ -267,9 +269,9 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         if selection_type == "edge":
             edge = y.edges[selection_key]
 
-            if edge.source.key in s.open_nodes:
+            if edge.source.key in s.open_y_nodes:
                 return edge.source.key, "node"
-            elif edge.target.key in s.open_nodes:
+            elif edge.target.key in s.open_y_nodes:
                 return edge.target.key, "node"
 
         return selection_key, selection_type
@@ -289,6 +291,8 @@ class init1[K, N, E, G](InitFunc[K, N, E, G]):
             frozendict(),
             frozenset(y.nodes.keys()),
             frozenset(y.edges.keys()),
+            frozenset(x.nodes.keys()),
+            frozenset(x.edges.keys()),
         )
 
 
@@ -329,6 +333,8 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
             frozendict(edge_mappings),
             frozenset(y.nodes.keys() - node_mappings.keys()),
             frozenset(y.edges.keys() - edge_mappings.keys()),
+            frozenset(x.nodes.keys() - node_mappings.values()),
+            frozenset(x.edges.keys() - edge_mappings.values()),
         )
 
 
@@ -373,6 +379,7 @@ class build[K, N, E, G](
     ) -> list[SearchState[K]]:
         """Expand a given node and its queue"""
 
+        next_states: list[SearchState[K]] = []
         selection = self.selection_func(
             x,
             y,
@@ -383,17 +390,17 @@ class build[K, N, E, G](
         )
 
         if selection is None:
-            return []
+            return next_states
 
         y_key, y_type = selection
 
         if y_type == "node":
-            return self.expand_node(x, y, state, y_key)
+            next_states = self.expand_node(x, y, state, y_key)
 
-        if y_type == "edge":
-            return self.expand_edge(x, y, state, y_key)
+        elif y_type == "edge":
+            next_states = self.expand_edge(x, y, state, y_key)
 
-        raise ValueError(f"Unknown element type: {y_type}")
+        return next_states
 
     def compute_priority(
         self,
@@ -407,8 +414,8 @@ class build[K, N, E, G](
             self.similarity(
                 x,
                 y,
-                state.mapped_nodes,
-                state.mapped_edges,
+                state.node_mapping,
+                state.edge_mapping,
                 node_pair_sims,
                 edge_pair_sims,
             )
@@ -417,7 +424,7 @@ class build[K, N, E, G](
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
-            num_paths = len(state.mapped_nodes) + len(state.mapped_edges)
+            num_paths = len(state.node_mapping) + len(state.edge_mapping)
             return prio / (self.pathlength_weight**num_paths)
 
         return prio
@@ -462,7 +469,7 @@ class build[K, N, E, G](
             first_elem = heapq.heappop(open_set)
             current_state = first_elem.state
 
-            if not current_state.open_nodes and not current_state.open_edges:
+            if not current_state.open_y_nodes and not current_state.open_y_edges:
                 best_state = current_state
                 break
 
@@ -486,8 +493,8 @@ class build[K, N, E, G](
         return self.similarity(
             x,
             y,
-            best_state.mapped_nodes,
-            best_state.mapped_edges,
+            best_state.node_mapping,
+            best_state.edge_mapping,
             node_pair_sims,
             edge_pair_sims,
         )
