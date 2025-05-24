@@ -43,11 +43,11 @@ class SemanticEdgeSim[K, N, E]:
         batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E], PairSim[K]]],
     ) -> list[float]:
         source_sims = (
-            node_pair_sims.get((x.source.key, y.source.key), 0.0)
+            node_pair_sims.get((y.source.key, x.source.key), 0.0)
             for x, y, node_pair_sims in batches
         )
         target_sims = (
-            node_pair_sims.get((x.target.key, y.target.key), 0.0)
+            node_pair_sims.get((y.target.key, x.target.key), 0.0)
             for x, y, node_pair_sims in batches
         )
 
@@ -91,23 +91,23 @@ class BaseGraphSimFunc[K, N, E, G]:
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        mapping: Mapping[K, K] | None = None,
+        pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
-        if mapping is None:
-            mapping = {
-                y_key: x_key
+        if pairs is None:
+            pairs = [
+                (y_key, x_key)
                 for x_key, y_key in itertools.product(x.nodes.keys(), y.nodes.keys())
-            }
+                if self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+            ]
 
-        node_pairs = [
-            (x.nodes[x_key], y.nodes[y_key])
-            for y_key, x_key in mapping.items()
-            if self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
-        ]
-        node_sims = self.batch_node_sim_func(node_pairs)
+        node_pair_values = [(x.nodes[x_key], y.nodes[y_key]) for y_key, x_key in pairs]
+        node_pair_sims = self.batch_node_sim_func(node_pair_values)
+
         return {
             (y_node.key, x_node.key): unpack_float(sim)
-            for (x_node, y_node), sim in zip(node_pairs, node_sims, strict=True)
+            for (x_node, y_node), sim in zip(
+                node_pair_values, node_pair_sims, strict=True
+            )
         }
 
     def edge_pair_similarities(
@@ -115,43 +115,47 @@ class BaseGraphSimFunc[K, N, E, G]:
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         node_pair_sims: PairSim[K],
-        mapping: Mapping[K, K] | None = None,
+        pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
-        if mapping is None:
-            mapping = {
-                y_key: x_key
+        if pairs is None:
+            pairs = [
+                (y_key, x_key)
                 for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
-            }
+                if (y.edges[y_key].source.key, x.edges[x_key].source.key)
+                in node_pair_sims
+                and (y.edges[y_key].target.key, x.edges[x_key].target.key)
+                in node_pair_sims
+                and self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
+            ]
 
-        edge_pairs = [
-            (x.edges[x_key], y.edges[y_key])
-            for y_key, x_key in mapping.items()
-            if (x.edges[x_key].source.key, y.edges[y_key].source.key) in node_pair_sims
-            and (x.edges[x_key].target.key, y.edges[y_key].target.key) in node_pair_sims
-            and self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
-        ]
+        edge_pair_values = [(x.edges[x_key], y.edges[y_key]) for y_key, x_key in pairs]
 
         if isinstance(self.batch_edge_sim_func, SemanticEdgeSim):
-            edge_sims = self.batch_edge_sim_func(
-                [(x_edge, y_edge, node_pair_sims) for x_edge, y_edge in edge_pairs]
+            edge_pair_sims = self.batch_edge_sim_func(
+                [
+                    (x_edge, y_edge, node_pair_sims)
+                    for x_edge, y_edge in edge_pair_values
+                ]
             )
         else:
-            edge_sims = self.batch_edge_sim_func(edge_pairs)
+            edge_pair_sims = self.batch_edge_sim_func(edge_pair_values)
 
         return {
             (y_edge.key, x_edge.key): unpack_float(sim)
-            for (x_edge, y_edge), sim in zip(edge_pairs, edge_sims, strict=True)
+            for (x_edge, y_edge), sim in zip(
+                edge_pair_values, edge_pair_sims, strict=True
+            )
         }
 
     def pair_similarities(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        node_mapping: Mapping[K, K] | None = None,
-        edge_mapping: Mapping[K, K] | None = None,
+        node_pairs: Sequence[tuple[K, K]] | None = None,
+        edge_pairs: Sequence[tuple[K, K]] | None = None,
     ) -> tuple[PairSim[K], PairSim[K]]:
-        node_pair_sims = self.node_pair_similarities(x, y, node_mapping)
-        edge_pair_sims = self.edge_pair_similarities(x, y, node_pair_sims, edge_mapping)
+        node_pair_sims = self.node_pair_similarities(x, y, node_pairs)
+        edge_pair_sims = self.edge_pair_similarities(x, y, node_pair_sims, edge_pairs)
         return node_pair_sims, edge_pair_sims
 
     def similarity(
@@ -165,13 +169,13 @@ class BaseGraphSimFunc[K, N, E, G]:
     ) -> GraphSim[K]:
         """Function to compute the similarity of all previous steps"""
 
-        node_sims = (
+        node_sims = [
             node_pair_sims[(y_key, x_key)] for y_key, x_key in mapped_nodes.items()
-        )
+        ]
 
-        edge_sims = (
+        edge_sims = [
             edge_pair_sims[(y_key, x_key)] for y_key, x_key in mapped_edges.items()
-        )
+        ]
 
         all_sims = itertools.chain(node_sims, edge_sims)
         total_elements = len(y.nodes) + len(y.edges)

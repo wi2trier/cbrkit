@@ -41,7 +41,7 @@ class brute_force[K, N, E, G](
             if not self.node_matcher(y.nodes[y_key].value, x.nodes[x_key].value):
                 return None
 
-        node_pair_sims = self.node_pair_similarities(x, y, mapped_nodes)
+        node_pair_sims = self.node_pair_similarities(x, y, list(mapped_nodes.items()))
 
         # compute edge similarities among matched nodes
         mapped_edges: dict[K, K] = {}
@@ -66,7 +66,7 @@ class brute_force[K, N, E, G](
             x,
             y,
             node_pair_sims,
-            mapped_edges,
+            list(mapped_edges.items()),
         )
 
         return self.similarity(

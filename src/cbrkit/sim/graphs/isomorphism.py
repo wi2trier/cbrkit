@@ -72,9 +72,7 @@ class isomorphism[K, N, E, G](
 
         for node_mapping in node_mappings:
             node_pair_sims = self.node_pair_similarities(
-                x,
-                y,
-                node_mapping,
+                x, y, list(node_mapping.items())
             )
             graph_sims.append(
                 self.similarity(
