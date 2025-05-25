@@ -23,13 +23,13 @@ class isomorphism[K, N, E, G](
 
     - Convert the input graphs to Rustworkx graphs.
     - Compute all possible subgraph isomorphisms between the two graphs.
-    - For each isomorphism, compute the similarity based on the node mapping.
+    - For each isomorphism, compute the global similarity.
     - Return the isomorphism mapping with the highest similarity.
     """
 
-    id_order: bool = True
+    id_order: bool = False
     subgraph: bool = True
-    induced: bool = True
+    induced: bool = False
     call_limit: int | None = None
     max_iterations: int = 0
 
@@ -39,12 +39,19 @@ class isomorphism[K, N, E, G](
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        x_rw, x_lookup = to_rustworkx_with_lookup(x)
-        y_rw, y_lookup = to_rustworkx_with_lookup(y)
+        if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
+            return self.invert_similarity(x, y, self(x=y, y=x))
 
+        y_rx, y_lookup = to_rustworkx_with_lookup(y)
+        x_rx, x_lookup = to_rustworkx_with_lookup(x)
+
+        # Checks if there is a subgraph of `first` isomorphic to `second`.
+        # Returns an iterator over dictionaries of node indices from `first`
+        # to node indices in `second` representing the mapping found.
+        # As such, `first` must be the larger graph and `second` the smaller one.
         mappings_iter = rustworkx.vf2_mapping(
-            y_rw,
-            x_rw,
+            x_rx,
+            y_rx,
             node_matcher=self.node_matcher,
             edge_matcher=self.edge_matcher,
             id_order=self.id_order,
@@ -53,7 +60,7 @@ class isomorphism[K, N, E, G](
             call_limit=self.call_limit,
         )
 
-        node_mappings: list[dict[K, K]] = []
+        node_mappings: list[frozendict[K, K]] = []
         graph_sims: list[GraphSim[K]] = []
 
         for idx in itertools.count():
@@ -62,30 +69,37 @@ class isomorphism[K, N, E, G](
 
             try:
                 node_mappings.append(
-                    {
-                        y_lookup[y_key]: x_lookup[x_key]
-                        for y_key, x_key in next(mappings_iter).items()
-                    }
+                    frozendict(
+                        (y_lookup[y_idx], x_lookup[x_idx])
+                        for x_idx, y_idx in next(mappings_iter).items()
+                    )
                 )
             except StopIteration:
                 break
 
         for node_mapping in node_mappings:
+            edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
             node_pair_sims = self.node_pair_similarities(
                 x, y, list(node_mapping.items())
+            )
+            edge_pair_sims = self.edge_pair_similarities(
+                x, y, node_pair_sims, list(edge_mapping.items())
             )
             graph_sims.append(
                 self.similarity(
                     x,
                     y,
-                    frozendict(node_mapping),
-                    frozendict(),
+                    node_mapping,
+                    edge_mapping,
                     node_pair_sims,
-                    frozendict(),
+                    edge_pair_sims,
                 )
             )
 
-        if len(graph_sims) == 0:
-            return GraphSim(0.0, frozendict(), frozendict(), frozendict(), frozendict())
-
-        return max(graph_sims, key=lambda sim: sim.value)
+        return max(
+            graph_sims,
+            key=lambda sim: sim.value,
+            default=GraphSim(
+                0.0, frozendict(), frozendict(), frozendict(), frozendict()
+            ),
+        )
