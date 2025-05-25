@@ -134,7 +134,9 @@ with optional_dependencies():
             >>> g_dtw = dtw(node_sim_func, edge_sim_func)
             >>> result = g_dtw(graph_x, graph_y)
             >>> print(result)
-            GraphSim(value=0.05555555555555555, node_mapping={'1': '2', '2': '2'}, edge_mapping={'e1': 'e1'}, node_similarities={'1': 0.0, '2': 0.0}, edge_similarities={'e1': 0.0})
+            GraphSim(value=0.05555555555555555,
+                node_mapping=frozendict.frozendict({'1': '2', '2': '2'}), edge_mapping=frozendict.frozendict({'e1': 'e1'}),
+                node_similarities=frozendict.frozendict({'1': 0.0, '2': 0.0}), edge_similarities=frozendict.frozendict({'e1': 0.0}))
         """
 
         node_sim_func: AnySimFunc[N, Float]
@@ -247,8 +249,9 @@ with optional_dependencies():
             ... )
             >>> result = g_swa(graph_x, graph_y)
             >>> print(result)
-            GraphSim(value=0.015, node_mapping={'1': '1', '2': '2'}, edge_mapping={'e1': 'e1'},
-                    node_similarities={'1': 0.75, '2': 0.25}, edge_similarities={'e1': 1.0})
+            GraphSim(value=0.015,
+                node_mapping=frozendict.frozendict({'1': '1', '2': '2'}), edge_mapping=frozendict.frozendict({'e1': 'e1'}),
+                node_similarities=frozendict.frozendict({'1': 0.75, '2': 0.25}), edge_similarities=frozendict.frozendict({'e1': 1.0}))
 
             >>> # Another example without the ProCAKE weighting:
             >>> g_swa_naive = smith_waterman(
@@ -261,8 +264,9 @@ with optional_dependencies():
             ... )
             >>> result_naive = g_swa_naive(graph_x, graph_y)
             >>> print(result_naive)
-            GraphSim(value=0.01, node_mapping={'1': '1', '2': '2'}, edge_mapping={},
-                    node_similarities={'1': 1.0, '2': 0.0}, edge_similarities={})
+            GraphSim(value=0.01,
+                node_mapping=frozendict.frozendict({'1': '1', '2': '2'}), edge_mapping=frozendict.frozendict({}),
+                node_similarities=frozendict.frozendict({'1': 1.0, '2': 0.0}), edge_similarities=frozendict.frozendict({}))
         """
 
         node_sim_func: InitVar[AnySimFunc[N, Float]]
