@@ -8,8 +8,6 @@ from .common import (
     SearchGraphSimFunc,
     SearchState,
     SemanticEdgeSim,
-    default_element_matcher,
-    type_element_matcher,
 )
 from .greedy import greedy
 from .isomorphism import isomorphism
@@ -35,8 +33,6 @@ __all__ = [
     "smith_waterman",
     "GraphSim",
     "ElementMatcher",
-    "default_element_matcher",
-    "type_element_matcher",
     "SemanticEdgeSim",
     "BaseGraphSimFunc",
     "SearchGraphSimFunc",

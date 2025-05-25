@@ -29,10 +29,6 @@ def default_element_matcher(x: Any, y: Any) -> bool:
     return True
 
 
-def type_element_matcher(x: Any, y: Any) -> bool:
-    return type(x) is type(y)
-
-
 @dataclass(slots=True, frozen=True)
 class SemanticEdgeSim[K, N, E]:
     source_weight: float = 0.5
@@ -61,10 +57,10 @@ class SemanticEdgeSim[K, N, E]:
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G]:
     node_sim_func: InitVar[AnySimFunc[N, Float]]
-    node_matcher: ElementMatcher[N]
     edge_sim_func: InitVar[
         AnySimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E] | None
     ] = None
+    node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
     batch_edge_sim_func: (
