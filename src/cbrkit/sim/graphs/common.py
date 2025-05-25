@@ -201,6 +201,25 @@ class BaseGraphSimFunc[K, N, E, G]:
             frozendict(zip(mapped_edges.keys(), edge_sims, strict=True)),
         )
 
+    def invert_similarity(
+        self, x: Graph[K, N, E, G], y: Graph[K, N, E, G], sim: GraphSim[K]
+    ) -> GraphSim[K]:
+        node_mapping = frozendict((v, k) for k, v in sim.node_mapping.items())
+        edge_mapping = frozendict((v, k) for k, v in sim.edge_mapping.items())
+
+        node_similarities, edge_similarities = self.pair_similarities(
+            x, y, list(node_mapping.items()), list(edge_mapping.items())
+        )
+
+        return self.similarity(
+            x,
+            y,
+            node_mapping,
+            edge_mapping,
+            frozendict(node_similarities),
+            frozendict(edge_similarities),
+        )
+
 
 @dataclass(slots=True, frozen=True)
 class SearchState[K]:

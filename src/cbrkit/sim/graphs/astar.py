@@ -366,8 +366,7 @@ class build[K, N, E, G](
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     beam_width: int = 0
     pathlength_weight: int = 0
-    # TODO: Currently not implemented as described in the paper, needs further investigation
-    allow_case_oriented_mapping: bool = False
+    allow_case_oriented: bool = True
 
     def expand(
         self,
@@ -429,25 +428,6 @@ class build[K, N, E, G](
 
         return prio
 
-    def __call_case_oriented__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-    ) -> GraphSim[K]:
-        result = self(x=y, y=x)
-
-        return GraphSim(
-            result.value,
-            frozendict((v, k) for k, v in result.node_mapping.items()),
-            frozendict((v, k) for k, v in result.edge_mapping.items()),
-            frozendict(
-                (result.node_mapping[k], v) for k, v in result.node_similarities.items()
-            ),
-            frozendict(
-                (result.edge_mapping[k], v) for k, v in result.edge_similarities.items()
-            ),
-        )
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -455,9 +435,10 @@ class build[K, N, E, G](
     ) -> GraphSim[K]:
         """Perform an A* analysis of the x base and the y"""
         if (
-            (len(y.nodes) + len(y.edges)) > (len(x.nodes) + len(x.edges))
-        ) and self.allow_case_oriented_mapping:
-            return self.__call_case_oriented__(x, y)
+            len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges)
+            and self.allow_case_oriented
+        ):
+            return self.invert_similarity(x, y, self(x=y, y=x))
 
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
