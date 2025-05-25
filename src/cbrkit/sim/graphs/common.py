@@ -83,6 +83,22 @@ class BaseGraphSimFunc[K, N, E, G]:
         else:
             self.batch_edge_sim_func = batchify_sim(any_edge_sim_func)
 
+    def induced_edge_mapping(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_mapping: Mapping[K, K],
+    ) -> frozendict[K, K]:
+        return frozendict(
+            (y_value.key, x_value.key)
+            for y_value, x_value in itertools.product(
+                y.edges.values(), x.edges.values()
+            )
+            if self.edge_matcher(x_value.value, y_value.value)
+            and x_value.source.key == node_mapping.get(y_value.source.key)
+            and x_value.target.key == node_mapping.get(y_value.target.key)
+        )
+
     def node_pair_similarities(
         self,
         x: Graph[K, N, E, G],
