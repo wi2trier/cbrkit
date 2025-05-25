@@ -47,14 +47,14 @@ with optional_dependencies():
 
             node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
-            def node_subst_cost(x: NetworkxNode[K, N], y: NetworkxNode[K, N]) -> float:
+            def node_subst_cost(y: NetworkxNode[K, N], x: NetworkxNode[K, N]) -> float:
                 if sim := node_pair_sims.get((y["key"], x["key"])):
                     return 1.0 - sim
 
                 return float("inf")
 
             def edge_subst_cost(
-                x: NetworkxEdge[K, N, E], y: NetworkxEdge[K, N, E]
+                y: NetworkxEdge[K, N, E], x: NetworkxEdge[K, N, E]
             ) -> float:
                 if sim := edge_pair_sims.get((y["key"], x["key"])):
                     return 1.0 - sim
