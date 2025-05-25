@@ -26,13 +26,13 @@
       "qe1": "e1"
     },
     "node_similarities": {
-      "q1": 0.0,
-      "q2": 0.0
+      "q1": 0.2,
+      "q2": 0.2
     },
     "edge_similarities": {
-      "qe1": 0.0
+      "qe1": 0.2
     },
-    "value": 0.0
+    "value": 0.2
   },
 
   "graph3": {
@@ -45,12 +45,12 @@
     },
     "node_similarities": {
       "q1": 1.0,
-      "q2": 0.0
+      "q2": 0.2
     },
     "edge_similarities": {
-      "qe1": 0.5
+      "qe1": 0.6
     },
-    "value": 0.5
+    "value": 0.6
   },
 
   "graph4": {
@@ -62,13 +62,13 @@
       "qe1": "e1"
     },
     "node_similarities": {
-      "q1": 0.0,
+      "q1": 0.2,
       "q2": 1.0
     },
     "edge_similarities": {
-      "qe1": 0.5
+      "qe1": 0.6
     },
-    "value": 0.5
+    "value": 0.6
   },
 
   "graph5": {
@@ -77,10 +77,10 @@
     },
     "edge_mapping": {},
     "node_similarities": {
-      "q1": 0.0
+      "q1": 0.2
     },
     "edge_similarities": {},
-    "value": 0.0
+    "value": 0.06666666666666667
   },
 
   "graph6": {
@@ -89,10 +89,10 @@
     },
     "edge_mapping": {},
     "node_similarities": {
-      "q2": 0.0
+      "q2": 0.2
     },
     "edge_similarities": {},
-    "value": 0.0
+    "value": 0.06666666666666667
   },
 
   "graph7": {
@@ -118,7 +118,7 @@
       "q2": 1.0
     },
     "edge_similarities": {},
-    "value": 0.6666666666666666
+    "value": 0.6666666666666667
   },
 
   "graph9": {
@@ -142,12 +142,12 @@
       "qe1": "e1"
     },
     "node_similarities": {
-      "q1": 0.0,
+      "q1": 0.2,
       "q2": 1.0
     },
     "edge_similarities": {
-      "qe1": 0.5
+      "qe1": 0.6
     },
-    "value": 0.5
+    "value": 0.6
   }
 }
