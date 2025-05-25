@@ -34,46 +34,25 @@ class brute_force[K, N, E, G](
         y_nodes: Sequence[K],
         x_nodes: Sequence[K],
     ) -> GraphSim[K] | None:
-        mapped_nodes = dict(zip(y_nodes, x_nodes, strict=True))
+        node_mapping = frozendict(zip(y_nodes, x_nodes, strict=True))
 
         # if one node can't be matched to another, skip this permutation
-        for y_key, x_key in mapped_nodes.items():
-            if not self.node_matcher(y.nodes[y_key].value, x.nodes[x_key].value):
+        for y_key, x_key in node_mapping.items():
+            if not self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
                 return None
 
-        node_pair_sims = self.node_pair_similarities(x, y, list(mapped_nodes.items()))
+        edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
 
-        # compute edge similarities among matched nodes
-        mapped_edges: dict[K, K] = {}
-
-        for y_key, y_edge in y.edges.items():
-            # only consider edges whose both endpoints are in our subset
-            if y_edge.source.key in mapped_nodes and y_edge.target.key in mapped_nodes:
-                y_source = mapped_nodes[y_edge.source.key]
-                y_target = mapped_nodes[y_edge.target.key]
-
-                for x_key, x_edge in x.edges.items():
-                    if (
-                        x_edge.source.key == y_source
-                        and x_edge.target.key == y_target
-                        and self.edge_matcher(y_edge.value, x_edge.value)
-                    ):
-                        mapped_edges[y_key] = x_key
-                        break
-
-        # batch sim for edges
+        node_pair_sims = self.node_pair_similarities(x, y, list(node_mapping.items()))
         edge_pair_sims = self.edge_pair_similarities(
-            x,
-            y,
-            node_pair_sims,
-            list(mapped_edges.items()),
+            x, y, node_pair_sims, list(edge_mapping.items())
         )
 
         return self.similarity(
             x,
             y,
-            frozendict(mapped_nodes),
-            frozendict(mapped_edges),
+            frozendict(node_mapping),
+            frozendict(edge_mapping),
             frozendict(node_pair_sims),
             frozendict(edge_pair_sims),
         )
@@ -91,9 +70,13 @@ class brute_force[K, N, E, G](
             for y_candidates in itertools.combinations(y_node_keys, k):
                 # all injective mappings from this subset to target nodes
                 for x_candidates in itertools.permutations(x_node_keys, k):
-                    sim_candidate = self.expand(x, y, y_candidates, x_candidates)
+                    next_sim = self.expand(x, y, y_candidates, x_candidates)
 
-                    if sim_candidate and sim_candidate.value > best_sim.value:
-                        best_sim = sim_candidate
+                    if next_sim and (
+                        next_sim.value > best_sim.value
+                        or len(next_sim.node_mapping) > len(best_sim.node_mapping)
+                        or len(next_sim.edge_mapping) > len(best_sim.edge_mapping)
+                    ):
+                        best_sim = next_sim
 
         return best_sim
