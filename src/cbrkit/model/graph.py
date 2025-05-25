@@ -268,20 +268,18 @@ with optional_dependencies():
         g: Graph[K, N, E, Any],
     ) -> tuple[rustworkx.PyDiGraph[N, E], dict[int, K]]:
         ng = rustworkx.PyDiGraph(attrs=g.value)
-        new_ids = ng.add_nodes_from(list(g.nodes.values()))
+        new_ids = ng.add_nodes_from(node.value for node in g.nodes.values())
         id_map = {
             old_id: new_id
             for old_id, new_id in zip(g.nodes.keys(), new_ids, strict=True)
         }
         ng.add_edges_from(
-            [
-                (
-                    id_map[edge.source.key],
-                    id_map[edge.target.key],
-                    edge.value,
-                )
-                for edge in g.edges.values()
-            ]
+            (
+                id_map[edge.source.key],
+                id_map[edge.target.key],
+                edge.value,
+            )
+            for edge in g.edges.values()
         )
 
         return ng, {new_id: old_id for old_id, new_id in id_map.items()}
