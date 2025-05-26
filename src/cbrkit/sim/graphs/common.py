@@ -1,11 +1,16 @@
 import itertools
 from collections.abc import Mapping, Sequence
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from frozendict import frozendict
 
-from ...helpers import batchify_sim, unpack_float
+from ...helpers import (
+    batchify_sim,
+    reverse_batch_positional,
+    reverse_positional,
+    unpack_float,
+)
 from ...model.graph import Edge, Graph, Node
 from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
 from ..wrappers import transpose_value
@@ -56,32 +61,39 @@ class SemanticEdgeSim[K, N, E]:
 
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G]:
-    node_sim_func: InitVar[AnySimFunc[N, Float]]
-    edge_sim_func: InitVar[
+    node_sim_func: AnySimFunc[N, Float]
+    edge_sim_func: (
         AnySimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E] | None
-    ] = None
+    ) = None
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
     batch_edge_sim_func: (
         BatchSimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E]
     ) = field(init=False)
+    _invert: bool = False
 
-    def __post_init__(
-        self,
-        any_node_sim_func: AnySimFunc[N, Float],
-        any_edge_sim_func: AnySimFunc[Edge[K, N, E], Float]
-        | SemanticEdgeSim[K, N, E]
-        | None,
-    ) -> None:
-        self.batch_node_sim_func = batchify_sim(transpose_value(any_node_sim_func))
+    def __post_init__(self) -> None:
+        self.batch_node_sim_func = batchify_sim(transpose_value(self.node_sim_func))
 
-        if isinstance(any_edge_sim_func, SemanticEdgeSim):
-            self.batch_edge_sim_func = any_edge_sim_func
-        elif any_edge_sim_func is None:
+        if isinstance(self.edge_sim_func, SemanticEdgeSim):
+            self.batch_edge_sim_func = self.edge_sim_func
+        elif self.edge_sim_func is None:
             self.batch_edge_sim_func = SemanticEdgeSim()
         else:
-            self.batch_edge_sim_func = batchify_sim(any_edge_sim_func)
+            self.batch_edge_sim_func = batchify_sim(self.edge_sim_func)
+
+        if self._invert:
+            self.node_matcher = reverse_positional(self.node_matcher)
+            self.edge_matcher = reverse_positional(self.edge_matcher)
+            self.batch_node_sim_func = reverse_batch_positional(
+                self.batch_node_sim_func
+            )
+            if not isinstance(self.batch_edge_sim_func, SemanticEdgeSim):
+                # semantic edge sim is agnostic to order
+                self.batch_edge_sim_func = reverse_batch_positional(
+                    self.batch_edge_sim_func
+                )
 
     def induced_edge_mapping(
         self,

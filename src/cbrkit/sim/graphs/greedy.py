@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 
 from frozendict import frozendict
@@ -33,19 +34,15 @@ class greedy[K, N, E, G](
         The similarity between the query graph and the most similar graph in the casebase.
     """
 
-    allow_case_oriented: bool = True
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         """Perform greedy graph matching of the query y against the case x"""
-        if (
-            len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges)
-            and self.allow_case_oriented
-        ):
-            return self.invert_similarity(x, y, self(x=y, y=x))
+        if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
+            self_inv = dataclasses.replace(self, _invert=True)
+            return self.invert_similarity(x, y, self_inv(x=y, y=x))
 
         current_state = SearchState(
             frozendict(),

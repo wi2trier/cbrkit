@@ -1,3 +1,4 @@
+import dataclasses
 import itertools
 from dataclasses import dataclass
 from typing import override
@@ -40,7 +41,8 @@ class isomorphism[K, N, E, G](
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
-            return self.invert_similarity(x, y, self(x=y, y=x))
+            self_inv = dataclasses.replace(self, _invert=True)
+            return self.invert_similarity(x, y, self_inv(x=y, y=x))
 
         y_rx, y_lookup = to_rustworkx_with_lookup(y)
         x_rx, x_lookup = to_rustworkx_with_lookup(x)
@@ -79,11 +81,8 @@ class isomorphism[K, N, E, G](
 
         for node_mapping in node_mappings:
             edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
-            node_pair_sims = self.node_pair_similarities(
-                x, y, list(node_mapping.items())
-            )
-            edge_pair_sims = self.edge_pair_similarities(
-                x, y, node_pair_sims, list(edge_mapping.items())
+            node_pair_sims, edge_pair_sims = self.pair_similarities(
+                x, y, list(node_mapping.items()), list(edge_mapping.items())
             )
             graph_sims.append(
                 self.similarity(

@@ -1,3 +1,4 @@
+import dataclasses
 import heapq
 import itertools
 from collections import defaultdict
@@ -366,7 +367,6 @@ class build[K, N, E, G](
     init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     beam_width: int = 0
     pathlength_weight: int = 0
-    allow_case_oriented: bool = True
 
     def expand(
         self,
@@ -434,11 +434,9 @@ class build[K, N, E, G](
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         """Perform an A* analysis of the x base and the y"""
-        if (
-            len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges)
-            and self.allow_case_oriented
-        ):
-            return self.invert_similarity(x, y, self(x=y, y=x))
+        if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
+            self_inv = dataclasses.replace(self, _invert=True)
+            return self.invert_similarity(x, y, self_inv(x=y, y=x))
 
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 

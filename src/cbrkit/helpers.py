@@ -54,8 +54,9 @@ __all__ = [
     "batchify_named",
     "batchify_positional",
     "callable2model",
-    "chunkify",
+    "chain_map_chunks",
     "chunkify_overlap",
+    "chunkify",
     "dist2sim",
     "event_loop",
     "get_hash",
@@ -76,10 +77,11 @@ __all__ = [
     "mp_pool",
     "mp_starmap",
     "optional_dependencies",
-    "chain_map_chunks",
     "produce_factories",
     "produce_factory",
     "produce_sequence",
+    "reverse_batch_positional",
+    "reverse_positional",
     "round_nearest",
     "round",
     "scale",
@@ -513,6 +515,26 @@ def unbatchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
     return unbatchify_positional(func)
+
+
+@dataclass(slots=True)
+class reverse_positional[T](WrappedObject[PositionalFunc[T]], PositionalFunc[T]):
+    __wrapped__: PositionalFunc[T]
+
+    @override
+    def __call__(self, *args: Any, **kwargs: Any) -> T:
+        return self.__wrapped__(*reversed(args))
+
+
+@dataclass(slots=True)
+class reverse_batch_positional[T](
+    WrappedObject[BatchPositionalFunc[T]], BatchPositionalFunc[T]
+):
+    __wrapped__: BatchPositionalFunc[T]
+
+    @override
+    def __call__(self, batches: Sequence[Any]) -> Sequence[T]:
+        return self.__wrapped__([[*reversed(batch)] for batch in batches])
 
 
 def get_value[T](arg: StructuredValue[T]) -> T:
