@@ -413,7 +413,22 @@ class build[K, N, E, G](
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
-            num_paths = len(state.node_mapping) + len(state.edge_mapping)
+            node_null_mapping = (
+                set(y.nodes.keys())
+                - set(state.node_mapping.keys())
+                - set(state.open_y_nodes)
+            )
+            edge_null_mapping = (
+                set(y.edges.keys())
+                - set(state.edge_mapping.keys())
+                - set(state.open_y_edges)
+            )
+            num_paths = (
+                len(state.node_mapping)
+                + len(state.edge_mapping)
+                + len(node_null_mapping)
+                + len(edge_null_mapping)
+            )
             return prio / (self.pathlength_weight**num_paths)
 
         return prio
