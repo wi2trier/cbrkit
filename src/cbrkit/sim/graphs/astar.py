@@ -203,23 +203,16 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        edge_candidates = (
-            key
-            for key in s.open_y_edges
-            if y.edges[key].source.key not in s.node_mapping
-            and y.edges[key].target.key not in s.node_mapping
-        )
-
-        try:
-            return next(edge_candidates), "edge"
-        except StopIteration:
-            pass
+        if s.open_y_edges:
+            return next(
+                key
+                for key in s.open_y_edges
+                if y.edges[key].source.key not in s.open_y_nodes
+                and y.edges[key].target.key not in s.open_y_nodes
+            ), "edge"
 
         if s.open_y_nodes:
             return next(iter(s.open_y_nodes)), "node"
-
-        if s.open_y_edges:
-            return next(iter(s.open_y_edges)), "edge"
 
         return None
 
