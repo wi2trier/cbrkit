@@ -59,12 +59,15 @@ class SemanticEdgeSim[K, N, E]:
         ]
 
 
+default_edge_sim = SemanticEdgeSim()
+
+
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G]:
     node_sim_func: AnySimFunc[N, Float]
-    edge_sim_func: (
-        AnySimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E] | None
-    ) = None
+    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E] = (
+        default_edge_sim
+    )
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
@@ -78,8 +81,6 @@ class BaseGraphSimFunc[K, N, E, G]:
 
         if isinstance(self.edge_sim_func, SemanticEdgeSim):
             self.batch_edge_sim_func = self.edge_sim_func
-        elif self.edge_sim_func is None:
-            self.batch_edge_sim_func = SemanticEdgeSim()
         else:
             self.batch_edge_sim_func = batchify_sim(self.edge_sim_func)
 
