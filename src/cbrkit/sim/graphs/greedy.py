@@ -21,8 +21,7 @@ __all__ = ["greedy"]
 class greedy[K, N, E, G](
     SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
-    """
-    Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5).
+    """Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5)
 
     Args:
         node_sim_func: A function to compute the similarity between two nodes.

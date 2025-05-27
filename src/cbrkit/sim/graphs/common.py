@@ -297,8 +297,6 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
-        """Expand a given node and its queue"""
-
         next_states: list[SearchState[K]] = [
             SearchState(
                 state.node_mapping.set(y_key, x_key),
@@ -333,7 +331,6 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
-        """Expand a given edge and its queue"""
 
         next_states: list[SearchState[K]] = []
 
