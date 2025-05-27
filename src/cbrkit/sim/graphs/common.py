@@ -145,11 +145,11 @@ class BaseGraphSimFunc[K, N, E, G]:
             pairs = [
                 (y_key, x_key)
                 for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
-                if (y.edges[y_key].source.key, x.edges[x_key].source.key)
+                if self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
+                and (y.edges[y_key].source.key, x.edges[x_key].source.key)
                 in node_pair_sims
                 and (y.edges[y_key].target.key, x.edges[x_key].target.key)
                 in node_pair_sims
-                and self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
             ]
 
         edge_pair_values = [(x.edges[x_key], y.edges[y_key]) for y_key, x_key in pairs]
