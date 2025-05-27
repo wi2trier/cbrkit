@@ -448,7 +448,7 @@ class build[K, N, E, G](
             first_elem = heapq.heappop(open_set)
             current_state = first_elem.state
 
-            if not current_state.open_y_nodes and not current_state.open_y_edges:
+            if self.finished(current_state):
                 best_state = current_state
                 break
 

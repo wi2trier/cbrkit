@@ -249,6 +249,13 @@ class SearchState[K]:
 
 
 class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
+    def finished(self, state: SearchState[K]) -> bool:
+        # the following condition could save a few iterations, but needs to be tested
+        # return (not state.open_y_nodes and not state.open_y_edges) or (
+        #     not state.open_x_nodes and not state.open_x_edges
+        # )
+        return not state.open_y_nodes and not state.open_y_edges
+
     def legal_node_mapping(
         self,
         x: Graph[K, N, E, G],

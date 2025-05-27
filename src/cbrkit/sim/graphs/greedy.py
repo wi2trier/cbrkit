@@ -58,7 +58,7 @@ class greedy[K, N, E, G](
 
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
-        while current_state.open_y_nodes or current_state.open_y_edges:
+        while not self.finished(current_state):
             # Iterate over all open pairs and find the best pair
             next_states: list[SearchState[K]] = []
 
