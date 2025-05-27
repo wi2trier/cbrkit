@@ -14,6 +14,7 @@ from ...helpers import (
 from ...model.graph import (
     Graph,
     GraphElementType,
+    Node,
 )
 from ...typing import SimFunc
 from .common import ElementMatcher, GraphSim, SearchGraphSimFunc, SearchState
@@ -140,27 +141,24 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
         for y_key in s.open_y_nodes:
             max_sim = max(
-                (
-                    node_pair_sims.get((y_key, x_key), 0.0)
-                    for x_key in x.nodes.keys()
-                    if x_key not in s.node_mapping.values()
-                ),
+                (node_pair_sims.get((y_key, x_key), 0.0) for x_key in s.open_x_nodes),
                 default=0.0,
             )
 
             h_val += max_sim
 
+        def mapping_possible(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
+            return x_node.key == s.node_mapping.get(y_node.key) or (
+                y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
+            )
+
         for y_key in s.open_y_edges:
-            y_edge = y.edges[y_key]
             max_sim = max(
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
-                    for x_key, x_edge in x.edges.items()
-                    if x_key not in s.edge_mapping.values()
-                    and y_edge.source.key not in s.node_mapping
-                    and y_edge.target.key not in s.node_mapping
-                    and x_edge.source.key not in s.node_mapping.values()
-                    and x_edge.target.key not in s.node_mapping.values()
+                    for x_key in s.open_x_edges
+                    if mapping_possible(x.edges[x_key].source, y.edges[y_key].source)
+                    and mapping_possible(x.edges[x_key].target, y.edges[y_key].target)
                 ),
                 default=0.0,
             )
