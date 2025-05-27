@@ -1,11 +1,10 @@
-import dataclasses
 import itertools
 from dataclasses import dataclass
 from typing import override
 
 from frozendict import frozendict
 
-from ...helpers import optional_dependencies
+from ...helpers import optional_dependencies, reverse_positional
 from ...model.graph import Graph
 from ...typing import SimFunc
 from .common import BaseGraphSimFunc, GraphSim
@@ -41,21 +40,25 @@ class isomorphism[K, N, E, G](
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
-            self_inv = dataclasses.replace(self, _invert=True)
-            return self.invert_similarity(x, y, self_inv(x=y, y=x))
-
-        y_rx, y_lookup = to_rustworkx_with_lookup(y)
-        x_rx, x_lookup = to_rustworkx_with_lookup(x)
+            larger_graph, larger_graph_lookup = to_rustworkx_with_lookup(y)
+            smaller_graph, smaller_graph_lookup = to_rustworkx_with_lookup(x)
+            node_matcher = reverse_positional(self.node_matcher)
+            edge_matcher = reverse_positional(self.edge_matcher)
+        else:
+            larger_graph, larger_graph_lookup = to_rustworkx_with_lookup(x)
+            smaller_graph, smaller_graph_lookup = to_rustworkx_with_lookup(y)
+            node_matcher = self.node_matcher
+            edge_matcher = self.edge_matcher
 
         # Checks if there is a subgraph of `first` isomorphic to `second`.
         # Returns an iterator over dictionaries of node indices from `first`
         # to node indices in `second` representing the mapping found.
         # As such, `first` must be the larger graph and `second` the smaller one.
         mappings_iter = rustworkx.vf2_mapping(
-            x_rx,
-            y_rx,
-            node_matcher=self.node_matcher,
-            edge_matcher=self.edge_matcher,
+            larger_graph,
+            smaller_graph,
+            node_matcher=node_matcher,
+            edge_matcher=edge_matcher,
             id_order=self.id_order,
             subgraph=self.subgraph,
             induced=self.induced,
@@ -70,12 +73,28 @@ class isomorphism[K, N, E, G](
                 break
 
             try:
-                node_mappings.append(
-                    frozendict(
-                        (y_lookup[y_idx], x_lookup[x_idx])
-                        for x_idx, y_idx in next(mappings_iter).items()
+                if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
+                    # y -> x (as needed)
+                    node_mappings.append(
+                        frozendict(
+                            (
+                                larger_graph_lookup[larger_idx],
+                                smaller_graph_lookup[smaller_idx],
+                            )
+                            for larger_idx, smaller_idx in next(mappings_iter).items()
+                        )
                     )
-                )
+                else:
+                    # x ->  y (needs to be inverted)
+                    node_mappings.append(
+                        frozendict(
+                            (
+                                smaller_graph_lookup[smaller_idx],
+                                larger_graph_lookup[larger_idx],
+                            )
+                            for larger_idx, smaller_idx in next(mappings_iter).items()
+                        )
+                    )
             except StopIteration:
                 break
 
