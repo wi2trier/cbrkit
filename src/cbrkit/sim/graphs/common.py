@@ -331,6 +331,41 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
+        next_states: list[SearchState[K]] = [
+            SearchState(
+                state.node_mapping,
+                state.edge_mapping.set(y_key, x_key),
+                state.open_y_nodes,
+                state.open_y_edges - {y_key},
+                state.open_x_nodes,
+                state.open_x_edges - {x_key},
+            )
+            for x_key in state.open_x_edges
+            if self.legal_edge_mapping(x, y, state, x_key, y_key)
+        ]
+
+        if not next_states:
+            next_states.append(
+                SearchState(
+                    state.node_mapping,
+                    state.edge_mapping,
+                    state.open_y_nodes,
+                    state.open_y_edges - {y_key},
+                    state.open_x_nodes,
+                    state.open_x_edges,
+                )
+            )
+
+        return next_states
+
+    def expand_edge_with_nodes(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        state: SearchState[K],
+        y_key: K,
+    ) -> list[SearchState[K]]:
+        """Expand a given edge and map its source/target node if not already mapped"""
 
         next_states: list[SearchState[K]] = []
 
