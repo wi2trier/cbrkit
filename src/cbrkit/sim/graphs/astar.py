@@ -1,4 +1,3 @@
-import dataclasses
 import heapq
 import itertools
 from collections import defaultdict
@@ -435,9 +434,9 @@ class build[K, N, E, G](
     ) -> GraphSim[K]:
         """Perform an A* analysis as described by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005)"""
 
-        if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
-            self_inv = dataclasses.replace(self, _invert=True)
-            return self.invert_similarity(x, y, self_inv(x=y, y=x))
+        # if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
+        #     self_inv = dataclasses.replace(self, _invert=True)
+        #     return self.invert_similarity(x, y, self_inv(x=y, y=x))
 
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
