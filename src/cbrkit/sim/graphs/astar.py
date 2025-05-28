@@ -115,20 +115,16 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
         h_val = 0
 
         for y_key in s.open_y_nodes:
-            max_sim = max(
+            h_val += max(
                 (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes.keys()),
                 default=0.0,
             )
 
-            h_val += max_sim
-
         for y_key in s.open_y_edges:
-            max_sim = max(
+            h_val += max(
                 (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges.keys()),
                 default=0.0,
             )
-
-            h_val += max_sim
 
         return h_val / (len(y.nodes) + len(y.edges))
 
@@ -146,12 +142,10 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
         h_val = 0
 
         for y_key in s.open_y_nodes:
-            max_sim = max(
+            h_val += max(
                 (node_pair_sims.get((y_key, x_key), 0.0) for x_key in s.open_x_nodes),
                 default=0.0,
             )
-
-            h_val += max_sim
 
         def mapping_possible(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
             return x_node.key == s.node_mapping.get(y_node.key) or (
@@ -159,7 +153,7 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
             )
 
         for y_key in s.open_y_edges:
-            max_sim = max(
+            h_val += max(
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
                     for x_key in s.open_x_edges
@@ -168,8 +162,6 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
                 ),
                 default=0.0,
             )
-
-            h_val += max_sim
 
         return h_val / (len(y.nodes) + len(y.edges))
 
@@ -187,11 +179,15 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        if s.open_y_nodes:
+        try:
             return next(iter(s.open_y_nodes)), "node"
+        except StopIteration:
+            pass
 
-        if s.open_y_edges:
+        try:
             return next(iter(s.open_y_edges)), "edge"
+        except StopIteration:
+            pass
 
         return None
 
@@ -209,16 +205,20 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        if s.open_y_edges:
+        try:
             return next(
                 key
                 for key in s.open_y_edges
                 if y.edges[key].source.key not in s.open_y_nodes
                 and y.edges[key].target.key not in s.open_y_nodes
             ), "edge"
+        except StopIteration:
+            pass
 
-        if s.open_y_nodes:
+        try:
             return next(iter(s.open_y_nodes)), "node"
+        except StopIteration:
+            pass
 
         return None
 
