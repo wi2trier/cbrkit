@@ -24,12 +24,12 @@ class greedy[K, N, E, G](
 
     Args:
         node_sim_func: A function to compute the similarity between two nodes.
-        node_matcher: A function that returns true if two nodes can be mapped legally.
         edge_sim_func: A function to compute the similarity between two edges.
+        node_matcher: A function that returns true if two nodes can be mapped legally.
         edge_matcher: A function that returns true if two edges can be mapped legally.
 
     Returns:
-        The similarity between the query graph and the most similar graph in the casebase.
+        The similarity between a query and a case graph along with the mapping.
     """
 
     def __call__(
@@ -37,8 +37,6 @@ class greedy[K, N, E, G](
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        """Perform greedy graph matching of the query y against the case x"""
-
         # if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
         #     self_inv = dataclasses.replace(self, _invert=True)
         #     return self.invert_similarity(x, y, self_inv(x=y, y=x))

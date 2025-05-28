@@ -333,15 +333,16 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
 class build[K, N, E, G](
     SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
-    """
-    Performs the A* algorithm proposed by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) to compute the similarity between a query graph and the graphs in the casebase.
+    """Performs an A* search as described by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005)
 
     Args:
+        node_sim_func: A function to compute the similarity between two nodes.
+        edge_sim_func: A function to compute the similarity between two edges.
+        node_matcher: A function that returns true if two nodes can be mapped legally.
+        edge_matcher: A function that returns true if two edges can be mapped legally.
         heuristic_func: A heuristic function to compute the future similarity.
         selection_func: A function to select the next node or edge to be mapped.
         init_func: A function to initialize the state.
-        node_matcher: A function that returns true if two nodes can be mapped legally.
-        edge_matcher: A function that returns true if two edges can be mapped legally.
         beam_width: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
@@ -349,7 +350,7 @@ class build[K, N, E, G](
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
 
     Returns:
-        The similarity between the query graph and the most similar graph in the casebase.
+        The similarity between a query and a case graph along with the mapping.
     """
 
     heuristic_func: HeuristicFunc[K, N, E, G] = field(default_factory=h3)
@@ -438,8 +439,6 @@ class build[K, N, E, G](
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        """Perform an A* analysis as described by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005)"""
-
         # if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
         #     self_inv = dataclasses.replace(self, _invert=True)
         #     return self.invert_similarity(x, y, self_inv(x=y, y=x))
