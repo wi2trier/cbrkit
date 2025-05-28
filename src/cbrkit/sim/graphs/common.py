@@ -62,6 +62,21 @@ class SemanticEdgeSim[K, N, E]:
 default_edge_sim = SemanticEdgeSim()
 
 
+def _induced_edge_mapping[K, N, E, G](
+    x: Graph[K, N, E, G],
+    y: Graph[K, N, E, G],
+    node_mapping: Mapping[K, K],
+    edge_matcher: ElementMatcher[E],
+) -> frozendict[K, K]:
+    return frozendict(
+        (y_value.key, x_value.key)
+        for y_value, x_value in itertools.product(y.edges.values(), x.edges.values())
+        if edge_matcher(x_value.value, y_value.value)
+        and x_value.source.key == node_mapping.get(y_value.source.key)
+        and x_value.target.key == node_mapping.get(y_value.target.key)
+    )
+
+
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G]:
     node_sim_func: AnySimFunc[N, Float]
@@ -102,15 +117,7 @@ class BaseGraphSimFunc[K, N, E, G]:
         y: Graph[K, N, E, G],
         node_mapping: Mapping[K, K],
     ) -> frozendict[K, K]:
-        return frozendict(
-            (y_value.key, x_value.key)
-            for y_value, x_value in itertools.product(
-                y.edges.values(), x.edges.values()
-            )
-            if self.edge_matcher(x_value.value, y_value.value)
-            and x_value.source.key == node_mapping.get(y_value.source.key)
-            and x_value.target.key == node_mapping.get(y_value.target.key)
-        )
+        return _induced_edge_mapping(x, y, node_mapping, self.edge_matcher)
 
     def node_pair_similarities(
         self,

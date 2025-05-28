@@ -17,7 +17,13 @@ from ...model.graph import (
     Node,
 )
 from ...typing import SimFunc
-from .common import ElementMatcher, GraphSim, SearchGraphSimFunc, SearchState
+from .common import (
+    ElementMatcher,
+    GraphSim,
+    SearchGraphSimFunc,
+    SearchState,
+    _induced_edge_mapping,
+)
 
 __all__ = [
     "HeuristicFunc",
@@ -298,34 +304,28 @@ class init2[K, N, E, G](InitFunc[K, N, E, G]):
     ) -> SearchState[K]:
         # pre-populate the mapping with nodes/edges that only have one possible legal mapping
         possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
-        possible_edge_mappings: defaultdict[K, set[K]] = defaultdict(set)
 
         for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
             if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
                 possible_node_mappings[y_key].add(x_key)
 
-        for y_key, x_key in itertools.product(y.edges.keys(), x.edges.keys()):
-            if edge_matcher(x.edges[x_key].value, y.edges[y_key].value):
-                possible_edge_mappings[y_key].add(x_key)
-
-        node_mappings: dict[K, K] = {
-            y_key: next(iter(x_keys))
+        node_mapping: frozendict[K, K] = frozendict(
+            (y_key, next(iter(x_keys)))
             for y_key, x_keys in possible_node_mappings.items()
             if len(x_keys) == 1
-        }
-        edge_mappings: dict[K, K] = {
-            y_key: next(iter(x_keys))
-            for y_key, x_keys in possible_edge_mappings.items()
-            if len(x_keys) == 1
-        }
+        )
+
+        edge_mapping: frozendict[K, K] = _induced_edge_mapping(
+            x, y, node_mapping, edge_matcher
+        )
 
         return SearchState(
-            frozendict(node_mappings),
-            frozendict(edge_mappings),
-            frozenset(y.nodes.keys() - node_mappings.keys()),
-            frozenset(y.edges.keys() - edge_mappings.keys()),
-            frozenset(x.nodes.keys() - node_mappings.values()),
-            frozenset(x.edges.keys() - edge_mappings.values()),
+            node_mapping,
+            edge_mapping,
+            frozenset(y.nodes.keys() - node_mapping.keys()),
+            frozenset(y.edges.keys() - edge_mapping.keys()),
+            frozenset(x.nodes.keys() - node_mapping.values()),
+            frozenset(x.edges.keys() - edge_mapping.values()),
         )
 
 
