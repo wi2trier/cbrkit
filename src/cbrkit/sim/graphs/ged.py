@@ -81,12 +81,12 @@ with optional_dependencies():
                 except StopIteration:
                     break
 
-            mapped_nodes = frozendict(
+            node_mapping = frozendict(
                 (y_key, x_key)
                 for y_key, x_key in node_edit_path
                 if x_key is not None and y_key is not None
             )
-            mapped_edges = frozendict(
+            edge_mapping = frozendict(
                 (
                     y_edges_lookup[y_key],
                     x_edges_lookup[x_key],
@@ -101,8 +101,8 @@ with optional_dependencies():
             return self.similarity(
                 x,
                 y,
-                mapped_nodes,
-                mapped_edges,
+                node_mapping,
+                edge_mapping,
                 node_pair_sims,
                 edge_pair_sims,
             )

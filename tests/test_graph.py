@@ -19,6 +19,8 @@ ALGORITHMS: dict[
     "ged": cbrkit.sim.graphs.ged,
     "greedy": cbrkit.sim.graphs.greedy,
     "isomorphism": cbrkit.sim.graphs.isomorphism,
+    "lsap_dense": cbrkit.sim.graphs.lsap_dense,
+    "lsap_sparse": cbrkit.sim.graphs.lsap_dense,
 }
 
 

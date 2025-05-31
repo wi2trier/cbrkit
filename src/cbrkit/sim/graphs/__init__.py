@@ -11,6 +11,7 @@ from .common import (
 )
 from .greedy import greedy
 from .isomorphism import isomorphism
+from .lsap import lsap_dense, lsap_sparse
 from .precompute import precompute
 
 with optional_dependencies():
@@ -26,6 +27,8 @@ __all__ = [
     "astar",
     "greedy",
     "ged",
+    "lsap_dense",
+    "lsap_sparse",
     "brute_force",
     "isomorphism",
     "precompute",
