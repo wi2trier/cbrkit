@@ -118,6 +118,10 @@ class vf2[K, N, E, G](
             graph_sims,
             key=lambda sim: sim.value,
             default=GraphSim(
-                0.0, frozendict(), frozendict(), frozendict(), frozendict()
+                0.0,
+                frozendict(),
+                frozendict(),
+                frozendict(),
+                frozendict(),
             ),
         )

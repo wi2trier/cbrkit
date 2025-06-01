@@ -26,11 +26,11 @@ class precompute[K, N, E, G](
 
             for x, y in batches:
                 node_pairs.extend(
-                    (x.nodes[x_key], y.nodes[y_key])
-                    for x_key, y_key in itertools.product(
-                        x.nodes.keys(), y.nodes.keys()
+                    (x_node, y_node)
+                    for x_node, y_node in itertools.product(
+                        x.nodes.values(), y.nodes.values()
                     )
-                    if self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+                    if self.node_matcher(x_node.value, y_node.value)
                 )
 
             self.batch_node_sim_func(node_pairs)
@@ -42,17 +42,13 @@ class precompute[K, N, E, G](
 
             for x, y in batches:
                 edge_pairs.extend(
-                    (x.edges[x_key], y.edges[y_key])
-                    for x_key, y_key in itertools.product(
-                        x.edges.keys(), y.edges.keys()
+                    (x_edge, y_edge)
+                    for x_edge, y_edge in itertools.product(
+                        x.edges.values(), y.edges.values()
                     )
-                    if self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
-                    and self.node_matcher(
-                        x.edges[x_key].source.value, y.edges[y_key].source.value
-                    )
-                    and self.node_matcher(
-                        x.edges[x_key].target.value, y.edges[y_key].target.value
-                    )
+                    if self.edge_matcher(x_edge.value, y_edge.value)
+                    and self.node_matcher(x_edge.source.value, y_edge.source.value)
+                    and self.node_matcher(x_edge.target.value, y_edge.target.value)
                 )
 
             self.batch_edge_sim_func(edge_pairs)
