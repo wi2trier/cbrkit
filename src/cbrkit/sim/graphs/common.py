@@ -194,19 +194,19 @@ class BaseGraphSimFunc[K, N, E, G]:
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-        mapped_nodes: frozendict[K, K],
-        mapped_edges: frozendict[K, K],
+        node_mapping: frozendict[K, K],
+        edge_mapping: frozendict[K, K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> GraphSim[K]:
         """Function to compute the similarity of all previous steps"""
 
         node_sims = [
-            node_pair_sims[(y_key, x_key)] for y_key, x_key in mapped_nodes.items()
+            node_pair_sims[(y_key, x_key)] for y_key, x_key in node_mapping.items()
         ]
 
         edge_sims = [
-            edge_pair_sims[(y_key, x_key)] for y_key, x_key in mapped_edges.items()
+            edge_pair_sims[(y_key, x_key)] for y_key, x_key in edge_mapping.items()
         ]
 
         all_sims = itertools.chain(node_sims, edge_sims)
@@ -215,10 +215,10 @@ class BaseGraphSimFunc[K, N, E, G]:
 
         return GraphSim(
             total_sim,
-            mapped_nodes,
-            mapped_edges,
-            frozendict(zip(mapped_nodes.keys(), node_sims, strict=True)),
-            frozendict(zip(mapped_edges.keys(), edge_sims, strict=True)),
+            node_mapping,
+            edge_mapping,
+            frozendict(zip(node_mapping.keys(), node_sims, strict=True)),
+            frozendict(zip(edge_mapping.keys(), edge_sims, strict=True)),
         )
 
     def invert_similarity(

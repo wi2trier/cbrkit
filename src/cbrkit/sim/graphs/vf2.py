@@ -16,7 +16,7 @@ with optional_dependencies():
 
 
 @dataclass(slots=True)
-class isomorphism[K, N, E, G](
+class vf2[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
     """Compute subgraph isomorphisms between two graphs.

@@ -10,9 +10,9 @@ from .common import (
     SemanticEdgeSim,
 )
 from .greedy import greedy
-from .isomorphism import isomorphism
-from .lsap import lsap_dense, lsap_sparse
+from .lsap import lsap
 from .precompute import precompute
+from .vf2 import vf2
 
 with optional_dependencies():
     from .alignment import dtw
@@ -21,17 +21,16 @@ with optional_dependencies():
     from .alignment import smith_waterman
 
 with optional_dependencies():
-    from .ged import ged
+    from .dfs import dfs
 
 __all__ = [
     "astar",
-    "greedy",
-    "ged",
-    "lsap_dense",
-    "lsap_sparse",
     "brute_force",
-    "isomorphism",
+    "dfs",
+    "greedy",
+    "lsap",
     "precompute",
+    "vf2",
     "dtw",
     "smith_waterman",
     "GraphSim",

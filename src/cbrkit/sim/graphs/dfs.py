@@ -3,29 +3,23 @@ from dataclasses import dataclass
 
 from frozendict import frozendict
 
-from ...helpers import (
-    get_logger,
-    optional_dependencies,
-)
-from ...model.graph import (
-    Graph,
-    NetworkxEdge,
-    NetworkxNode,
-    to_networkx,
-)
+from ...helpers import get_logger, optional_dependencies
+from ...model.graph import Graph, NetworkxEdge, NetworkxNode
 from ...typing import SimFunc
 from .common import BaseGraphSimFunc, GraphSim
 
 logger = get_logger(__name__)
 
-__all__ = ["ged"]
+__all__ = ["dfs"]
 
 
 with optional_dependencies():
     import networkx as nx
 
+    from ...model.graph import to_networkx
+
     @dataclass(slots=True)
-    class ged[K, N, E, G](
+    class dfs[K, N, E, G](
         BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
     ):
         max_iterations: int = 0
@@ -70,14 +64,13 @@ with optional_dependencies():
 
             node_edit_path: list[tuple[K, K]] = []
             edge_edit_path: list[tuple[tuple[K, K], tuple[K, K]]] = []
-            cost: float = float("inf")
 
             for idx in itertools.count():
                 if self.max_iterations > 0 and idx >= self.max_iterations:
                     break
 
                 try:
-                    node_edit_path, edge_edit_path, cost = next(ged_iter)
+                    node_edit_path, edge_edit_path, _ = next(ged_iter)
                 except StopIteration:
                     break
 
