@@ -157,6 +157,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     autodump: bool
+    autoload: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
     mtime: float = field(repr=False)
 
@@ -165,20 +166,18 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
         autodump: bool = False,
+        autoload: bool = False,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
         self.autodump = autodump
+        self.autoload = autoload
+        self.mtime = 0
 
         if self.path and self.path.exists():
-            self.mtime = self.path.stat().st_mtime
-
-            with np.load(self.path) as data:
-                self.store = dict(data)
-
+            self.load()
         else:
             self.store = {}
-            self.mtime = 0
 
     def dump(self) -> None:
         if not self.path:
@@ -188,21 +187,40 @@ class cache(BatchConversionFunc[str, NumpyArray]):
             logger.warning("Cache is empty, skipping dump")
             return
 
-        if self.path.exists() and self.mtime != self.path.stat().st_mtime:
+        if self.path.exists() and self.mtime < self.path.stat().st_mtime:
             logger.warning("Cache file has been modified, skipping dump")
             return
 
         np.savez_compressed(self.path, **self.store)
         self.mtime = self.path.stat().st_mtime
 
+    def load(self) -> None:
+        if not self.path:
+            raise ValueError("Path not provided")
+
+        if not self.path.exists():
+            raise FileNotFoundError(f"Cache file '{self.path}' does not exist")
+
+        mtime = self.path.stat().st_mtime
+
+        if self.mtime < mtime:
+            self.mtime = mtime
+
+            with np.load(self.path) as data:
+                self.store = dict(data)
+
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
         new_texts = [text for text in texts if text not in self.store]
 
-        if self.func and new_texts:
-            self.store.update(zip(new_texts, self.func(new_texts), strict=True))
+        if new_texts:
+            if self.autoload:
+                self.load()
 
-            if self.autodump:
-                self.dump()
+            if self.func:
+                self.store.update(zip(new_texts, self.func(new_texts), strict=True))
+
+                if self.autodump:
+                    self.dump()
 
         return [self.store[text] for text in texts]
 
