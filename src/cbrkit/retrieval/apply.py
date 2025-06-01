@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from timeit import default_timer
 
-from ..helpers import get_logger, get_metadata, produce_factories
+from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
 from ..model import QueryResultStep, Result, ResultStep
 from ..sim.graphs.precompute import precompute
 from ..typing import Float, MaybeFactories, RetrieverFunc
@@ -22,15 +22,16 @@ def apply_batches[Q, C, V, S: Float](
     Returns:
         Retrieval result object
     """
-    retriever_funcs = produce_factories(retrievers)
-    assert len(retriever_funcs) > 0
+    retriever_factories = produce_sequence(retrievers)
+    assert len(retriever_factories) > 0
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batches
 
     loop_start_time = default_timer()
 
-    for i, retriever_func in enumerate(retriever_funcs, start=1):
-        logger.info(f"Processing retriever {i}/{len(retriever_funcs)}")
+    for i, retriever_factory in enumerate(retriever_factories, start=1):
+        retriever_func = produce_factory(retriever_factory)
+        logger.info(f"Processing retriever {i}/{len(retriever_factories)}")
         start_time = default_timer()
         queries_results = retriever_func(list(current_batches.values()))
         end_time = default_timer()

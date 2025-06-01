@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from timeit import default_timer
 
-from ..helpers import get_logger, get_metadata, produce_factories
+from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import (
     Casebase,
@@ -39,16 +39,17 @@ def apply_batches[Q, C, V, S: Float](
     batch: Mapping[Q, tuple[Mapping[C, V], V]],
     reusers: MaybeFactories[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
-    reuser_funcs = produce_factories(reusers)
+    reuser_factories = produce_sequence(reusers)
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batch
 
     loop_start_time = default_timer()
 
-    for i, reuser in enumerate(reuser_funcs, start=1):
-        logger.info(f"Processing reuser {i}/{len(reuser_funcs)}")
+    for i, reuser_factory in enumerate(reuser_factories, start=1):
+        reuser_func = produce_factory(reuser_factory)
+        logger.info(f"Processing reuser {i}/{len(reuser_factories)}")
         start_time = default_timer()
-        queries_results = reuser(list(current_batches.values()))
+        queries_results = reuser_func(list(current_batches.values()))
         end_time = default_timer()
 
         step_queries = {
@@ -66,7 +67,7 @@ def apply_batches[Q, C, V, S: Float](
         steps.append(
             ResultStep(
                 queries=step_queries,
-                metadata=get_metadata(reuser),
+                metadata=get_metadata(reuser_func),
                 duration=end_time - start_time,
             )
         )
