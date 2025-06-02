@@ -1,11 +1,9 @@
+import itertools
 from dataclasses import dataclass
-from typing import Literal
 
 import numpy as np
 from frozendict import frozendict
 from scipy.optimize import linear_sum_assignment
-from scipy.sparse import csr_array
-from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 
 from ...helpers import get_logger
 from ...model.graph import (
@@ -24,8 +22,6 @@ __all__ = ["lap"]
 class lap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
-    variant: Literal["sparse", "dense"] = "dense"
-
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -33,52 +29,66 @@ class lap[K, N, E, G](
     ) -> GraphSim[K]:
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
-        idx2y = {idx: y_key for idx, y_key in enumerate(y.nodes.keys())}
-        idx2x = {idx: x_key for idx, x_key in enumerate(x.nodes.keys())}
+        ny, ey = len(y.nodes), len(y.edges)
+        nx, ex = len(x.nodes), len(x.edges)
+        rows = ny + ey
+        cols = nx + ex
+        dim = rows + cols
+
+        row2y_nodes = {r: k for r, k in enumerate(y.nodes.keys())}
+        row2y_edges = {ny + r: k for r, k in enumerate(y.edges.keys())}
+
+        col2x_nodes = {c: k for c, k in enumerate(x.nodes.keys())}
+        col2x_edges = {nx + c: k for c, k in enumerate(x.edges.keys())}
+
+        # the cost matrix looks like this:
+        # upper left: substitution
+        # upper right: deletion
+        # lower left: insertion
+        # lower right: empty
+        # each quadrant contains cost for nodes and edges with nodes coming first
+
+        # first initialize the matrix with negative scores
+        cost = np.full((dim, dim), -1.0, dtype=float)
+
+        # then set the empty quadrant to zero
+        cost[rows:, cols:] = 0.0
+
+        # then set the diagonals of deletion and insertion quadrants to zero
+        np.fill_diagonal(cost[rows:, :cols], 0.0)
+        np.fill_diagonal(cost[:rows, cols:], 0.0)
+
+        # then fill the substitution quadrant with node and edge similarities
+        for r, c in itertools.product(range(rows), range(cols)):
+            if (
+                (y_key := row2y_nodes.get(r))
+                and (x_key := col2x_nodes.get(c))
+                and (sim := node_pair_sims.get((y_key, x_key)))
+            ):
+                cost[r, c] = sim
+
+            elif (
+                (y_key := row2y_edges.get(r))
+                and (x_key := col2x_edges.get(c))
+                and (sim := edge_pair_sims.get((y_key, x_key)))
+            ):
+                cost[r, c] = sim
 
         try:
-            if self.variant == "dense":
-                cost = np.array(
-                    [
-                        [
-                            node_pair_sims[(y_key, x_key)]
-                            if (y_key, x_key) in node_pair_sims
-                            else -1
-                            for x_key in x.nodes.keys()
-                        ]
-                        for y_key in y.nodes.keys()
-                    ]
-                )
-                row_indexes, col_indexes = linear_sum_assignment(cost, maximize=True)
-                node_mapping = frozendict(
-                    (idx2y[row_idx], idx2x[col_idx])
-                    for row_idx, col_idx in zip(row_indexes, col_indexes, strict=True)
-                    if cost[row_idx, col_idx] > -1
-                )
+            row_idx, col_idx = linear_sum_assignment(cost, maximize=True)
+            node_mapping: dict[K, K] = {}
+            edge_mapping: dict[K, K] = {}
 
-            elif self.variant == "sparse":
-                cost = np.array(
-                    [
-                        [
-                            1 + node_pair_sims[(y_key, x_key)]
-                            if (y_key, x_key) in node_pair_sims
-                            else 0
-                            for x_key in x.nodes.keys()
-                        ]
-                        for y_key in y.nodes.keys()
-                    ]
-                )
-                biadjacency = csr_array(cost)
-                row_indexes, col_indexes = min_weight_full_bipartite_matching(
-                    biadjacency, maximize=True
-                )
-                node_mapping = frozendict(
-                    (idx2y[row_idx], idx2x[col_idx])
-                    for row_idx, col_idx in zip(row_indexes, col_indexes, strict=True)
-                )
+            for r, c in zip(row_idx, col_idx, strict=True):
+                # only consider substitutions
+                if r < rows and c < cols:
+                    # nodes
+                    if r in row2y_nodes and c in col2x_nodes and cost[r, c] > -1.0:
+                        node_mapping[row2y_nodes[r]] = col2x_nodes[c]
 
-            else:
-                raise ValueError(f"Invalid variant '{self.variant}'.")
+                    # edges
+                    elif r in row2y_edges and c in col2x_edges and cost[r, c] > -1.0:
+                        edge_mapping[row2y_edges[r]] = col2x_edges[c]
 
         except ValueError as e:
             logger.warning(f"Failed to compute LAP mapping for two graphs: {e}")
@@ -91,13 +101,11 @@ class lap[K, N, E, G](
                 frozendict(),
             )
 
-        edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
-
         return self.similarity(
             x,
             y,
-            node_mapping,
-            edge_mapping,
+            frozendict(node_mapping),
+            frozendict(edge_mapping),
             node_pair_sims,
             edge_pair_sims,
         )
