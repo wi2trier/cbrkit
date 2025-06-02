@@ -10,7 +10,7 @@ from .common import (
     SemanticEdgeSim,
 )
 from .greedy import greedy
-from .lsap import lsap
+from .lap import lap
 from .precompute import precompute
 from .vf2 import vf2
 
@@ -28,7 +28,7 @@ __all__ = [
     "brute_force",
     "dfs",
     "greedy",
-    "lsap",
+    "lap",
     "precompute",
     "vf2",
     "dtw",

@@ -16,12 +16,12 @@ from .common import BaseGraphSimFunc, GraphSim
 
 logger = get_logger(__name__)
 
-__all__ = ["lsap"]
+__all__ = ["lap"]
 
 
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass(slots=True)
-class lsap[K, N, E, G](
+class lap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
     variant: Literal["sparse", "dense"] = "dense"

@@ -18,7 +18,7 @@ ALGORITHMS: dict[
     "brute_force": cbrkit.sim.graphs.brute_force,
     "dfs": cbrkit.sim.graphs.dfs,
     "greedy": cbrkit.sim.graphs.greedy,
-    "lsap": cbrkit.sim.graphs.lsap,
+    "lap": cbrkit.sim.graphs.lap,
     "vf2": cbrkit.sim.graphs.vf2,
 }
 
