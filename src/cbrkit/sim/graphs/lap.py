@@ -38,36 +38,31 @@ class lap[K, N, E, G](
 
         try:
             if self.variant == "dense":
-                # only needed for linear assignment with positive costs
-                # penalty = 2.0 * len(y.nodes) * len(x.nodes)
                 cost = np.array(
                     [
                         [
-                            -1.0 - node_pair_sims[(y_key, x_key)]
+                            node_pair_sims[(y_key, x_key)]
                             if (y_key, x_key) in node_pair_sims
-                            else 0.0
+                            else -1
                             for x_key in x.nodes.keys()
                         ]
                         for y_key in y.nodes.keys()
                     ]
                 )
-                row_indexes, col_indexes = linear_sum_assignment(cost)
+                row_indexes, col_indexes = linear_sum_assignment(cost, maximize=True)
                 node_mapping = frozendict(
                     (idx2y[row_idx], idx2x[col_idx])
                     for row_idx, col_idx in zip(row_indexes, col_indexes, strict=True)
-                    if cost[row_idx, col_idx] < 0.0
+                    if cost[row_idx, col_idx] > -1
                 )
 
             elif self.variant == "sparse":
                 cost = np.array(
                     [
                         [
-                            # From the documentation:
-                            # We require that weights are non-zero only to avoid issues with the handling of explicit zeros when converting between different sparse representations.
-                            # Zero weights can be handled by adding a constant to all weights, so that the resulting matrix contains no zeros.
-                            -1.0 - node_pair_sims[(y_key, x_key)]
+                            1 + node_pair_sims[(y_key, x_key)]
                             if (y_key, x_key) in node_pair_sims
-                            else 0.0
+                            else 0
                             for x_key in x.nodes.keys()
                         ]
                         for y_key in y.nodes.keys()
@@ -75,7 +70,7 @@ class lap[K, N, E, G](
                 )
                 biadjacency = csr_array(cost)
                 row_indexes, col_indexes = min_weight_full_bipartite_matching(
-                    biadjacency
+                    biadjacency, maximize=True
                 )
                 node_mapping = frozendict(
                     (idx2y[row_idx], idx2x[col_idx])
