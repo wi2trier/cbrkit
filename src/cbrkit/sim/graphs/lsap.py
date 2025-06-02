@@ -19,14 +19,12 @@ logger = get_logger(__name__)
 __all__ = ["lsap"]
 
 
+# https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass(slots=True)
 class lsap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
     variant: Literal["sparse", "dense"] = "dense"
-    # np.inf cannot be used here as it produces
-    # ValueError: cost matrix is infeasible
-    illegal_mapping_cost: float = 1e12
 
     def __call__(
         self,
@@ -40,12 +38,14 @@ class lsap[K, N, E, G](
 
         try:
             if self.variant == "dense":
+                # only needed for linear assignment with positive costs
+                # penalty = 2.0 * len(y.nodes) * len(x.nodes)
                 cost = np.array(
                     [
                         [
-                            1.0 - node_pair_sims[(y_key, x_key)]
+                            -1.0 - node_pair_sims[(y_key, x_key)]
                             if (y_key, x_key) in node_pair_sims
-                            else self.illegal_mapping_cost
+                            else 0.0
                             for x_key in x.nodes.keys()
                         ]
                         for y_key in y.nodes.keys()
@@ -55,7 +55,7 @@ class lsap[K, N, E, G](
                 node_mapping = frozendict(
                     (idx2y[row_idx], idx2x[col_idx])
                     for row_idx, col_idx in zip(row_indexes, col_indexes, strict=True)
-                    if cost[row_idx, col_idx] < self.illegal_mapping_cost
+                    if cost[row_idx, col_idx] < 0.0
                 )
 
             elif self.variant == "sparse":
@@ -65,7 +65,7 @@ class lsap[K, N, E, G](
                             # From the documentation:
                             # We require that weights are non-zero only to avoid issues with the handling of explicit zeros when converting between different sparse representations.
                             # Zero weights can be handled by adding a constant to all weights, so that the resulting matrix contains no zeros.
-                            2.0 - node_pair_sims[(y_key, x_key)]
+                            -1.0 - node_pair_sims[(y_key, x_key)]
                             if (y_key, x_key) in node_pair_sims
                             else 0.0
                             for x_key in x.nodes.keys()
@@ -86,7 +86,7 @@ class lsap[K, N, E, G](
                 raise ValueError(f"Invalid variant '{self.variant}'.")
 
         except ValueError as e:
-            logger.warning(f"Failed to compute LSAP mapping for two graphs: {e}")
+            logger.warning(f"Failed to compute LAP mapping for two graphs: {e}")
 
             return GraphSim(
                 0.0,
