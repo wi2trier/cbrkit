@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Literal, cast, override
 
 import numpy as np
-from scipy.spatial.distance import cosine as scipy_cosine
 
 from ..constants import CACHE_DIR
 from ..helpers import (
@@ -55,12 +54,22 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class cosine(SimFunc[NumpyArray, float]):
-    weight: NumpyArray | None = None
-
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        if np.any(u) and np.any(v):
-            return 1 - scipy_cosine(u, v, self.weight).__float__()
+        if u.any() and v.any():
+            u_norm = np.linalg.norm(u)
+            v_norm = np.linalg.norm(v)
+
+            if u_norm == 0.0 or v_norm == 0.0:
+                return 0.0
+
+            # [-1, 1]
+            cos_val = np.dot(u, v) / (u_norm * v_norm)
+
+            # [0, 1]
+            cos_sim = (cos_val + 1.0) / 2.0
+
+            return np.clip(cos_sim, 0.0, 1.0).__float__()
 
         return 0.0
 
@@ -69,7 +78,12 @@ class cosine(SimFunc[NumpyArray, float]):
 class dot(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
-        return np.dot(u, v).__float__()
+        if u.any() and v.any():
+            dot_prod = (np.dot(u, v) + 1.0) / 2.0
+
+            return np.clip(dot_prod, 0.0, 1.0).__float__()
+
+        return 0.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -369,10 +383,27 @@ with optional_dependencies():
         """
 
         model: SentenceTransformer
+        batch_size: int
+        show_progress_bar: bool | None
+        precision: Literal["float32", "int8", "uint8", "binary", "ubinary"]
+        normalize_embeddings: bool
         _metadata: JsonDict
 
-        def __init__(self, model: str | SentenceTransformer):
+        def __init__(
+            self,
+            model: str | SentenceTransformer,
+            batch_size: int = 32,
+            show_progress_bar: bool | None = None,
+            precision: Literal[
+                "float32", "int8", "uint8", "binary", "ubinary"
+            ] = "float32",
+            normalize_embeddings: bool = False,
+        ):
             self._metadata = {}
+            self.batch_size = batch_size
+            self.show_progress_bar = show_progress_bar
+            self.precision = precision
+            self.normalize_embeddings = normalize_embeddings
 
             if isinstance(model, str):
                 self.model = SentenceTransformer(model)  # pyright: ignore
@@ -392,7 +423,12 @@ with optional_dependencies():
                 return []
 
             return self.model.encode(
-                cast(list[str], texts), convert_to_numpy=True
+                cast(list[str], texts),
+                convert_to_numpy=True,
+                batch_size=self.batch_size,
+                show_progress_bar=self.show_progress_bar,
+                precision=self.precision,
+                normalize_embeddings=self.normalize_embeddings,
             ).tolist()
 
 
