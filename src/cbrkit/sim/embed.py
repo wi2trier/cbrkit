@@ -422,14 +422,16 @@ with optional_dependencies():
             if not texts:
                 return []
 
-            return self.model.encode(
+            vecs = self.model.encode(
                 cast(list[str], texts),
                 convert_to_numpy=True,
                 batch_size=self.batch_size,
                 show_progress_bar=self.show_progress_bar,
                 precision=self.precision,
                 normalize_embeddings=self.normalize_embeddings,
-            ).tolist()
+            )
+
+            return list(vecs)
 
 
 with optional_dependencies():
