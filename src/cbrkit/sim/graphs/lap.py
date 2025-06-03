@@ -26,6 +26,11 @@ class lap[K, N, E, G](
     node_ins_cost: float = 0.0
     edge_del_cost: float = 2.0
     edge_ins_cost: float = 0.0
+    # 1.0 gives an upper bound, 0.5 gives a lower bound
+    # approximation is better with a lower bound
+    # since we compute real edit costs at the end anyway,
+    # we can use a lower bound
+    edge_edit_factor: float = 0.5
     print_matrix: bool = False
 
     def connected_edges(self, g: Graph[K, N, E, G], n: K) -> set[K]:
@@ -100,13 +105,17 @@ class lap[K, N, E, G](
         # deletion diagonal
         for i in range(rows):
             cost[i, cols + i] = self.node_del_cost + (
-                self.edge_del_cost * len(self.connected_edges(y, row2y[i]))
+                self.edge_edit_factor
+                * self.edge_del_cost
+                * len(self.connected_edges(y, row2y[i]))
             )
 
         # insertion diagonal
         for i in range(cols):
             cost[rows + i, i] = self.node_ins_cost + (
-                self.edge_ins_cost * len(self.connected_edges(x, col2x[i]))
+                self.edge_edit_factor
+                * self.edge_ins_cost
+                * len(self.connected_edges(x, col2x[i]))
             )
 
         # substitution quadrant
@@ -124,7 +133,7 @@ class lap[K, N, E, G](
                     y_key,
                     edge_pair_sims,
                 )
-                cost[r, c] = node_sub_cost + edge_sub_cost
+                cost[r, c] = node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
 
         if self.print_matrix:
             with np.printoptions(linewidth=10000):
