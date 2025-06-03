@@ -1,5 +1,6 @@
 import itertools
 from dataclasses import dataclass
+from typing import Protocol
 
 from frozendict import frozendict
 
@@ -13,6 +14,20 @@ logger = get_logger(__name__)
 __all__ = ["dfs"]
 
 
+class RootsFunc[K, N, E, G](Protocol):
+    """Support for matching rooted graphs
+
+    Returns:
+        Tuple where the first element is a node in y and the second is a node in x.
+    """
+
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> tuple[K, K]: ...
+
+
 with optional_dependencies():
     import networkx as nx
 
@@ -22,7 +37,15 @@ with optional_dependencies():
     class dfs[K, N, E, G](
         BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
     ):
+        node_del_cost: float = 2.0
+        node_ins_cost: float = 0.0
+        edge_del_cost: float = 2.0
+        edge_ins_cost: float = 0.0
         max_iterations: int = 0
+        upper_bound: float | None = None
+        strictly_decreasing: bool = True
+        timeout: float | None = None
+        roots_func: RootsFunc | None = None
 
         def __call__(
             self,
@@ -60,6 +83,14 @@ with optional_dependencies():
                 x_nx,
                 node_subst_cost=node_subst_cost,
                 edge_subst_cost=edge_subst_cost,
+                node_del_cost=lambda y: self.node_del_cost,
+                node_ins_cost=lambda x: self.node_ins_cost,
+                edge_del_cost=lambda y: self.edge_del_cost,
+                edge_ins_cost=lambda x: self.edge_ins_cost,
+                upper_bound=self.upper_bound,
+                strictly_decreasing=self.strictly_decreasing,
+                timeout=self.timeout,
+                roots=self.roots_func(x, y) if self.roots_func else None,
             )
 
             node_edit_path: list[tuple[K, K]] = []
