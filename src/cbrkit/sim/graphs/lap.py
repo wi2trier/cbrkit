@@ -26,6 +26,7 @@ class lap[K, N, E, G](
     node_ins_cost: float = 0.0
     edge_del_cost: float = 2.0
     edge_ins_cost: float = 0.0
+    print_matrix: bool = False
 
     def connected_edges(self, g: Graph[K, N, E, G], n: K) -> set[K]:
         return {
@@ -125,9 +126,9 @@ class lap[K, N, E, G](
                 )
                 cost[r, c] = node_sub_cost + edge_sub_cost
 
-        # for debugging purposes, you can uncomment the following lines
-        # with np.printoptions(threshold=np.inf, linewidth=1e12):
-        #     print(f"Cost matrix:\n{cost}")
+        if self.print_matrix:
+            with np.printoptions(linewidth=10000):
+                logger.info(f"Cost matrix:\n{cost}\n")
 
         row_idx, col_idx = linear_sum_assignment(cost)
 
