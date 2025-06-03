@@ -10,7 +10,7 @@ from ...model.graph import (
     Graph,
 )
 from ...typing import SimFunc
-from .common import BaseGraphSimFunc, GraphSim
+from .common import BaseGraphSimFunc, GraphSim, PairSim
 
 logger = get_logger(__name__)
 
@@ -22,6 +22,54 @@ __all__ = ["lap"]
 class lap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
+    node_del_cost: float = 2.0
+    node_ins_cost: float = 0.0
+    edge_del_cost: float = 2.0
+    edge_ins_cost: float = 0.0
+
+    def connected_edges(self, g: Graph[K, N, E, G], n: K) -> set[K]:
+        return {
+            e.key for e in g.edges.values() if n == e.source.key or n == e.target.key
+        }
+
+    def edge_sub_cost(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        x_node: K,
+        y_node: K,
+        edge_pair_sims: PairSim[K],
+    ) -> float:
+        y_edges = self.connected_edges(y, y_node)
+        x_edges = self.connected_edges(x, x_node)
+
+        rows = len(y_edges)
+        cols = len(x_edges)
+        dim = rows + cols
+
+        row2y = {r: k for r, k in enumerate(y_edges)}
+        col2x = {c: k for c, k in enumerate(x_edges)}
+
+        cost = np.full((dim, dim), np.inf, dtype=float)
+        # empty quadrant
+        cost[rows:, cols:] = 0.0
+        # deletion diagonal
+        np.fill_diagonal(cost[rows:, :cols], self.edge_del_cost)
+        # insertion diagonal
+        np.fill_diagonal(cost[:rows, cols:], self.edge_ins_cost)
+
+        for r, c in itertools.product(range(rows), range(cols)):
+            if (
+                (y_key := row2y.get(r))
+                and (x_key := col2x.get(c))
+                and (sim := edge_pair_sims.get((y_key, x_key)))
+            ):
+                cost[r, c] = 1.0 - sim
+
+        row_idx, col_idx = linear_sum_assignment(cost)
+
+        return cost[row_idx, col_idx].sum()
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -45,38 +93,43 @@ class lap[K, N, E, G](
         # first initialize the matrix with negative scores
         cost = np.full((dim, dim), np.inf, dtype=float)
 
-        # then set the empty quadrant to zero
+        # set the empty quadrant to zero
         cost[rows:, cols:] = 0.0
 
-        # then set the diagonals of deletion and insertion quadrants to zero
-        np.fill_diagonal(cost[rows:, :cols], 1.0)
-        np.fill_diagonal(cost[:rows, cols:], 1.0)
+        # deletion diagonal
+        for i in range(rows):
+            cost[i, cols + i] = self.node_del_cost + (
+                self.edge_del_cost * len(self.connected_edges(y, row2y[i]))
+            )
 
-        # then fill the substitution quadrant with node and edge similarities
+        # insertion diagonal
+        for i in range(cols):
+            cost[rows + i, i] = self.node_ins_cost + (
+                self.edge_ins_cost * len(self.connected_edges(x, col2x[i]))
+            )
+
+        # substitution quadrant
         for r, c in itertools.product(range(rows), range(cols)):
             if (
                 (y_key := row2y.get(r))
                 and (x_key := col2x.get(c))
                 and (sim := node_pair_sims.get((y_key, x_key)))
             ):
-                cost[r, c] = 1.0 - sim
+                node_sub_cost = 1.0 - sim
+                edge_sub_cost = self.edge_sub_cost(
+                    x,
+                    y,
+                    x_key,
+                    y_key,
+                    edge_pair_sims,
+                )
+                cost[r, c] = node_sub_cost + edge_sub_cost
 
         # for debugging purposes, you can uncomment the following lines
         # with np.printoptions(threshold=np.inf, linewidth=1e12):
         #     print(f"Cost matrix:\n{cost}")
 
-        try:
-            row_idx, col_idx = linear_sum_assignment(cost)
-        except ValueError as e:
-            logger.warning(f"Failed to compute LAP mapping for two graphs: {e}")
-
-            return GraphSim(
-                0.0,
-                frozendict(),
-                frozendict(),
-                frozendict(),
-                frozendict(),
-            )
+        row_idx, col_idx = linear_sum_assignment(cost)
 
         node_mapping = frozendict(
             (row2y[r], col2x[c])
