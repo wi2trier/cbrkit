@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.26.0](https://github.com/wi2trier/cbrkit/compare/v0.25.1...v0.26.0) (2025-06-05)
+
+### Features
+
+* **sim/embed:** add support for controlling reloading of cache ([f253ad4](https://github.com/wi2trier/cbrkit/commit/f253ad414481727f6e9834a9ef0ee6f368bc2f37))
+* **sim/graphs/dfs:** add parameters ([6622b47](https://github.com/wi2trier/cbrkit/commit/6622b4783f72cdbb83657d654c85e737ac1286ab))
+* **sim/graphs/lap:** approximate edge costs and add parameters ([55b1850](https://github.com/wi2trier/cbrkit/commit/55b1850572ea2fddf0fe6d940cac186a95106d78))
+* **sim/graphs:** add ged algorithm based on networkx ([518ffe7](https://github.com/wi2trier/cbrkit/commit/518ffe7587b802c2a94689446278aa1ba255b3a5))
+* **sim/graphs:** add lsap algorithm ([f50c169](https://github.com/wi2trier/cbrkit/commit/f50c169ebdabad340ba06d4e240b1f9a08225143))
+* **sim/graphs:** add pathlength optimization to astar and rename queue size to beam width ([5308cb9](https://github.com/wi2trier/cbrkit/commit/5308cb91393fa9d242ebefe86d50906e362ccb4d))
+* **sim/graphs:** consolidate logic accross algorithms for common interface ([798c7e1](https://github.com/wi2trier/cbrkit/commit/798c7e15885d0782c2e3fc4057b7531175f14feb))
+* **sim/graphs:** simplify astar interface ([957b9de](https://github.com/wi2trier/cbrkit/commit/957b9defad5ac71891c34d3a3134f35950a9f159))
+* **sim/graphs:** use precomputed similarity values ([b06b40c](https://github.com/wi2trier/cbrkit/commit/b06b40c4786164f80303ac7bb92a72a4a185a971))
+
+### Bug Fixes
+
+* **apply:** produce factories only when needed and not in advance ([2e1b4e3](https://github.com/wi2trier/cbrkit/commit/2e1b4e366f6643f80c8c401ec39de68980e7ff5b))
+* **model/graph:** only export node value to rustworkx ([e102dec](https://github.com/wi2trier/cbrkit/commit/e102dec3bcd64fd5b175218add5269c9a7ba31ab))
+* **retrieval/apply:** exlude precompute from steps ([4061095](https://github.com/wi2trier/cbrkit/commit/4061095aa30d913ea0b4eec723cbfacef51e70f2))
+* **sim/embed:** correctly convert sentence transformer vector ([d59dfa6](https://github.com/wi2trier/cbrkit/commit/d59dfa66b462f135ac950b36c8d2e2b0215cbb5d))
+* **sim/embed:** normalize cosine and dot, add params to sentence transformers ([9e4b745](https://github.com/wi2trier/cbrkit/commit/9e4b745d8550f22c44f506287c69043bc20402a7))
+* **sim/ged:** use correct argument order for subst cost ([493cd96](https://github.com/wi2trier/cbrkit/commit/493cd96887ac31256330e77df52560040365ef3c))
+* **sim/graphs/astar:** handle stop iteration exceptions ([25553b3](https://github.com/wi2trier/cbrkit/commit/25553b3515a8ea0e39140702cc26a364cba332a2))
+* **sim/graphs/astar:** properly compute h3 ([0f9d6cb](https://github.com/wi2trier/cbrkit/commit/0f9d6cb58eb2c7fed4cf0d6ebdf47f9f859612f2))
+* **sim/graphs/astar:** properly compute init2 ([bbbc97e](https://github.com/wi2trier/cbrkit/commit/bbbc97eb96ebc6530d1b99bd603d8367ede97a2c))
+* **sim/graphs/astar:** properly compute path length ([1826d07](https://github.com/wi2trier/cbrkit/commit/1826d07e9865315b6f21ed8b443b3d6d9a2f5234))
+* **sim/graphs/astar:** properly compute select2 ([7a271d7](https://github.com/wi2trier/cbrkit/commit/7a271d7a27934f90a6b066991b1a08c9c47f69a0))
+* **sim/graphs/lap:** add edge edit factor for better approximation ([ddae8bf](https://github.com/wi2trier/cbrkit/commit/ddae8bfb133a5de3d1ef9039ca85237f11492f6e))
+* **sim/graphs/lap:** add param to print the matrices ([2a47d5e](https://github.com/wi2trier/cbrkit/commit/2a47d5ee1dd14a7d8b81dcf764a109d18ce770ea))
+* **sim/graphs/lap:** remove edges from cost matrix ([8541515](https://github.com/wi2trier/cbrkit/commit/854151566aed09bbc5fe3caf6a7fc216df3dddfc))
+* **sim/graphs/lap:** rework cost matrix ([d10a127](https://github.com/wi2trier/cbrkit/commit/d10a127ded4ce0bdaa535fab00b70593332a690d))
+* **sim/graphs/lsap:** handle value errors properly ([b2285f6](https://github.com/wi2trier/cbrkit/commit/b2285f6bca4ae8316f7013760d8725a42c34260e))
+* **sim/graphs:** adapt precompute to new common logic ([e92660d](https://github.com/wi2trier/cbrkit/commit/e92660d41a679611ab8e1d774884f61a5232a2f2))
+* **sim/graphs:** add method to compute the induced node mapping ([6f182fe](https://github.com/wi2trier/cbrkit/commit/6f182fe872508ca75ce0f9ef3bb64b8c47fab9b6))
+* **sim/graphs:** add method to invert similarity scores ([5848aa6](https://github.com/wi2trier/cbrkit/commit/5848aa6090240afca76a1bc5e9c22c95416c2cf7))
+* **sim/graphs:** allow precomputing edge similarities ([0e71968](https://github.com/wi2trier/cbrkit/commit/0e71968e758ed42613b6866978bc6bc9c58c9177))
+* **sim/graphs:** correctly export greedy ([d06c9bc](https://github.com/wi2trier/cbrkit/commit/d06c9bc7dc05c40271ea008f57389c7a941d0e4d))
+* **sim/graphs:** disable case-oriented mapping for now ([2b4b6b1](https://github.com/wi2trier/cbrkit/commit/2b4b6b12e7cea9cb65bd1fa89dd36d20d773d8ff))
+* **sim/graphs:** do not expand nodes while expanding edges by default ([9c42b40](https://github.com/wi2trier/cbrkit/commit/9c42b40dc8d9d70d9e5d108cdbd2c2a9e0522833))
+* **sim/graphs:** mappings not properly extracted from ged ([f5334ec](https://github.com/wi2trier/cbrkit/commit/f5334ec3e1422223620df64144836eab0b265f67))
+* **sim/graphs:** properly construct element pairs ([88cf60d](https://github.com/wi2trier/cbrkit/commit/88cf60d01a9048fa7da75ddd0313b36676c0dc61))
+* **sim/graphs:** simplify brute force computation ([757a0fe](https://github.com/wi2trier/cbrkit/commit/757a0fee2ddf9b32179ac415de8978d59125baec))
+* **sim/graphs:** simplify greedy search and process nodes/edges at once ([3001325](https://github.com/wi2trier/cbrkit/commit/3001325087ddfacf10b2f0a090d43138474956e1))
+* **sim/graphs:** solve various issues with isomorphism-based algorithm ([580c095](https://github.com/wi2trier/cbrkit/commit/580c0956e271b826418d72c8b51f361725b3d5bc))
+* **sim/graphs:** update initialization of base graph sim func ([f068f90](https://github.com/wi2trier/cbrkit/commit/f068f903a62ebc7347b682bd77bc073798b8fad2))
+* **sim/graphs:** update node matcher, remove type element matcher ([c5d39ea](https://github.com/wi2trier/cbrkit/commit/c5d39eaf0dcf24d7091e1ccd0774e9e42a04072a))
+* **sim/graphs:** use negative cost for lsap computation ([7e87bc8](https://github.com/wi2trier/cbrkit/commit/7e87bc870884bee9f58d8c12af6cebf9045b944b))
+* **sim:** add helper to inverse/reverse similarity function arguments ([3d9b663](https://github.com/wi2trier/cbrkit/commit/3d9b66379433f3cc18815cb8f318948bb29764f1))
+
 ## [0.25.1](https://github.com/wi2trier/cbrkit/compare/v0.25.0...v0.25.1) (2025-05-20)
 
 ### Bug Fixes
