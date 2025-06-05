@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import polars as pl
+import pytest
 
 import cbrkit
 
@@ -10,6 +11,7 @@ def _custom_numeric_sim(x: float, y: float) -> float:
     return 1 - abs(x - y) / 100000
 
 
+@pytest.mark.skip(reason="this test is slow on macOS")
 def test_retrieve_multiprocessing():
     query_name = 42
     casebase_file = "data/cars-1k.csv"

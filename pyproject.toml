@@ -107,8 +107,9 @@ requires = ["uv-build>=0.7,<1"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
-addopts = "--cov cbrkit --cov-report term-missing --doctest-modules --ignore data --ignore examples --ignore result"
-doctest_optionflags = "NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL ELLIPSIS"
+testpaths = ["src", "tests"]
+addopts = ["--cov=src/cbrkit", "--cov-report=term-missing", "--doctest-modules", "--import-mode=importlib"]
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL", "ELLIPSIS"]
 
 [tool.uv]
 default-groups = ["dev", "test", "docs"]
