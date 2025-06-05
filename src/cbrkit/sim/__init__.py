@@ -15,6 +15,7 @@ from .attribute_value import AttributeValueSim, attribute_value
 from .wrappers import (
     attribute_table,
     cache,
+    combine,
     dynamic_table,
     table,
     transpose,
@@ -26,6 +27,7 @@ __all__ = [
     "transpose",
     "transpose_value",
     "cache",
+    "combine",
     "table",
     "dynamic_table",
     "type_table",

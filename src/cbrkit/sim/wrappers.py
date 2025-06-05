@@ -1,10 +1,11 @@
 from collections import defaultdict
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Any, cast, override
 
 from ..helpers import batchify_sim, get_metadata, get_value, getitem_or_getattr
 from ..typing import (
+    AggregatorFunc,
     AnySimFunc,
     BatchSimFunc,
     ConversionFunc,
@@ -14,6 +15,7 @@ from ..typing import (
     SimSeq,
     StructuredValue,
 )
+from .aggregator import default_aggregator
 from .generic import static
 
 
@@ -57,6 +59,67 @@ def transpose_value[V, S: Float](
     func: AnySimFunc[V, S],
 ) -> BatchSimFunc[StructuredValue[V], S]:
     return transpose(func, get_value)
+
+
+@dataclass(slots=True)
+class combine[V, S: Float](BatchSimFunc[V, float]):
+    """Combines multiple similarity functions into one.
+
+    Args:
+        sim_funcs: A list of similarity functions to be combined.
+        aggregator: A function to aggregate the results from the similarity functions.
+
+    Returns:
+        A similarity function that combines the results from multiple similarity functions.
+    """
+
+    sim_funcs: InitVar[Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]]
+    aggregator: AggregatorFunc[str, S] = default_aggregator
+    batch_sim_funcs: Sequence[BatchSimFunc[V, S]] | Mapping[str, BatchSimFunc[V, S]] = (
+        field(init=False, repr=False)
+    )
+
+    def __post_init__(
+        self, sim_funcs: Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]
+    ):
+        if isinstance(sim_funcs, Sequence):
+            self.batch_sim_funcs = [batchify_sim(func) for func in sim_funcs]
+        elif isinstance(sim_funcs, Mapping):
+            self.batch_sim_funcs = {
+                key: batchify_sim(func) for key, func in sim_funcs.items()
+            }
+        else:
+            raise ValueError(f"Invalid sim_funcs type: {type(sim_funcs)}")
+
+    @override
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[float]:
+        if isinstance(self.batch_sim_funcs, Sequence):
+            func_results = [func(batches) for func in self.batch_sim_funcs]
+
+            return [
+                self.aggregator(
+                    [batch_results[batch_idx] for batch_results in func_results]
+                )
+                for batch_idx in range(len(batches))
+            ]
+
+        elif isinstance(self.batch_sim_funcs, Mapping):
+            func_results = {
+                func_key: func(batches)
+                for func_key, func in self.batch_sim_funcs.items()
+            }
+
+            return [
+                self.aggregator(
+                    {
+                        func_key: batch_results[batch_idx]
+                        for func_key, batch_results in func_results.items()
+                    }
+                )
+                for batch_idx in range(len(batches))
+            ]
+
+        raise ValueError(f"Invalid batch_sim_funcs type: {type(self.batch_sim_funcs)}")
 
 
 @dataclass(slots=True)

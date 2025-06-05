@@ -2,7 +2,7 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
-from typing import Any, Literal, override
+from typing import Literal, override
 
 from ..helpers import (
     batchify_sim,
@@ -134,44 +134,59 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
         A retriever function that combines the results from multiple retrievers.
     """
 
-    retriever_funcs: list[RetrieverFunc[K, V, S]]
-    aggregator: AggregatorFunc[Any, S] = default_aggregator
+    retriever_funcs: Sequence[RetrieverFunc[K, V, S]]
+    aggregator: AggregatorFunc[str, S] = default_aggregator
     strategy: Literal["intersection", "union"] = "union"
 
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[SimMap[K, float]]:
-        results = [retriever_func(batches) for retriever_func in self.retriever_funcs]
+        if isinstance(self.retriever_funcs, Sequence):
+            func_results = [
+                retriever_func(batches) for retriever_func in self.retriever_funcs
+            ]
 
-        return [
-            self.__call_batch__(
-                [
-                    results[retriever_idx][batch_idx]
-                    for retriever_idx in range(len(self.retriever_funcs))
-                ]
-            )
-            for batch_idx in range(len(batches))
-        ]
+            return [
+                self.__call_batch__(
+                    [batch_results[batch_idx] for batch_results in func_results]
+                )
+                for batch_idx in range(len(batches))
+            ]
 
-    def __call_batch__(self, results: list[SimMap[K, S]]) -> SimMap[K, float]:
+        # elif isinstance(self.retriever_funcs, Mapping):
+        #     results = {
+        #         func_key: retriever_func(batches)
+        #         for func_key, retriever_func in self.retriever_funcs.items()
+        #     }
+
+        #     return [
+        #         self.__call_batch__(
+        #             {func_key: func_results[batch_idx] for func_key, func_results in results.items()}
+        #         )
+        #         for batch_idx in range(len(batches))
+        #     ]
+
+        raise ValueError(f"Invalid retriever_funcs type: {type(self.retriever_funcs)}")
+
+    def __call_batch__(self, results: Sequence[SimMap[K, S]]) -> SimMap[K, float]:
         if self.strategy == "intersection":
             return {
-                key: self.aggregator(
-                    [result[key] for result in results if key in result]
+                case_key: self.aggregator(
+                    [result[case_key] for result in results if case_key in result]
                 )
-                for key in set().intersection(
+                for case_key in set().intersection(
                     *[set(result.keys()) for result in results]
                 )
             }
 
         elif self.strategy == "union":
             return {
-                key: self.aggregator(
-                    [result[key] for result in results if key in result]
+                case_key: self.aggregator(
+                    [result[case_key] for result in results if case_key in result]
                 )
                 for result in results
-                for key in result.keys()
+                for case_key in result.keys()
             }
 
         raise ValueError(f"Unknown strategy: {self.strategy}")
