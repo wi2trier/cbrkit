@@ -1,11 +1,7 @@
 import heapq
-import itertools
-from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
-
-from frozendict import frozendict
 
 from ...helpers import (
     get_logger,
@@ -18,25 +14,20 @@ from ...model.graph import (
 )
 from ...typing import SimFunc
 from .common import (
-    ElementMatcher,
     GraphSim,
     SearchGraphSimFunc,
     SearchState,
-    _induced_edge_mapping,
 )
 
 __all__ = [
     "HeuristicFunc",
     "SelectionFunc",
-    "InitFunc",
     "h1",
     "h2",
     "h3",
     "select1",
     "select2",
     "select3",
-    "init1",
-    "init2",
     "build",
 ]
 
@@ -72,17 +63,6 @@ class SelectionFunc[K, N, E, G](Protocol):
         heuristic_func: HeuristicFunc[K, N, E, G],
         /,
     ) -> None | tuple[K, GraphElementType]: ...
-
-
-class InitFunc[K, N, E, G](Protocol):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        node_matcher: ElementMatcher[N],
-        edge_matcher: ElementMatcher[E],
-        /,
-    ) -> SearchState[K]: ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -274,61 +254,6 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         return selection_key, selection_type
 
 
-@dataclass(slots=True, frozen=True)
-class init1[K, N, E, G](InitFunc[K, N, E, G]):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        node_matcher: ElementMatcher[N],
-        edge_matcher: ElementMatcher[E],
-    ) -> SearchState[K]:
-        return SearchState(
-            frozendict(),
-            frozendict(),
-            frozenset(y.nodes.keys()),
-            frozenset(y.edges.keys()),
-            frozenset(x.nodes.keys()),
-            frozenset(x.edges.keys()),
-        )
-
-
-@dataclass(slots=True, init=False)
-class init2[K, N, E, G](InitFunc[K, N, E, G]):
-    def __call__(
-        self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
-        node_matcher: ElementMatcher[N],
-        edge_matcher: ElementMatcher[E],
-    ) -> SearchState[K]:
-        # pre-populate the mapping with nodes/edges that only have one possible legal mapping
-        possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
-
-        for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
-            if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
-                possible_node_mappings[y_key].add(x_key)
-
-        node_mapping: frozendict[K, K] = frozendict(
-            (y_key, next(iter(x_keys)))
-            for y_key, x_keys in possible_node_mappings.items()
-            if len(x_keys) == 1
-        )
-
-        edge_mapping: frozendict[K, K] = _induced_edge_mapping(
-            x, y, node_mapping, edge_matcher
-        )
-
-        return SearchState(
-            node_mapping,
-            edge_mapping,
-            frozenset(y.nodes.keys() - node_mapping.keys()),
-            frozenset(y.edges.keys() - edge_mapping.keys()),
-            frozenset(x.nodes.keys() - node_mapping.values()),
-            frozenset(x.edges.keys() - edge_mapping.values()),
-        )
-
-
 @dataclass(slots=True)
 class build[K, N, E, G](
     SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
@@ -355,7 +280,6 @@ class build[K, N, E, G](
 
     heuristic_func: HeuristicFunc[K, N, E, G] = field(default_factory=h3)
     selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select3)
-    init_func: InitFunc[K, N, E, G] = field(default_factory=init1)
     beam_width: int = 0
     pathlength_weight: int = 0
 
@@ -446,7 +370,7 @@ class build[K, N, E, G](
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
         open_set: list[PriorityState[K]] = []
-        best_state = self.init_func(x, y, self.node_matcher, self.edge_matcher)
+        best_state = self.init_search_state(x, y)
         heapq.heappush(open_set, PriorityState(0, best_state))
 
         while open_set:

@@ -1,7 +1,8 @@
 import itertools
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from frozendict import frozendict
 
@@ -9,10 +10,11 @@ from ...helpers import (
     batchify_sim,
     reverse_batch_positional,
     reverse_positional,
+    total_params,
     unpack_float,
 )
 from ...model.graph import Edge, Graph, Node
-from ...typing import AnySimFunc, BatchSimFunc, Float, StructuredValue
+from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from ..wrappers import transpose_value
 
 type PairSim[K] = Mapping[tuple[K, K], float]
@@ -256,7 +258,113 @@ class SearchState[K]:
     open_x_edges: frozenset[K]
 
 
+class SearchStateInit[K, N, E, G](Protocol):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
+        /,
+    ) -> SearchState[K]: ...
+
+
+@dataclass(slots=True, frozen=True)
+class init_empty[K, N, E, G](SearchStateInit[K, N, E, G]):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
+    ) -> SearchState[K]:
+        return SearchState(
+            frozendict(),
+            frozendict(),
+            frozenset(y.nodes.keys()),
+            frozenset(y.edges.keys()),
+            frozenset(x.nodes.keys()),
+            frozenset(x.edges.keys()),
+        )
+
+
+@dataclass(slots=True, init=False)
+class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_matcher: ElementMatcher[N],
+        edge_matcher: ElementMatcher[E],
+    ) -> SearchState[K]:
+        # pre-populate the mapping with nodes/edges that only have one possible legal mapping
+        possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
+
+        for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
+            if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
+                possible_node_mappings[y_key].add(x_key)
+
+        node_mapping: frozendict[K, K] = frozendict(
+            (y_key, next(iter(x_keys)))
+            for y_key, x_keys in possible_node_mappings.items()
+            if len(x_keys) == 1
+        )
+
+        edge_mapping: frozendict[K, K] = _induced_edge_mapping(
+            x, y, node_mapping, edge_matcher
+        )
+
+        return SearchState(
+            node_mapping,
+            edge_mapping,
+            frozenset(y.nodes.keys() - node_mapping.keys()),
+            frozenset(y.edges.keys() - edge_mapping.keys()),
+            frozenset(x.nodes.keys() - node_mapping.values()),
+            frozenset(x.edges.keys() - edge_mapping.values()),
+        )
+
+
+@dataclass(slots=True)
 class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
+    init_func: (
+        SearchStateInit[K, N, E, G] | AnySimFunc[Graph[K, N, E, G], GraphSim[K]]
+    ) = field(default_factory=init_unique_matches)
+
+    def init_search_state(
+        self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]
+    ) -> SearchState[K]:
+        init_func_params = total_params(self.init_func)
+        sim: GraphSim[K]
+
+        if init_func_params == 4:
+            init_func = cast(SearchStateInit[K, N, E, G], self.init_func)
+
+            return init_func(x, y, self.node_matcher, self.edge_matcher)
+
+        elif init_func_params == 2:
+            init_func = cast(SimFunc[Graph[K, N, E, G], GraphSim[K]], self.init_func)
+            sim = init_func(x, y)
+
+        elif init_func_params == 1:
+            init_func = cast(
+                BatchSimFunc[Graph[K, N, E, G], GraphSim[K]], self.init_func
+            )
+            sim = init_func([(x, y)])[0]
+
+        else:
+            raise ValueError(
+                f"Invalid number of parameters for init_func: {init_func_params}"
+            )
+
+        return SearchState(
+            node_mapping=sim.node_mapping,
+            edge_mapping=sim.edge_mapping,
+            open_y_nodes=frozenset(y.nodes.keys() - sim.node_mapping.keys()),
+            open_y_edges=frozenset(y.edges.keys() - sim.edge_mapping.keys()),
+            open_x_nodes=frozenset(x.nodes.keys() - sim.node_mapping.values()),
+            open_x_edges=frozenset(x.edges.keys() - sim.edge_mapping.values()),
+        )
+
     def finished(self, state: SearchState[K]) -> bool:
         # the following condition could save a few iterations, but needs to be tested
         # return (not state.open_y_nodes and not state.open_y_edges) or (

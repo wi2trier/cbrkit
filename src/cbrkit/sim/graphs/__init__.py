@@ -7,7 +7,10 @@ from .common import (
     GraphSim,
     SearchGraphSimFunc,
     SearchState,
+    SearchStateInit,
     SemanticEdgeSim,
+    init_empty,
+    init_unique_matches,
 )
 from .greedy import greedy
 from .lap import lap
@@ -33,10 +36,13 @@ __all__ = [
     "vf2",
     "dtw",
     "smith_waterman",
+    "init_empty",
+    "init_unique_matches",
     "GraphSim",
     "ElementMatcher",
     "SemanticEdgeSim",
     "BaseGraphSimFunc",
     "SearchGraphSimFunc",
     "SearchState",
+    "SearchStateInit",
 ]

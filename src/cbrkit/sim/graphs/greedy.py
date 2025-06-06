@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from frozendict import frozendict
-
 from ...helpers import (
     get_logger,
 )
@@ -41,19 +39,17 @@ class greedy[K, N, E, G](
         #     self_inv = dataclasses.replace(self, _invert=True)
         #     return self.invert_similarity(x, y, self_inv(x=y, y=x))
 
-        current_state = SearchState(
-            frozendict(),
-            frozendict(),
-            frozenset(y.nodes.keys()),
-            frozenset(y.edges.keys()),
-            frozenset(x.nodes.keys()),
-            frozenset(x.edges.keys()),
-        )
-        current_sim = GraphSim(
-            0.0, frozendict(), frozendict(), frozendict(), frozendict()
-        )
-
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+
+        current_state = self.init_search_state(x, y)
+        current_sim = self.similarity(
+            x,
+            y,
+            current_state.node_mapping,
+            current_state.edge_mapping,
+            node_pair_sims,
+            edge_pair_sims,
+        )
 
         while not self.finished(current_state):
             # Iterate over all open pairs and find the best pair
