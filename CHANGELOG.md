@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/wi2trier/cbrkit/compare/v0.26.0...v0.26.1) (2025-06-06)
+
+### Bug Fixes
+
+* **sim/graphs:** generalize init function type to use for astar and greedy ([8a05f31](https://github.com/wi2trier/cbrkit/commit/8a05f31b7f0a5c1d75d669741a9395c4878db067))
+* **sim:** add combine helper ([f09130e](https://github.com/wi2trier/cbrkit/commit/f09130ec813110d34c5acef84ce89fa4c8dd935f))
+
 ## [0.26.0](https://github.com/wi2trier/cbrkit/compare/v0.25.1...v0.26.0) (2025-06-05)
 
 ### Features
