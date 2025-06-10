@@ -12,8 +12,9 @@ from ...helpers import (
     reverse_positional,
     total_params,
     unpack_float,
+    unpack_floats,
 )
-from ...model.graph import Edge, Graph, Node
+from ...model.graph import Graph, Node
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from ..wrappers import transpose_value
 
@@ -38,26 +39,38 @@ def default_element_matcher(x: Any, y: Any) -> bool:
 
 @dataclass(slots=True, frozen=True)
 class SemanticEdgeSim[K, N, E]:
-    source_weight: float = 0.5
-    target_weight: float = 0.5
+    source_weight: float = 1.0
+    target_weight: float = 1.0
+    edge_sim_func: AnySimFunc[E, Float] | None = None
 
     def __call__(
         self,
-        batches: Sequence[tuple[Edge[K, N, E], Edge[K, N, E], PairSim[K]]],
+        batches: Sequence[tuple[E, E, float, float]],
     ) -> list[float]:
-        source_sims = (
-            node_pair_sims.get((y.source.key, x.source.key), 0.0)
-            for x, y, node_pair_sims in batches
-        )
-        target_sims = (
-            node_pair_sims.get((y.target.key, x.target.key), 0.0)
-            for x, y, node_pair_sims in batches
-        )
+        source_sims = (source_sim for _, _, source_sim, _ in batches)
+        target_sims = (target_sim for _, _, _, target_sim in batches)
+
+        if self.edge_sim_func is not None:
+            edge_sim_func = batchify_sim(self.edge_sim_func)
+            edge_sims = unpack_floats(
+                edge_sim_func(
+                    [(x, y) for x, y, _, _ in batches],
+                )
+            )
+        else:
+            edge_sims = [1.0] * len(batches)
+
+        scaling_factor = self.source_weight + self.target_weight
+
+        if scaling_factor == 0:
+            return edge_sims
 
         return [
-            (self.source_weight * source + self.target_weight * target)
-            / (self.source_weight + self.target_weight)
-            for source, target in zip(source_sims, target_sims, strict=True)
+            (edge * source * self.source_weight / scaling_factor)
+            + (edge * target * self.target_weight / scaling_factor)
+            for source, target, edge in zip(
+                source_sims, target_sims, edge_sims, strict=True
+            )
         ]
 
 
@@ -82,24 +95,14 @@ def _induced_edge_mapping[K, N, E, G](
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G]:
     node_sim_func: AnySimFunc[N, Float]
-    edge_sim_func: AnySimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E] = (
-        default_edge_sim
-    )
+    edge_sim_func: SemanticEdgeSim[K, N, E] = default_edge_sim
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
-    batch_edge_sim_func: (
-        BatchSimFunc[Edge[K, N, E], Float] | SemanticEdgeSim[K, N, E]
-    ) = field(init=False)
     _invert: bool = False
 
     def __post_init__(self) -> None:
         self.batch_node_sim_func = batchify_sim(transpose_value(self.node_sim_func))
-
-        if isinstance(self.edge_sim_func, SemanticEdgeSim):
-            self.batch_edge_sim_func = self.edge_sim_func
-        else:
-            self.batch_edge_sim_func = batchify_sim(self.edge_sim_func)
 
         if self._invert:
             self.node_matcher = reverse_positional(self.node_matcher)
@@ -107,11 +110,7 @@ class BaseGraphSimFunc[K, N, E, G]:
             self.batch_node_sim_func = reverse_batch_positional(
                 self.batch_node_sim_func
             )
-            if not isinstance(self.batch_edge_sim_func, SemanticEdgeSim):
-                # semantic edge sim is agnostic to order
-                self.batch_edge_sim_func = reverse_batch_positional(
-                    self.batch_edge_sim_func
-                )
+            # semantic edge sim is agnostic to order
 
     def induced_edge_mapping(
         self,
@@ -163,16 +162,17 @@ class BaseGraphSimFunc[K, N, E, G]:
             ]
 
         edge_pair_values = [(x.edges[x_key], y.edges[y_key]) for y_key, x_key in pairs]
-
-        if isinstance(self.batch_edge_sim_func, SemanticEdgeSim):
-            edge_pair_sims = self.batch_edge_sim_func(
-                [
-                    (x_edge, y_edge, node_pair_sims)
-                    for x_edge, y_edge in edge_pair_values
-                ]
-            )
-        else:
-            edge_pair_sims = self.batch_edge_sim_func(edge_pair_values)
+        edge_pair_sims = self.edge_sim_func(
+            [
+                (
+                    x_edge.value,
+                    y_edge.value,
+                    node_pair_sims[(y_edge.source.key, x_edge.source.key)],
+                    node_pair_sims[(y_edge.target.key, x_edge.target.key)],
+                )
+                for x_edge, y_edge in edge_pair_values
+            ]
+        )
 
         return {
             (y_edge.key, x_edge.key): unpack_float(sim)
