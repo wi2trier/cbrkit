@@ -19,7 +19,8 @@ ALGORITHMS: dict[
     "dfs": cbrkit.sim.graphs.dfs,
     "greedy": cbrkit.sim.graphs.greedy,
     "lap": cbrkit.sim.graphs.lap,
-    "vf2": cbrkit.sim.graphs.vf2,
+    "vf2_networkx": cbrkit.sim.graphs.vf2_networkx,
+    "vf2_rustworkx": cbrkit.sim.graphs.vf2_rustworkx,
 }
 
 
@@ -127,7 +128,7 @@ def test_v2(setup_v2, algorithm):
     for key, sim in result.similarities.items():
         baseline = setup_v2.baseline[key]
 
-        if algorithm == "vf2" and not baseline["edge_mapping"]:
+        if algorithm.startswith("vf2") and not baseline["edge_mapping"]:
             # If there is no edge mapping in the baseline, the algorithm does not find any mapping
             continue
 

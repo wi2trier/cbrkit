@@ -15,7 +15,7 @@ from .common import (
 from .greedy import greedy
 from .lap import lap
 from .precompute import precompute
-from .vf2 import vf2
+from .vf2 import vf2, vf2_networkx, vf2_rustworkx
 
 with optional_dependencies():
     from .alignment import dtw
@@ -34,6 +34,8 @@ __all__ = [
     "lap",
     "precompute",
     "vf2",
+    "vf2_networkx",
+    "vf2_rustworkx",
     "dtw",
     "smith_waterman",
     "init_empty",
