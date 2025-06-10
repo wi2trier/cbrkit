@@ -8,8 +8,6 @@ from frozendict import frozendict
 
 from ...helpers import (
     batchify_sim,
-    reverse_batch_positional,
-    reverse_positional,
     total_params,
     unpack_float,
     unpack_floats,
@@ -99,18 +97,9 @@ class BaseGraphSimFunc[K, N, E, G]:
     node_matcher: ElementMatcher[N] = default_element_matcher
     edge_matcher: ElementMatcher[E] = default_element_matcher
     batch_node_sim_func: BatchSimFunc[Node[K, N], Float] = field(init=False)
-    _invert: bool = False
 
     def __post_init__(self) -> None:
         self.batch_node_sim_func = batchify_sim(transpose_value(self.node_sim_func))
-
-        if self._invert:
-            self.node_matcher = reverse_positional(self.node_matcher)
-            self.edge_matcher = reverse_positional(self.edge_matcher)
-            self.batch_node_sim_func = reverse_batch_positional(
-                self.batch_node_sim_func
-            )
-            # semantic edge sim is agnostic to order
 
     def induced_edge_mapping(
         self,

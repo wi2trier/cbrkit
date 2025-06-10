@@ -363,10 +363,6 @@ class build[K, N, E, G](
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
-        # if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
-        #     self_inv = dataclasses.replace(self, _invert=True)
-        #     return self.invert_similarity(x, y, self_inv(x=y, y=x))
-
         node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
         open_set: list[PriorityState[K]] = []
