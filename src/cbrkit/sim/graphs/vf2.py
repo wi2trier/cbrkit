@@ -32,13 +32,13 @@ class vf2[K, N, E, G](
     induced: bool = False
     call_limit: int | None = None
     max_iterations: int = 0
+    maximum_common_subgraph: bool = True
 
-    @override
-    def __call__(
+    def node_mappings(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-    ) -> GraphSim[K]:
+    ) -> list[frozendict[K, K]]:
         if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
             larger_graph, larger_graph_lookup = to_rustworkx_with_lookup(y)
             smaller_graph, smaller_graph_lookup = to_rustworkx_with_lookup(x)
@@ -66,7 +66,6 @@ class vf2[K, N, E, G](
         )
 
         node_mappings: list[frozendict[K, K]] = []
-        graph_sims: list[GraphSim[K]] = []
 
         for idx in itertools.count():
             if self.max_iterations > 0 and idx >= self.max_iterations:
@@ -97,6 +96,45 @@ class vf2[K, N, E, G](
                     )
             except StopIteration:
                 break
+
+        return node_mappings
+
+    @override
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> GraphSim[K]:
+        node_mappings: list[frozendict[K, K]] = []
+        next_permutations: list[Graph] = [y]
+
+        while next_permutations and not node_mappings:
+            current_permutations = next_permutations
+            next_permutations = []
+
+            for current_permutation in current_permutations:
+                node_mappings.extend(self.node_mappings(x, current_permutation))
+
+                if self.maximum_common_subgraph:
+                    # remove nodes from y to determine partial mappings
+                    next_permutations.extend(
+                        Graph(
+                            nodes=frozendict(
+                                (k, v)
+                                for k, v in current_permutation.nodes.items()
+                                if k != node_key
+                            ),
+                            edges=frozendict(
+                                (k, v)
+                                for k, v in current_permutation.edges.items()
+                                if v.source.key != node_key and v.target.key != node_key
+                            ),
+                            value=current_permutation.value,
+                        )
+                        for node_key in current_permutation.nodes.keys()
+                    )
+
+        graph_sims: list[GraphSim[K]] = []
 
         for node_mapping in node_mappings:
             edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
