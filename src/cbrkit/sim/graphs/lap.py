@@ -14,8 +14,6 @@ from .common import BaseGraphSimFunc, GraphSim, PairSim
 
 logger = get_logger(__name__)
 
-__all__ = ["lap"]
-
 
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass(slots=True)

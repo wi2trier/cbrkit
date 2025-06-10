@@ -11,8 +11,6 @@ from .common import GraphSim, SearchGraphSimFunc, SearchState
 
 logger = get_logger(__name__)
 
-__all__ = ["greedy"]
-
 
 @dataclass(slots=True)
 class greedy[K, N, E, G](

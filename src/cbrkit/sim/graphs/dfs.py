@@ -11,8 +11,6 @@ from .common import BaseGraphSimFunc, GraphSim
 
 logger = get_logger(__name__)
 
-__all__ = ["dfs"]
-
 
 class RootsFunc[K, N, E, G](Protocol):
     """Support for matching rooted graphs
