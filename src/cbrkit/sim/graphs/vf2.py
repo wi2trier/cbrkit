@@ -107,7 +107,6 @@ class VF2Base[K, N, E, G](
 @dataclass(slots=True)
 class vf2_rustworkx[K, N, E, G](VF2Base):
     id_order: bool = False
-    subgraph: bool = True
     induced: bool = False
     call_limit: int | None = None
 
@@ -136,8 +135,8 @@ class vf2_rustworkx[K, N, E, G](VF2Base):
             smaller_graph,
             node_matcher=node_matcher,
             edge_matcher=edge_matcher,
+            subgraph=True,
             id_order=self.id_order,
-            subgraph=self.subgraph,
             induced=self.induced,
             call_limit=self.call_limit,
         )
