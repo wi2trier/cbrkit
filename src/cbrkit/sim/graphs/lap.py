@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 class lap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
+    greedy: bool = True
     node_del_cost: float = 2.0
     node_ins_cost: float = 0.0
     edge_del_cost: float = 2.0
@@ -36,7 +37,7 @@ class lap[K, N, E, G](
             e.key for e in g.edges.values() if n == e.source.key or n == e.target.key
         }
 
-    def edge_sub_cost(
+    def edge_sub_cost_greedy(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
@@ -44,8 +45,59 @@ class lap[K, N, E, G](
         y_node: K,
         edge_pair_sims: PairSim[K],
     ) -> float:
+        """BranchFast algorithm without solving an inner LAP problem.
+
+        - Substitutions are taken greedily in descending similarity order
+        - Unmatched y‑edges are deletions, unmatched x‑edges are insertions.
+        """
+
+        y_edges = list(self.connected_edges(y, y_node))
+        x_edges = list(self.connected_edges(x, x_node))
+
+        # trivial fast‑path
+        if not y_edges and not x_edges:
+            return 0.0
+
+        # candidate substitutions: (cost, y_key, x_key)
+        candidates: list[tuple[float, K, K]] = [
+            (1.0 - edge_pair_sims[(y_key, x_key)], y_key, x_key)
+            for y_key, x_key in itertools.product(y_edges, x_edges)
+            if (y_key, x_key) in edge_pair_sims
+        ]
+        # sort by cheapest cost  ==> highest similarity first
+        candidates.sort(key=lambda t: t[0])
+
+        matched_y: set[K] = set()
+        matched_x: set[K] = set()
+        cost = 0.0
+
+        for c, y_key, x_key in candidates:
+            if y_key not in matched_y and x_key not in matched_x:
+                matched_y.add(y_key)
+                matched_x.add(x_key)
+                cost += c  # substitution cost
+
+        # remaining deletions / insertions
+        cost += (len(y_edges) - len(matched_y)) * self.edge_del_cost
+        cost += (len(x_edges) - len(matched_x)) * self.edge_ins_cost
+
+        return cost
+
+    def edge_sub_cost_optimal(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        x_node: K,
+        y_node: K,
+        edge_pair_sims: PairSim[K],
+    ) -> float:
+        """Branch algorithm solving an inner LAP problem."""
+
         y_edges = self.connected_edges(y, y_node)
         x_edges = self.connected_edges(x, x_node)
+
+        if not y_edges and not x_edges:
+            return 0.0
 
         rows = len(y_edges)
         cols = len(x_edges)
@@ -124,13 +176,16 @@ class lap[K, N, E, G](
                 and (sim := node_pair_sims.get((y_key, x_key)))
             ):
                 node_sub_cost = 1.0 - sim
-                edge_sub_cost = self.edge_sub_cost(
-                    x,
-                    y,
-                    x_key,
-                    y_key,
-                    edge_pair_sims,
-                )
+
+                if self.greedy:
+                    edge_sub_cost = self.edge_sub_cost_greedy(
+                        x, y, x_key, y_key, edge_pair_sims
+                    )
+                else:
+                    edge_sub_cost = self.edge_sub_cost_optimal(
+                        x, y, x_key, y_key, edge_pair_sims
+                    )
+
                 cost[r, c] = node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
 
         if self.print_matrix:
