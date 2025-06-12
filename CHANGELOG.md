@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.26.3](https://github.com/wi2trier/cbrkit/compare/v0.26.2...v0.26.3) (2025-06-12)
+
+### Bug Fixes
+
+* **retrieval/bm25:** improve conversion of score to similarity ([092c123](https://github.com/wi2trier/cbrkit/commit/092c1231383182bb88bb97c88972e571a2a4ca69))
+* **retrieval/combine:** add default similarity parameter ([43285de](https://github.com/wi2trier/cbrkit/commit/43285de62141b43b182070a04cd5da69e84f2658))
+* **retrieval/combine:** allow passing a map of retrievers ([2b3335a](https://github.com/wi2trier/cbrkit/commit/2b3335aa85dfcfc30994484c866fd0160677bf3b))
+* **sim/graphs/astar:** correctly compute heuristic for select3 ([637a275](https://github.com/wi2trier/cbrkit/commit/637a2750a8e72ff6d9153d335ab5a444f1053259))
+* **sim/graphs:** check inverse mappings for init functions ([e36734f](https://github.com/wi2trier/cbrkit/commit/e36734f18780d8e89b0e91b3dce7a1d9a5efc4ea))
+* **sim/graphs:** properly compare similarity in brute force ([627a3da](https://github.com/wi2trier/cbrkit/commit/627a3dacb05a386169b938a1f604dbba32c1c8a2))
+
 ## [0.26.2](https://github.com/wi2trier/cbrkit/compare/v0.26.1...v0.26.2) (2025-06-12)
 
 ### Bug Fixes
