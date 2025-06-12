@@ -129,14 +129,16 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
         retriever_funcs: A list of retriever functions to be combined.
         aggregator: A function to aggregate the results from the retriever functions.
         strategy: The strategy to combine the results. Either "intersection" or "union".
+        default_sim: The default similarity value to use for strategy "union" when a case is not found in one of the retriever results.
 
     Returns:
         A retriever function that combines the results from multiple retrievers.
     """
 
     retriever_funcs: Sequence[RetrieverFunc[K, V, S]]
-    aggregator: AggregatorFunc[str, S] = default_aggregator
+    aggregator: AggregatorFunc[str, S | float] = default_aggregator
     strategy: Literal["intersection", "union"] = "union"
+    default_sim: float = 0.0
 
     @override
     def __call__(
@@ -170,26 +172,21 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
         raise ValueError(f"Invalid retriever_funcs type: {type(self.retriever_funcs)}")
 
     def __call_batch__(self, results: Sequence[SimMap[K, S]]) -> SimMap[K, float]:
+        case_keys: set[K]
+
         if self.strategy == "intersection":
-            return {
-                case_key: self.aggregator(
-                    [result[case_key] for result in results if case_key in result]
-                )
-                for case_key in set().intersection(
-                    *[set(result.keys()) for result in results]
-                )
-            }
-
+            case_keys = set().intersection(*(result.keys() for result in results))
         elif self.strategy == "union":
-            return {
-                case_key: self.aggregator(
-                    [result[case_key] for result in results if case_key in result]
-                )
-                for result in results
-                for case_key in result.keys()
-            }
+            case_keys = set().union(*(result.keys() for result in results))
+        else:
+            raise ValueError(f"Unknown strategy: {self.strategy}")
 
-        raise ValueError(f"Unknown strategy: {self.strategy}")
+        return {
+            case_key: self.aggregator(
+                [result.get(case_key, self.default_sim) for result in results]
+            )
+            for case_key in case_keys
+        }
 
 
 @dataclass(slots=True, frozen=True)
