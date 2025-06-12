@@ -1,6 +1,6 @@
 [project]
 name = "cbrkit"
-version = "0.26.1"
+version = "0.26.2"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI"
 authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 readme = "README.md"

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.26.2](https://github.com/wi2trier/cbrkit/compare/v0.26.1...v0.26.2) (2025-06-12)
+
+### Bug Fixes
+
+* **sim/graphs/lap:** add greedy edge substitution cost ([5aff79a](https://github.com/wi2trier/cbrkit/commit/5aff79aa2d5806236241e69b722b457dc6e17be4))
+* **sim/graphs/vf2:** allow computation of maximum common subgraph ([f75225a](https://github.com/wi2trier/cbrkit/commit/f75225af209e4311a488af45af6b0359536e92cb))
+* **sim/graphs:** add networkx implementation of vf2 ([0ec6cd9](https://github.com/wi2trier/cbrkit/commit/0ec6cd9c3d31dc161be440d5c978e49977fabfbd))
+* **sim/graphs:** always compute subgraph isomorphism with vf2 ([2f1adc4](https://github.com/wi2trier/cbrkit/commit/2f1adc49a1334471abc12060f1d8754b17400032))
+* **sim/graphs:** integrate edge values to semantic edge similarity ([07b350f](https://github.com/wi2trier/cbrkit/commit/07b350fb7b2b556a380c1a6c9d94b686e6e66fda))
+* **sim/graphs:** update default edit costs ([079cf60](https://github.com/wi2trier/cbrkit/commit/079cf60de1a6c9783c52c88878d15b2dd7200de3))
+* **sim/graphs:** update qap ([ac26b6d](https://github.com/wi2trier/cbrkit/commit/ac26b6de07827c969ea3e9546302ddbd25c836e4))
+
 ## [0.26.1](https://github.com/wi2trier/cbrkit/compare/v0.26.0...v0.26.1) (2025-06-06)
 
 ### Bug Fixes
