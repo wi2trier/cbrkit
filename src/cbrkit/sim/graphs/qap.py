@@ -6,9 +6,7 @@ from frozendict import frozendict
 from scipy.optimize import quadratic_assignment
 
 from ...helpers import get_logger
-from ...model.graph import (
-    Graph,
-)
+from ...model.graph import Graph
 from ...typing import SimFunc
 from .common import BaseGraphSimFunc, GraphSim
 
@@ -20,10 +18,13 @@ logger = get_logger(__name__)
 class qap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
 ):
-    """Quadratic Assignment Problem (QAP) solver for graph similarity
+    """Quadratic Assignment Problem (QAP) solver for graph similarity"""
 
-    Currently not functional, the generated mappings are not correct.
-    """
+    node_del_cost: float = 1.0
+    node_ins_cost: float = 1.0
+    edge_del_cost: float = 1.0
+    edge_ins_cost: float = 1.0
+    illegal_cost: float = 1e9
 
     def __call__(
         self,
@@ -36,51 +37,81 @@ class qap[K, N, E, G](
         m = len(x.nodes)
         dim = n + m
         a = np.zeros((dim, dim), dtype=float)
-        b = np.zeros((dim, dim), dtype=float)
+        b = np.full((dim, dim), self.illegal_cost, dtype=float)
 
         y2idx = {k: i for i, k in enumerate(y.nodes)}
         x2idx = {k: i for i, k in enumerate(x.nodes)}
         idx2y = {i: k for k, i in y2idx.items()}
         idx2x = {i: k for k, i in x2idx.items()}
 
-        # put 1 on every real-node loop of a
-        # encode substitution / deletion cost on the corresponding loop of b
-        for i in idx2y.keys():
-            a[i, i] = 1.0  # selector
-            b[m + i, m + i] = 1.0  # deletion
+        # (fast look‑ups for present / absent edges)
+        y_edges = {(y2idx[e.source.key], y2idx[e.target.key]) for e in y.edges.values()}
+        x_edges = {(x2idx[e.source.key], x2idx[e.target.key]) for e in x.edges.values()}
 
-        for j in idx2x.keys():
-            b[j, j] = 1.0  # selector
-            a[n + j, n + j] = 1.0  # insertion
-
-        # substitution cost (real-real loops)
+        # linear part
+        # substitution: real-real
         for (y_key, i), (x_key, j) in itertools.product(y2idx.items(), x2idx.items()):
             b[i, j] = (
-                1 - node_pair_sims[(y_key, x_key)]
+                1.0 - node_pair_sims[(y_key, x_key)]
                 if (y_key, x_key) in node_pair_sims
-                else 1e9
+                else self.illegal_cost
             )
 
-        # real edge in y, deletion cost when mapped to two dummies
+        # deletion: real-dummy
+        for y_key, i in y2idx.items():
+            dummy_col = m + i
+            b[i, dummy_col] = self.node_del_cost
+            a[dummy_col, dummy_col] = 1.0  # selector
+
+        # insertion: dummy-real
+        for x_key, j in x2idx.items():
+            dummy_row = n + j
+            b[dummy_row, j] = self.node_ins_cost
+            a[dummy_row, dummy_row] = 1.0  # selector
+
+        # quadratic part
+        # real edges of y in A
         for e in y.edges.values():
             i, j = y2idx[e.source.key], y2idx[e.target.key]
-            b[m + i, m + j] = 1
-            b[m + j, m + i] = 1
+            a[i, j] = 1.0
 
-        # real edge in x, insertion cost when mapped from two dummies
-        for e in x.edges.values():
-            i, j = x2idx[e.source.key], x2idx[e.target.key]
-            a[n + i, n + j] = 1
-            a[n + j, n + i] = 1
+        # real edges of x in B
+        # not needed for directed graphs
+        # for e in x.edges.values():
+        #     i, j = x2idx[e.source.key], x2idx[e.target.key]
+        #     b[i, j] = 1.0
 
-        # real-real pairs, substitution cost
+        # edge substitution
         for y_edge, x_edge in itertools.product(y.edges.values(), x.edges.values()):
-            i, j = x2idx[x_edge.source.key], x2idx[x_edge.target.key]
-            b[i, j] = (
-                1 - edge_pair_sims[(y_edge.key, x_edge.key)]
+            iy, jy = y2idx[y_edge.source.key], y2idx[y_edge.target.key]
+            ix, jx = x2idx[x_edge.source.key], x2idx[x_edge.target.key]
+            cost = (
+                1.0 - edge_pair_sims[(y_edge.key, x_edge.key)]
                 if (y_edge.key, x_edge.key) in edge_pair_sims
-                else 1e9
+                else self.illegal_cost
             )
+
+            # four row/col combinations induced by the permutation
+            for r, c in ((iy, ix), (iy, jx), (jy, ix), (jy, jx)):
+                # keep the *lowest* cost if collisions happen
+                b[r, c] = min(b[r, c], cost)
+
+        # edge deletion/insertion
+        for iy, jy in itertools.product(range(n), range(n)):
+            y_has = (iy, jy) in y_edges
+
+            for ix, jx in itertools.product(range(m), range(m)):
+                x_has = (ix, jx) in x_edges
+
+                if y_has and not x_has:  # deletion
+                    cost = self.edge_del_cost
+                elif not y_has and x_has:  # insertion
+                    cost = self.edge_ins_cost
+                else:  # no op
+                    continue
+
+                for r, c in ((iy, ix), (iy, jx), (jy, ix), (jy, jx)):
+                    b[r, c] = min(b[r, c], cost)
 
         try:
             res = quadratic_assignment(a, b, method="faq")
@@ -97,11 +128,9 @@ class qap[K, N, E, G](
 
         # only consider substitutions of real nodes
         node_mapping = frozendict(
-            (idx2y[y_idx], idx2x[x_idx])
-            for y_idx, x_idx in enumerate(res.col_ind)
-            if y_idx < n
-            and x_idx < m
-            and (idx2y[y_idx], idx2x[x_idx]) in node_pair_sims
+            (idx2y[row], idx2x[col])
+            for row, col in enumerate(res.col_ind)
+            if row < n and col < m and (idx2y[row], idx2x[col]) in node_pair_sims
         )
 
         edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
