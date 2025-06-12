@@ -74,8 +74,16 @@ class brute_force[K, N, E, G](
 
                     if next_sim and (
                         next_sim.value > best_sim.value
-                        or len(next_sim.node_mapping) > len(best_sim.node_mapping)
-                        or len(next_sim.edge_mapping) > len(best_sim.edge_mapping)
+                        or (
+                            next_sim.value >= best_sim.value
+                            and (
+                                len(next_sim.node_mapping) > len(best_sim.node_mapping)
+                                or (
+                                    len(next_sim.edge_mapping)
+                                    > len(best_sim.edge_mapping)
+                                )
+                            )
+                        )
                     ):
                         best_sim = next_sim
 
