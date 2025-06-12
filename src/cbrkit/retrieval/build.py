@@ -1,5 +1,5 @@
 import itertools
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
 from typing import Literal, override
@@ -135,7 +135,9 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
         A retriever function that combines the results from multiple retrievers.
     """
 
-    retriever_funcs: Sequence[RetrieverFunc[K, V, S]]
+    retriever_funcs: (
+        Sequence[RetrieverFunc[K, V, S]] | Mapping[str, RetrieverFunc[K, V, S]]
+    )
     aggregator: AggregatorFunc[str, S | float] = default_aggregator
     strategy: Literal["intersection", "union"] = "union"
     default_sim: float = 0.0
@@ -156,37 +158,65 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
                 for batch_idx in range(len(batches))
             ]
 
-        # elif isinstance(self.retriever_funcs, Mapping):
-        #     results = {
-        #         func_key: retriever_func(batches)
-        #         for func_key, retriever_func in self.retriever_funcs.items()
-        #     }
+        elif isinstance(self.retriever_funcs, Mapping):
+            results = {
+                func_key: retriever_func(batches)
+                for func_key, retriever_func in self.retriever_funcs.items()
+            }
 
-        #     return [
-        #         self.__call_batch__(
-        #             {func_key: func_results[batch_idx] for func_key, func_results in results.items()}
-        #         )
-        #         for batch_idx in range(len(batches))
-        #     ]
+            return [
+                self.__call_batch__(
+                    {
+                        func_key: func_results[batch_idx]
+                        for func_key, func_results in results.items()
+                    }
+                )
+                for batch_idx in range(len(batches))
+            ]
 
         raise ValueError(f"Invalid retriever_funcs type: {type(self.retriever_funcs)}")
 
-    def __call_batch__(self, results: Sequence[SimMap[K, S]]) -> SimMap[K, float]:
+    def __call_batch__(
+        self, results: Sequence[SimMap[K, S]] | Mapping[str, SimMap[K, S]]
+    ) -> SimMap[K, float]:
         case_keys: set[K]
 
-        if self.strategy == "intersection":
-            case_keys = set().intersection(*(result.keys() for result in results))
-        elif self.strategy == "union":
-            case_keys = set().union(*(result.keys() for result in results))
-        else:
-            raise ValueError(f"Unknown strategy: {self.strategy}")
+        if isinstance(results, Sequence):
+            if self.strategy == "intersection":
+                case_keys = set().intersection(*(result.keys() for result in results))
+            elif self.strategy == "union":
+                case_keys = set().union(*(result.keys() for result in results))
+            else:
+                raise ValueError(f"Unknown strategy: {self.strategy}")
 
-        return {
-            case_key: self.aggregator(
-                [result.get(case_key, self.default_sim) for result in results]
-            )
-            for case_key in case_keys
-        }
+            return {
+                case_key: self.aggregator(
+                    [result.get(case_key, self.default_sim) for result in results]
+                )
+                for case_key in case_keys
+            }
+
+        elif isinstance(results, Mapping):
+            if self.strategy == "intersection":
+                case_keys = set().intersection(
+                    *(result.keys() for result in results.values())
+                )
+            elif self.strategy == "union":
+                case_keys = set().union(*(result.keys() for result in results.values()))
+            else:
+                raise ValueError(f"Unknown strategy: {self.strategy}")
+
+            return {
+                case_key: self.aggregator(
+                    {
+                        func_key: result.get(case_key, self.default_sim)
+                        for func_key, result in results.items()
+                    }
+                )
+                for case_key in case_keys
+            }
+
+        raise ValueError(f"Invalid results type: {type(results)}")
 
 
 @dataclass(slots=True, frozen=True)
