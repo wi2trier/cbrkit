@@ -15,7 +15,21 @@ ALGORITHMS: dict[
         ..., cbrkit.typing.AnySimFunc[Graph[str | int], cbrkit.sim.graphs.GraphSim[str]]
     ],
 ] = {
-    "astar": cbrkit.sim.graphs.astar.build,
+    "astar1": partial(
+        cbrkit.sim.graphs.astar.build,
+        heuristic_func=cbrkit.sim.graphs.astar.h1(),
+        selection_func=cbrkit.sim.graphs.astar.select1(),
+    ),
+    "astar2": partial(
+        cbrkit.sim.graphs.astar.build,
+        heuristic_func=cbrkit.sim.graphs.astar.h2(),
+        selection_func=cbrkit.sim.graphs.astar.select2(),
+    ),
+    "astar3": partial(
+        cbrkit.sim.graphs.astar.build,
+        heuristic_func=cbrkit.sim.graphs.astar.h3(),
+        selection_func=cbrkit.sim.graphs.astar.select3(),
+    ),
     "brute_force": cbrkit.sim.graphs.brute_force,
     "dfs": cbrkit.sim.graphs.dfs,
     "greedy": cbrkit.sim.graphs.greedy,
