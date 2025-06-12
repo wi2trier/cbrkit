@@ -287,16 +287,18 @@ class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
         edge_matcher: ElementMatcher[E],
     ) -> SearchState[K]:
         # pre-populate the mapping with nodes/edges that only have one possible legal mapping
-        possible_node_mappings: defaultdict[K, set[K]] = defaultdict(set)
+        y2x_map: defaultdict[K, set[K]] = defaultdict(set)
+        x2y_map: defaultdict[K, set[K]] = defaultdict(set)
 
         for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
             if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
-                possible_node_mappings[y_key].add(x_key)
+                y2x_map[y_key].add(x_key)
+                x2y_map[x_key].add(y_key)
 
         node_mapping: frozendict[K, K] = frozendict(
             (y_key, next(iter(x_keys)))
-            for y_key, x_keys in possible_node_mappings.items()
-            if len(x_keys) == 1
+            for y_key, x_keys in y2x_map.items()
+            if len(x_keys) == 1 and len(x2y_map[next(iter(x_keys))]) == 1
         )
 
         edge_mapping: frozendict[K, K] = _induced_edge_mapping(
