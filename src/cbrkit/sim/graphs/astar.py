@@ -60,7 +60,6 @@ class SelectionFunc[K, N, E, G](Protocol):
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        heuristic_func: HeuristicFunc[K, N, E, G],
         /,
     ) -> None | tuple[K, GraphElementType]: ...
 
@@ -127,7 +126,7 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
                 default=0.0,
             )
 
-        def mapping_possible(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
+        def can_map(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
             return x_node.key == s.node_mapping.get(y_node.key) or (
                 y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
             )
@@ -137,8 +136,8 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
                     for x_key in s.open_x_edges
-                    if mapping_possible(x.edges[x_key].source, y.edges[y_key].source)
-                    and mapping_possible(x.edges[x_key].target, y.edges[y_key].target)
+                    if can_map(x.edges[x_key].source, y.edges[y_key].source)
+                    and can_map(x.edges[x_key].target, y.edges[y_key].target)
                 ),
                 default=0.0,
             )
@@ -155,7 +154,6 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
@@ -181,7 +179,6 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
@@ -212,36 +209,58 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
-        heuristic_func: HeuristicFunc[K, N, E, G],
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        heuristic_scores: list[tuple[K, GraphElementType, float]] = []
+        mapping_options: dict[tuple[K, GraphElementType], int] = {}
+        heuristic_scores: dict[tuple[K, GraphElementType], float] = {}
 
         for y_key in s.open_y_nodes:
-            heuristic_scores.append(
-                (
-                    y_key,
-                    "node",
-                    heuristic_func(x, y, s, node_pair_sims, edge_pair_sims),
-                )
+            h_vals = [
+                node_pair_sims[(y_key, x_key)]
+                for x_key in s.open_x_nodes
+                if (y_key, x_key) in node_pair_sims
+            ]
+
+            if h_vals:
+                mapping_options[(y_key, "node")] = len(h_vals)
+                heuristic_scores[(y_key, "node")] = max(h_vals)
+
+        def can_map(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
+            return x_node.key == s.node_mapping.get(y_node.key) or (
+                y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
             )
 
         for y_key in s.open_y_edges:
-            heuristic_scores.append(
-                (
-                    y_key,
-                    "edge",
-                    heuristic_func(x, y, s, node_pair_sims, edge_pair_sims),
-                )
-            )
+            h_vals = [
+                edge_pair_sims[(y_key, x_key)]
+                for x_key in s.open_x_edges
+                if (y_key, x_key) in edge_pair_sims
+                and can_map(x.edges[x_key].source, y.edges[y_key].source)
+                and can_map(x.edges[x_key].target, y.edges[y_key].target)
+            ]
+
+            if h_vals:
+                mapping_options[(y_key, "edge")] = len(h_vals)
+                heuristic_scores[(y_key, "edge")] = max(h_vals)
 
         if not heuristic_scores:
+            # Fallback: select any remaining node or edge for null mapping
+            if s.open_y_nodes:
+                return next(iter(s.open_y_nodes)), "node"
+            elif s.open_y_edges:
+                return next(iter(s.open_y_edges)), "edge"
             return None
 
-        best_selection = max(heuristic_scores, key=lambda x: x[2])
+        max_score = max(heuristic_scores.values())
+        best_selections = [
+            key for key, value in heuristic_scores.items() if value == max_score
+        ]
 
-        selection_key, selection_type, _ = best_selection
+        # if multiple selections have the same score, select the one with the lowest number of possible mappings
+        best_selection = min(best_selections, key=lambda key: mapping_options[key])
+
+        selection_key, selection_type = best_selection
 
         if selection_type == "edge":
             edge = y.edges[selection_key]
@@ -300,7 +319,6 @@ class build[K, N, E, G](
             state,
             node_pair_sims,
             edge_pair_sims,
-            self.heuristic_func,
         )
 
         if selection is None:
@@ -367,11 +385,33 @@ class build[K, N, E, G](
 
         open_set: list[PriorityState[K]] = []
         best_state = self.init_search_state(x, y)
+        # best_similarity = self.similarity(
+        #     x,
+        #     y,
+        #     best_state.node_mapping,
+        #     best_state.edge_mapping,
+        #     node_pair_sims,
+        #     edge_pair_sims,
+        # )
         heapq.heappush(open_set, PriorityState(0, best_state))
 
         while open_set:
             first_elem = heapq.heappop(open_set)
             current_state = first_elem.state
+            # current_similarity = self.similarity(
+            #     x,
+            #     y,
+            #     current_state.node_mapping,
+            #     current_state.edge_mapping,
+            #     node_pair_sims,
+            #     edge_pair_sims,
+            # )
+
+            # not needed because we add null mappings and
+            # the first item of the queue is always the best one
+            # if current_similarity.value > best_similarity.value:
+            #     best_state = current_state
+            #     best_similarity = current_similarity
 
             if self.finished(current_state):
                 best_state = current_state
