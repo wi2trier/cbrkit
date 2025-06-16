@@ -470,7 +470,8 @@ class build[K, N, E, G](
                 heapq.heappush(open_set, PriorityState(next_prio, next_state))
 
             if self.beam_width > 0 and len(open_set) > self.beam_width:
-                open_set = open_set[: self.beam_width]
+                open_set = heapq.nsmallest(self.beam_width, open_set)
+                heapq.heapify(open_set)
 
         return self.similarity(
             x,
