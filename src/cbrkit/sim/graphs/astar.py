@@ -1,7 +1,7 @@
 import heapq
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 from ...helpers import (
     get_logger,
@@ -32,6 +32,33 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+
+def next_elem[K](elements: Collection[K]) -> K:
+    """Select the next element from a set deterministically.
+
+    If elements are sortable, returns the smallest one.
+    Otherwise, returns the first element from iteration.
+
+    Args:
+        elements: Set of elements to choose from
+
+    Returns:
+        A single element from the set
+
+    Raises:
+        ValueError: If the set is empty
+    """
+    if not elements:
+        raise ValueError("Cannot select from empty set")
+
+    if len(elements) == 1:
+        return next(iter(elements))
+
+    try:
+        return min(cast(Collection[Any], elements))
+    except TypeError:
+        return next(iter(elements))
 
 
 @dataclass(slots=True, frozen=True, order=True)
@@ -157,15 +184,11 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        try:
-            return next(iter(s.open_y_nodes)), "node"
-        except StopIteration:
-            pass
+        if s.open_y_nodes:
+            return next_elem(s.open_y_nodes), "node"
 
-        try:
-            return next(iter(s.open_y_edges)), "edge"
-        except StopIteration:
-            pass
+        if s.open_y_edges:
+            return next_elem(s.open_y_edges), "edge"
 
         return None
 
@@ -182,20 +205,18 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
     ) -> None | tuple[K, GraphElementType]:
         """Select the next node or edge to be mapped"""
 
-        try:
-            return next(
-                key
-                for key in s.open_y_edges
-                if y.edges[key].source.key not in s.open_y_nodes
-                and y.edges[key].target.key not in s.open_y_nodes
-            ), "edge"
-        except StopIteration:
-            pass
+        edge_candidates = {
+            key
+            for key in s.open_y_edges
+            if y.edges[key].source.key not in s.open_y_nodes
+            and y.edges[key].target.key not in s.open_y_nodes
+        }
 
-        try:
-            return next(iter(s.open_y_nodes)), "node"
-        except StopIteration:
-            pass
+        if edge_candidates:
+            return next_elem(edge_candidates), "edge"
+
+        if s.open_y_nodes:
+            return next_elem(s.open_y_nodes), "node"
 
         return None
 
@@ -246,19 +267,36 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         if not heuristic_scores:
             # Fallback: select any remaining node or edge for null mapping
+            # Use sorted to ensure deterministic selection
             if s.open_y_nodes:
-                return next(iter(s.open_y_nodes)), "node"
+                return next_elem(s.open_y_nodes), "node"
             elif s.open_y_edges:
-                return next(iter(s.open_y_edges)), "edge"
+                return next_elem(s.open_y_edges), "edge"
             return None
 
+        # Find the maximum heuristic score
         max_score = max(heuristic_scores.values())
-        best_selections = [
+        best_selections = {
             key for key, value in heuristic_scores.items() if value == max_score
-        ]
+        }
 
         # if multiple selections have the same score, select the one with the lowest number of possible mappings
-        best_selection = min(best_selections, key=lambda key: mapping_options[key])
+        if len(best_selections) > 1:
+            min_mapping_options = min(mapping_options[key] for key in best_selections)
+            best_selections = {
+                key
+                for key in best_selections
+                if mapping_options[key] == min_mapping_options
+            }
+
+        # select the one with the lowest key
+        try:
+            best_selection = min(
+                best_selections,
+                key=lambda item: cast(Any, item[0]),
+            )
+        except TypeError:
+            best_selection = next(iter(best_selections))
 
         selection_key, selection_type = best_selection
 
