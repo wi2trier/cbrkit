@@ -328,7 +328,7 @@ class build[K, N, E, G](
         beam_width: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
-        pathlength_weight: Add a penalty for states with few mapped elements that already have a low similarity.
+        pathlength_weight: Favor long partial edit paths over shorter ones.
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
 
     Returns:
@@ -394,22 +394,11 @@ class build[K, N, E, G](
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
-            node_null_mapping = (
-                set(y.nodes.keys())
-                - set(state.node_mapping.keys())
-                - set(state.open_y_nodes)
-            )
-            edge_null_mapping = (
-                set(y.edges.keys())
-                - set(state.edge_mapping.keys())
-                - set(state.open_y_edges)
-            )
-            num_paths = (
-                len(state.node_mapping)
-                + len(state.edge_mapping)
-                + len(node_null_mapping)
-                + len(edge_null_mapping)
-            )
+            # Calculate the number of mapping decisions made so far (partial edit path length)
+            # This includes actual mappings plus null mappings (elements processed but not mapped)
+            total_y_elements = len(y.nodes) + len(y.edges)
+            open_y_elements = len(state.open_y_nodes) + len(state.open_y_edges)
+            num_paths = total_y_elements - open_y_elements
             return prio / (self.pathlength_weight**num_paths)
 
         return prio
