@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.4](https://github.com/wi2trier/cbrkit/compare/v0.26.3...v0.26.4) (2025-06-16)
+
+### Bug Fixes
+
+* **sim/graphs/astar:** correctly apply beam width ([43a7e2b](https://github.com/wi2trier/cbrkit/commit/43a7e2b1698208de1c7ba16c9a5384081fc84568))
+* **sim/graphs/astar:** correctly apply pathlength weight ([a11e954](https://github.com/wi2trier/cbrkit/commit/a11e954d5ac2b0f91ffa12ea6f870037bdaaedee))
+* **sim/graphs/astar:** make selection deterministic ([f625385](https://github.com/wi2trier/cbrkit/commit/f625385534a911b905011e180c77fcd32a6bf090))
+
 ## [0.26.3](https://github.com/wi2trier/cbrkit/compare/v0.26.2...v0.26.3) (2025-06-12)
 
 ### Bug Fixes
