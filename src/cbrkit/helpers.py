@@ -71,6 +71,8 @@ __all__ = [
     "load_callables_map",
     "load_callables",
     "load_object",
+    "normalize",
+    "normalize_and_scale",
     "log_batch",
     "mp_count",
     "mp_map",
@@ -603,6 +605,30 @@ def scale(value: float, lower: float, upper: float) -> float:
         return value
 
     return value * (upper - lower) + lower
+
+
+def normalize(value: float, value_min: float, value_max: float) -> float:
+    """Normalize a value from [value_min, value_max] to [0, 1]."""
+    if value_max == value_min:
+        # Handle edge case where all values are identical
+        return 0.0
+
+    return (value - value_min) / (value_max - value_min)
+
+
+def normalize_and_scale(
+    value: float,
+    value_min: float,
+    value_max: float,
+    target_min: float,
+    target_max: float,
+) -> float:
+    """Normalize a value from [value_min, value_max] to [target_min, target_max]."""
+    # First normalize to [0, 1]
+    normalized = normalize(value, value_min, value_max)
+
+    # Then scale to target range
+    return scale(normalized, target_min, target_max)
 
 
 def load_object(import_name: str) -> Any:

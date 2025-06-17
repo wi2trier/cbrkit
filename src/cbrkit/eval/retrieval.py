@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from ..helpers import round, scale, unpack_float
+from ..helpers import normalize_and_scale, round, unpack_float
 from ..retrieval import Result, ResultStep
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 from .common import DEFAULT_METRICS, compute
@@ -65,12 +65,10 @@ def retrieval_step_to_qrels[Q, C, S: Float](
         min_sim = 0.0
         max_sim = 1.0
 
-    qrel_factor = max_qrel - min_qrel
-
     return {
         query: {
             case: round(
-                scale(sim, min_sim, max_sim) * qrel_factor + min_qrel,
+                normalize_and_scale(sim, min_sim, max_sim, min_qrel, max_qrel),
                 round_mode,
             )
             for case, sim in entry.items()
