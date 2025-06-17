@@ -1,6 +1,6 @@
 import itertools
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
 
@@ -247,6 +247,44 @@ class SearchState[K]:
     open_x_edges: frozenset[K]
 
 
+def sorted_iter[K](iterable: Iterable[K]) -> Iterable[K]:
+    """Sort an iterable if possible, otherwise return it unchanged."""
+    try:
+        return sorted(cast(Iterable[Any], iterable))
+    except TypeError:
+        return iterable
+
+
+def next_elem[K](
+    elements: Collection[K],
+    key: Callable[[K], Any] | None = None,
+) -> K:
+    """Select the next element from a set deterministically.
+
+    If elements are sortable, returns the smallest one.
+    Otherwise, returns the first element from iteration.
+
+    Args:
+        elements: Set of elements to choose from
+
+    Returns:
+        A single element from the set
+
+    Raises:
+        ValueError: If the set is empty
+    """
+    if not elements:
+        raise ValueError("Cannot select from empty set")
+
+    if len(elements) == 1:
+        return next(iter(elements))
+
+    try:
+        return min(cast(Iterable[Any], elements), key=key)
+    except TypeError:
+        return next(iter(elements))
+
+
 class SearchStateInit[K, N, E, G](Protocol):
     def __call__(
         self,
@@ -413,7 +451,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
                 state.open_x_nodes - {x_key},
                 state.open_x_edges,
             )
-            for x_key in state.open_x_nodes
+            for x_key in sorted_iter(state.open_x_nodes)
             if self.legal_node_mapping(x, y, state, x_key, y_key)
         ]
 
@@ -447,7 +485,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
                 state.open_x_nodes,
                 state.open_x_edges - {x_key},
             )
-            for x_key in state.open_x_edges
+            for x_key in sorted_iter(state.open_x_edges)
             if self.legal_edge_mapping(x, y, state, x_key, y_key)
         ]
 
@@ -473,10 +511,9 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         y_key: K,
     ) -> list[SearchState[K]]:
         """Expand a given edge and map its source/target node if not already mapped"""
-
         next_states: list[SearchState[K]] = []
 
-        for x_key in state.open_x_edges:
+        for x_key in sorted_iter(state.open_x_edges):
             next_state = state
             x_source_key = x.edges[x_key].source.key
             x_target_key = x.edges[x_key].target.key

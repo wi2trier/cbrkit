@@ -1,7 +1,7 @@
 import heapq
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol, cast
+from typing import Protocol
 
 from ...helpers import (
     get_logger,
@@ -13,11 +13,7 @@ from ...model.graph import (
     Node,
 )
 from ...typing import SimFunc
-from .common import (
-    GraphSim,
-    SearchGraphSimFunc,
-    SearchState,
-)
+from .common import GraphSim, SearchGraphSimFunc, SearchState, next_elem, sorted_iter
 
 __all__ = [
     "HeuristicFunc",
@@ -32,33 +28,6 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
-
-
-def next_elem[K](elements: Collection[K]) -> K:
-    """Select the next element from a set deterministically.
-
-    If elements are sortable, returns the smallest one.
-    Otherwise, returns the first element from iteration.
-
-    Args:
-        elements: Set of elements to choose from
-
-    Returns:
-        A single element from the set
-
-    Raises:
-        ValueError: If the set is empty
-    """
-    if not elements:
-        raise ValueError("Cannot select from empty set")
-
-    if len(elements) == 1:
-        return next(iter(elements))
-
-    try:
-        return min(cast(Collection[Any], elements))
-    except TypeError:
-        return next(iter(elements))
 
 
 @dataclass(slots=True, frozen=True, order=True)
@@ -207,7 +176,7 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         edge_candidates = {
             key
-            for key in s.open_y_edges
+            for key in sorted_iter(s.open_y_edges)
             if y.edges[key].source.key not in s.open_y_nodes
             and y.edges[key].target.key not in s.open_y_nodes
         }
@@ -290,15 +259,10 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
             }
 
         # select the one with the lowest key
-        try:
-            best_selection = min(
-                best_selections,
-                key=lambda item: cast(Any, item[0]),
-            )
-        except TypeError:
-            best_selection = next(iter(best_selections))
-
-        selection_key, selection_type = best_selection
+        selection_key, selection_type = next_elem(
+            best_selections,
+            key=lambda item: item[0],
+        )
 
         if selection_type == "edge":
             edge = y.edges[selection_key]
