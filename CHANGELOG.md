@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.5](https://github.com/wi2trier/cbrkit/compare/v0.26.4...v0.26.5) (2025-06-17)
+
+### Bug Fixes
+
+* **eval:** update kendall tau ([18fe9bc](https://github.com/wi2trier/cbrkit/commit/18fe9bce421504f2f04749544f7fd3962c28900e))
+* **sim/graphs:** sort keys before expansion ([7a16043](https://github.com/wi2trier/cbrkit/commit/7a16043b304390308a5ef25e8f36d0c9a1f2ad91))
+
 ## [0.26.4](https://github.com/wi2trier/cbrkit/compare/v0.26.3...v0.26.4) (2025-06-16)
 
 ### Bug Fixes
