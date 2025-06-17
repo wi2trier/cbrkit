@@ -244,7 +244,7 @@ def kendall_tau(
         qrel_relevant = {k for k, v in qrels[key].items() if v >= relevance_level}
         sorted_qrel_relevant = sorted(qrel_relevant, key=lambda x: qrels[key][x])
 
-        sorted_run = sorted(run.keys(), key=lambda x: run[key][x], reverse=True)
+        sorted_run = sorted(run[key].keys(), key=lambda x: run[key][x], reverse=True)
         run_k = sorted_run[: k if k > 0 else len(sorted_run)]
 
         max_idx = min(len(run_k), len(sorted_qrel_relevant))
