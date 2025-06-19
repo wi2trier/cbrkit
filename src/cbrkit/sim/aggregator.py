@@ -1,7 +1,6 @@
-import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import override
 
 from ..helpers import unpack_float
 from ..typing import (
@@ -11,42 +10,12 @@ from ..typing import (
     SimMap,
     SimSeq,
 )
+from .pooling import PoolingName, pooling_funcs
 
 __all__ = [
-    "PoolingName",
-    "pooling_funcs",
     "default_aggregator",
     "aggregator",
 ]
-
-
-type PoolingName = Literal[
-    "mean",
-    "fmean",
-    "geometric_mean",
-    "harmonic_mean",
-    "median",
-    "median_low",
-    "median_high",
-    "mode",
-    "min",
-    "max",
-    "sum",
-]
-
-pooling_funcs: dict[PoolingName, PoolingFunc] = {
-    "mean": statistics.mean,
-    "fmean": statistics.fmean,
-    "geometric_mean": statistics.geometric_mean,
-    "harmonic_mean": statistics.harmonic_mean,
-    "median": statistics.median,
-    "median_low": statistics.median_low,
-    "median_high": statistics.median_high,
-    "mode": statistics.mode,
-    "min": min,
-    "max": max,
-    "sum": sum,
-}
 
 
 @dataclass(slots=True, frozen=True)
@@ -71,7 +40,7 @@ class aggregator[K](AggregatorFunc[K, Float]):
         1.0
     """
 
-    pooling: PoolingName | PoolingFunc = "mean"
+    pooling: PoolingName | PoolingFunc[float] = "mean"
     pooling_weights: SimMap[K, float] | SimSeq[float] | None = None
     default_pooling_weight: float = 1.0
 

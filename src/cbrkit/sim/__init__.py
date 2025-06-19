@@ -9,8 +9,9 @@ there is also a measure for attribute-value data.
 Additionally, the module contains an aggregator to combine multiple local measures into a global score.
 """
 
-from . import collections, embed, generic, graphs, numbers, strings, taxonomy
-from .aggregator import PoolingName, aggregator
+from . import collections, embed, generic, graphs, numbers, pooling, strings, taxonomy
+from .aggregator import aggregator
+from .pooling import PoolingName
 from .attribute_value import AttributeValueSim, attribute_value
 from .wrappers import (
     attribute_table,
@@ -40,6 +41,7 @@ __all__ = [
     "graphs",
     "embed",
     "taxonomy",
+    "pooling",
     "aggregator",
     "PoolingName",
     "AttributeValueSim",
