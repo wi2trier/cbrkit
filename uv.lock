@@ -325,6 +325,9 @@ api = [
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
+chunking = [
+    { name = "chonkie" },
+]
 cli = [
     { name = "typer" },
 ]
@@ -385,6 +388,7 @@ requires-dist = [
     { name = "bm25s", extras = ["core", "stem"], marker = "extra == 'nlp'", specifier = ">=0.2,<1" },
     { name = "cbrkit", extras = ["api", "cli", "eval", "graphs", "graphviz", "llm", "nlp", "timeseries", "transformers"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
+    { name = "chonkie", marker = "extra == 'chunking'", specifier = ">=1,<2" },
     { name = "cohere", marker = "extra == 'llm'", specifier = ">=5,<6" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.100,<1" },
     { name = "frozendict", specifier = ">=2,<3" },
@@ -424,7 +428,7 @@ requires-dist = [
     { name = "voyageai", marker = "extra == 'llm'", specifier = ">=0.3,<1" },
     { name = "xmltodict", specifier = ">=0.13,<1" },
 ]
-provides-extras = ["all", "api", "cli", "eval", "graphs", "graphviz", "llm", "nlp", "timeseries", "transformers"]
+provides-extras = ["all", "api", "chunking", "cli", "eval", "graphs", "graphviz", "llm", "nlp", "timeseries", "transformers"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -479,6 +483,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/44/96/392abd49b094d30b91d9fbda6a69519e95802250b777841cf3bda8fe136c/charset_normalizer-3.4.2-cp313-cp313-win32.whl", hash = "sha256:aaeeb6a479c7667fbe1099af9617c83aaca22182d6cf8c53966491a0f1b7ffb7", size = 98064, upload-time = "2025-05-02T08:33:17.06Z" },
     { url = "https://files.pythonhosted.org/packages/e9/b0/0200da600134e001d91851ddc797809e2fe0ea72de90e09bec5a2fbdaccb/charset_normalizer-3.4.2-cp313-cp313-win_amd64.whl", hash = "sha256:aa6af9e7d59f9c12b33ae4e9450619cf2488e2bbe9b44030905877f0b2324980", size = 105641, upload-time = "2025-05-02T08:33:18.753Z" },
     { url = "https://files.pythonhosted.org/packages/20/94/c5790835a017658cbfabd07f3bfb549140c3ac458cfc196323996b10095a/charset_normalizer-3.4.2-py3-none-any.whl", hash = "sha256:7f56930ab0abd1c45cd15be65cc741c28b1c9a34876ce8c17a2fa107810c0af0", size = 52626, upload-time = "2025-05-02T08:34:40.053Z" },
+]
+
+[[package]]
+name = "chonkie"
+version = "1.0.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tokenizers" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/d9/be009f2793235c8f5712cfa5598e7078446c6197e90cc4250d86fb1d4871/chonkie-1.0.10.tar.gz", hash = "sha256:09a57277f755b3bd9c66052378c34ba778d2fc67d37cdc819fc378d195f7c6ea", size = 262623, upload-time = "2025-06-07T19:37:03.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/eb/cc19e7d2edcd3110325cd8957befd7b329a095538d79c1d9f595c803bff9/chonkie-1.0.10-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:9e0995af48b1d931a7f7de8e4f230a28dcfa0010c2d1911a90e0fab90177f5b5", size = 344947, upload-time = "2025-06-07T19:36:55.761Z" },
+    { url = "https://files.pythonhosted.org/packages/00/78/48767cfd6162cf15050d99406096b3391992f2c45cc02d532edd594e78cd/chonkie-1.0.10-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:06795b10fb9f2dbfb46e3c88e397166c950591980827426187e72049761e4d70", size = 650394, upload-time = "2025-06-07T19:36:56.815Z" },
+    { url = "https://files.pythonhosted.org/packages/69/30/687c8ecc0af2fbf353cae9969f0c7cf41fd865f5745aa59bf33ab19c3ab1/chonkie-1.0.10-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:ce0be28214fbd7350e581f8df321e420b49f1d9844f92d24d5935140aad7de46", size = 343891, upload-time = "2025-06-07T19:36:58.227Z" },
+    { url = "https://files.pythonhosted.org/packages/00/2a/e93ebaef62bfa3b59248c4b9587d105ba0bcb6f1f163cd12e94510f8c098/chonkie-1.0.10-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8f80c15717c60478e75088b45b9bf8d896fb887c8034d1431eabe1643d7d59a8", size = 644326, upload-time = "2025-06-07T19:36:59.613Z" },
 ]
 
 [[package]]
