@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override
 
 from ..helpers import optional_dependencies
-from ..typing import FilePath, SimFunc
+from ..typing import FilePath, JsonDict, SimFunc
 from .generic import static_table
 
 __all__ = [
@@ -21,19 +21,15 @@ __all__ = [
 ]
 
 
-def table(
-    entries: Sequence[tuple[str, str, float]]
-    | Mapping[tuple[str, str], float]
-    | FilePath,
-    symmetric: bool = True,
-    default: float = 0.0,
-) -> SimFunc[str, float]:
-    """Allows to import a similarity values from a table.
+@dataclass(slots=True)
+class table(static_table[str]):
+    """Allows to import a similarity values from a table with optional case-insensitive matching.
 
     Args:
         entries: Sequence[tuple[a, b, sim(a, b)]
         symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
         default: Default similarity value for batches not in the table
+        case_sensitive: If True, the comparison is case-sensitive
 
     Examples:
         >>> sim = table(
@@ -46,27 +42,71 @@ def table(
         >>> sim("a", "c")
         0.0
     """
-    if isinstance(entries, str | Path):
-        if isinstance(entries, str):
-            entries = Path(entries)
 
-        if entries.suffix != ".csv":
-            raise NotImplementedError()
+    case_sensitive: bool
 
-        with entries.open() as f:
-            reader = csv.reader(f)
-            parsed_entries = [(x, y, float(z)) for x, y, z in reader]
+    def __init__(
+        self,
+        entries: Sequence[tuple[str, str, float]]
+        | Mapping[tuple[str, str], float]
+        | FilePath,
+        default: float = 0.0,
+        symmetric: bool = True,
+        case_sensitive: bool = True,
+    ):
+        self.case_sensitive = case_sensitive
 
-    else:
-        parsed_entries = entries
+        # Parse entries from file if needed
+        if isinstance(entries, str | Path):
+            if isinstance(entries, str):
+                entries = Path(entries)
 
-    return static_table(parsed_entries, symmetric=symmetric, default=default)
+            if entries.suffix != ".csv":
+                raise NotImplementedError()
+
+            with entries.open() as f:
+                reader = csv.reader(f)
+                if case_sensitive:
+                    parsed_entries = [(x, y, float(z)) for x, y, z in reader]
+                else:
+                    parsed_entries = [
+                        (x.lower(), y.lower(), float(z)) for x, y, z in reader
+                    ]
+        else:
+            if case_sensitive:
+                parsed_entries = entries
+            else:
+                if isinstance(entries, Mapping):
+                    parsed_entries = {
+                        (k[0].lower(), k[1].lower()): v for k, v in entries.items()
+                    }
+                else:
+                    parsed_entries = [(x.lower(), y.lower(), z) for x, y, z in entries]
+
+        # Call parent constructor
+        super().__init__(parsed_entries, default=default, symmetric=symmetric)
+
+    @property
+    @override
+    def metadata(self) -> JsonDict:
+        meta = super().metadata
+        meta["case_sensitive"] = self.case_sensitive
+        return meta
+
+    @override
+    def __call__(self, x: str, y: str) -> float:
+        if not self.case_sensitive:
+            x = x.lower()
+            y = y.lower()
+        return super().__call__(x, y)
 
 
 @dataclass(slots=True, frozen=True)
 class regex(SimFunc[str, float]):
     """Compares a case x to a query y, written as a regular expression. If the case matches the query, the similarity is 1.0, otherwise 0.0.
 
+    Args:
+        case_sensitive: If True, the comparison is case-sensitive
     Examples:
         >>> sim = regex()
         >>> sim("Test1", "T.st[0-9]")
@@ -75,10 +115,13 @@ class regex(SimFunc[str, float]):
         0.0
     """
 
+    case_sensitive: bool = True
+
     @override
     def __call__(self, x: str, y: str) -> float:
-        regex = re.compile(y)
-        return 1.0 if regex.match(x) else 0.0
+        flags = 0 if self.case_sensitive else re.IGNORECASE
+        regex_pattern = re.compile(y, flags)
+        return 1.0 if regex_pattern.match(x) else 0.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -95,7 +138,7 @@ class glob(SimFunc[str, float]):
         0.0
     """
 
-    case_sensitive: bool = False
+    case_sensitive: bool = True
 
     @override
     def __call__(self, x: str, y: str) -> float:
@@ -139,6 +182,7 @@ with optional_dependencies():
 
         Args:
             score_cutoff: If the similarity is less than this value, the function will return 0.0.
+            case_sensitive: If True, the comparison is case-sensitive
         Examples:
             >>> sim = jaro()
             >>> sim("kitten", "sitting")
@@ -149,9 +193,13 @@ with optional_dependencies():
         """
 
         score_cutoff: float | None = None
+        case_sensitive: bool = True
 
         @override
         def __call__(self, x: str, y: str) -> float:
+            if not self.case_sensitive:
+                x, y = x.lower(), y.lower()
+
             return levenshtein_lib.jaro(x, y, score_cutoff=self.score_cutoff)
 
     @dataclass(slots=True, frozen=True)
@@ -161,6 +209,7 @@ with optional_dependencies():
         Args:
             score_cutoff: If the similarity is less than this value, the function will return 0.0.
             prefix_weight: Weight used for the common prefix of the two strings. Has to be between 0 and 0.25. Default is 0.1.
+            case_sensitive: If True, the comparison is case-sensitive
         Examples:
             >>> sim = jaro_winkler()
             >>> sim("kitten", "sitting")
@@ -172,9 +221,13 @@ with optional_dependencies():
 
         score_cutoff: float | None = None
         prefix_weight: float = 0.1
+        case_sensitive: bool = True
 
         @override
         def __call__(self, x: str, y: str) -> float:
+            if not self.case_sensitive:
+                x, y = x.lower(), y.lower()
+
             return levenshtein_lib.jaro_winkler(
                 x, y, score_cutoff=self.score_cutoff, prefix_weight=self.prefix_weight
             )
@@ -199,7 +252,7 @@ with optional_dependencies():
         """
 
         n: int
-        case_sensitive: bool = False
+        case_sensitive: bool = True
         tokenizer: Callable[[str], Sequence[str]] | None = None
 
         @override
