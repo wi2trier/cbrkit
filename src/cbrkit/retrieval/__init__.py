@@ -4,6 +4,9 @@ from .apply import apply_batches, apply_queries, apply_query
 from .build import build, combine, distribute, dropout, transpose, transpose_value
 
 with optional_dependencies():
+    from .build import chunk
+
+with optional_dependencies():
     from .rerank import cohere
 
 with optional_dependencies():
@@ -22,6 +25,7 @@ __all__ = [
     "dropout",
     "distribute",
     "combine",
+    "chunk",
     "apply_batches",
     "apply_queries",
     "apply_query",

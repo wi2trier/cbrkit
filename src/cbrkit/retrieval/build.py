@@ -12,6 +12,7 @@ from ..helpers import (
     mp_count,
     mp_map,
     mp_starmap,
+    optional_dependencies,
     sim_map2ranking,
     unpack_float,
     use_mp,
@@ -315,3 +316,47 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
             similarities[idx][key] = sim
 
         return similarities
+
+
+with optional_dependencies():
+    from chonkie import BaseChunker
+
+    @dataclass(slots=True, frozen=True)
+    class chunk[S: Float](RetrieverFunc[str, str, S]):
+        """Chunks string cases using the chonkie library before retrieval.
+
+        This retriever is special in that it returns a different set of cases for each batch
+        it processes, as it splits the original string cases into chunks.
+
+        Args:
+            retriever_func: The retriever function to be used on the chunked strings.
+            chunker: A BaseChunker instance from the chonkie library.
+
+        Returns:
+            A retriever function that chunks string cases and retrieves from the chunks.
+        """
+
+        retriever_func: RetrieverFunc[str, str, S]
+        chunker: BaseChunker
+
+        @override
+        def __call__(
+            self, batches: Sequence[tuple[Casebase[str, str], str]]
+        ) -> Sequence[SimMap[str, S]]:
+            chunked_batches: list[tuple[Casebase[str, str], str]] = []
+
+            for casebase, query in batches:
+                chunked_casebase: dict[str, str] = {}
+
+                for case_key, case_text in casebase.items():
+                    chunks = self.chunker.chunk(case_text)
+
+                    for i, chunk in enumerate(chunks):
+                        chunk_key = f"{case_key}-chunk{i}"
+                        chunked_casebase[chunk_key] = (
+                            chunk if isinstance(chunk, str) else chunk.text
+                        )
+
+                chunked_batches.append((chunked_casebase, query))
+
+            return self.retriever_func(chunked_batches)
