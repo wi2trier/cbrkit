@@ -89,6 +89,7 @@ type MaybeFactories[T] = T | Factory[T] | Sequence[T | Factory[T]]
 
 
 class ConversionFunc[U, V](Protocol):
+    """Converts a single value from type U to type V."""
     def __call__(
         self,
         batch: U,
@@ -97,6 +98,7 @@ class ConversionFunc[U, V](Protocol):
 
 
 class BatchConversionFunc[U, V](Protocol):
+    """Converts multiple values from type U to type V in batch."""
     def __call__(
         self,
         batches: Sequence[U],
@@ -108,6 +110,7 @@ type AnyConversionFunc[U, V] = ConversionFunc[U, V] | BatchConversionFunc[U, V]
 
 
 class PositionalFunc[T](Protocol):
+    """Callable that accepts any positional and keyword arguments and returns T."""
     def __call__(
         self,
         *args: Any,
@@ -116,6 +119,7 @@ class PositionalFunc[T](Protocol):
 
 
 class BatchPositionalFunc[T](Protocol):
+    """Processes multiple inputs in batch, returning a sequence of T."""
     def __call__(
         self,
         batches: Sequence[Any],
@@ -127,10 +131,12 @@ type AnyPositionalFunc[T] = PositionalFunc[T] | BatchPositionalFunc[T]
 
 
 class NamedFunc[T](Protocol):
+    """Generic callable that returns type T."""
     def __call__(self, *args: Any, **kwargs: Any) -> T: ...
 
 
 class BatchNamedFunc[T](Protocol):
+    """Processes multiple generic inputs in batch, returning a sequence of T."""
     def __call__(
         self,
         batches: Sequence[Any],
@@ -142,6 +148,7 @@ type AnyNamedFunc[T] = NamedFunc[T] | BatchNamedFunc[T]
 
 
 class SimFunc[V, S: Float](Protocol):
+    """Computes similarity between two values of type V."""
     def __call__(
         self,
         x: V,
@@ -151,6 +158,7 @@ class SimFunc[V, S: Float](Protocol):
 
 
 class BatchSimFunc[V, S: Float](Protocol):
+    """Computes similarities for multiple value pairs in batch."""
     def __call__(
         self,
         batches: Sequence[tuple[V, V]],
@@ -162,6 +170,7 @@ type AnySimFunc[V, S: Float] = SimFunc[V, S] | BatchSimFunc[V, S]
 
 
 class RetrieverFunc[K, V, S: Float](Protocol):
+    """Retrieves similar cases from casebases for given queries."""
     def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
@@ -170,6 +179,7 @@ class RetrieverFunc[K, V, S: Float](Protocol):
 
 
 class AdaptationFunc[V](Protocol):
+    """Adapts a case to match a query."""
     def __call__(
         self,
         case: V,
@@ -179,6 +189,7 @@ class AdaptationFunc[V](Protocol):
 
 
 class BatchAdaptationFunc[V](Protocol):
+    """Adapts multiple case-query pairs in batch."""
     def __call__(
         self,
         batches: Sequence[tuple[V, V]],
@@ -187,6 +198,7 @@ class BatchAdaptationFunc[V](Protocol):
 
 
 class MapAdaptationFunc[K, V](Protocol):
+    """Adapts all cases in a casebase to match a query."""
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -196,6 +208,7 @@ class MapAdaptationFunc[K, V](Protocol):
 
 
 class ReduceAdaptationFunc[K, V](Protocol):
+    """Selects and adapts the best case from a casebase for a query."""
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -210,6 +223,7 @@ type AnyAdaptationFunc[K, V] = (
 
 
 class ReuserFunc[K, V, S: Float](Protocol):
+    """Reuses cases by adapting and computing similarities for queries."""
     def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
@@ -218,6 +232,7 @@ class ReuserFunc[K, V, S: Float](Protocol):
 
 
 class AggregatorFunc[K, S: Float](Protocol):
+    """Aggregates multiple similarity scores into a single value."""
     def __call__(
         self,
         similarities: SimMap[K, S] | SimSeq[S],
@@ -226,6 +241,7 @@ class AggregatorFunc[K, S: Float](Protocol):
 
 
 class PoolingFunc[T](Protocol):
+    """Pools multiple values into a single representative value."""
     def __call__(
         self,
         values: Sequence[T],
@@ -234,6 +250,7 @@ class PoolingFunc[T](Protocol):
 
 
 class BatchPoolingFunc[T](Protocol):
+    """Pools multiple sequences of values in batch."""
     def __call__(
         self,
         batches: Sequence[Sequence[T]],
@@ -245,6 +262,7 @@ type AnyPoolingFunc[T] = PoolingFunc[T] | BatchPoolingFunc[T]
 
 
 class EvalMetricFunc(Protocol):
+    """Evaluates retrieval quality using relevance judgments."""
     def __call__(
         self,
         /,
@@ -256,6 +274,7 @@ class EvalMetricFunc(Protocol):
 
 
 class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
+    """Creates prompts from casebases, queries, and similarities."""
     def __call__(
         self,
         casebase: Casebase[K, V],
@@ -266,6 +285,7 @@ class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
 
 
 class SynthesizerFunc[T, K, V, S: Float](Protocol):
+    """Synthesizes results from casebases, queries, and similarities in batch."""
     def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, V], V | None, SimMap[K, S] | None]],
