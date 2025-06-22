@@ -84,12 +84,14 @@ class table(static_table[str]):
                     parsed_entries = [(x.lower(), y.lower(), z) for x, y, z in entries]
 
         # Call parent constructor
-        super().__init__(parsed_entries, default=default, symmetric=symmetric)
+        super(table, self).__init__(
+            parsed_entries, default=default, symmetric=symmetric
+        )
 
     @property
     @override
     def metadata(self) -> JsonDict:
-        meta = super().metadata
+        meta = super(table, self).metadata
         meta["case_sensitive"] = self.case_sensitive
         return meta
 
@@ -98,7 +100,7 @@ class table(static_table[str]):
         if not self.case_sensitive:
             x = x.lower()
             y = y.lower()
-        return super().__call__(x, y)
+        return super(table, self).__call__(x, y)
 
 
 @dataclass(slots=True, frozen=True)
