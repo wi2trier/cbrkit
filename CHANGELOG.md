@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.27.0](https://github.com/wi2trier/cbrkit/compare/v0.26.5...v0.27.0) (2025-06-22)
+
+### Features
+
+* **retrieval:** add chunk helper to transform string cases ([7875530](https://github.com/wi2trier/cbrkit/commit/78755300f7b6c4ba1de1b65446b1e824c5d7d7c7))
+* **sim/strings:** add case_sensitive parameters (true by default) to all functions ([32fd142](https://github.com/wi2trier/cbrkit/commit/32fd1428ea7d501182d0f69820e3202c644efe5f))
+* **sim:** add pooling module and update aggregator to use it ([12a973f](https://github.com/wi2trier/cbrkit/commit/12a973f87a53e309f7a81a2e37e8bfce09b60692))
+
+### Bug Fixes
+
+* **sim/strings:** correctly call super for table ([2b4ad8d](https://github.com/wi2trier/cbrkit/commit/2b4ad8d3c604217b65ca2c90607d067cfee7f1e6))
+* **typing:** add docstrings to all protocols ([88f0ae1](https://github.com/wi2trier/cbrkit/commit/88f0ae1588c1ebda1eeadc1a504c6d1d6497a7ef))
+
 ## [0.26.5](https://github.com/wi2trier/cbrkit/compare/v0.26.4...v0.26.5) (2025-06-17)
 
 ### Bug Fixes
