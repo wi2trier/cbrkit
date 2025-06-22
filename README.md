@@ -37,12 +37,25 @@ Further examples can be found in our [tests](./tests/test_retrieve.py) and [docu
 The following modules are part of CBRkit:
 
 - `cbrkit.loaders` and `cbrkit.dumpers`: Functions for loading and exporting cases and queries.
-- `cbrkit.sim`: Similarity generator functions for common data types like strings and numbers.
-- `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines.
+- `cbrkit.sim`: Similarity functions for common data types and some utility functions such as `cache`, `combine`, `transpose`, etc.
+  - `cbrkit.sim.strings`: String similarity measures (Levenshtein, Jaro, semantic, etc.).
+  - `cbrkit.sim.numbers`: Numeric similarity measures (linear, exponential, threshold).
+  - `cbrkit.sim.collections`: Similarity measures for collections and sequences (Jaccard, DTW, Smith-Waterman).
+  - `cbrkit.sim.embed`: Embedding-based similarity functions with caching support.
+  - `cbrkit.sim.graphs`: Graph similarity algorithms including GED, A*, VF2, and more.
+  - `cbrkit.sim.taxonomy`: Taxonomy-based similarity functions.
+  - `cbrkit.sim.generic`: Generic similarity functions (equality, tables, static).
+  - `cbrkit.sim.attribute_value`: Similarity for attribute-value based data.
+  - `cbrkit.sim.pooling`: Functions for aggregating multiple similarity values.
+  - `cbrkit.sim.aggregator`: Combines multiple local measures into global scores.
+- `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines, includes BM25 retrieval, rerankers, etc.
 - `cbrkit.adapt`: Adaptation generator functions for adapting cases based on a query.
 - `cbrkit.reuse`: Functions for defining and applying reuse pipelines.
+- `cbrkit.eval`: Evaluation metrics for retrieval results including precision, recall, and custom metrics.
+- `cbrkit.model`: Data models for graphs and results.
+- `cbrkit.cycle`: CBR cycle implementation.
 - `cbrkit.typing`: Generic type definitions for defining custom functions.
-- `cbrkit.synthesis`: Functions for working on a casebase with LLMs to create new insights, e.g. in a RAG context.
+- `cbrkit.synthesis`: Functions for working on a casebase with LLMs to create new insights, e.g., in a RAG context.
 
 ## Installation
 
@@ -153,17 +166,124 @@ You need to make sure that the two parameters are named `x` and `y`, otherwise C
 
 ### Built-in Similarity Measures
 
-CBRkit also contains a selection of built-in similarity measures for the most common data types in the module `cbrkit.sim`.
+CBRkit contains a comprehensive selection of built-in similarity measures for various data types in the module `cbrkit.sim`.
 They are provided through **generator functions** that allow you to customize the behavior of the built-in measures.
-For example, an spacy-based embedding similarity measure can be obtained as follows:
+
+#### String Similarity
 
 ```python
-semantic_similarity = cbrkit.sim.strings.spacy(model="en_core_web_lg")
+# Semantic similarity is covered by the `cbrkit.sim.embed` module.
+# See below for details.
+
+# Edit distance measures
+levenshtein_sim = cbrkit.sim.strings.levenshtein()
+jaro_sim = cbrkit.sim.strings.jaro()
+
+# Exact matching
+equality_sim = cbrkit.sim.generic.equality()
 ```
 
-**Please note:** Calling the function `cbrkit.sim.strings.spacy` returns a similarity function itself that has the same signature as the `color_similarity` function defined above.
+#### Number Similarity
+
+```python
+# Linear similarity with optional thresholds
+linear_sim = cbrkit.sim.numbers.linear(max_distance=100)
+
+# Exponential decay similarity
+exp_sim = cbrkit.sim.numbers.exponential(alpha=0.1)
+
+# Step functions
+threshold_sim = cbrkit.sim.numbers.threshold(threshold=50)
+```
+
+#### Embedding-Based Similarity
+
+```python
+# Build a similarity function with embedding and scorer
+embed_sim = cbrkit.sim.embed.build(
+    conversion_func=cbrkit.sim.embed.sentence_transformers(
+        model="all-MiniLM-L6-v2"
+    ),
+    sim_func=cbrkit.sim.embed.cosine()  # or dot(), angular(), euclidean(), manhattan()
+)
+
+# Using OpenAI embeddings
+openai_sim = cbrkit.sim.embed.build(
+    conversion_func=cbrkit.sim.embed.openai(
+        model="text-embedding-3-small"
+    ),
+    sim_func=cbrkit.sim.embed.cosine()
+)
+
+# Caching embeddings for performance
+cached_embed_func = cbrkit.sim.embed.cache(
+    func=cbrkit.sim.embed.sentence_transformers(
+        model="all-MiniLM-L6-v2"
+    ),
+    path="embeddings_cache.npz",
+    autodump=True,
+    autoload=True
+)
+cached_sim = cbrkit.sim.embed.build(
+    conversion_func=cached_embed_func,
+    sim_func=cbrkit.sim.embed.cosine()
+)
+```
+
+#### Taxonomy-Based Similarity
+
+```python
+# Load taxonomy from file
+taxonomy_sim = cbrkit.sim.taxonomy.build(
+    path="taxonomy.yaml",
+    measure=cbrkit.sim.taxonomy.wu_palmer(),
+)
+```
+
+#### Utility Functions
+
+```python
+# Combining multiple similarity functions
+combined_sim = cbrkit.sim.combine(
+    sim_funcs=[sim1, sim2, sim3],
+    aggregator=cbrkit.sim.aggregator(pooling="mean")
+)
+
+# Caching similarity results
+cached_sim = cbrkit.sim.cache(base_sim_func)
+
+# Transposing similarity functions
+transposed_sim = cbrkit.sim.transpose(
+    sim_func=number_sim,
+    to_x=lambda s: float(s),
+    to_y=lambda s: float(s)
+)
+```
+
+**Please note:** Calling these functions returns a similarity function itself that has the signature `sim = f(x, y)`.
 
 An overview of all available similarity measures can be found in the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim.html).
+
+### Graph Similarity
+
+CBRkit provides extensive support for graph similarity through various algorithms:
+
+```python
+# Using Graph Edit Distance (GED) with A* search
+graph_sim = cbrkit.sim.graphs.astar(
+    node_sim=cbrkit.sim.generic.equality(),
+    node_matcher=lambda n1, n2: n1 == n2,
+    edge_matcher=lambda e1, e2: e1 == e2
+)
+```
+
+Available graph algorithms include:
+- `astar`: A* search for optimal graph edit distance
+- `vf2`: VF2 algorithm for (sub)graph isomorphism
+- `lap`: Linear assignment problem solver
+- `greedy`: Fast greedy matching
+- `brute_force`: Exhaustive search for small graphs
+- `dfs`: Depth-first search based matching
 
 ### Global Similarity and Aggregation
 
@@ -295,9 +415,8 @@ They are provided through **generator functions** that allow you to customize th
 For example, a number aggregator can be obtained as follows:
 
 ```python
-# pooling must be a PoolingFunction or one of the provided PoolingNames
-pooling = "mean"
-number_adapter = cbrkit.adapt.numbers.aggregate(pooling)
+# pooling can be a string like "mean", "min", "max", "sum", etc. or a custom PoolingFunction
+number_adapter = cbrkit.adapt.numbers.aggregate(pooling="mean")
 ```
 
 **Please note:** Calling the function `cbrkit.adapt.numbers.aggregate` returns an adaptation function that takes a collection of values and returns an adapted value.
@@ -350,6 +469,46 @@ result = cbrkit.reuse.apply_query(retrieval_result, query, (reuser1, reuser2))
 ```
 
 The result structure follows the same pattern as the retrieval results with `final_step` and `steps` attributes.
+
+## Advanced Retrieval
+
+### BM25 Retrieval
+
+CBRkit includes a BM25 retriever for text-based retrieval:
+
+```python
+retriever = cbrkit.retrieval.bm25(
+    key="text_field",  # Field to search in
+    limit=10
+)
+result = cbrkit.retrieval.apply_query(casebase, query, retriever)
+```
+
+### Combining Multiple Retrievers
+
+The `combine` function allows merging results from multiple retrievers:
+
+```python
+retriever1 = cbrkit.retrieval.build(...)
+retriever2 = cbrkit.retrieval.bm25(...)
+
+combined = cbrkit.retrieval.combine(
+    retrievers=[retriever1, retriever2],
+    aggregator=cbrkit.sim.aggregator(pooling="mean")
+)
+result = cbrkit.retrieval.apply_query(casebase, query, combined)
+```
+
+### Distributed Processing
+
+For large-scale retrieval, use the `distribute` wrapper:
+
+```python
+retriever = cbrkit.retrieval.distribute(
+    cbrkit.retrieval.build(...),
+    batch_size=1000
+)
+```
 
 ## Evaluation
 
@@ -436,7 +595,8 @@ response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
 
 ### Working with large casebases
 
-Because the built-in `default` and `document_aware` prompt functions include the entire casebase as context, the LLM input can be quite long when working with a large casebase. Because of this, in this case, we recommend transposing the cases (e.g. truncate every case to a fixed length) and/or apply chunking.
+Because the built-in `default` and `document_aware` prompt functions include the entire casebase as context, the LLM input can be quite long when working with a large casebase.
+Because of this, in this case, we recommend transposing the cases (e.g., truncate every case to a fixed length) and/or apply chunking.
 
 #### Transposing cases
 
@@ -449,7 +609,7 @@ from cbrkit.dumpers import json_markdown
 def encoder(value) -> dict:
     ...
 baseprompt = cbrkit.synthesis.prompts.default(instructions, encoder=encoder)
-# transform the entries, e.g. by shortening, leaving out irrelevant attributes, etc.
+# transform the entries, e.g., by shortening, leaving out irrelevant attributes, etc.
 # In this case, the value of every field is trunctated to 100 characters
 def shorten(entry: dict) -> JsonEntry:
     entry = {k: str(v)[:100] for k,v in entry.items()}
