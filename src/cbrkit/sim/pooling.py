@@ -49,9 +49,9 @@ pooling_funcs: dict[PoolingName, PoolingFunc[float]] = {
 @dataclass(slots=True, frozen=True)
 class k_min(PoolingFunc[float]):
     """Return the k-th smallest value (1-indexed)."""
-    
+
     k: int = 1
-    
+
     @override
     def __call__(self, values: Sequence[float]) -> float:
         # Handle k=0 as k=1
@@ -63,9 +63,9 @@ class k_min(PoolingFunc[float]):
 @dataclass(slots=True, frozen=True)
 class k_max(PoolingFunc[float]):
     """Return the k-th largest value (1-indexed)."""
-    
+
     k: int = 1
-    
+
     @override
     def __call__(self, values: Sequence[float]) -> float:
         # Handle k=0 as k=1
@@ -77,9 +77,9 @@ class k_max(PoolingFunc[float]):
 @dataclass(slots=True, frozen=True)
 class minkowski(PoolingFunc[float]):
     """Compute the Minkowski norm (p-norm) of values."""
-    
+
     p: float = 2.0
-    
+
     @override
     def __call__(self, values: Sequence[float]) -> float:
         if self.p == float("inf"):
@@ -94,7 +94,7 @@ class minkowski(PoolingFunc[float]):
 @dataclass(slots=True, frozen=True)
 class euclidean(PoolingFunc[float]):
     """Compute the Euclidean norm (2-norm) of values."""
-    
+
     @override
     def __call__(self, values: Sequence[float]) -> float:
-        return sum(v ** 2 for v in values) ** 0.5
+        return sum(v**2 for v in values) ** 0.5
