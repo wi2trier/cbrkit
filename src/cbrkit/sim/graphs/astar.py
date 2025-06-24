@@ -3,17 +3,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from ...helpers import (
-    get_logger,
-    unpack_float,
-)
-from ...model.graph import (
-    Graph,
-    GraphElementType,
-    Node,
-)
+from frozendict import frozendict
+from scipy.optimize import linear_sum_assignment
+
+from ...helpers import get_logger, unpack_float
+from ...model.graph import Graph, GraphElementType, Node
 from ...typing import SimFunc
 from .common import GraphSim, SearchGraphSimFunc, SearchState, next_elem, sorted_iter
+from .lap import lap_base
 
 __all__ = [
     "HeuristicFunc",
@@ -21,9 +18,11 @@ __all__ = [
     "h1",
     "h2",
     "h3",
+    "h4",
     "select1",
     "select2",
     "select3",
+    "select4",
     "build",
 ]
 
@@ -139,6 +138,45 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
             )
 
         return h_val / (len(y.nodes) + len(y.edges))
+
+
+@dataclass(slots=True)
+class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: SearchState[K],
+        node_pair_sims: Mapping[tuple[K, K], float],
+        edge_pair_sims: Mapping[tuple[K, K], float],
+    ) -> float:
+        cost_matrix = self.build_cost_matrix(
+            Graph(
+                nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
+                edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+                value=x.value,
+            ),
+            Graph(
+                nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
+                edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+                value=y.value,
+            ),
+            node_pair_sims,
+            edge_pair_sims,
+        )
+        row_idx, col_idx = linear_sum_assignment(cost_matrix)
+        cost: float = cost_matrix[row_idx, col_idx].sum()
+
+        upper_bound = (
+            len(y.nodes) * self.node_del_cost
+            + len(x.nodes) * self.node_ins_cost
+            + len(y.edges) * self.edge_del_cost
+            + len(x.edges) * self.edge_ins_cost
+        )
+
+        normalized_cost = min(cost / upper_bound, 1.0) if upper_bound > 0 else 0.0
+
+        return 1 - normalized_cost
 
 
 @dataclass(slots=True, frozen=True)
@@ -273,6 +311,61 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
                 return edge.target.key, "node"
 
         return selection_key, selection_type
+
+
+@dataclass(slots=True)
+class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        s: SearchState[K],
+        node_pair_sims: Mapping[tuple[K, K], float],
+        edge_pair_sims: Mapping[tuple[K, K], float],
+    ) -> None | tuple[K, GraphElementType]:
+        """Select the next node or edge to be mapped"""
+
+        edge_candidates = {
+            key
+            for key in sorted_iter(s.open_y_edges)
+            if y.edges[key].source.key not in s.open_y_nodes
+            and y.edges[key].target.key not in s.open_y_nodes
+        }
+
+        if edge_candidates:
+            return next_elem(edge_candidates), "edge"
+
+        if s.open_y_nodes:
+            if len(s.open_x_nodes) == 0:
+                return next_elem(s.open_y_nodes), "node"
+
+            cost_matrix = self.build_cost_matrix(
+                Graph(
+                    nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
+                    edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+                    value=x.value,
+                ),
+                Graph(
+                    nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
+                    edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+                    value=y.value,
+                ),
+                node_pair_sims,
+                edge_pair_sims,
+            )
+            row2y = {r: k for r, k in enumerate(s.open_y_nodes)}
+            # get upper left quadrant
+            subst_cost_matrix = cost_matrix[
+                : len(s.open_y_nodes), : len(s.open_x_nodes)
+            ]
+            # get row with lowest minimum value, this is the index of the node to select
+            row_mins = subst_cost_matrix.min(axis=1)
+            row_idx = row_mins.argmin()
+            y_key = row2y[row_idx]
+
+            return y_key, "node"
+
+        return None
 
 
 @dataclass(slots=True)
