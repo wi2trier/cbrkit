@@ -9,17 +9,15 @@ from ...helpers import get_logger
 from ...model.graph import (
     Graph,
 )
-from ...typing import SimFunc
+from ...typing import NumpyArray, SimFunc
 from .common import BaseGraphSimFunc, GraphSim, PairSim
 
 logger = get_logger(__name__)
 
 
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
-@dataclass(slots=True)
-class lap[K, N, E, G](
-    BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
-):
+@dataclass
+class lap_base[K, N, E, G]:
     greedy: bool = True
     node_del_cost: float = 1.0
     node_ins_cost: float = 1.0
@@ -106,13 +104,13 @@ class lap[K, N, E, G](
         row2y = {r: k for r, k in enumerate(y_edges)}
         col2x = {c: k for c, k in enumerate(x_edges)}
 
-        cost = np.full((dim, dim), np.inf, dtype=float)
+        cost_matrix = np.full((dim, dim), np.inf, dtype=float)
         # empty quadrant
-        cost[rows:, cols:] = 0.0
+        cost_matrix[rows:, cols:] = 0.0
         # deletion diagonal
-        np.fill_diagonal(cost[rows:, :cols], self.edge_del_cost)
+        np.fill_diagonal(cost_matrix[rows:, :cols], self.edge_del_cost)
         # insertion diagonal
-        np.fill_diagonal(cost[:rows, cols:], self.edge_ins_cost)
+        np.fill_diagonal(cost_matrix[:rows, cols:], self.edge_ins_cost)
 
         for r, c in itertools.product(range(rows), range(cols)):
             if (
@@ -120,19 +118,19 @@ class lap[K, N, E, G](
                 and (x_key := col2x.get(c))
                 and (sim := edge_pair_sims.get((y_key, x_key)))
             ):
-                cost[r, c] = 1.0 - sim
+                cost_matrix[r, c] = 1.0 - sim
 
-        row_idx, col_idx = linear_sum_assignment(cost)
+        row_idx, col_idx = linear_sum_assignment(cost_matrix)
 
-        return cost[row_idx, col_idx].sum()
+        return cost_matrix[row_idx, col_idx].sum()
 
-    def __call__(
+    def build_cost_matrix(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-    ) -> GraphSim[K]:
-        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
-
+        node_pair_sims: PairSim[K],
+        edge_pair_sims: PairSim[K],
+    ) -> NumpyArray:
         rows = len(y.nodes)
         cols = len(x.nodes)
         dim = rows + cols
@@ -192,7 +190,27 @@ class lap[K, N, E, G](
             with np.printoptions(linewidth=10000):
                 logger.info(f"Cost matrix:\n{cost}\n")
 
-        row_idx, col_idx = linear_sum_assignment(cost)
+        return cost
+
+
+@dataclass(slots=True)
+class lap[K, N, E, G](
+    lap_base[K, N, E, G],
+    BaseGraphSimFunc[K, N, E, G],
+    SimFunc[Graph[K, N, E, G], GraphSim[K]],
+):
+    def __call__(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> GraphSim[K]:
+        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+        cost_matrix = self.build_cost_matrix(x, y, node_pair_sims, edge_pair_sims)
+        row2y = {r: k for r, k in enumerate(y.nodes.keys())}
+        col2x = {c: k for c, k in enumerate(x.nodes.keys())}
+        rows, cols = cost_matrix.shape
+
+        row_idx, col_idx = linear_sum_assignment(cost_matrix)
 
         node_mapping = frozendict(
             (row2y[r], col2x[c])
@@ -203,7 +221,7 @@ class lap[K, N, E, G](
                 and c < cols
                 and r in row2y
                 and c in col2x
-                and cost[r, c] < np.inf
+                and cost_matrix[r, c] < np.inf
             )
         )
 
