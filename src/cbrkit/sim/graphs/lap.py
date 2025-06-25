@@ -20,9 +20,9 @@ logger = get_logger(__name__)
 class lap_base[K, N, E, G]:
     greedy: bool = True
     node_del_cost: float = 1.0
-    node_ins_cost: float = 1.0
+    node_ins_cost: float = 0.0
     edge_del_cost: float = 1.0
-    edge_ins_cost: float = 1.0
+    edge_ins_cost: float = 0.0
     # 1.0 gives an upper bound, 0.5 gives a lower bound
     # approximation is better with a lower bound
     # since we compute real edit costs at the end anyway,

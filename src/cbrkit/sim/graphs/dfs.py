@@ -36,9 +36,9 @@ with optional_dependencies():
         BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
     ):
         node_del_cost: float = 1.0
-        node_ins_cost: float = 1.0
+        node_ins_cost: float = 0.0
         edge_del_cost: float = 1.0
-        edge_ins_cost: float = 1.0
+        edge_ins_cost: float = 0.0
         max_iterations: int = 0
         upper_bound: float | None = None
         strictly_decreasing: bool = True
