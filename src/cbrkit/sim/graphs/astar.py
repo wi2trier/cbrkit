@@ -167,16 +167,7 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
         cost: float = cost_matrix[row_idx, col_idx].sum()
 
-        upper_bound = (
-            len(y.nodes) * self.node_del_cost
-            + len(x.nodes) * self.node_ins_cost
-            + len(y.edges) * self.edge_del_cost
-            + len(x.edges) * self.edge_ins_cost
-        )
-
-        normalized_cost = min(cost / upper_bound, 1.0) if upper_bound > 0 else 0.0
-
-        return 1 - normalized_cost
+        return 1 - cost
 
 
 @dataclass(slots=True, frozen=True)

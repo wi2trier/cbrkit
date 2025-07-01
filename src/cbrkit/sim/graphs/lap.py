@@ -6,9 +6,7 @@ from frozendict import frozendict
 from scipy.optimize import linear_sum_assignment
 
 from ...helpers import get_logger
-from ...model.graph import (
-    Graph,
-)
+from ...model.graph import Graph
 from ...typing import NumpyArray, SimFunc
 from .common import BaseGraphSimFunc, GraphSim, PairSim
 
@@ -25,8 +23,6 @@ class lap_base[K, N, E, G]:
     edge_ins_cost: float = 0.0
     # 1.0 gives an upper bound, 0.5 gives a lower bound
     # approximation is better with a lower bound
-    # since we compute real edit costs at the end anyway,
-    # we can use a lower bound
     edge_edit_factor: float = 0.5
     print_matrix: bool = False
 
@@ -108,9 +104,9 @@ class lap_base[K, N, E, G]:
         # empty quadrant
         cost_matrix[rows:, cols:] = 0.0
         # deletion diagonal
-        np.fill_diagonal(cost_matrix[rows:, :cols], self.edge_del_cost)
+        np.fill_diagonal(cost_matrix[:rows, cols:], self.edge_del_cost)
         # insertion diagonal
-        np.fill_diagonal(cost_matrix[:rows, cols:], self.edge_ins_cost)
+        np.fill_diagonal(cost_matrix[rows:, :cols], self.edge_ins_cost)
 
         for r, c in itertools.product(range(rows), range(cols)):
             if (
@@ -135,6 +131,18 @@ class lap_base[K, N, E, G]:
         cols = len(x.nodes)
         dim = rows + cols
 
+        cost_upper_bound = (
+            len(y.nodes) * self.node_del_cost
+            + len(x.nodes) * self.node_ins_cost
+            + len(y.edges) * self.edge_del_cost
+            + len(x.edges) * self.edge_ins_cost
+        )
+
+        if cost_upper_bound == 0.0:
+            return np.zeros((dim, dim), dtype=float)
+
+        normalization_factor = 1.0 / cost_upper_bound
+
         row2y = {r: k for r, k in enumerate(y.nodes.keys())}
         col2x = {c: k for c, k in enumerate(x.nodes.keys())}
 
@@ -145,26 +153,32 @@ class lap_base[K, N, E, G]:
         # lower right: empty
 
         # first initialize the matrix with negative scores
-        cost = np.full((dim, dim), np.inf, dtype=float)
+        cost_matrix = np.full((dim, dim), np.inf, dtype=float)
 
-        # set the empty quadrant to zero
-        cost[rows:, cols:] = 0.0
+        # empty quadrant
+        cost_matrix[rows:, cols:] = 0.0
 
         # deletion diagonal
         for i in range(rows):
-            cost[i, cols + i] = self.node_del_cost + (
-                self.edge_edit_factor
-                * self.edge_del_cost
-                * len(self.connected_edges(y, row2y[i]))
-            )
+            cost_matrix[i, cols + i] = (
+                self.node_del_cost
+                + (
+                    self.edge_edit_factor
+                    * self.edge_del_cost
+                    * len(self.connected_edges(y, row2y[i]))
+                )
+            ) * normalization_factor
 
         # insertion diagonal
         for i in range(cols):
-            cost[rows + i, i] = self.node_ins_cost + (
-                self.edge_edit_factor
-                * self.edge_ins_cost
-                * len(self.connected_edges(x, col2x[i]))
-            )
+            cost_matrix[rows + i, i] = (
+                self.node_ins_cost
+                + (
+                    self.edge_edit_factor
+                    * self.edge_ins_cost
+                    * len(self.connected_edges(x, col2x[i]))
+                )
+            ) * normalization_factor
 
         # substitution quadrant
         for r, c in itertools.product(range(rows), range(cols)):
@@ -184,13 +198,15 @@ class lap_base[K, N, E, G]:
                         x, y, x_key, y_key, edge_pair_sims
                     )
 
-                cost[r, c] = node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
+                cost_matrix[r, c] = (
+                    node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
+                ) * normalization_factor
 
         if self.print_matrix:
             with np.printoptions(linewidth=10000):
-                logger.info(f"Cost matrix:\n{cost}\n")
+                logger.info(f"Cost matrix:\n{cost_matrix}\n")
 
-        return cost
+        return cost_matrix
 
 
 @dataclass(slots=True)
@@ -208,7 +224,6 @@ class lap[K, N, E, G](
         cost_matrix = self.build_cost_matrix(x, y, node_pair_sims, edge_pair_sims)
         row2y = {r: k for r, k in enumerate(y.nodes.keys())}
         col2x = {c: k for c, k in enumerate(x.nodes.keys())}
-        rows, cols = cost_matrix.shape
 
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
 
@@ -216,13 +231,7 @@ class lap[K, N, E, G](
             (row2y[r], col2x[c])
             for r, c in zip(row_idx, col_idx, strict=True)
             # only consider substitutions
-            if (
-                r < rows
-                and c < cols
-                and r in row2y
-                and c in col2x
-                and cost_matrix[r, c] < np.inf
-            )
+            if cost_matrix[r, c] < np.inf and r in row2y and c in col2x
         )
 
         edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
