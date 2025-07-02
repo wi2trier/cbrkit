@@ -90,8 +90,16 @@ def _induced_edge_mapping[K, N, E, G](
     )
 
 
+@dataclass(slots=True, kw_only=True)
+class BaseGraphEditFunc[K, N, E, G]:
+    node_del_cost: float = 1.0
+    node_ins_cost: float = 0.0
+    edge_del_cost: float = 1.0
+    edge_ins_cost: float = 0.0
+
+
 @dataclass(slots=True)
-class BaseGraphSimFunc[K, N, E, G]:
+class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     node_sim_func: AnySimFunc[N, Float]
     edge_sim_func: SemanticEdgeSim[K, N, E] = default_edge_sim
     node_matcher: ElementMatcher[N] = default_element_matcher
@@ -201,8 +209,13 @@ class BaseGraphSimFunc[K, N, E, G]:
         ]
 
         all_sims = itertools.chain(node_sims, edge_sims)
-        total_elements = len(y.nodes) + len(y.edges)
-        total_sim = sum(all_sims) / total_elements if total_elements > 0 else 0.0
+        upper_bound = (
+            len(y.nodes) * self.node_del_cost
+            + len(x.nodes) * self.node_ins_cost
+            + len(y.edges) * self.edge_del_cost
+            + len(x.edges) * self.edge_ins_cost
+        )
+        total_sim = sum(all_sims) / upper_bound if upper_bound > 0 else 0.0
 
         return GraphSim(
             total_sim,

@@ -8,19 +8,15 @@ from scipy.optimize import linear_sum_assignment
 from ...helpers import get_logger
 from ...model.graph import Graph
 from ...typing import NumpyArray, SimFunc
-from .common import BaseGraphSimFunc, GraphSim, PairSim
+from .common import BaseGraphEditFunc, BaseGraphSimFunc, GraphSim, PairSim
 
 logger = get_logger(__name__)
 
 
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass
-class lap_base[K, N, E, G]:
+class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     greedy: bool = True
-    node_del_cost: float = 1.0
-    node_ins_cost: float = 0.0
-    edge_del_cost: float = 1.0
-    edge_ins_cost: float = 0.0
     # 1.0 gives an upper bound, 0.5 gives a lower bound
     # approximation is better with a lower bound
     edge_edit_factor: float = 0.5

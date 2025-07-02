@@ -23,10 +23,6 @@ class qap[K, N, E, G](
     considering both node and edge similarities.
     """
 
-    node_del_cost: float = 1.0
-    node_ins_cost: float = 0.0
-    edge_del_cost: float = 1.0
-    edge_ins_cost: float = 0.0
     illegal_cost: float = 1e9
     method: Literal["faq", "2opt"] = "faq"
     rng: np.random.Generator | None = None
