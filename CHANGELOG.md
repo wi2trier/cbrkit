@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.27.1](https://github.com/wi2trier/cbrkit/compare/v0.27.0...v0.27.1) (2025-07-02)
+
+### Bug Fixes
+
+* **sim/graphs/astar:** add h4 and select4 based on lap ([5debf85](https://github.com/wi2trier/cbrkit/commit/5debf85860c6b89123ec5fe99f2682983af82bb4))
+* **sim/graphs/lap:** normalize cost matrix, correctly setup nested lap for edges ([bd11c9a](https://github.com/wi2trier/cbrkit/commit/bd11c9a6538f1e935e5d8f73129cafb8737f275a))
+* **sim/graphs:** add del/ins cost to all metrics ([6a77bae](https://github.com/wi2trier/cbrkit/commit/6a77baedc9e16320dc0bf29b9817553e1ae7319a))
+* **sim/graphs:** set insert cost to zero ([b1d43de](https://github.com/wi2trier/cbrkit/commit/b1d43de93c7170a9db56351d6c1237ba656a809d))
+
 ## [0.27.0](https://github.com/wi2trier/cbrkit/compare/v0.26.5...v0.27.0) (2025-06-22)
 
 ### Features
