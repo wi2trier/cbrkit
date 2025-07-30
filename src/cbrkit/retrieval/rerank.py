@@ -250,6 +250,7 @@ with optional_dependencies():
 
         language: str
         stopwords: list[str] | None = None
+        auto_index: bool = False
         _indexed_retriever: bm25s.BM25 | None = field(
             default=None, init=False, repr=False
         )
@@ -265,7 +266,7 @@ with optional_dependencies():
         def _stemmer(self) -> Callable[..., Any]:
             return Stemmer.Stemmer(self.language)
 
-        def index(self, casebase: Casebase[K, str]) -> None:
+        def _build_retriever(self, casebase: Casebase[K, str]) -> bm25s.BM25:
             cases_tokens = bm25s.tokenize(
                 list(casebase.values()),
                 stemmer=self._stemmer,
@@ -273,6 +274,11 @@ with optional_dependencies():
             )
             retriever = bm25s.BM25()
             retriever.index(cases_tokens)
+
+            return retriever
+
+        def index(self, casebase: Casebase[K, str]) -> None:
+            retriever = self._build_retriever(casebase)
             self._indexed_retriever = retriever
             self._indexed_casebase = dict(casebase)
 
@@ -306,14 +312,11 @@ with optional_dependencies():
             if self._indexed_retriever and self._indexed_casebase == casebase:
                 retriever = self._indexed_retriever
             else:
-                cases_tokens = bm25s.tokenize(
-                    list(casebase.values()),
-                    stemmer=self._stemmer,
-                    stopwords=self._stopwords,
-                )
-                retriever = bm25s.BM25()
-                retriever.index(cases_tokens)
-                # TODO: maybe there should be an option to auto-persist on-demand indexing
+                retriever = self._build_retriever(casebase)
+
+                if self.auto_index:
+                    self._indexed_retriever = retriever
+                    self._indexed_casebase = dict(casebase)
 
             queries_tokens = bm25s.tokenize(
                 cast(list[str], queries),
