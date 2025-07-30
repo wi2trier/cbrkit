@@ -258,14 +258,30 @@ with optional_dependencies():
             default=None, init=False, repr=False
         )
 
+        @property
+        def _stopwords(self) -> str | list[str]:
+            return self.stopwords or self.language
+
+        @property
+        def _stemmer(self) -> Callable[..., Any]:
+            return Stemmer.Stemmer(self.language)
+
+        def index(self, casebase: Casebase[K, str]) -> None:
+            cases_tokens = bm25s.tokenize(
+                list(casebase.values()),
+                stemmer=self._stemmer,
+                stopwords=self._stopwords,
+            )
+            retriever = bm25s.BM25()
+            retriever.index(cases_tokens)
+            self._indexed_retriever = retriever
+            self._indexed_casebase = dict(casebase)
+
         @override
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            stemmer = Stemmer.Stemmer(self.language)
-            stopwords: str | list[str] = self.stopwords or self.language
-
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
 
@@ -274,12 +290,12 @@ with optional_dependencies():
                     "All casebases are the same, performing for all queries in one go"
                 )
                 return self.__call_queries__(
-                    [query for _, query in batches], first_casebase, stemmer, stopwords
+                    [query for _, query in batches], first_casebase
                 )
 
             logger.debug("Casebases are different, performing retrieval for each query")
             return [
-                self.__call_queries__([query], casebase, stemmer, stopwords)[0]
+                self.__call_queries__([query], casebase)[0]
                 for casebase, query in batches
             ]
 
@@ -287,22 +303,23 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
-            stemmer: Callable[..., Any],
-            stopwords: str | list[str],
         ) -> Sequence[dict[K, float]]:
             if self._indexed_retriever and self._indexed_casebase == casebase:
                 retriever = self._indexed_retriever
             else:
                 cases_tokens = bm25s.tokenize(
-                    list(casebase.values()), stemmer=stemmer, stopwords=stopwords
+                    list(casebase.values()),
+                    stemmer=self._stemmer,
+                    stopwords=self._stopwords,
                 )
                 retriever = bm25s.BM25()
                 retriever.index(cases_tokens)
-                self._indexed_retriever = retriever
-                self._indexed_casebase = dict(casebase)
+                # TODO: maybe there should be an option to auto-persist on-demand indexing
 
             queries_tokens = bm25s.tokenize(
-                cast(list[str], queries), stemmer=stemmer, stopwords=stopwords
+                cast(list[str], queries),
+                stemmer=self._stemmer,
+                stopwords=self._stopwords,
             )
 
             results, scores = retriever.retrieve(
