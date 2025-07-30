@@ -71,6 +71,7 @@ class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
 class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
     model: str
     response_type: type[R]
+    system_message: str | None = None
     delay: float = 0
     retries: int = 0
     default_response: R | None = None
@@ -100,5 +101,4 @@ class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
 
 @dataclass(slots=True, kw_only=True)
 class ChatProvider[P, R](BaseProvider[P, R], ABC):
-    system_message: str | None = None
     messages: Sequence[ChatMessage] = field(default_factory=tuple)

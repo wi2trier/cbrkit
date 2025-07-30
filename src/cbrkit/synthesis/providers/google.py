@@ -14,7 +14,6 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class google[R: BaseModel | str](BaseProvider[GooglePrompt, R]):
-        system_message: str | None = None
         client: Client = field(default_factory=Client, repr=False)
         config: GenerateContentConfig = field(init=False)
         base_config: InitVar[GenerateContentConfig | None] = None
