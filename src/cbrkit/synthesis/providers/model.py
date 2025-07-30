@@ -2,7 +2,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, override
 
 from pydantic import Field
 
@@ -44,19 +44,12 @@ class Response[T](StructuredValue[T]):
 
 
 @dataclass(slots=True, kw_only=True)
-class BaseProvider[P, R](BatchConversionFunc[P, Response[R]], ABC):
-    model: str
-    response_type: type[R]
-    delay: float = 0
-    retries: int = 0
-    default_response: R | None = None
-    extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
-
-    def __call__(self, batches: Sequence[P]) -> Sequence[Response[R]]:
+class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
+    def __call__(self, batches: Sequence[P]) -> Sequence[R]:
         return event_loop.get().run_until_complete(self.__call_batches__(batches))
 
-    async def __call_batches__(self, batches: Sequence[P]) -> Sequence[Response[R]]:
-        logger.info(f"Processing {len(batches)} batches with {self.model}")
+    async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
+        logger.info(f"Processing {len(batches)} batches")
 
         return await asyncio.gather(
             *(
@@ -65,6 +58,25 @@ class BaseProvider[P, R](BatchConversionFunc[P, Response[R]], ABC):
             )
         )
 
+    async def __call_batch_wrapper__(self, prompt: P, idx: int) -> R:
+        result = await self.__call_batch__(prompt)
+        logger.debug(f"Result of batch {idx + 1}: {result}")
+        return result
+
+    @abstractmethod
+    async def __call_batch__(self, prompt: P) -> R: ...
+
+
+@dataclass(slots=True, kw_only=True)
+class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
+    model: str
+    response_type: type[R]
+    delay: float = 0
+    retries: int = 0
+    default_response: R | None = None
+    extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
+
+    @override
     async def __call_batch_wrapper__(
         self, prompt: P, idx: int, retry: int = 0
     ) -> Response[R]:
@@ -72,9 +84,7 @@ class BaseProvider[P, R](BatchConversionFunc[P, Response[R]], ABC):
             await asyncio.sleep(idx * self.delay)
 
         try:
-            result = await self.__call_batch__(prompt)
-            logger.debug(f"Result of batch {idx + 1}: {result}")
-            return result
+            return await super(BaseProvider, self).__call_batch_wrapper__(prompt, idx)
 
         except Exception as e:
             if retry < self.retries:
@@ -86,9 +96,6 @@ class BaseProvider[P, R](BatchConversionFunc[P, Response[R]], ABC):
                 return Response(self.default_response, Usage(0, 0))
 
             raise e
-
-    @abstractmethod
-    async def __call_batch__(self, prompt: P) -> Response[R]: ...
 
 
 @dataclass(slots=True, kw_only=True)

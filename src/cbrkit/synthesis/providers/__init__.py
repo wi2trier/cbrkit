@@ -1,5 +1,6 @@
 from ...helpers import optional_dependencies
 from .model import (
+    AsyncProvider,
     BaseProvider,
     ChatMessage,
     ChatPrompt,
@@ -20,6 +21,8 @@ with optional_dependencies():
     from .anthropic import anthropic
 with optional_dependencies():
     from .instructor import instructor
+with optional_dependencies():
+    from .pydantic_ai import pydantic_ai
 
 __all__ = [
     "openai",
@@ -27,6 +30,7 @@ __all__ = [
     "cohere",
     "conversation",
     "pipe",
+    "AsyncProvider",
     "BaseProvider",
     "ChatProvider",
     "ChatMessage",
@@ -36,4 +40,5 @@ __all__ = [
     "Usage",
     "anthropic",
     "instructor",
+    "pydantic_ai",
 ]
