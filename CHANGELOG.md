@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.2](https://github.com/wi2trier/cbrkit/compare/v0.27.1...v0.27.2) (2025-07-30)
+
+### Bug Fixes
+
+* **retrieval/bm25:** make indexing explicit ([cdadb44](https://github.com/wi2trier/cbrkit/commit/cdadb44d20067478918cb2b847811be49a3e756f))
+* **retrieval/cohere:** remove obsolete request param ([f507dce](https://github.com/wi2trier/cbrkit/commit/f507dce9766d7a3c16bf2cf36197b22c661f52f1))
+
 ## [0.27.1](https://github.com/wi2trier/cbrkit/compare/v0.27.0...v0.27.1) (2025-07-02)
 
 ### Bug Fixes
