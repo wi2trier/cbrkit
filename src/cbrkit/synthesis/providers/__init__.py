@@ -23,6 +23,8 @@ with optional_dependencies():
     from .instructor import instructor
 with optional_dependencies():
     from .pydantic_ai import pydantic_ai
+with optional_dependencies():
+    from .openai_agents import openai_agents
 
 __all__ = [
     "openai",
@@ -41,4 +43,5 @@ __all__ = [
     "anthropic",
     "instructor",
     "pydantic_ai",
+    "openai_agents",
 ]
