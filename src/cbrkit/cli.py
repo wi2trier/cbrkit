@@ -172,6 +172,28 @@ def serve(
 
 
 @app.command()
+def uvicorn(
+    app: str,
+    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    host: str = "0.0.0.0",
+    port: int = 8080,
+    reload: bool = False,
+    root_path: str = "",
+) -> None:
+    import uvicorn
+
+    sys.path.extend(str(x) for x in search_path)
+
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=reload,
+        root_path=root_path,
+    )
+
+
+@app.command()
 def openapi(file: Path | None = None):
     from cbrkit.api import app
 
