@@ -10,6 +10,7 @@ from .typing import Float, MaybeFactories, RetrieverFunc, ReuserFunc
 __all__ = [
     "apply_queries",
     "apply_batches",
+    "apply_query",
     "Result",
 ]
 
@@ -42,4 +43,18 @@ def apply_queries[Q, C, V, S: Float](
 
     return Result(
         retrieval=retrieval_result, reuse=reuse_result, duration=end_time - start_time
+    )
+
+
+def apply_query[K, V, S: Float](
+    casebase: Mapping[K, V],
+    query: V,
+    retrievers: MaybeFactories[RetrieverFunc[K, V, S]],
+    reusers: MaybeFactories[ReuserFunc[K, V, S]],
+) -> Result[str, K, V, S]:
+    return apply_queries(
+        casebase,
+        {"default": query},
+        retrievers,
+        reusers,
     )
