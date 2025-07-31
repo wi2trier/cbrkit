@@ -154,6 +154,8 @@ def serve(
 ) -> None:
     import uvicorn
 
+    from cbrkit.api import app
+
     sys.path.extend(str(x) for x in search_path)
 
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
@@ -161,7 +163,7 @@ def serve(
     os.environ["CBRKIT_SYNTHESIZER"] = ",".join(synthesizer)
 
     uvicorn.run(
-        "cbrkit.api:app",
+        app,
         host=host,
         port=port,
         reload=reload,

@@ -56,7 +56,7 @@ def parse_dataset(obj: CasebaseSpec) -> Mapping[str, Any]:
         loader = cbrkit.loaders.structured_loaders[f".{obj.content_type}"]
         data = loader(obj.file)
     elif isinstance(obj, Path):
-        data = cbrkit.loaders.path(obj)
+        data = cbrkit.loaders.file(obj)
 
     if not all(isinstance(key, str) for key in data.keys()):
         return {str(key): value for key, value in data.items()}
