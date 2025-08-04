@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.28.0](https://github.com/wi2trier/cbrkit/compare/v0.27.2...v0.28.0) (2025-08-04)
+
+### Features
+
+* **sim/embed:** use sqlite as vector store ([61e2318](https://github.com/wi2trier/cbrkit/commit/61e2318ec88eed7883e3346f1000ff22d98259eb))
+* **synthesis/providers:** add pydantic ai ([6bb4f4a](https://github.com/wi2trier/cbrkit/commit/6bb4f4aa67804dd01690fe0203a7c48d1cdedd32))
+* **synthesis/proviers:** add openai agents ([304e4dd](https://github.com/wi2trier/cbrkit/commit/304e4dd9bc668873084e83adb556a75ef02b77e3))
+* **top-level:** add system module to build and deploy high-level cbr applications ([b4a444f](https://github.com/wi2trier/cbrkit/commit/b4a444f24e808a26eddde6cb916a6f1f069e5cbf))
+
+### Bug Fixes
+
+* **api:** optimize server import ([18901af](https://github.com/wi2trier/cbrkit/commit/18901afeb55a8f9d4f3db67bcfacf3598850e318))
+* **cycle:** add apply_query method ([a6b5719](https://github.com/wi2trier/cbrkit/commit/a6b5719f71a11b14e5025a1a0195081b8bb8c756))
+* **helpers:** make event loop closing more robust ([78a6a22](https://github.com/wi2trier/cbrkit/commit/78a6a22586d4f5733d7c0095133c54eac24f5c4f))
+* **retrieval/bm25:** add auto index parameter ([e5b782b](https://github.com/wi2trier/cbrkit/commit/e5b782bd9231d4a89bc5bc783f79ea7cb3741c59))
+
 ## [0.27.2](https://github.com/wi2trier/cbrkit/compare/v0.27.1...v0.27.2) (2025-07-30)
 
 ### Bug Fixes
