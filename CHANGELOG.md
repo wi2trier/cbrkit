@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.28.1](https://github.com/wi2trier/cbrkit/compare/v0.28.0...v0.28.1) (2025-08-04)
+
+### Bug Fixes
+
+* **sim/embed:** commit changes to cache store ([fb78c28](https://github.com/wi2trier/cbrkit/commit/fb78c28af15b0c6d68c369a7ecfc55c25bd777d5))
+
 ## [0.28.0](https://github.com/wi2trier/cbrkit/compare/v0.27.2...v0.28.0) (2025-08-04)
 
 ### Features
