@@ -115,19 +115,24 @@ class EventLoop:
 
     def close(self) -> None:
         if self._instance is not None:
-            tasks = asyncio.all_tasks(self._instance)
-            for task in tasks:
-                task.cancel()
-
             try:
-                self._instance.run_until_complete(
-                    asyncio.gather(*tasks, return_exceptions=True)
-                )
-            except asyncio.CancelledError:
-                pass
+                tasks = asyncio.all_tasks(self._instance)
+                for task in tasks:
+                    task.cancel()
 
+                if tasks:
+                    self._instance.run_until_complete(
+                        asyncio.gather(*tasks, return_exceptions=True)
+                    )
+            except (RuntimeError, asyncio.CancelledError):
+                # Event loop may already be closed or unavailable
+                pass
             finally:
-                self._instance.close()
+                try:
+                    self._instance.close()
+                except RuntimeError:
+                    # Event loop may already be closed
+                    pass
                 self._instance = None
 
 
