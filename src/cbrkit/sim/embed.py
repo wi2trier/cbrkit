@@ -1,7 +1,8 @@
 import asyncio
 import itertools
+import sqlite3
 from collections.abc import Iterator, MutableMapping, Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast, override
@@ -170,71 +171,72 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
-    autodump: bool
-    autoload: bool
+    table: str | None
     store: MutableMapping[str, NumpyArray] = field(repr=False)
-    mtime: float = field(repr=False)
 
     def __init__(
         self,
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
-        autodump: bool = False,
-        autoload: bool = False,
+        table: str | None = None,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
-        self.autodump = autodump
-        self.autoload = autoload
-        self.mtime = 0
+        self.table = table
+        self.store = {}
 
-        if self.path and self.path.exists():
-            self.load()
-        else:
-            self.store = {}
+        if self.path is not None:
+            if self.table is None:
+                raise ValueError("Table name must be specified for disk cache")
 
-    def dump(self) -> None:
-        if not self.path:
-            raise ValueError("Path not provided")
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        if not self.store:
-            logger.warning("Cache is empty, skipping dump")
-            return
+            with self.connect() as connection:
+                connection.execute(f"""
+                    CREATE TABLE IF NOT EXISTS "{self.table}" (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        text TEXT NOT NULL UNIQUE,
+                        vector BLOB NOT NULL
+                    )
+                """)
 
-        if self.path.exists() and self.mtime < self.path.stat().st_mtime:
-            logger.warning("Cache file has been modified, skipping dump")
-            return
+                cursor = connection.execute(f'SELECT text, vector FROM "{self.table}"')
 
-        np.savez_compressed(self.path, **self.store)
-        self.mtime = self.path.stat().st_mtime
+                for text, vector_blob in cursor:
+                    self.store[text] = np.frombuffer(vector_blob, dtype=np.float64)
 
-    def load(self) -> None:
-        if not self.path:
-            raise ValueError("Path not provided")
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        if self.path is None:
+            raise ValueError("Path must be set to use the cache")
 
-        if not self.path.exists():
-            raise FileNotFoundError(f"Cache file '{self.path}' does not exist")
+        connection = sqlite3.connect(self.path)
 
-        mtime = self.path.stat().st_mtime
+        try:
+            yield connection
+        finally:
+            connection.close()
 
-        if self.mtime < mtime:
-            self.mtime = mtime
-
-            with np.load(self.path) as data:
-                self.store = dict(data)
-
+    @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        new_texts = [text for text in texts if text not in self.store]
+        # remove store entries and duplicates
+        new_texts = list({text for text in texts if text not in self.store})
 
         if new_texts:
-            if self.autoload:
-                self.load()
-
             if self.func:
-                self.store.update(zip(new_texts, self.func(new_texts), strict=True))
+                new_vectors = self.func(new_texts)
 
-                if self.autodump:
-                    self.dump()
+                for text, vector in zip(new_texts, new_vectors, strict=True):
+                    self.store[text] = vector
+
+                if self.path is not None:
+                    with self.connect() as connection:
+                        for text, vector in zip(new_texts, new_vectors, strict=True):
+                            vector_blob = vector.astype(np.float64).tobytes()
+                            connection.execute(
+                                f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES (?, ?)',
+                                (text, vector_blob),
+                            )
 
         return [self.store[text] for text in texts]
 
