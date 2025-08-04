@@ -44,6 +44,9 @@ let
         pygraphviz = {
           setuptools = [ ];
         };
+        pyperclip = {
+          setuptools = [ ];
+        };
         cbor = {
           setuptools = [ ];
         };
