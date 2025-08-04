@@ -191,18 +191,19 @@ class cache(BatchConversionFunc[str, NumpyArray]):
 
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
-            with self.connect() as connection:
-                connection.execute(f"""
+            with self.connect() as con:
+                con.execute(f"""
                     CREATE TABLE IF NOT EXISTS "{self.table}" (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         text TEXT NOT NULL UNIQUE,
                         vector BLOB NOT NULL
                     )
                 """)
+                con.commit()
 
-                cursor = connection.execute(f'SELECT text, vector FROM "{self.table}"')
+                cur = con.execute(f'SELECT text, vector FROM "{self.table}"')
 
-                for text, vector_blob in cursor:
+                for text, vector_blob in cur:
                     self.store[text] = np.frombuffer(vector_blob, dtype=np.float64)
 
     @contextmanager
@@ -210,12 +211,12 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         if self.path is None:
             raise ValueError("Path must be set to use the cache")
 
-        connection = sqlite3.connect(self.path)
+        con = sqlite3.connect(self.path, autocommit=False)
 
         try:
-            yield connection
+            yield con
         finally:
-            connection.close()
+            con.close()
 
     @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
@@ -230,13 +231,17 @@ class cache(BatchConversionFunc[str, NumpyArray]):
                     self.store[text] = vector
 
                 if self.path is not None:
-                    with self.connect() as connection:
-                        for text, vector in zip(new_texts, new_vectors, strict=True):
-                            vector_blob = vector.astype(np.float64).tobytes()
-                            connection.execute(
-                                f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES (?, ?)',
-                                (text, vector_blob),
-                            )
+                    with self.connect() as con:
+                        con.executemany(
+                            f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                            [
+                                (text, vector.astype(np.float64).tobytes())
+                                for text, vector in zip(
+                                    new_texts, new_vectors, strict=True
+                                )
+                            ],
+                        )
+                        con.commit()
 
         return [self.store[text] for text in texts]
 
