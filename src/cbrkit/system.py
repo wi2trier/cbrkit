@@ -1,11 +1,10 @@
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 from typing_extensions import Any
 
 import cbrkit
-from cbrkit.helpers import produce_sequence
 from cbrkit.typing import Float, MaybeSequence
 
 __all__ = [
@@ -17,76 +16,76 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class System[K: str | int, V: BaseModel, S: Float, P: str]:
+class System[
+    K: str | int,
+    V: BaseModel,
+    S: Float,
+    R2: BaseModel | None,
+    R1: BaseModel | None,
+]:
     casebase: cbrkit.typing.Casebase[K, V]
-    retriever_pipelines: Mapping[
-        P, MaybeSequence[cbrkit.typing.RetrieverFunc[K, V, S]]
-    ] = field(default_factory=dict)
-    reuser_pipelines: Mapping[P, MaybeSequence[cbrkit.typing.ReuserFunc[K, V, S]]] = (
-        field(default_factory=dict)
-    )
-
-    def get_retriever_pipeline(
-        self, name: P, limit: int | None
-    ) -> Sequence[cbrkit.typing.RetrieverFunc[K, V, S]]:
-        retrievers = produce_sequence(self.retriever_pipelines[name])
-
-        if limit is not None:
-            *head_retrievers, tail_retriever = retrievers
-            retrievers = head_retrievers + [
-                cbrkit.retrieval.dropout(tail_retriever, limit=limit)
-            ]
-
-        return retrievers
+    retriever_factory: (
+        Callable[[R1], MaybeSequence[cbrkit.typing.RetrieverFunc[K, V, S]]] | None
+    ) = None
+    reuser_factory: (
+        Callable[[R2], MaybeSequence[cbrkit.typing.ReuserFunc[K, V, S]]] | None
+    ) = None
 
     def retrieve(
         self,
         query: V,
-        retriever_pipeline: P,
-        limit: int | None = None,
+        parameters: R1,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
+        if not self.retriever_factory:
+            raise ValueError("Retriever factory is not defined.")
+
         return cbrkit.retrieval.apply_query(
             self.casebase,
             query,
-            self.get_retriever_pipeline(retriever_pipeline, limit),
+            self.retriever_factory(parameters),
         ).default_query
 
     def reuse(
         self,
         query: V,
-        reuser_pipeline: P,
+        parameters: R2,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
+        if not self.reuser_factory:
+            raise ValueError("Reuser factory is not defined.")
+
         return cbrkit.reuse.apply_query(
             self.casebase,
             query,
-            self.reuser_pipelines[reuser_pipeline],
+            self.reuser_factory(parameters),
         ).default_query
 
     def cycle(
         self,
         query: V,
-        retriever_pipeline: P,
-        reuser_pipeline: P,
-        limit: int | None = None,
+        retrieve_parameters: R1,
+        reuse_parameters: R2,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
+        if not self.retriever_factory or not self.reuser_factory:
+            raise ValueError("Retriever or reuser factory is not defined.")
+
         return cbrkit.cycle.apply_query(
             self.casebase,
             query,
-            self.get_retriever_pipeline(retriever_pipeline, limit),
-            self.reuser_pipelines[reuser_pipeline],
+            self.retriever_factory(retrieve_parameters),
+            self.reuser_factory(reuse_parameters),
         ).final_step.default_query
 
     @property
     def tools(self) -> list[Callable[..., Any]]:
         res: list[Callable[..., Any]] = []
 
-        if self.retriever_pipelines:
+        if self.retriever_factory:
             res.append(self.retrieve)
 
-        if self.reuser_pipelines:
+        if self.reuser_factory:
             res.append(self.reuse)
 
-        if self.retriever_pipelines and self.reuser_pipelines:
+        if self.retriever_factory and self.reuser_factory:
             res.append(self.cycle)
 
         return res
@@ -94,18 +93,10 @@ class System[K: str | int, V: BaseModel, S: Float, P: str]:
     def get_case(self, name: K) -> V:
         return self.casebase[name]
 
-    def get_retriever_names(self) -> list[str]:
-        return list(self.retriever_pipelines.keys())
-
-    def get_reuser_names(self) -> list[str]:
-        return list(self.reuser_pipelines.keys())
-
     @property
     def resources(self) -> dict[str, Callable[..., Any]]:
         return {
-            "casebase/{name}": self.get_case,
-            "pipelines/retrieve": self.get_retriever_names,
-            "pipelines/reuse": self.get_reuser_names,
+            "casebase://{name}": self.get_case,
         }
 
     @property
@@ -114,14 +105,14 @@ class System[K: str | int, V: BaseModel, S: Float, P: str]:
 
 
 with cbrkit.helpers.optional_dependencies():
-    from fastapi import FastAPI
+    from fastapi import APIRouter, FastAPI
 
-    def to_fastapi(system: System, app: FastAPI) -> FastAPI:
+    def to_fastapi[T: APIRouter | FastAPI](system: System, app: T) -> T:
         for value in system.tools:
             app.post(f"/tool/{value.__name__}")(value)
 
         for key, value in system.resources.items():
-            app.get(f"/resource/{key}")(value)
+            app.get(f"/resource/{key.replace('://', '/')}")(value)
 
         for value in system.prompts:
             app.post(f"/prompt/{value.__name__}")(value)
@@ -132,12 +123,12 @@ with cbrkit.helpers.optional_dependencies():
 with cbrkit.helpers.optional_dependencies():
     from fastmcp import FastMCP
 
-    def to_fastmcp[T](system: System, app: FastMCP[T]) -> FastMCP[T]:
+    def to_fastmcp[T: FastMCP](system: System, app: T) -> T:
         for value in system.tools:
             app.tool(value)
 
         for key, value in system.resources.items():
-            app.resource(f"cbrkit://{key}")(value)
+            app.resource(key)(value)
 
         for value in system.prompts:
             app.prompt(value)
