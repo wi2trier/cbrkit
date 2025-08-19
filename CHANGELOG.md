@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.28.2](https://github.com/wi2trier/cbrkit/compare/v0.28.1...v0.28.2) (2025-08-19)
+
+### Bug Fixes
+
+* **system:** correctly apply generics ([30f72f6](https://github.com/wi2trier/cbrkit/commit/30f72f61a728e664f2c9720b5070a599b727737d))
+* **system:** make pipeline names generic ([0d1d9fa](https://github.com/wi2trier/cbrkit/commit/0d1d9fa1e6bcca35d7335f48455407a8378269ab))
+* **system:** require users to pass fastapi and fastmcp instances ([d1ec8b9](https://github.com/wi2trier/cbrkit/commit/d1ec8b9c85b0b4e1c58352dbee3c309b133586bf))
+
 ## [0.28.1](https://github.com/wi2trier/cbrkit/compare/v0.28.0...v0.28.1) (2025-08-04)
 
 ### Bug Fixes
