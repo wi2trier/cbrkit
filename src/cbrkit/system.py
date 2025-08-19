@@ -132,7 +132,7 @@ with cbrkit.helpers.optional_dependencies():
 with cbrkit.helpers.optional_dependencies():
     from fastmcp import FastMCP
 
-    def to_fastmcp(system: System, app: FastMCP) -> FastMCP[Any]:
+    def to_fastmcp[T](system: System, app: FastMCP[T]) -> FastMCP[T]:
         for value in system.tools:
             app.tool(value)
 
@@ -148,5 +148,5 @@ with cbrkit.helpers.optional_dependencies():
 with cbrkit.helpers.optional_dependencies():
     from pydantic_ai.toolsets import FunctionToolset
 
-    def to_pydantic_ai(system: System) -> FunctionToolset[Any]:
+    def to_pydantic_ai(system: System) -> FunctionToolset[None]:
         return FunctionToolset(system.tools)
