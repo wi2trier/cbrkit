@@ -117,9 +117,7 @@ class System[K: str | int, V: BaseModel, S: Float]:
 with cbrkit.helpers.optional_dependencies():
     from fastapi import FastAPI
 
-    def to_fastapi(system: System) -> FastAPI:
-        app = FastAPI()
-
+    def to_fastapi(system: System, app: FastAPI) -> FastAPI:
         for value in system.tools:
             app.post(f"/tool/{value.__name__}")(value)
 
@@ -135,9 +133,7 @@ with cbrkit.helpers.optional_dependencies():
 with cbrkit.helpers.optional_dependencies():
     from fastmcp import FastMCP
 
-    def to_fastmcp(system: System) -> FastMCP[Any]:
-        app = FastMCP()
-
+    def to_fastmcp(system: System, app: FastMCP) -> FastMCP[Any]:
         for value in system.tools:
             app.tool(value)
 
