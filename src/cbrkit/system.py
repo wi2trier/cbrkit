@@ -17,18 +17,17 @@ __all__ = [
 
 
 @dataclass(slots=True, frozen=True)
-class System[K: str | int, V: BaseModel, S: Float]:
+class System[K: str | int, V: BaseModel, S: Float, P: str]:
     casebase: cbrkit.typing.Casebase[K, V]
-    model: type[V]
     retriever_pipelines: Mapping[
-        str, MaybeSequence[cbrkit.typing.RetrieverFunc[K, V, S]]
+        P, MaybeSequence[cbrkit.typing.RetrieverFunc[K, V, S]]
     ] = field(default_factory=dict)
-    reuser_pipelines: Mapping[str, MaybeSequence[cbrkit.typing.ReuserFunc[K, V, S]]] = (
+    reuser_pipelines: Mapping[P, MaybeSequence[cbrkit.typing.ReuserFunc[K, V, S]]] = (
         field(default_factory=dict)
     )
 
     def get_retriever_pipeline(
-        self, name: str, limit: int | None
+        self, name: P, limit: int | None
     ) -> Sequence[cbrkit.typing.RetrieverFunc[K, V, S]]:
         retrievers = produce_sequence(self.retriever_pipelines[name])
 
@@ -43,7 +42,7 @@ class System[K: str | int, V: BaseModel, S: Float]:
     def retrieve(
         self,
         query: V,
-        retriever_pipeline: str,
+        retriever_pipeline: P,
         limit: int | None = None,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
         return cbrkit.retrieval.apply_query(
@@ -55,7 +54,7 @@ class System[K: str | int, V: BaseModel, S: Float]:
     def reuse(
         self,
         query: V,
-        reuser_pipeline: str,
+        reuser_pipeline: P,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
         return cbrkit.reuse.apply_query(
             self.casebase,
@@ -66,8 +65,8 @@ class System[K: str | int, V: BaseModel, S: Float]:
     def cycle(
         self,
         query: V,
-        retriever_pipeline: str,
-        reuser_pipeline: str,
+        retriever_pipeline: P,
+        reuser_pipeline: P,
         limit: int | None = None,
     ) -> cbrkit.retrieval.QueryResultStep[K, V, S]:
         return cbrkit.cycle.apply_query(
