@@ -197,7 +197,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         text TEXT NOT NULL UNIQUE,
                         vector BLOB NOT NULL
-                    )
+                    ) STRICT
                 """)
                 con.commit()
 
