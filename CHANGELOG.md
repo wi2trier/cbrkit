@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.28.3](https://github.com/wi2trier/cbrkit/compare/v0.28.2...v0.28.3) (2025-08-27)
+
+### Bug Fixes
+
+* **eval:** add lower level interface to convert similarities to qrels ([fc229e6](https://github.com/wi2trier/cbrkit/commit/fc229e6b3a5f662824003e916edc5f279b609b31))
+* **sim/embed:** use strict sqlite tables ([af7ec8c](https://github.com/wi2trier/cbrkit/commit/af7ec8ce345642fb817eebc03b73045dee30ac3c))
+* **system:** use factories based on user-defined parameters ([06eefcf](https://github.com/wi2trier/cbrkit/commit/06eefcf9098979a797e5cf5e102fb7f38061e260))
+
 ## [0.28.2](https://github.com/wi2trier/cbrkit/compare/v0.28.1...v0.28.2) (2025-08-19)
 
 ### Bug Fixes
