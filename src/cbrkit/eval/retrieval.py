@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from ..helpers import normalize_and_scale, round, unpack_float
+from ..helpers import unpack_float
 from ..retrieval import Result, ResultStep
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
-from .common import DEFAULT_METRICS, compute
+from .common import DEFAULT_METRICS, compute, similarities_to_qrels
 
 
 def retrieval_step[Q, C, S: Float](
@@ -45,36 +45,17 @@ def retrieval_step_to_qrels[Q, C, S: Float](
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
-    if max_qrel is None:
-        return {
-            query: {
-                case: rank
-                for rank, case in enumerate(reversed(entry.ranking), start=min_qrel)
-            }
-            for query, entry in result.queries.items()
-        }
-
-    sims = {
+    unpacked_sims = {
         query: {case: unpack_float(value) for case, value in entry.similarities.items()}
         for query, entry in result.queries.items()
     }
-    if auto_scale:
-        min_sim = min(min(entries.values()) for entries in sims.values())
-        max_sim = max(max(entries.values()) for entries in sims.values())
-    else:
-        min_sim = 0.0
-        max_sim = 1.0
-
-    return {
-        query: {
-            case: round(
-                normalize_and_scale(sim, min_sim, max_sim, min_qrel, max_qrel),
-                round_mode,
-            )
-            for case, sim in entry.items()
-        }
-        for query, entry in sims.items()
-    }
+    return similarities_to_qrels(
+        unpacked_sims,
+        max_qrel,
+        min_qrel,
+        round_mode,
+        auto_scale,
+    )
 
 
 def retrieval_to_qrels[Q, C, S: Float](

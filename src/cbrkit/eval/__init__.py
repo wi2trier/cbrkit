@@ -4,7 +4,13 @@ Please refer to the official documentation for more information on the available
 <https://amenra.github.io/ranx/metrics/>
 """
 
-from .common import compute, compute_score_metrics, generate_metrics, parse_metric
+from .common import (
+    compute,
+    compute_score_metrics,
+    generate_metrics,
+    parse_metric,
+    similarities_to_qrels,
+)
 from .retrieval import (
     retrieval,
     retrieval_step,
@@ -17,6 +23,7 @@ __all__ = [
     "generate_metrics",
     "parse_metric",
     "compute_score_metrics",
+    "similarities_to_qrels",
     "retrieval",
     "retrieval_step",
     "retrieval_step_to_qrels",

@@ -2,9 +2,16 @@ import itertools
 import statistics
 import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from ..helpers import get_logger, unpack_float, unpack_floats
+from ..helpers import (
+    get_logger,
+    normalize_and_scale,
+    round,
+    sim_map2ranking,
+    unpack_float,
+    unpack_floats,
+)
 from ..typing import ConversionFunc, EvalMetricFunc, Float, QueryCaseMatrix
 
 logger = get_logger(__name__)
@@ -388,3 +395,41 @@ def generate_metrics(
         generate_metric(*args)
         for args in itertools.product(metrics, ks, relevance_levels)
     ]
+
+
+def similarities_to_qrels[Q, C](
+    similarities: QueryCaseMatrix[Q, C, float],
+    max_qrel: int | None = None,
+    min_qrel: int = 1,
+    round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
+    auto_scale: bool = True,
+) -> QueryCaseMatrix[Q, C, int]:
+    if max_qrel is None:
+        return {
+            query: {
+                case: rank
+                for rank, case in enumerate(
+                    reversed(sim_map2ranking(case_sims)),
+                    start=min_qrel,
+                )
+            }
+            for query, case_sims in similarities.items()
+        }
+
+    if auto_scale:
+        min_sim = min(min(entries.values()) for entries in similarities.values())
+        max_sim = max(max(entries.values()) for entries in similarities.values())
+    else:
+        min_sim = 0.0
+        max_sim = 1.0
+
+    return {
+        query: {
+            case: round(
+                normalize_and_scale(sim, min_sim, max_sim, min_qrel, max_qrel),
+                round_mode,
+            )
+            for case, sim in case_sims.items()
+        }
+        for query, case_sims in similarities.items()
+    }
