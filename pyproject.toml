@@ -58,6 +58,7 @@ api = [
     "python-multipart>=0.0.15,<1",
     "uvicorn[standard]>=0.30,<1",
     "fastmcp>=2,<3",
+    "jsonref>=1,<2"
 ]
 chunking = ["chonkie>=1,<2"]
 cli = ["typer>=0.9,<1"]

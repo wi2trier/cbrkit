@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from pydantic import BaseModel
 
@@ -144,7 +144,31 @@ with cbrkit.helpers.optional_dependencies():
 
 
 with cbrkit.helpers.optional_dependencies():
+    import jsonref
     from fastmcp import FastMCP
+    from fastmcp.tools.tool import FunctionTool
+    from fastmcp.utilities.json_schema import compress_schema
+
+    # https://github.com/jlowin/fastmcp/pull/1427
+    def dereference_schema(schema: dict[str, Any]) -> dict[str, Any]:
+        return compress_schema(
+            cast(
+                dict[str, Any],
+                jsonref.replace_refs(
+                    schema,
+                    jsonschema=True,
+                    merge_props=True,
+                    lazy_load=False,
+                    proxies=False,
+                ),
+            )
+        )
+
+    def dereference_tool(tool: FunctionTool) -> None:
+        tool.parameters = dereference_schema(tool.parameters)
+
+        if tool.output_schema is not None:
+            tool.output_schema = dereference_schema(tool.output_schema)
 
     @dataclass(slots=True, frozen=True)
     class FastMCPSystem[
@@ -195,13 +219,13 @@ with cbrkit.helpers.optional_dependencies():
         fastmcp_system = FastMCPSystem(system)
 
         if system.retriever_factory:
-            app.tool("/retrieve")(fastmcp_system.retrieve)
+            dereference_tool(app.tool("retrieve")(fastmcp_system.retrieve))
 
         if system.reuser_factory:
-            app.tool("/reuse")(fastmcp_system.reuse)
+            dereference_tool(app.tool("reuse")(fastmcp_system.reuse))
 
         if system.retriever_factory and system.reuser_factory:
-            app.tool("/cycle")(fastmcp_system.cycle)
+            dereference_tool(app.tool("cycle")(fastmcp_system.cycle))
 
         app.resource("casebase://{key}")(fastmcp_system.case)
 
