@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.4](https://github.com/wi2trier/cbrkit/compare/v0.28.3...v0.28.4) (2025-08-28)
+
+### Bug Fixes
+
+* **system:** dereference mcp tools ([bb6b6c6](https://github.com/wi2trier/cbrkit/commit/bb6b6c6cccc191a32471e5750a8a6026146d9a28))
+* **system:** rework integrations to be more integrated ([fbc6205](https://github.com/wi2trier/cbrkit/commit/fbc6205d68771ebb87434d9365f6249f3642a988))
+
 ## [0.28.3](https://github.com/wi2trier/cbrkit/compare/v0.28.2...v0.28.3) (2025-08-27)
 
 ### Bug Fixes
