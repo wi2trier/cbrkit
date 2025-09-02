@@ -150,24 +150,43 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
+        sub_x = Graph(
+            nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
+            edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+            value=x.value,
+        )
+        sub_y = Graph(
+            nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
+            edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+            value=y.value,
+        )
+
+        # Early termination for trivial cases
+        if len(s.open_y_nodes) == 0 and len(s.open_y_edges) == 0:
+            return 0.0
+
         cost_matrix = self.build_cost_matrix(
-            Graph(
-                nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
-                edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
-                value=x.value,
-            ),
-            Graph(
-                nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
-                edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
-                value=y.value,
-            ),
+            sub_x,
+            sub_y,
             node_pair_sims,
             edge_pair_sims,
         )
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
         cost: float = cost_matrix[row_idx, col_idx].sum()
 
-        return 1 - cost
+        # Convert normalized cost to similarity and scale by subgraph size relative to full graph
+        full_upper_bound = self.cost_upper_bound(x, y)
+        sub_upper_bound = self.cost_upper_bound(sub_x, sub_y)
+
+        if not (full_upper_bound > 0 and sub_upper_bound > 0):
+            return 0.0
+
+        similarity = max(0.0, 1.0 - cost)
+
+        # Scale the heuristic by the proportion of remaining elements
+        scaling_factor = sub_upper_bound / full_upper_bound
+
+        return similarity * scaling_factor
 
 
 @dataclass(slots=True, frozen=True)
@@ -330,26 +349,31 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
             if len(s.open_x_nodes) == 0:
                 return next_elem(s.open_y_nodes), "node"
 
+            sub_x = Graph(
+                nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
+                edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+                value=x.value,
+            )
+            sub_y = Graph(
+                nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
+                edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+                value=y.value,
+            )
+
             cost_matrix = self.build_cost_matrix(
-                Graph(
-                    nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
-                    edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
-                    value=x.value,
-                ),
-                Graph(
-                    nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
-                    edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
-                    value=y.value,
-                ),
+                sub_x,
+                sub_y,
                 node_pair_sims,
                 edge_pair_sims,
             )
+            # Map row indices back to the actual y keys using exactly the
+            # order used to build the subgraph/cost matrix.
             row2y = {r: k for r, k in enumerate(s.open_y_nodes)}
-            # get upper left quadrant
+            # get upper left quadrant (substitution block)
             subst_cost_matrix = cost_matrix[
                 : len(s.open_y_nodes), : len(s.open_x_nodes)
             ]
-            # get row with lowest minimum value, this is the index of the node to select
+            # select the y-node (row) whose best substitution is cheapest
             row_mins = subst_cost_matrix.min(axis=1)
             row_idx = row_mins.argmin()
             y_key = row2y[row_idx]

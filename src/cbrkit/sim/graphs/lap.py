@@ -127,17 +127,12 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         cols = len(x.nodes)
         dim = rows + cols
 
-        cost_upper_bound = (
-            len(y.nodes) * self.node_del_cost
-            + len(x.nodes) * self.node_ins_cost
-            + len(y.edges) * self.edge_del_cost
-            + len(x.edges) * self.edge_ins_cost
-        )
+        upper_bound = self.cost_upper_bound(x, y)
 
-        if cost_upper_bound == 0.0:
+        if upper_bound == 0.0:
             return np.zeros((dim, dim), dtype=float)
 
-        normalization_factor = 1.0 / cost_upper_bound
+        normalization_factor = 1.0 / upper_bound
 
         row2y = {r: k for r, k in enumerate(y.nodes.keys())}
         col2x = {c: k for c, k in enumerate(x.nodes.keys())}

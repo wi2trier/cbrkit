@@ -97,6 +97,18 @@ class BaseGraphEditFunc[K, N, E, G]:
     edge_del_cost: float = 1.0
     edge_ins_cost: float = 0.0
 
+    def cost_upper_bound(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> float:
+        return (
+            len(y.nodes) * self.node_del_cost
+            + len(x.nodes) * self.node_ins_cost
+            + len(y.edges) * self.edge_del_cost
+            + len(x.edges) * self.edge_ins_cost
+        )
+
 
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
@@ -209,12 +221,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         ]
 
         all_sims = itertools.chain(node_sims, edge_sims)
-        upper_bound = (
-            len(y.nodes) * self.node_del_cost
-            + len(x.nodes) * self.node_ins_cost
-            + len(y.edges) * self.edge_del_cost
-            + len(x.edges) * self.edge_ins_cost
-        )
+        upper_bound = self.cost_upper_bound(x, y)
         total_sim = sum(all_sims) / upper_bound if upper_bound > 0 else 0.0
 
         return GraphSim(
@@ -260,12 +267,12 @@ class SearchState[K]:
     open_x_edges: frozenset[K]
 
 
-def sorted_iter[K](iterable: Iterable[K]) -> Iterable[K]:
+def sorted_iter[K](iterable: Iterable[K]) -> list[K]:
     """Sort an iterable if possible, otherwise return it unchanged."""
     try:
         return sorted(cast(Iterable[Any], iterable))
     except TypeError:
-        return iterable
+        return list(iterable)
 
 
 def next_elem[K](
