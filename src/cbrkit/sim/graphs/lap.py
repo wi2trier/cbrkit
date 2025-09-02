@@ -1,5 +1,6 @@
 import itertools
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from frozendict import frozendict
@@ -12,11 +13,13 @@ from .common import BaseGraphEditFunc, BaseGraphSimFunc, GraphSim, PairSim
 
 logger = get_logger(__name__)
 
+type LapEdgeHandling = Literal["ignore", "worstcase", "greedy", "optimal"]
+
 
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass
 class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
-    greedy: bool = True
+    edge_handling: LapEdgeHandling = "greedy"
     # 1.0 gives an upper bound, 0.5 gives a lower bound
     # approximation is better with a lower bound
     edge_edit_factor: float = 0.5
@@ -105,11 +108,11 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         np.fill_diagonal(cost_matrix[rows:, :cols], self.edge_ins_cost)
 
         for r, c in itertools.product(range(rows), range(cols)):
-            if (
-                (y_key := row2y.get(r))
-                and (x_key := col2x.get(c))
-                and (sim := edge_pair_sims.get((y_key, x_key)))
-            ):
+            # Access by index to avoid falsy-key short-circuiting (e.g., 0 or "").
+            y_key = row2y[r]
+            x_key = col2x[c]
+            sim = edge_pair_sims.get((y_key, x_key))
+            if sim is not None:
                 cost_matrix[r, c] = 1.0 - sim
 
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
@@ -151,47 +154,59 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
 
         # deletion diagonal
         for i in range(rows):
-            cost_matrix[i, cols + i] = (
-                self.node_del_cost
-                + (
-                    self.edge_edit_factor
-                    * self.edge_del_cost
-                    * len(self.connected_edges(y, row2y[i]))
+            if self.edge_handling == "ignore":
+                edge_del_cost = 0.0
+            else:
+                edge_del_cost = self.edge_del_cost * len(
+                    self.connected_edges(y, row2y[i])
                 )
+
+            cost_matrix[i, cols + i] = (
+                self.node_del_cost + (self.edge_edit_factor * edge_del_cost)
             ) * normalization_factor
 
         # insertion diagonal
         for i in range(cols):
-            cost_matrix[rows + i, i] = (
-                self.node_ins_cost
-                + (
-                    self.edge_edit_factor
-                    * self.edge_ins_cost
-                    * len(self.connected_edges(x, col2x[i]))
+            if self.edge_handling == "ignore":
+                edge_ins_cost = 0.0
+            else:
+                edge_ins_cost = self.edge_ins_cost * len(
+                    self.connected_edges(x, col2x[i])
                 )
+
+            cost_matrix[rows + i, i] = (
+                self.node_ins_cost + (self.edge_edit_factor * edge_ins_cost)
             ) * normalization_factor
 
         # substitution quadrant
         for r, c in itertools.product(range(rows), range(cols)):
-            if (
-                (y_key := row2y.get(r))
-                and (x_key := col2x.get(c))
-                and (sim := node_pair_sims.get((y_key, x_key)))
-            ):
-                node_sub_cost = 1.0 - sim
+            y_key = row2y[r]
+            x_key = col2x[c]
+            sim = node_pair_sims.get((y_key, x_key))
 
-                if self.greedy:
-                    edge_sub_cost = self.edge_sub_cost_greedy(
-                        x, y, x_key, y_key, edge_pair_sims
-                    )
-                else:
-                    edge_sub_cost = self.edge_sub_cost_optimal(
-                        x, y, x_key, y_key, edge_pair_sims
-                    )
+            if sim is None:
+                continue
 
-                cost_matrix[r, c] = (
-                    node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
-                ) * normalization_factor
+            node_sub_cost = 1.0 - sim
+
+            if self.edge_handling == "greedy":
+                edge_sub_cost = self.edge_sub_cost_greedy(
+                    x, y, x_key, y_key, edge_pair_sims
+                )
+            elif self.edge_handling == "optimal":
+                edge_sub_cost = self.edge_sub_cost_optimal(
+                    x, y, x_key, y_key, edge_pair_sims
+                )
+            elif self.edge_handling == "worstcase":
+                edge_del_cost = self.edge_del_cost * len(self.connected_edges(y, y_key))
+                edge_ins_cost = self.edge_ins_cost * len(self.connected_edges(x, x_key))
+                edge_sub_cost = edge_del_cost + edge_ins_cost
+            else:
+                edge_sub_cost = 0.0
+
+            cost_matrix[r, c] = (
+                node_sub_cost + (self.edge_edit_factor * edge_sub_cost)
+            ) * normalization_factor
 
         if self.print_matrix:
             with np.printoptions(linewidth=10000):
