@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
 
+import numpy as np
 from frozendict import frozendict
 from scipy.optimize import linear_sum_assignment
 
@@ -150,14 +151,15 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
+        # Build subgraphs in a deterministic order to ensure stable LAP results.
         sub_x = Graph(
-            nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
-            edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+            nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
+            edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
             value=x.value,
         )
         sub_y = Graph(
-            nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
-            edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+            nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
+            edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
             value=y.value,
         )
 
@@ -349,14 +351,15 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
             if len(s.open_x_nodes) == 0:
                 return next_elem(s.open_y_nodes), "node"
 
+            # Build subgraphs in a deterministic order matching the cost-matrix layout.
             sub_x = Graph(
-                nodes=frozendict((k, x.nodes[k]) for k in s.open_x_nodes),
-                edges=frozendict((k, x.edges[k]) for k in s.open_x_edges),
+                nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
+                edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
                 value=x.value,
             )
             sub_y = Graph(
-                nodes=frozendict((k, y.nodes[k]) for k in s.open_y_nodes),
-                edges=frozendict((k, y.edges[k]) for k in s.open_y_edges),
+                nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
+                edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
                 value=y.value,
             )
 
@@ -367,16 +370,45 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
                 edge_pair_sims,
             )
             # Map row indices back to the actual y keys using exactly the
-            # order used to build the subgraph/cost matrix.
-            row2y = {r: k for r, k in enumerate(s.open_y_nodes)}
-            # get upper left quadrant (substitution block)
-            subst_cost_matrix = cost_matrix[
-                : len(s.open_y_nodes), : len(s.open_x_nodes)
-            ]
-            # select the y-node (row) whose best substitution is cheapest
-            row_mins = subst_cost_matrix.min(axis=1)
-            row_idx = row_mins.argmin()
-            y_key = row2y[row_idx]
+            # insertion order of the subgraph's nodes to stay aligned with the
+            # matrix construction.
+            row2y = {r: k for r, k in enumerate(sub_y.nodes.keys())}
+
+            # get upper-left quadrant (substitution block only)
+            rows = len(sub_y.nodes)
+            cols = len(sub_x.nodes)
+
+            if rows == 0 or cols == 0:
+                return next_elem(s.open_y_nodes), "node"
+
+            subst_cost_matrix = cost_matrix[:rows, :cols]
+
+            # Select the y-node whose best substitution is cheapest.
+            # Break ties by choosing the row with the fewest finite options (most constrained),
+            # then deterministically by key.
+            row_best_cost = np.min(subst_cost_matrix, axis=1)
+            best_cost = np.min(row_best_cost)
+
+            if not np.isfinite(best_cost):
+                # No feasible substitutions remain; fall back deterministically.
+                return next_elem(s.open_y_nodes), "node"
+
+            candidate_rows = [r for r, c in enumerate(row_best_cost) if c == best_cost]
+
+            if len(candidate_rows) > 1:
+                finite_counts = (
+                    np.isfinite(subst_cost_matrix[r]).sum() for r in candidate_rows
+                )
+                min_options = min(finite_counts)
+                candidate_rows = [
+                    r
+                    for r in candidate_rows
+                    if np.isfinite(subst_cost_matrix[r]).sum() == min_options
+                ]
+
+            # Final deterministic tie-breaker by y-key
+            y_candidates = [row2y[r] for r in candidate_rows]
+            y_key = next_elem(set(y_candidates))
 
             return y_key, "node"
 
