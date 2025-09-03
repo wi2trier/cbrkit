@@ -30,6 +30,65 @@ __all__ = [
 logger = get_logger(__name__)
 
 
+def node_mapping_feasible[K, N](
+    x_node: Node[K, N], y_node: Node[K, N], s: SearchState[K]
+) -> bool:
+    """Return whether mapping `y_node` to `x_node` is feasible in state `s`.
+
+    A mapping is feasible if it is already fixed in `s.node_mapping` or if both
+    nodes are still open candidates (i.e., present in `s.open_x_nodes`/`s.open_y_nodes`).
+    """
+    return x_node.key == s.node_mapping.get(y_node.key) or (
+        y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
+    )
+
+
+def feasible_subgraph_pair_sims[K, N, E, G](
+    x: Graph[K, N, E, G],
+    y: Graph[K, N, E, G],
+    s: SearchState[K],
+    node_pair_sims: Mapping[tuple[K, K], float],
+    edge_pair_sims: Mapping[tuple[K, K], float],
+    sub_x: Graph[K, N, E, G],
+    sub_y: Graph[K, N, E, G],
+) -> tuple[dict[tuple[K, K], float], dict[tuple[K, K], float]]:
+    """Filter node/edge pair similarities to encode existing mappings.
+
+    The LAP routines do not know about the current A* state.
+    To respect already fixed node mappings while solving on the remaining subgraphs, we:
+    - keep only node pairs within `sub_x`/`sub_y`; and
+    - keep only edge pairs whose endpoints are consistent with the current mapping,
+      i.e., an edge `(y_u,y_v)` may only be paired with `(x_u,x_v)` if for each
+      endpoint `y_*` either it is open and `x_*` is open, or it is already mapped
+      exactly to `x_*`.
+    """
+
+    # Restrict to nodes contained in the subgraphs (open elements)
+    sub_node_pairs: dict[tuple[K, K], float] = {
+        (yk, xk): v
+        for (yk, xk), v in node_pair_sims.items()
+        if yk in sub_y.nodes and xk in sub_x.nodes
+    }
+
+    # Restrict to edge pairs that are both in the subgraphs and consistent
+    # with the current node mapping for both endpoints.
+    sub_edge_pairs: dict[tuple[K, K], float] = {}
+
+    for (y_e, x_e), sim in edge_pair_sims.items():
+        if y_e not in sub_y.edges or x_e not in sub_x.edges:
+            continue
+
+        y_edge = y.edges[y_e]
+        x_edge = x.edges[x_e]
+
+        if node_mapping_feasible(
+            x_edge.source, y_edge.source, s
+        ) and node_mapping_feasible(x_edge.target, y_edge.target, s):
+            sub_edge_pairs[(y_e, x_e)] = sim
+
+    return sub_node_pairs, sub_edge_pairs
+
+
 @dataclass(slots=True, frozen=True, order=True)
 class PriorityState[K]:
     priority: float
@@ -122,18 +181,17 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
                 default=0.0,
             )
 
-        def can_map(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
-            return x_node.key == s.node_mapping.get(y_node.key) or (
-                y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
-            )
-
         for y_key in s.open_y_edges:
             h_val += max(
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
                     for x_key in s.open_x_edges
-                    if can_map(x.edges[x_key].source, y.edges[y_key].source)
-                    and can_map(x.edges[x_key].target, y.edges[y_key].target)
+                    if node_mapping_feasible(
+                        x.edges[x_key].source, y.edges[y_key].source, s
+                    )
+                    and node_mapping_feasible(
+                        x.edges[x_key].target, y.edges[y_key].target, s
+                    )
                 ),
                 default=0.0,
             )
@@ -167,11 +225,16 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         if len(s.open_y_nodes) == 0 and len(s.open_y_edges) == 0:
             return 0.0
 
+        # Encode current mappings by filtering pair similarities accordingly.
+        sub_node_pair_sims, sub_edge_pair_sims = feasible_subgraph_pair_sims(
+            x, y, s, node_pair_sims, edge_pair_sims, sub_x, sub_y
+        )
+
         cost_matrix = self.build_cost_matrix(
             sub_x,
             sub_y,
-            node_pair_sims,
-            edge_pair_sims,
+            sub_node_pair_sims,
+            sub_edge_pair_sims,
         )
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
         cost: float = cost_matrix[row_idx, col_idx].sum()
@@ -266,18 +329,17 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
                 mapping_options[(y_key, "node")] = len(h_vals)
                 heuristic_scores[(y_key, "node")] = max(h_vals)
 
-        def can_map(x_node: Node[K, N], y_node: Node[K, N]) -> bool:
-            return x_node.key == s.node_mapping.get(y_node.key) or (
-                y_node.key in s.open_y_nodes and x_node.key in s.open_x_nodes
-            )
-
         for y_key in s.open_y_edges:
             h_vals = [
                 edge_pair_sims[(y_key, x_key)]
                 for x_key in s.open_x_edges
                 if (y_key, x_key) in edge_pair_sims
-                and can_map(x.edges[x_key].source, y.edges[y_key].source)
-                and can_map(x.edges[x_key].target, y.edges[y_key].target)
+                and node_mapping_feasible(
+                    x.edges[x_key].source, y.edges[y_key].source, s
+                )
+                and node_mapping_feasible(
+                    x.edges[x_key].target, y.edges[y_key].target, s
+                )
             ]
 
             if h_vals:
@@ -363,11 +425,16 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
                 value=y.value,
             )
 
+            # Encode current mappings by filtering pair similarities accordingly.
+            sub_node_pair_sims, sub_edge_pair_sims = feasible_subgraph_pair_sims(
+                x, y, s, node_pair_sims, edge_pair_sims, sub_x, sub_y
+            )
+
             cost_matrix = self.build_cost_matrix(
                 sub_x,
                 sub_y,
-                node_pair_sims,
-                edge_pair_sims,
+                sub_node_pair_sims,
+                sub_edge_pair_sims,
             )
             # Map row indices back to the actual y keys using exactly the
             # insertion order of the subgraph's nodes to stay aligned with the
