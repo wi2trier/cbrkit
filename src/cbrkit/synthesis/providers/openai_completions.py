@@ -25,7 +25,7 @@ with optional_dependencies():
         return value if value is not None else NOT_GIVEN
 
     @dataclass(slots=True)
-    class openai[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
+    class openai_completions[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
         tool_choice: type[BaseModel] | str | None = None
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         frequency_penalty: float | None = None

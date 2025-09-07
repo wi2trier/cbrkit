@@ -12,7 +12,10 @@ from .model import (
 from .wrappers import conversation, pipe
 
 with optional_dependencies():
-    from .openai import openai
+    from .openai_completions import openai_completions
+
+    openai = openai_completions
+
 with optional_dependencies():
     from .ollama import ollama
 with optional_dependencies():
@@ -28,6 +31,7 @@ with optional_dependencies():
 
 __all__ = [
     "openai",
+    "openai_completions",
     "ollama",
     "cohere",
     "conversation",
