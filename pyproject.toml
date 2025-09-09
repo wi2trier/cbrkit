@@ -104,7 +104,7 @@ cbrkit = "cbrkit.cli:app"
 
 [dependency-groups]
 dev = ["pandas-stubs>=2,<3", "scipy-stubs>=1,<2"]
-test = ["pytest>=8,<9", "pytest-cov>=6,<7"]
+test = ["pytest>=8,<9", "pytest-cov>=7,<8"]
 docs = ["pdoc>=15,<16"]
 
 [build-system]
