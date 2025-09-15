@@ -46,7 +46,7 @@ dependencies = [
     "rich>=13,<15",
     "rtoml>=0.12,<1",
     "scipy>=1,<2",
-    "xmltodict>=0.13,<1",
+    "xmltodict>=1,<2",
 ]
 
 [project.optional-dependencies]
