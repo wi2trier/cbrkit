@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.28.5](https://github.com/wi2trier/cbrkit/compare/v0.28.4...v0.28.5) (2025-09-16)
+
+### Bug Fixes
+
+* **sim/graphs/astar:** inform lap for h4/select4 about previous mappings ([7c9bfc7](https://github.com/wi2trier/cbrkit/commit/7c9bfc7e1faef5a7813b561e5f962094a8b743eb))
+* **sim/graphs/astar:** make h4 deterministic ([122b1ea](https://github.com/wi2trier/cbrkit/commit/122b1ea21a2b7bbd62400b0437925bb10cf5a907))
+* **sim/graphs/lap:** add multiple edge handling strategies ([c8e064d](https://github.com/wi2trier/cbrkit/commit/c8e064dc27fdbcda257a85a3123d199e1b3e477d))
+* **sim/graphs:** correctly normalize cost matrix for astar search ([f2acb2c](https://github.com/wi2trier/cbrkit/commit/f2acb2cf5162aa1941ee539c20a366b4070c7d43))
+* **synthesis/providers:** rename openai to openai_completions ([a1e32e1](https://github.com/wi2trier/cbrkit/commit/a1e32e1aba1a98f84a280553cb07e8bef04180ef))
+* **system:** rework interface and add example ([37bc34a](https://github.com/wi2trier/cbrkit/commit/37bc34acca604f1d4acecb917ed15d9a61c8ec76))
+
 ## [0.28.4](https://github.com/wi2trier/cbrkit/compare/v0.28.3...v0.28.4) (2025-08-28)
 
 ### Bug Fixes
