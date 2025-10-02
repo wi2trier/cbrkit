@@ -21,7 +21,7 @@ with optional_dependencies():
 
     type OpenaiPrompt = str | ChatPrompt[str]
 
-    def if_given[T](value: T | None) -> T | NotGiven:
+    def if_given[T](value: T | None | NotGiven) -> T | NotGiven:
         return value if value is not None else NOT_GIVEN
 
     @dataclass(slots=True)
