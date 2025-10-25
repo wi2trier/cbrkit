@@ -36,8 +36,7 @@ classifiers = [
 requires-python = ">=3.12"
 dependencies = [
     "frozendict>=2,<3",
-    "numpy>=1,<2; platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "numpy>=2,<3; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "numpy>=2,<3",
     "orjson>=3,<4",
     "pandas>=2,<3",
     "polars>=1,<2",
@@ -78,17 +77,14 @@ llm = [
 ]
 nlp = [
     "bm25s[core,stem]>=0.2,<1",
-    "levenshtein>=0.23,<0.26; platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "levenshtein>=0.26,<1; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "levenshtein>=0.26,<1",
     "nltk>=3,<4",
-    "spacy>=3.7,<3.8; platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "spacy>=3.8,<4; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "spacy>=3.8,<4",
 ]
 timeseries = ["minineedle>=3,<4"]
 transformers = [
     "sentence-transformers>=3,<6",
-    "torch>=2.2,<2.3; platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "torch>=2.5,<3; platform_machine != 'x86_64' or sys_platform != 'darwin'",
+    "torch>=2.5,<3",
     "transformers>=4,<5",
 ]
 
