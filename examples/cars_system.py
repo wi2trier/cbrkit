@@ -1,4 +1,4 @@
-# uv run cbrkit uvicorn examples.cars_system:api_app
+# uv run cbrkit uvicorn --search-path ./examples cars_system:api_app
 
 from collections.abc import Mapping
 from typing import Annotated, Literal
@@ -69,7 +69,7 @@ system = cbrkit.system.System(
     retriever_factory=retriever_factory,
 )
 
-mcp = FastMCP()
+mcp = FastMCP("cbrkit")
 
 
 @mcp.tool("retrieve")
