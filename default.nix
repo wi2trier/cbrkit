@@ -7,7 +7,7 @@
   pyproject-nix,
   pyproject-build-systems,
   python3,
-  tbb_2022,
+  onetbb,
   cacert,
   graphviz,
 }:
@@ -64,7 +64,7 @@ let
         autoPatchelfIgnoreMissingDeps = true;
       };
       numba = old: {
-        buildInputs = (old.buildInputs or [ ]) ++ [ tbb_2022 ];
+        buildInputs = (old.buildInputs or [ ]) ++ [ onetbb ];
       };
       cbrkit = old: {
         meta = (old.meta or { }) // {
