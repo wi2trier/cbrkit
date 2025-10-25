@@ -329,7 +329,7 @@ wheels = [
 
 [[package]]
 name = "cbrkit"
-version = "0.28.5"
+version = "0.28.6"
 source = { editable = "." }
 dependencies = [
     { name = "frozendict" },

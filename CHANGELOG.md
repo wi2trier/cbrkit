@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.6](https://github.com/wi2trier/cbrkit/compare/v0.28.5...v0.28.6) (2025-10-25)
+
+### Bug Fixes
+
+* **deps:** remove support for x86_64-darwin ([2d3d6f4](https://github.com/wi2trier/cbrkit/commit/2d3d6f45fccc5054b4eb3ad621314957faec19ec))
+* **synthesis/openai:** update if_given ([75b01bb](https://github.com/wi2trier/cbrkit/commit/75b01bb86cbeaef8bfee5992b4d01cdeec86207e))
+
 ## [0.28.5](https://github.com/wi2trier/cbrkit/compare/v0.28.4...v0.28.5) (2025-09-16)
 
 ### Bug Fixes
