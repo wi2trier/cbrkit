@@ -37,9 +37,6 @@ def default_conversion_func(obj: Any) -> Any:
     if hasattr(obj, "dump"):
         return default_conversion_func(obj.dump())
 
-    if isinstance(obj, dict) and any(not isinstance(k, str) for k in obj.keys()):
-        return {str(k): v for k, v in obj.items()}
-
     return obj
 
 
@@ -108,10 +105,11 @@ class json(ConversionFunc[Any, bytes]):
         default: Function to serialize arbitrary objects, see orjson documentation.
         option: Serialization options, see orjson documentation.
             Multiple options can be combined using the bitwise OR operator `|`.
+            Default is `orjson.OPT_NON_STR_KEYS`.
     """
 
     default: Callable[[Any], Any] | None = None
-    option: int | None = None
+    option: int | None = orjson.OPT_NON_STR_KEYS
     conversion_func: ConversionFunc[Any, Any] = default_conversion_func
 
     def __call__(self, obj: Any) -> bytes:
