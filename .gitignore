@@ -236,6 +236,7 @@ pyrightconfig.json
 /data/private
 /data/output.json
 /data/fritz-meyer/
-/data/fritz_meyer.py
 /data/cars_rag_retrieval.py
 /data/openapi.json
+/examples/fritz_meyer.py
+/examples/concordances_vs_ndcg.py
