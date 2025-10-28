@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.28.7](https://github.com/wi2trier/cbrkit/compare/v0.28.6...v0.28.7) (2025-10-28)
+
+### Bug Fixes
+
+* **dumpers:** better handling of non-string keys ([25347bf](https://github.com/wi2trier/cbrkit/commit/25347bfd3e02051321d4eee270079e22a5c16d56))
+
 ## [0.28.6](https://github.com/wi2trier/cbrkit/compare/v0.28.5...v0.28.6) (2025-10-25)
 
 ### Bug Fixes
