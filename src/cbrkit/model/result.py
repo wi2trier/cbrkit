@@ -52,6 +52,15 @@ class QueryResultStep[K, V, S: Float](BaseModel):
             duration=duration,
         )
 
+    def remove_cases(self) -> "QueryResultStep[K, None, S]":
+        return QueryResultStep[K, None, S](
+            similarities=self.similarities,
+            ranking=self.ranking,
+            casebase={},
+            query=None,
+            duration=self.duration,
+        )
+
 
 class ResultStep[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -82,6 +91,13 @@ class ResultStep[Q, C, V, S: Float](BaseModel):
     @property
     def case(self) -> V:
         return self.default_query.case
+
+    def remove_cases(self) -> "ResultStep[Q, C, None, S]":
+        return ResultStep[Q, C, None, S](
+            queries={key: value.remove_cases() for key, value in self.queries.items()},
+            metadata=self.metadata,
+            duration=self.duration,
+        )
 
 
 class Result[Q, C, V, S: Float](BaseModel):
@@ -129,6 +145,12 @@ class Result[Q, C, V, S: Float](BaseModel):
     def case(self) -> V:
         return self.final_step.case
 
+    def remove_cases(self) -> "Result[Q, C, None, S]":
+        return Result[Q, C, None, S](
+            steps=[step.remove_cases() for step in self.steps],
+            duration=self.duration,
+        )
+
 
 class CycleResult[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -142,3 +164,10 @@ class CycleResult[Q, C, V, S: Float](BaseModel):
             return self.reuse.final_step
 
         return self.retrieval.final_step
+
+    def remove_cases(self) -> "CycleResult[Q, C, None, S]":
+        return CycleResult[Q, C, None, S](
+            retrieval=self.retrieval.remove_cases(),
+            reuse=self.reuse.remove_cases(),
+            duration=self.duration,
+        )
