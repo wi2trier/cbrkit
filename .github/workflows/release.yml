@@ -55,6 +55,8 @@ jobs:
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
+      # docker build aborts due to missing space
+      - uses: wimpysworld/nothing-but-nix@v6
       - uses: DeterminateSystems/nix-installer-action@v20
         with:
           extra-conf: |
