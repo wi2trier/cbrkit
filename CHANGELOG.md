@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.28.8](https://github.com/wi2trier/cbrkit/compare/v0.28.7...v0.28.8) (2025-10-31)
+
+### Bug Fixes
+
+* **model:** add remove_cases method to result objects for smaller serialization ([9f85519](https://github.com/wi2trier/cbrkit/commit/9f855195948b58f0fb6657d2218e9612be4efd44))
+
 ## [0.28.7](https://github.com/wi2trier/cbrkit/compare/v0.28.6...v0.28.7) (2025-10-28)
 
 ### Bug Fixes
