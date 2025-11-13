@@ -20,7 +20,7 @@ jobs:
       git-head: ${{ steps.semanticrelease.outputs.git-head }}
     steps:
       - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@v20
+      - uses: DeterminateSystems/nix-installer-action@v21
         with:
           extra-conf: |
             accept-flake-config = true
@@ -57,7 +57,7 @@ jobs:
           platforms: arm64
       # docker build aborts due to missing space
       - uses: wimpysworld/nothing-but-nix@v6
-      - uses: DeterminateSystems/nix-installer-action@v20
+      - uses: DeterminateSystems/nix-installer-action@v21
         with:
           extra-conf: |
             accept-flake-config = true
@@ -98,7 +98,7 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.git-head }}
       - uses: actions/configure-pages@v5
-      - uses: DeterminateSystems/nix-installer-action@v20
+      - uses: DeterminateSystems/nix-installer-action@v21
         with:
           extra-conf: |
             accept-flake-config = true
