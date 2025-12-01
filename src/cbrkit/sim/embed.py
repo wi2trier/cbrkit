@@ -14,9 +14,9 @@ from ..helpers import (
     batchify_conversion,
     batchify_sim,
     chunkify,
-    event_loop,
     get_logger,
     optional_dependencies,
+    run_coroutine,
 )
 from ..typing import (
     AnyConversionFunc,
@@ -461,7 +461,7 @@ with optional_dependencies():
 
         @override
         def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
-            return event_loop.get().run_until_complete(self.__call_batches__(batches))
+            return run_coroutine(self.__call_batches__(batches))
 
         async def __call_batches__(
             self, batches: Sequence[str]

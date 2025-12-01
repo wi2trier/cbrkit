@@ -6,7 +6,6 @@
 
 """
 
-import atexit
 import logging
 
 from . import (
@@ -44,4 +43,3 @@ __all__ = [
 ]
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
-atexit.register(helpers.event_loop.close)

@@ -6,7 +6,7 @@ from typing import Any, Literal, override
 
 from pydantic import Field
 
-from ...helpers import event_loop, get_logger
+from ...helpers import get_logger, run_coroutine
 from ...typing import BatchConversionFunc, StructuredValue
 
 logger = get_logger(__name__)
@@ -46,7 +46,7 @@ class Response[T](StructuredValue[T]):
 @dataclass(slots=True, kw_only=True)
 class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
-        return event_loop.get().run_until_complete(self.__call_batches__(batches))
+        return run_coroutine(self.__call_batches__(batches))
 
     async def __call_batches__(self, batches: Sequence[P]) -> Sequence[R]:
         logger.info(f"Processing {len(batches)} batches")

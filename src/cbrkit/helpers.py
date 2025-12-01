@@ -13,13 +13,14 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields, is_dataclass
 from importlib import import_module
 from io import BytesIO
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Any, Literal, TypeGuard, cast, override
+from typing import Any, Coroutine, Literal, TypeGuard, cast, override
 
 from pydantic import BaseModel, Field, create_model
 
@@ -60,7 +61,6 @@ __all__ = [
     "dereference_json_schema",
     "dereference_fastmcp_tool",
     "dist2sim",
-    "event_loop",
     "get_hash",
     "get_logger",
     "get_metadata",
@@ -88,6 +88,7 @@ __all__ = [
     "reverse_positional",
     "round",
     "round_nearest",
+    "run_coroutine",
     "scale",
     "sim_map2ranking",
     "sim_seq2ranking",
@@ -104,41 +105,24 @@ __all__ = [
 ]
 
 
-@dataclass(slots=True)
-class EventLoop:
-    _instance: asyncio.AbstractEventLoop | None = None
+def run_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run a coroutine from sync code without returning a Task.
 
-    def get(self) -> asyncio.AbstractEventLoop:
-        if self._instance is None:
-            self._instance = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._instance)
+    When an event loop is already running in the current thread, the coroutine
+    runs on a fresh loop in a background thread and this call blocks for its
+    result. Otherwise the coroutine runs via ``asyncio.run``.
+    """
 
-        return self._instance
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
 
-    def close(self) -> None:
-        if self._instance is not None:
-            try:
-                tasks = asyncio.all_tasks(self._instance)
-                for task in tasks:
-                    task.cancel()
+    if loop is not None and loop.is_running():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(asyncio.run, coro).result()
 
-                if tasks:
-                    self._instance.run_until_complete(
-                        asyncio.gather(*tasks, return_exceptions=True)
-                    )
-            except (RuntimeError, asyncio.CancelledError):
-                # Event loop may already be closed or unavailable
-                pass
-            finally:
-                try:
-                    self._instance.close()
-                except RuntimeError:
-                    # Event loop may already be closed
-                    pass
-                self._instance = None
-
-
-event_loop = EventLoop()
+    return asyncio.run(coro)
 
 
 @contextmanager
