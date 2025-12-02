@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.28.9](https://github.com/wi2trier/cbrkit/compare/v0.28.8...v0.28.9) (2025-12-02)
+
+### Bug Fixes
+
+* improve coroutine handling of cbrkit ([9bda6ae](https://github.com/wi2trier/cbrkit/commit/9bda6aec76d0af263c70c27794f923cbbd86458a))
+
 ## [0.28.8](https://github.com/wi2trier/cbrkit/compare/v0.28.7...v0.28.8) (2025-10-31)
 
 ### Bug Fixes
