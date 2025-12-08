@@ -1,8 +1,10 @@
 # uv run examples/cars_rag.py
 import polars as pl
+from pydantic import BaseModel
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
 
 import cbrkit
-from pydantic import BaseModel
 
 df = pl.read_csv("data/cars-1k.csv").head(10)
 casebase = cbrkit.loaders.polars(df)
@@ -29,8 +31,12 @@ class Response(BaseModel):
 
 
 synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.anthropic(
-        model="claude-3-haiku-20240307", response_type=Response, max_tokens=200
+    cbrkit.synthesis.providers.pydantic_ai(
+        Agent(
+            OpenAIChatModel("gpt-5.1-codex"),
+            output_type=str,
+        ),
+        deps=None,
     ),
     cbrkit.synthesis.prompts.default(
         "Give me a summary of the found cars.",

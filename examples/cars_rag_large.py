@@ -1,4 +1,6 @@
 import polars as pl
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIChatModel
 
 import cbrkit
 
@@ -21,8 +23,12 @@ prompt = cbrkit.synthesis.prompts.default(
     instructions="Give me a summary of the aptitude for daily driving each of the retrieved cars.",
     # metadata=cbrkit.helpers.get_metadata(sim_func),
 )
-provider = cbrkit.synthesis.providers.anthropic(
-    model="claude-3-haiku-20240307", response_type=str, max_tokens=400
+provider = cbrkit.synthesis.providers.pydantic_ai(
+    Agent(
+        OpenAIChatModel("gpt-5.1-codex"),
+        output_type=str,
+    ),
+    deps=None,
 )
 synthesizer = cbrkit.synthesis.build(
     provider,
