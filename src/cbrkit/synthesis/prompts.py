@@ -13,14 +13,12 @@ from ..typing import (
     StructuredValue,
     SynthesizerPromptFunc,
 )
-from .providers.model import DocumentsPrompt
 
 __all__ = [
     "concat",
     "transpose",
     "transpose_value",
     "default",
-    "documents_aware",
     "pooling",
 ]
 
@@ -150,75 +148,6 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 """
 
         return result
-
-
-@dataclass(slots=True, frozen=True)
-class documents_aware[V](SynthesizerPromptFunc[DocumentsPrompt[str], Any, V, Any]):
-    """
-    Produces a structured LLM input (as of now: exclusive for cohere) which provides context for the LLM to be able to perform instructions.
-
-    Args:
-        instructions: Instructions for the LLM to execute on the input.
-        encoder: Encoder function to convert the a case or query to a string.
-        metadata: Optional metadata to include in the prompt.
-
-    Examples:
-        >>> prompt = documents_aware("Give me a summary of the found cars.")
-        >>> prompt(casebase, query, similarities) # doctest: +SKIP
-    """
-
-    instructions: str | SynthesizerPromptFunc[str, Any, V, Float] | None = None
-    encoder: ConversionFunc[V | JsonEntry, str] = field(default_factory=markdown)
-    metadata: JsonEntry | None = None
-
-    def __call__(
-        self,
-        casebase: Casebase[Any, V],
-        query: V | None,
-        similarities: SimMap[Any, Float] | None,
-    ) -> DocumentsPrompt:
-        result = ""
-
-        if isinstance(self.instructions, Callable):
-            result += self.instructions(casebase, query, similarities)
-        elif isinstance(self.instructions, str):
-            result += self.instructions
-
-        if query is not None:
-            result += f"""
-## Query
-
-{encode(query, self.encoder)}
-"""
-
-        if self.metadata is not None:
-            result += f"""
-## Metadata
-
-{encode(self.metadata, self.encoder)}
-"""
-
-        ranking = (
-            sim_map2ranking(similarities)
-            if similarities is not None
-            else list(casebase.keys())
-        )
-
-        return DocumentsPrompt(
-            result,
-            {
-                key: {
-                    "text": encode(casebase[key], self.encoder),
-                    "similarity": f"{unpack_float(similarities[key]):.3f}",
-                    "rank": str(rank),
-                }
-                if similarities is not None
-                else {
-                    "text": encode(casebase[key], self.encoder),
-                }
-                for rank, key in enumerate(ranking)
-            },
-        )
 
 
 @dataclass(slots=True, frozen=True)

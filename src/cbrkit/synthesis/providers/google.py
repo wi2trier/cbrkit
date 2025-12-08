@@ -8,9 +8,13 @@ from .model import BaseProvider, Response
 
 with optional_dependencies():
     from google.genai import Client
-    from google.genai.types import GenerateContentConfig
+    from google.genai.types import (
+        ContentListUnion,
+        ContentListUnionDict,
+        GenerateContentConfig,
+    )
 
-    type GooglePrompt = str
+    type GooglePrompt = ContentListUnion | ContentListUnionDict
 
     @dataclass(slots=True)
     class google[R: BaseModel | str](BaseProvider[GooglePrompt, R]):

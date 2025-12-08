@@ -1,20 +1,22 @@
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import override
 
 from pydantic import BaseModel
 
-from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, Response
+from ...helpers import optional_dependencies
+from .model import BaseProvider, Response
 
 with optional_dependencies():
     from ollama import AsyncClient, Message, Options
 
-    type OllamaPrompt = str | ChatPrompt[str]
+    type OllamaPrompt = str | Sequence[Message]
 
     @dataclass(slots=True)
-    class ollama[R: str | BaseModel](ChatProvider[OllamaPrompt, R]):
+    class ollama[R: str | BaseModel](BaseProvider[OllamaPrompt, R]):
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
+        messages: Sequence[Message] = field(default_factory=tuple)
         options: Options | None = None
         keep_alive: float | str | None = None
 
@@ -25,20 +27,12 @@ with optional_dependencies():
             if self.system_message is not None:
                 messages.append(Message(role="system", content=self.system_message))
 
-            messages.extend(
-                Message(role=msg.role, content=msg.content) for msg in self.messages
-            )
+            messages.extend(self.messages)
 
-            if isinstance(prompt, ChatPrompt):
-                messages.extend(
-                    Message(role=msg.role, content=msg.content)
-                    for msg in prompt.messages
-                )
-
-            if self.messages and self.messages[-1].role == "user":
-                messages.append(Message(role="assistant", content=unpack_value(prompt)))
+            if isinstance(prompt, str):
+                messages.append(Message(role="user", content=prompt))
             else:
-                messages.append(Message(role="user", content=unpack_value(prompt)))
+                messages.extend(prompt)
 
             res = await self.client.chat(
                 model=self.model,

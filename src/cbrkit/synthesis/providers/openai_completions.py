@@ -5,27 +5,30 @@ from typing import Any, Literal, Union, cast, get_args, get_origin, override
 
 from pydantic import BaseModel, ValidationError
 
-from ...helpers import get_logger, optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, Response, Usage
+from ...helpers import get_logger, optional_dependencies
+from .model import BaseProvider, Response, Usage
 
 logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx import Timeout
-    from openai import NOT_GIVEN, AsyncOpenAI, NotGiven, pydantic_function_tool
+    from openai import AsyncOpenAI, Omit, omit, pydantic_function_tool
     from openai.types.chat import (
         ChatCompletionMessageParam,
         ChatCompletionNamedToolChoiceParam,
         ChatCompletionToolParam,
     )
+    from openai.types.shared.chat_model import ChatModel
 
-    type OpenaiPrompt = str | ChatPrompt[str]
+    type OpenAiPrompt = str | Sequence[ChatCompletionMessageParam]
 
-    def if_given[T](value: T | None | NotGiven) -> T | NotGiven:
-        return value if value is not None else NOT_GIVEN
+    def if_given[T](value: T | None | Omit) -> T | Omit:
+        return value if value is not None else omit
 
     @dataclass(slots=True)
-    class openai_completions[R: BaseModel | str](ChatProvider[OpenaiPrompt, R]):
+    class openai_completions[R: BaseModel | str](BaseProvider[OpenAiPrompt, R]):
+        model: str | ChatModel
+        messages: Sequence[ChatCompletionMessageParam] = field(default_factory=tuple)
         tool_choice: type[BaseModel] | str | None = None
         client: AsyncOpenAI = field(default_factory=AsyncOpenAI, repr=False)
         frequency_penalty: float | None = None
@@ -48,38 +51,18 @@ with optional_dependencies():
         timeout: float | Timeout | None = None
 
         @override
-        async def __call_batch__(self, prompt: OpenaiPrompt) -> Response[R]:
+        async def __call_batch__(self, prompt: OpenAiPrompt) -> Response[R]:
             messages: list[ChatCompletionMessageParam] = []
 
             if self.system_message is not None:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": self.system_message,
-                    }
-                )
+                messages.append({"role": "system", "content": self.system_message})
 
-            messages.extend(cast(Sequence[ChatCompletionMessageParam], self.messages))
+            messages.extend(self.messages)
 
-            if isinstance(prompt, ChatPrompt):
-                messages.extend(
-                    cast(Sequence[ChatCompletionMessageParam], prompt.messages)
-                )
-
-            if messages and messages[-1]["role"] == "user":
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": unpack_value(prompt),
-                    }
-                )
+            if isinstance(prompt, str):
+                messages.append({"role": "user", "content": prompt})
             else:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": unpack_value(prompt),
-                    }
-                )
+                messages.extend(prompt)
 
             tools: list[ChatCompletionToolParam] | None = None
             tool_choice: ChatCompletionNamedToolChoiceParam | None = None
@@ -113,7 +96,7 @@ with optional_dependencies():
                     messages=messages,
                     response_format=self.response_type
                     if tools is None and issubclass(self.response_type, BaseModel)
-                    else NOT_GIVEN,
+                    else omit,
                     tools=if_given(tools),
                     tool_choice=if_given(tool_choice),
                     frequency_penalty=if_given(self.frequency_penalty),
@@ -133,7 +116,7 @@ with optional_dependencies():
                     extra_headers=self.extra_headers,
                     extra_query=self.extra_query,
                     extra_body=self.extra_body,
-                    timeout=if_given(self.timeout),
+                    timeout=self.timeout,
                     **self.extra_kwargs,
                 )
             except ValidationError as e:

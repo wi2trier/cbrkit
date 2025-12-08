@@ -1,11 +1,11 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast, override
+from typing import Any, override
 
 from pydantic import BaseModel
 
-from ...helpers import get_logger, optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, Response
+from ...helpers import get_logger, optional_dependencies
+from .model import BaseProvider, Response
 
 logger = get_logger(__name__)
 
@@ -13,11 +13,12 @@ with optional_dependencies():
     from instructor import AsyncInstructor
     from openai.types.chat import ChatCompletionMessageParam
 
-    type InstructorPrompt = str | ChatPrompt[str]
+    type InstructorPrompt = str | Sequence[ChatCompletionMessageParam]
 
     @dataclass(slots=True)
-    class instructor[R: BaseModel](ChatProvider[InstructorPrompt, R]):
+    class instructor[R: BaseModel](BaseProvider[InstructorPrompt, R]):
         client: AsyncInstructor = field(repr=False)
+        messages: Sequence[ChatCompletionMessageParam] = field(default_factory=tuple)
         strict: bool = True
         context: dict[str, Any] | None = None
 
@@ -26,34 +27,14 @@ with optional_dependencies():
             messages: list[ChatCompletionMessageParam] = []
 
             if self.system_message is not None:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": self.system_message,
-                    }
-                )
+                messages.append({"role": "system", "content": self.system_message})
 
-            messages.extend(cast(Sequence[ChatCompletionMessageParam], self.messages))
+            messages.extend(self.messages)
 
-            if isinstance(prompt, ChatPrompt):
-                messages.extend(
-                    cast(Sequence[ChatCompletionMessageParam], prompt.messages)
-                )
-
-            if messages and messages[-1]["role"] == "user":
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": unpack_value(prompt),
-                    }
-                )
+            if isinstance(prompt, str):
+                messages.append({"role": "user", "content": prompt})
             else:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": unpack_value(prompt),
-                    }
-                )
+                messages.extend(prompt)
 
             # retries are already handled by the base provider
             return Response(

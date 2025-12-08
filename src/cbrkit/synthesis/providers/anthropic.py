@@ -1,131 +1,92 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast, override
+from typing import Any, cast, override
 
 from pydantic import BaseModel
 
-from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, Response
-
-
-def pydantic_to_anthropic_schema(model: type[BaseModel], description: str = "") -> dict:
-    """
-    Convert a Pydantic model to an Anthropic-compatible JSON schema format.
-
-    Args:
-        model: The Pydantic model class to convert
-        description: Optional description of the function
-
-    Returns:
-        Tuple containing name of the tool and the JSON schema
-    """
-    # Get the JSON schema from Pydantic model
-    schema = model.model_json_schema()
-
-    # Extract the model name
-    name = model.__name__
-
-    # Create the Anthropic-compatible schema structure
-    anthropic_schema = {
-        "name": name,
-        "description": description,
-        "input_schema": {
-            "type": "object",
-            "properties": schema.get("properties", {}),
-            "required": schema.get("required", []),
-        },
-    }
-
-    return anthropic_schema
-
+from ...helpers import optional_dependencies
+from .model import BaseProvider, Response, Usage
 
 with optional_dependencies():
-    from anthropic import NOT_GIVEN, AsyncAnthropic, NotGiven
+    from anthropic import AsyncAnthropic, Omit, omit
     from anthropic.types import (
-        MessageParam,
         MetadataParam,
         ModelParam,
         TextBlockParam,
         ToolChoiceParam,
         ToolParam,
     )
+    from anthropic.types.beta import BetaMessageParam
     from httpx import Timeout
 
-    type AnthropicPrompt = str | ChatPrompt[str]
+    type AnthropicPrompt = str | Sequence[BetaMessageParam]
+
+    def if_given[T](value: T | None | Omit) -> T | Omit:
+        return value if value is not None else omit
 
     @dataclass(slots=True)
-    class anthropic[R: str | BaseModel](ChatProvider[AnthropicPrompt, R]):
-        max_tokens: int
+    class anthropic[R: str | BaseModel](BaseProvider[AnthropicPrompt, R]):
         model: ModelParam
+        max_tokens: int
+        messages: Sequence[BetaMessageParam] = field(default_factory=tuple)
         client: AsyncAnthropic = field(default_factory=AsyncAnthropic, repr=False)
-        metadata: MetadataParam | NotGiven = NOT_GIVEN
-        stop_sequences: list[str] | NotGiven = NOT_GIVEN
-        stream: NotGiven | Literal[False] = NOT_GIVEN
-        system: str | Iterable[TextBlockParam] | NotGiven = NOT_GIVEN
-        temperature: float | NotGiven = NOT_GIVEN
-        tool_choice: ToolChoiceParam | NotGiven = NOT_GIVEN
-        tools: Iterable[ToolParam] | NotGiven = NOT_GIVEN
-        top_k: int | NotGiven = NOT_GIVEN
-        top_p: float | NotGiven = NOT_GIVEN
+        metadata: MetadataParam | None = None
+        stop_sequences: list[str] | None = None
+        system: str | Iterable[TextBlockParam] | None = None
+        temperature: float | None = None
+        tool_choice: ToolChoiceParam | None = None
+        tools: Iterable[ToolParam] | None = None
+        top_k: int | None = None
+        top_p: float | None = None
         extra_headers: Any | None = None
         extra_query: Any | None = None
         extra_body: Any | None = None
-        timeout: float | Timeout | NotGiven | None = NOT_GIVEN
+        timeout: float | Timeout | None = None
 
         @override
         async def __call_batch__(self, prompt: AnthropicPrompt) -> Response[R]:
-            messages: list[MessageParam] = []
+            messages: list[BetaMessageParam] = []
 
             if self.system_message is not None:
-                messages.append(
-                    {
-                        "role": "user",  # anthropic doesn't have a "system" role
-                        "content": self.system_message,
-                    }
-                )
-            messages.extend(cast(Sequence[MessageParam], self.messages))
+                # anthropic does not have a system/developer role
+                messages.append({"role": "user", "content": self.system_message})
 
-            if isinstance(prompt, ChatPrompt):
-                messages.extend(cast(Sequence[MessageParam], prompt.messages))
+            messages.extend(self.messages)
 
-            if self.messages and self.messages[-1].role == "user":
-                messages.append({"role": "assistant", "content": unpack_value(prompt)})
+            if isinstance(prompt, str):
+                messages.append({"role": "user", "content": prompt})
             else:
-                messages.append({"role": "user", "content": unpack_value(prompt)})
+                messages.extend(prompt)
 
-            tool = (
-                pydantic_to_anthropic_schema(self.response_type)
-                if issubclass(self.response_type, BaseModel)
-                else None
-            )
-
-            toolchoice = (
-                cast(ToolChoiceParam, {"type": "tool", "name": tool["name"]})
-                if tool is not None
-                else None
-            )
-            tool = cast(ToolParam, tool) if tool is not None else None
-            res = await self.client.messages.create(
+            res = await self.client.beta.messages.parse(
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
-                tools=[tool] if tool is not None else NOT_GIVEN,
-                tool_choice=toolchoice if toolchoice is not None else NOT_GIVEN,
+                output_format=self.response_type
+                if issubclass(self.response_type, BaseModel)
+                else omit,
             )
-            if issubclass(self.response_type, BaseModel):
-                # res.content should contain one ToolUseBlock
-                if len(res.content) != 1:
-                    raise ValueError("Expected one ToolUseBlock, got", len(res.content))
-                block = res.content[0]
-                if block.type != "tool_use":
-                    raise ValueError("Expected one ToolUseBlock, got", block.type)
-                return Response(self.response_type.model_validate(block.input))
 
-            elif self.response_type is str:
-                str_res = ""
-                for block in res.content:
-                    if block.type == "text":
-                        str_res += block.text
-                return Response(cast(R, str_res))
+            usage = Usage(
+                res.usage.input_tokens,
+                res.usage.output_tokens,
+            )
+
+            if (
+                isinstance(self.response_type, type)
+                and issubclass(self.response_type, BaseModel)
+                and (parsed := res.parsed_output) is not None
+            ):
+                return Response(parsed, usage)
+
+            if (
+                isinstance(self.response_type, type)
+                and issubclass(self.response_type, str)
+                and len(res.content) > 0
+            ):
+                aggregated_content = "".join(
+                    block.text for block in res.content if block.type == "text"
+                )
+                return Response(cast(R, aggregated_content), usage)
 
             raise ValueError("Invalid response", res)

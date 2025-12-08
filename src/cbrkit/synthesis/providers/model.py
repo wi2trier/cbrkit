@@ -2,30 +2,12 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, override
-
-from pydantic import Field
+from typing import Any, override
 
 from ...helpers import get_logger, run_coroutine
 from ...typing import BatchConversionFunc, StructuredValue
 
 logger = get_logger(__name__)
-
-
-@dataclass(slots=True, frozen=True)
-class ChatMessage[P]:
-    role: Literal["user", "assistant"]
-    content: P
-
-
-@dataclass(slots=True, frozen=True)
-class ChatPrompt[P](StructuredValue[P]):
-    messages: Sequence[ChatMessage[P]]
-
-
-@dataclass(slots=True, frozen=True)
-class DocumentsPrompt[P](StructuredValue[P]):
-    documents: Mapping[str, Mapping[str, str]]
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,7 +22,7 @@ class Usage:
 
 @dataclass(slots=True, frozen=True)
 class Response[T](StructuredValue[T]):
-    usage: Usage = Field(default_factory=Usage)
+    usage: Usage = field(default_factory=Usage)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -71,10 +53,10 @@ class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
 class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
     model: str
     response_type: type[R]
+    default_response: R | None = None
     system_message: str | None = None
     delay: float = 0
     retries: int = 0
-    default_response: R | None = None
     extra_kwargs: Mapping[str, Any] = field(default_factory=dict)
 
     @override
@@ -97,8 +79,3 @@ class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
                 return Response(self.default_response, Usage(0, 0))
 
             raise e
-
-
-@dataclass(slots=True, kw_only=True)
-class ChatProvider[P, R](BaseProvider[P, R], ABC):
-    messages: Sequence[ChatMessage] = field(default_factory=tuple)

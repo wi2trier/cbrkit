@@ -4,27 +4,33 @@ from typing import cast, override
 
 from pydantic import BaseModel
 
-from ...helpers import optional_dependencies, unpack_value
-from .model import ChatPrompt, ChatProvider, DocumentsPrompt, Response
+from ...helpers import optional_dependencies
+from .model import BaseProvider, Response
 
 with optional_dependencies():
     from cohere import (
-        AssistantChatMessageV2,
         AsyncClient,
         ChatMessageV2,
         CitationOptions,
-        Document,
         JsonObjectResponseFormatV2,
         SystemChatMessageV2,
         UserChatMessageV2,
+        V2ChatRequestDocumentsItem,
         V2ChatRequestSafetyMode,
     )
     from cohere.core import RequestOptions
 
-    type CoherePrompt = str | ChatPrompt[str] | DocumentsPrompt[str]
+    @dataclass(slots=True)
+    class CohereDocumentsPrompt:
+        messages: Sequence[ChatMessageV2]
+        documents: Sequence[V2ChatRequestDocumentsItem]
+
+    type CoherePrompt = str | Sequence[ChatMessageV2] | CohereDocumentsPrompt
 
     @dataclass(slots=True)
-    class cohere[R: str | BaseModel](ChatProvider[CoherePrompt, R]):
+    class cohere[R: str | BaseModel](BaseProvider[CoherePrompt, R]):
+        messages: Sequence[ChatMessageV2] = field(default_factory=tuple)
+        documents: Sequence[V2ChatRequestDocumentsItem] = field(default_factory=tuple)
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
         request_options: RequestOptions | None = None
         citation_options: CitationOptions | None = None
@@ -35,15 +41,18 @@ with optional_dependencies():
         seed: int | None = None
         frequency_penalty: float | None = None
         presence_penalty: float | None = None
-        k: float | None = None
+        k: int | None = None
         p: float | None = None
         logprobs: bool | None = None
 
         @override
         async def __call_batch__(self, prompt: CoherePrompt) -> Response[R]:
-            if isinstance(prompt, DocumentsPrompt) and issubclass(
-                self.response_type, BaseModel
-            ):
+            documents: list[V2ChatRequestDocumentsItem] = list(self.documents)
+
+            if isinstance(prompt, CohereDocumentsPrompt):
+                documents.extend(prompt.documents)
+
+            if issubclass(self.response_type, BaseModel) and documents:
                 raise ValueError(
                     "Structured output format is not supported when using documents"
                 )
@@ -53,29 +62,18 @@ with optional_dependencies():
             if self.system_message is not None:
                 messages.append(SystemChatMessageV2(content=self.system_message))
 
-            if isinstance(prompt, ChatPrompt):
-                messages.extend(
-                    UserChatMessageV2(content=msg.content)
-                    if msg.role == "user"
-                    else AssistantChatMessageV2(content=msg.content)
-                    for msg in prompt.messages
-                )
-
-            if self.messages and self.messages[-1].role == "user":
-                messages.append(AssistantChatMessageV2(content=unpack_value(prompt)))
+            if isinstance(prompt, str):
+                messages.append(UserChatMessageV2(content=prompt))
+            elif isinstance(prompt, CohereDocumentsPrompt):
+                messages.extend(prompt.messages)
             else:
-                messages.append(UserChatMessageV2(content=unpack_value(prompt)))
+                messages.extend(prompt)
 
             res = await self.client.v2.chat(
                 model=self.model,
                 messages=messages,
                 request_options=self.request_options,
-                documents=[
-                    Document(id=id, data=cast(dict[str, str], data))
-                    for id, data in prompt.documents.items()
-                ]
-                if isinstance(prompt, DocumentsPrompt)
-                else None,
+                documents=documents if documents else None,
                 response_format=JsonObjectResponseFormatV2(
                     json_schema=self.response_type.model_json_schema()
                 )
@@ -101,9 +99,15 @@ with optional_dependencies():
                 raise ValueError("The completion is empty")
 
             if issubclass(self.response_type, BaseModel):
-                if len(content) != 1:
-                    raise ValueError("The completion is empty or has multiple outputs")
+                if len(content) != 1 or content[0].type != "text":
+                    raise ValueError(
+                        "The completion is empty, has multiple outputs, or is not text"
+                    )
 
                 return Response(self.response_type.model_validate_json(content[0].text))
 
-            return Response(cast(R, "\n".join(x.text for x in content)))
+            aggregated_content = "".join(
+                block.text for block in content if block.type == "text"
+            )
+
+            return Response(cast(R, aggregated_content))
