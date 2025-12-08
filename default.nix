@@ -15,8 +15,8 @@ let
   pdocRepo = fetchFromGitHub {
     owner = "mitmproxy";
     repo = "pdoc";
-    tag = "v15.0.1";
-    hash = "sha256-HDrDGnK557EWbBQtsvDzTst3oV0NjLRm4ilXaxd6/j8=";
+    tag = "v16.0.0";
+    hash = "sha256-9amp6CWYIcniVfdlmPKYuRFR7B5JJtuMlOoDxpfvvJA=";
   };
   workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
   projectOverlay = workspace.mkPyprojectOverlay {
@@ -72,7 +72,7 @@ let
           maintainers = with lib.maintainers; [ mirkolenz ];
           license = lib.licenses.mit;
           homepage = "https://github.com/wi2trier/cbrkit";
-          description = "Generate entire directory structures using Jinja templates with support for external data and custom plugins.";
+          description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI";
           platforms = with lib.platforms; darwin ++ linux;
         };
         passthru = lib.recursiveUpdate (old.passthru or { }) {
