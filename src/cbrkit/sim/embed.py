@@ -172,6 +172,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
+    auto_index: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
     def __init__(
@@ -179,10 +180,12 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
         table: str | None = None,
+        auto_index: bool = True,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
         self.table = table
+        self.auto_index = auto_index
         self.store = {}
 
         if self.path is not None:
@@ -218,35 +221,73 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         finally:
             con.close()
 
-    # todo: handle deletions and updates by differentiating
-    # between manual and automatic indexing
     def index(self, texts: Sequence[str]) -> None:
-        # remove store entries and duplicates
-        new_texts = list({text for text in texts if text not in self.store})
+        unique_texts = set(texts)
 
-        if new_texts:
-            if self.func:
-                new_vectors = self.func(new_texts)
+        if self.auto_index:
+            new_texts = [text for text in unique_texts if text not in self.store]
 
-                for text, vector in zip(new_texts, new_vectors, strict=True):
-                    self.store[text] = vector
+            if not new_texts or self.func is None:
+                return
 
-                if self.path is not None and self.table is not None:
-                    with self.connect() as con:
-                        con.executemany(
-                            f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                            [
-                                (text, vector.astype(np.float64).tobytes())
-                                for text, vector in zip(
-                                    new_texts, new_vectors, strict=True
-                                )
-                            ],
-                        )
-                        con.commit()
+            new_vectors = self.func(new_texts)
+
+            for text, vector in zip(new_texts, new_vectors, strict=True):
+                self.store[text] = vector
+
+            if self.path is not None and self.table is not None:
+                with self.connect() as con:
+                    con.executemany(
+                        f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                        [
+                            (text, vector.astype(np.float64).tobytes())
+                            for text, vector in zip(new_texts, new_vectors, strict=True)
+                        ],
+                    )
+                    con.commit()
+            return
+
+        if not texts:
+            self.store.clear()
+
+            if self.path is not None and self.table is not None:
+                with self.connect() as con:
+                    con.execute(f'DELETE FROM "{self.table}"')
+                    con.commit()
+            return
+
+        # else: manual indexing
+        new_texts = [text for text in unique_texts if text not in self.store]
+        old_texts = [text for text in self.store if text not in unique_texts]
+
+        if new_texts and self.func is None:
+            raise ValueError("Conversion function is required for manual indexing")
+
+        new_vectors: Sequence[NumpyArray] = (
+            self.func(new_texts) if new_texts and self.func is not None else []
+        )
+
+        self.store.update(zip(new_texts, new_vectors, strict=True))
+
+        for text in old_texts:
+            del self.store[text]
+
+        if self.path is not None and self.table is not None:
+            with self.connect() as con:
+                con.execute(f'DELETE FROM "{self.table}"')
+                con.executemany(
+                    f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                    [
+                        (text, vector.astype(np.float64).tobytes())
+                        for text, vector in self.store.items()
+                    ],
+                )
+                con.commit()
 
     @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        self.index(texts)
+        if self.auto_index:
+            self.index(texts)
 
         return [self.store[text] for text in texts]
 
