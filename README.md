@@ -220,9 +220,8 @@ cached_embed_func = cbrkit.sim.embed.cache(
     func=cbrkit.sim.embed.sentence_transformers(
         model="all-MiniLM-L6-v2"
     ),
-    path="embeddings_cache.npz",
-    autodump=True,
-    autoload=True
+    path="embeddings.sqlite3",
+    table="strf/minilm"
 )
 cached_sim = cbrkit.sim.embed.build(
     conversion_func=cached_embed_func,

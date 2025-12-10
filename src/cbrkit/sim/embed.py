@@ -218,8 +218,9 @@ class cache(BatchConversionFunc[str, NumpyArray]):
         finally:
             con.close()
 
-    @override
-    def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+    # todo: handle deletions and updates by differentiating
+    # between manual and automatic indexing
+    def index(self, texts: Sequence[str]) -> None:
         # remove store entries and duplicates
         new_texts = list({text for text in texts if text not in self.store})
 
@@ -230,7 +231,7 @@ class cache(BatchConversionFunc[str, NumpyArray]):
                 for text, vector in zip(new_texts, new_vectors, strict=True):
                     self.store[text] = vector
 
-                if self.path is not None:
+                if self.path is not None and self.table is not None:
                     with self.connect() as con:
                         con.executemany(
                             f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES(?, ?)',
@@ -242,6 +243,10 @@ class cache(BatchConversionFunc[str, NumpyArray]):
                             ],
                         )
                         con.commit()
+
+    @override
+    def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+        self.index(texts)
 
         return [self.store[text] for text in texts]
 
