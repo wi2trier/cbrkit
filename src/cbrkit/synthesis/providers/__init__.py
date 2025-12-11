@@ -7,6 +7,8 @@ with optional_dependencies():
 
     openai = openai_completions
 with optional_dependencies():
+    from .openai_responses import openai_responses
+with optional_dependencies():
     from .anthropic import anthropic
 with optional_dependencies():
     from .cohere import cohere
@@ -27,6 +29,7 @@ __all__ = [
     "Response",
     "Usage",
     "openai_completions",
+    "openai_responses",
     "openai",
     "pydantic_ai",
     "openai_agents",
