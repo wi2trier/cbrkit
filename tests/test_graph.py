@@ -38,7 +38,7 @@ ALGORITHMS: dict[
     "brute_force": cbrkit.sim.graphs.brute_force,
     "dfs": cbrkit.sim.graphs.dfs,
     "greedy": cbrkit.sim.graphs.greedy,
-    "lap": partial(cbrkit.sim.graphs.lap, edge_handling=None),
+    "lap": partial(cbrkit.sim.graphs.lap, edge_handling="ignore"),
     "lap_greedy": partial(cbrkit.sim.graphs.lap, edge_handling="greedy"),
     "lap_optimal": partial(cbrkit.sim.graphs.lap, edge_handling="optimal"),
     "vf2_networkx": cbrkit.sim.graphs.vf2_networkx,
