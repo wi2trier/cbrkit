@@ -319,7 +319,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
 
 
 with optional_dependencies():
-    from chonkie import BaseChunker
+    from chonkie.chunker import BaseChunker
 
     @dataclass(slots=True, frozen=True)
     class chunk[S: Float](RetrieverFunc[str, str, S]):
