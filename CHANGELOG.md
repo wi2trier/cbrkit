@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.0](https://github.com/wi2trier/cbrkit/compare/v0.28.9...v1.0.0) (2026-01-02)
+
+### ⚠ BREAKING CHANGES
+
+* No major changes, just a bump to align with semantic versioning.
+
+### Features
+
+* semantic versioning alignment ([4673f76](https://github.com/wi2trier/cbrkit/commit/4673f7642b568c2c1a4aa059370eb4e39d075c06))
+* **sim/embed/cache:** prune old texts when using manual indexing ([49fa857](https://github.com/wi2trier/cbrkit/commit/49fa8570d2ba9bc370ebc5a6afd1f96b7d2e3d35))
+* **synthesis/proviers:** improve interfaces with native types of libraries ([861180c](https://github.com/wi2trier/cbrkit/commit/861180c9d8e03215f812571de6c9644a3321c3c5))
+
+### Bug Fixes
+
+* **sim/embed/cache:** add dedicated index method ([fbfa359](https://github.com/wi2trier/cbrkit/commit/fbfa359c3b7b886db02035e4a1e2ae19967845e0))
+* **synthesis/providers:** add initial openai responses backend ([03d3a88](https://github.com/wi2trier/cbrkit/commit/03d3a88bc6757a49e981502ee7c2587260ef90ef))
+
 ## [0.28.9](https://github.com/wi2trier/cbrkit/compare/v0.28.8...v0.28.9) (2025-12-02)
 
 ### Bug Fixes
