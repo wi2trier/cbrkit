@@ -4,7 +4,7 @@ This module provides several loaders to read data from different file formats an
 
 import csv as csvlib
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO, cast
 
@@ -16,7 +16,7 @@ import xmltodict
 import yaml as yamllib
 from pydantic import BaseModel
 
-from .helpers import load_object
+from .helpers import load_object, optional_dependencies
 from .typing import Casebase, ConversionFunc, FilePath
 
 __all__ = [
@@ -29,6 +29,7 @@ __all__ = [
     "polars",
     "pandas",
     "py",
+    "sqlalchemy",
     "toml",
     "txt",
     "xml",
@@ -315,3 +316,45 @@ def validate[K, V: BaseModel](
     """
 
     return {key: model.model_validate(value) for key, value in casebase.items()}
+
+
+with optional_dependencies():
+    import sqlalchemy as sa
+
+    @dataclass(slots=True)
+    class sqlalchemy(Mapping[int, dict[str, Any]]):
+        """A wrapper around a SQLAlchemy result to provide a dict-like interface.
+
+        Args:
+            url: Database connection URL (e.g., "sqlite:///data.db" or "postgresql://user:pass@host/db").
+            query: SQL query string to load data from.
+            params: Optional parameters to pass to the SQL query.
+
+        Examples:
+            >>> cb = sqlalchemy("sqlite:///data.db", "SELECT * FROM cases")  # doctest: +SKIP
+            >>> cb = sqlalchemy("sqlite:///data.db", "SELECT * FROM cases WHERE id > :min_id", {"min_id": 10})  # doctest: +SKIP
+        """
+
+        url: str | sa.URL
+        query: str
+        params: Mapping[str, Any] = field(default_factory=dict)
+        _data: dict[int, dict[str, Any]] = field(default_factory=dict, init=False)
+
+        def __post_init__(self) -> None:
+            engine = sa.create_engine(self.url)
+
+            with engine.connect() as conn:
+                stmt = sa.text(self.query)
+                result = conn.execute(stmt, self.params)
+                rows = result.mappings().all()
+
+            self._data = {idx: dict(row) for idx, row in enumerate(rows)}
+
+        def __getitem__(self, key: int) -> dict[str, Any]:
+            return self._data[key]
+
+        def __iter__(self) -> Iterator[int]:
+            return iter(self._data)
+
+        def __len__(self) -> int:
+            return len(self._data)

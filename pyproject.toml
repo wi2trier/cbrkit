@@ -50,7 +50,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all = ["cbrkit[api,cli,eval,graphs,graphviz,llm,nlp,timeseries,transformers]"]
+all = ["cbrkit[api,chunking,cli,eval,graphs,graphviz,llm,nlp,sql,timeseries,transformers]"]
 api = [
     "cbrkit[cli]",
     "fastapi>=0.100,<1",
@@ -83,6 +83,7 @@ nlp = [
     "nltk>=3,<4",
     "spacy>=3.8,<4",
 ]
+sql = ["sqlalchemy>=2,<3"]
 timeseries = ["minineedle>=3,<4"]
 transformers = [
     "sentence-transformers>=3,<6",
