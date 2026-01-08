@@ -2,24 +2,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import produce_sequence
+from ..helpers import getitem_or_getattr, produce_sequence, setitem_or_setattr
 from ..typing import AdaptationFunc, MaybeSequence
 
 __all__ = ["attribute_value"]
-
-
-def default_value_getter(obj: Any, key: Any) -> Any:
-    if hasattr(obj, "__getitem__"):
-        return obj[key]
-    else:
-        return getattr(obj, key)
-
-
-def default_value_setter(obj: Any, key: Any, value: Any) -> None:
-    if hasattr(obj, "__setitem__"):
-        obj[key] = value
-    else:
-        setattr(obj, key, value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -53,8 +39,8 @@ class attribute_value[V](AdaptationFunc[V]):
     """
 
     attributes: Mapping[str, MaybeSequence[AdaptationFunc[Any]]]
-    value_getter: Callable[[Any, str], Any] = default_value_getter
-    value_setter: Callable[[Any, str, Any], None] = default_value_setter
+    value_getter: Callable[[Any, str], Any] = getitem_or_getattr
+    value_setter: Callable[[Any, str, Any], None] = setitem_or_setattr
 
     @override
     def __call__(self, case: V, query: V) -> V:

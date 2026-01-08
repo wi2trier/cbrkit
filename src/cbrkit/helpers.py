@@ -68,6 +68,7 @@ __all__ = [
     "get_optional_name",
     "get_value",
     "getitem_or_getattr",
+    "setitem_or_setattr",
     "identity",
     "is_factory",
     "load_callables",
@@ -568,6 +569,13 @@ def getitem_or_getattr(obj: Any, key: Any) -> Any:
         return obj[key]
 
     return getattr(obj, key)
+
+
+def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:
+    if hasattr(obj, "__setitem__"):
+        obj[key] = value
+    else:
+        setattr(obj, key, value)
 
 
 def round_nearest(value: float) -> int:
