@@ -16,6 +16,7 @@ __all__ = [
     "AnyPoolingFunc",
     "AnyPositionalFunc",
     "AnySimFunc",
+    "InternalFunc",
     "BatchAdaptationFunc",
     "BatchConversionFunc",
     "BatchNamedFunc",
@@ -74,6 +75,12 @@ class HasMetadata(ABC):
     @property
     @abstractmethod
     def metadata(self) -> JsonDict: ...
+
+
+class InternalFunc(ABC):
+    """Marker for internal functions excluded from result steps."""
+
+    pass
 
 
 class IndexableFunc[T](Protocol):

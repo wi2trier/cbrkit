@@ -8,13 +8,13 @@ from ...model.graph import (
     Graph,
     Node,
 )
-from ...typing import BatchSimFunc
+from ...typing import BatchSimFunc, InternalFunc
 from .common import BaseGraphSimFunc
 
 
 @dataclass(slots=True)
 class precompute[K, N, E, G](
-    BaseGraphSimFunc[K, N, E, G], BatchSimFunc[Graph[K, N, E, G], float]
+    BaseGraphSimFunc[K, N, E, G], BatchSimFunc[Graph[K, N, E, G], float], InternalFunc
 ):
     precompute_nodes: bool = True
     precompute_edges: bool = True

@@ -3,8 +3,7 @@ from timeit import default_timer
 
 from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
 from ..model import QueryResultStep, Result, ResultStep
-from ..sim.graphs.precompute import precompute
-from ..typing import Float, MaybeFactories, RetrieverFunc
+from ..typing import Float, InternalFunc, MaybeFactories, RetrieverFunc
 
 logger = get_logger(__name__)
 
@@ -50,8 +49,7 @@ def apply_batches[Q, C, V, S: Float](
             for query_key in current_batches
         }
 
-        # TODO: Maybe make this generic via some class property
-        if not isinstance(retriever_func, precompute):
+        if not isinstance(retriever_func, InternalFunc):
             steps.append(
                 ResultStep(
                     queries=step_queries,
