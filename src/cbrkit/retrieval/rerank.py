@@ -7,6 +7,7 @@ from ..helpers import get_logger, optional_dependencies, run_coroutine
 from ..typing import (
     Casebase,
     HasMetadata,
+    IndexableFunc,
     JsonDict,
     RetrieverFunc,
 )
@@ -245,7 +246,7 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](RetrieverFunc[K, str, float]):
+    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
         """BM25 retriever based on bm25s"""
 
         language: str

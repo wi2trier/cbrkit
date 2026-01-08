@@ -29,6 +29,7 @@ __all__ = [
     "FilePath",
     "Float",
     "HasMetadata",
+    "IndexableFunc",
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
@@ -73,6 +74,16 @@ class HasMetadata(ABC):
     @property
     @abstractmethod
     def metadata(self) -> JsonDict: ...
+
+
+class IndexableFunc[T](Protocol):
+    """Supports pre-indexing data for efficient processing."""
+
+    def index(
+        self,
+        data: T,
+        /,
+    ) -> None: ...
 
 
 type Value[T] = T | StructuredValue[T]
