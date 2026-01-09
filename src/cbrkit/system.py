@@ -1,11 +1,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, cast
 
 from pydantic import BaseModel
 
 import cbrkit
-from cbrkit.typing import Float, MaybeFactories
+from cbrkit.helpers import produce_factory
+from cbrkit.typing import Float, MaybeFactories, MaybeFactory
 
 __all__ = [
     "System",
@@ -23,7 +24,7 @@ class System[
     R1: BaseModel | None,
     R2: BaseModel | None,
 ]:
-    casebase: Mapping[K, V]
+    casebase: MaybeFactory[Mapping[K, V]]
     retriever_factory: (
         Callable[
             [R1],
@@ -40,12 +41,14 @@ class System[
     ) = None
 
     def _load_casebase(self, spec: CasebaseSpec[K, V]) -> Mapping[K, V]:
+        casebase = produce_factory(self.casebase)
+
         if spec is None:
-            return self.casebase
+            return casebase
         elif isinstance(spec, Mapping):
-            return spec
+            return cast(Mapping[K, V], spec)
         elif isinstance(spec, Iterable):
-            return {key: self.casebase[key] for key in spec}
+            return {key: casebase[key] for key in spec}
 
         raise ValueError("Invalid casebase specification.")
 
