@@ -66,15 +66,28 @@ class attribute_value[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]]):
             logger.debug(f"Processing attribute {attr_name}")
 
             try:
-                attribute_values = [
-                    (self.value_getter(x, attr_name), self.value_getter(y, attr_name))
-                    for x, y in batches
-                ]
-                sim_func = batchify_sim(self.attributes[attr_name])
-                sim_func_result = sim_func(attribute_values)
+                nonempty_pairs: dict[int, tuple[Any, Any]] = {}
 
-                for idx, sim in enumerate(sim_func_result):
-                    local_sims[idx][attr_name] = sim
+                for idx, (x, y) in enumerate(batches):
+                    x_val = self.value_getter(x, attr_name)
+                    y_val = self.value_getter(y, attr_name)
+
+                    if x_val is None or y_val is None:
+                        if self.default is None:
+                            raise ValueError(
+                                f"Attribute '{attr_name}' has None value at index {idx}"
+                            )
+                        local_sims[idx][attr_name] = self.default
+                    else:
+                        nonempty_pairs[idx] = (x_val, y_val)
+
+                if nonempty_pairs:
+                    sim_func = batchify_sim(self.attributes[attr_name])
+
+                    for i, sim in zip(
+                        nonempty_pairs, sim_func(list(nonempty_pairs.values()))
+                    ):
+                        local_sims[i][attr_name] = sim
 
             except Exception as e:
                 if self.default is not None:
