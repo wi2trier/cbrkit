@@ -3,7 +3,8 @@ This module provides several loaders to read data from different file formats an
 """
 
 import csv as csvlib
-from collections.abc import Callable, Iterable, Iterator, Mapping
+import sqlite3
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO, cast
@@ -29,6 +30,7 @@ __all__ = [
     "polars",
     "pandas",
     "py",
+    "sqlite",
     "sqlalchemy",
     "toml",
     "txt",
@@ -316,6 +318,47 @@ def validate[K, V: BaseModel](
     """
 
     return {key: model.model_validate(value) for key, value in casebase.items()}
+
+
+@dataclass(slots=True)
+class sqlite(Mapping[int, dict[str, Any]]):
+    """A wrapper around a SQLite database to provide a dict-like interface.
+
+    Args:
+        path: Path to the SQLite database file.
+        query: SQL query string to load data from.
+        params: Optional parameters to pass to the SQL query (sequence for ? placeholders, dict for :name placeholders).
+
+    Examples:
+        >>> cb = sqlite("data.db", "SELECT * FROM cases")  # doctest: +SKIP
+        >>> cb = sqlite("data.db", "SELECT * FROM cases WHERE id > ?", [10])  # doctest: +SKIP
+        >>> cb = sqlite("data.db", "SELECT * FROM cases WHERE id > :min_id", {"min_id": 10})  # doctest: +SKIP
+    """
+
+    path: FilePath
+    query: str
+    params: Sequence[Any] | Mapping[str, Any] = field(default_factory=dict)
+    _data: dict[int, dict[str, Any]] = field(default_factory=dict, init=False)
+
+    def __post_init__(self) -> None:
+        conn = sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+
+        try:
+            cursor = conn.execute(self.query, self.params)
+            rows = cursor.fetchall()
+            self._data = {idx: dict(row) for idx, row in enumerate(rows)}
+        finally:
+            conn.close()
+
+    def __getitem__(self, key: int) -> dict[str, Any]:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
 with optional_dependencies():
