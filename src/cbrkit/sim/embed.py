@@ -459,6 +459,7 @@ with optional_dependencies():
         batch_size: int
         show_progress_bar: bool | None
         precision: Literal["float32", "int8", "uint8", "binary", "ubinary"]
+        truncate_dim: int | None
         normalize_embeddings: bool
         _metadata: JsonDict
 
@@ -470,12 +471,14 @@ with optional_dependencies():
             precision: Literal[
                 "float32", "int8", "uint8", "binary", "ubinary"
             ] = "float32",
+            truncate_dim: int | None = None,
             normalize_embeddings: bool = False,
         ):
             self._metadata = {}
             self.batch_size = batch_size
             self.show_progress_bar = show_progress_bar
             self.precision = precision
+            self.truncate_dim = truncate_dim
             self.normalize_embeddings = normalize_embeddings
 
             if isinstance(model, str):
@@ -501,6 +504,7 @@ with optional_dependencies():
                 batch_size=self.batch_size,
                 show_progress_bar=self.show_progress_bar,
                 precision=self.precision,
+                truncate_dim=self.truncate_dim,
                 normalize_embeddings=self.normalize_embeddings,
             )
 
