@@ -486,7 +486,11 @@ with optional_dependencies():
                 self._metadata["model"] = model
             else:
                 self.model = model
-                self._metadata["model"] = "custom"
+                self._metadata["model"] = (
+                    model.model_card_data.model_id
+                    or model.model_card_data.base_model
+                    or "custom"
+                )
 
         @property
         @override
