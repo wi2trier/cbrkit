@@ -45,6 +45,7 @@ __all__ = [
     "spacy",
     "load_spacy",
     "sentence_transformers",
+    "pydantic_ai",
     "openai",
     "ollama",
     "cohere",
@@ -422,6 +423,24 @@ with optional_dependencies():
                 docs_iterator = self.model.pipe(texts)
 
             return [cast(NumpyArray, doc.vector) for doc in docs_iterator]
+
+
+with optional_dependencies():
+    from pydantic_ai.embeddings import Embedder, EmbedInputType
+
+    @dataclass(slots=True, frozen=True)
+    class pydantic_ai(BatchConversionFunc[str, NumpyArray]):
+        embedder: Embedder = field(repr=False)
+        input_type: EmbedInputType
+
+        @override
+        def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+            if not texts:
+                return []
+
+            res = self.embedder.embed_sync(texts, input_type=self.input_type)
+
+            return [np.array(x) for x in res.embeddings]
 
 
 with optional_dependencies():
