@@ -56,7 +56,7 @@ jobs:
         with:
           platforms: arm64
       # docker build aborts due to missing space
-      - uses: wimpysworld/nothing-but-nix@v6
+      - uses: wimpysworld/nothing-but-nix@v7
       - uses: DeterminateSystems/nix-installer-action@v21
         with:
           extra-conf: |
