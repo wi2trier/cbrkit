@@ -312,7 +312,7 @@ class concat[V](BatchConversionFunc[V, NumpyArray]):
 
     def __call__(self, texts: Sequence[V]) -> Sequence[NumpyArray]:
         nested_vecs = [func(texts) for func in self.embed_funcs]
-        return [np.concatenate(vecs, axis=0) for vecs in nested_vecs]
+        return [np.concatenate(vecs, axis=0) for vecs in zip(*nested_vecs)]
 
 
 with optional_dependencies():
