@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0](https://github.com/wi2trier/cbrkit/compare/v1.0.0...v1.1.0) (2026-01-23)
+
+### Features
+
+* add protocol for indexable functions ([a405782](https://github.com/wi2trier/cbrkit/commit/a405782b2c22f00d1991f94fe8eacaea532d3db6))
+* **loaders:** add support for sqlalchemy ([00c7ae8](https://github.com/wi2trier/cbrkit/commit/00c7ae8e876064a3d328365f161d516837a8c112))
+* **loaders:** add support for sqlite ([52c208a](https://github.com/wi2trier/cbrkit/commit/52c208ac5376d78b80687c31ad0250c5c96053e9))
+* **retrieval/bm25:** use frozendict for indexing ([fc05df4](https://github.com/wi2trier/cbrkit/commit/fc05df4a1839de2dc5e9c8775c79623cfaf18338))
+* **sim/embed:** add pydantic ai embedder ([fa6d4e4](https://github.com/wi2trier/cbrkit/commit/fa6d4e493ffe1896cda59f543a0e45bfbccc54e9))
+* **sim:** handle none values in attribute value cases ([f780ba1](https://github.com/wi2trier/cbrkit/commit/f780ba19b65a553e5e127ab64da519178b623e6c))
+* **system:** allow lazy loading of casebase ([707baa6](https://github.com/wi2trier/cbrkit/commit/707baa6e3c6bcc836c3bd7f1295ff41a37d63587))
+
+### Bug Fixes
+
+* add marker for internal functions ([0cd830d](https://github.com/wi2trier/cbrkit/commit/0cd830d942d3abf33195d32f6c285d49580c29e2))
+* **embed/concat:** transpose vectors correctly ([7388215](https://github.com/wi2trier/cbrkit/commit/738821597385f9c3486a51c011f1a2a95ed912de))
+* **retrieval/rerank:** optimize checks for identical casebases ([1015450](https://github.com/wi2trier/cbrkit/commit/1015450a05f706d621475b9027270657a3fccc0f))
+* **sim/embed:** add dimensions setting to sentence transformers ([193f78c](https://github.com/wi2trier/cbrkit/commit/193f78cff25c9fe3eaa98d9ba847286878f844e0))
+* **sim/embed:** update model name of sentence transformer ([9a62665](https://github.com/wi2trier/cbrkit/commit/9a62665572950ceb786fc9f43bb7a1217ecf05cd))
+
 ## [1.0.0](https://github.com/wi2trier/cbrkit/compare/v0.28.9...v1.0.0) (2026-01-02)
 
 ### ⚠ BREAKING CHANGES
