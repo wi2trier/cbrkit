@@ -3,6 +3,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast, override
 
+from frozendict import frozendict
+
 from ..helpers import get_logger, optional_dependencies, run_coroutine
 from ..typing import (
     Casebase,
@@ -246,7 +248,7 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
+    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[frozendict[K, str]]):
         """BM25 retriever based on bm25s"""
 
         language: str
@@ -255,7 +257,7 @@ with optional_dependencies():
         _indexed_retriever: bm25s.BM25 | None = field(
             default=None, init=False, repr=False
         )
-        _indexed_casebase: Casebase[K, str] | None = field(
+        _indexed_casebase: frozendict[K, str] | None = field(
             default=None, init=False, repr=False
         )
 
@@ -278,10 +280,9 @@ with optional_dependencies():
 
             return retriever
 
-        def index(self, casebase: Casebase[K, str]) -> None:
-            retriever = self._build_retriever(casebase)
-            self._indexed_retriever = retriever
-            self._indexed_casebase = dict(casebase)
+        def index(self, casebase: frozendict[K, str]) -> None:
+            self._indexed_retriever = self._build_retriever(casebase)
+            self._indexed_casebase = casebase
 
         @override
         def __call__(
@@ -310,14 +311,23 @@ with optional_dependencies():
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
-            if self._indexed_retriever and self._indexed_casebase == casebase:
+            if self._indexed_retriever and self._indexed_casebase is casebase:
                 retriever = self._indexed_retriever
-            else:
-                retriever = self._build_retriever(casebase)
+            elif self.auto_index and isinstance(casebase, frozendict):
+                self.index(casebase)
+                retriever = self._indexed_retriever
 
+                if retriever is None:
+                    raise RuntimeError(
+                        "Indexed retriever should not be None after indexing."
+                    )
+            else:
                 if self.auto_index:
-                    self._indexed_retriever = retriever
-                    self._indexed_casebase = dict(casebase)
+                    logger.info(
+                        "bm25 auto_index requires frozendict, rebuilding retriever"
+                    )
+
+                retriever = self._build_retriever(casebase)
 
             queries_tokens = bm25s.tokenize(
                 cast(list[str], queries),
