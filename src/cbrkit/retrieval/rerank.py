@@ -159,7 +159,7 @@ with optional_dependencies():
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
 
-            if all(casebase == first_casebase for casebase, _ in batches):
+            if all(casebase is first_casebase for casebase, _ in batches):
                 logger.debug(
                     "All casebases are the same, performing for all queries in one go"
                 )
@@ -291,7 +291,7 @@ with optional_dependencies():
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
 
-            if all(casebase == first_casebase for casebase, _ in batches):
+            if all(casebase is first_casebase for casebase, _ in batches):
                 logger.debug(
                     "All casebases are the same, performing for all queries in one go"
                 )
