@@ -487,7 +487,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'sql'", specifier = ">=2,<3" },
     { name = "tiktoken", marker = "extra == 'llm'", specifier = ">=0.8,<1" },
     { name = "torch", marker = "extra == 'transformers'", specifier = ">=2.5,<3" },
-    { name = "transformers", marker = "extra == 'transformers'", specifier = ">=4,<5" },
+    { name = "transformers", marker = "extra == 'transformers'", specifier = ">=4,<6" },
     { name = "typer", marker = "extra == 'cli'", specifier = ">=0.9,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30,<1" },
     { name = "voyageai", marker = "extra == 'llm'", specifier = ">=0.3,<1" },
