@@ -252,14 +252,19 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
 
         if self.path is not None and self.table is not None:
             with self.connect() as con:
-                con.execute(f'DELETE FROM "{self.table}"')
-                con.executemany(
-                    f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                    [
-                        (text, vector.astype(np.float64).tobytes())
-                        for text, vector in self.store.items()
-                    ],
-                )
+                if old_texts:
+                    con.executemany(
+                        f'DELETE FROM "{self.table}" WHERE text = ?',
+                        [(text,) for text in old_texts],
+                    )
+                if new_texts:
+                    con.executemany(
+                        f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                        [
+                            (text, vector.astype(np.float64).tobytes())
+                            for text, vector in zip(new_texts, new_vectors, strict=True)
+                        ],
+                    )
                 con.commit()
 
     @override
