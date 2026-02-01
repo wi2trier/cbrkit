@@ -129,6 +129,31 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     ) -> frozendict[K, K]:
         return _induced_edge_mapping(x, y, node_mapping, self.edge_matcher)
 
+    def node_pairs(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+    ) -> list[tuple[K, K]]:
+        return [
+            (y_key, x_key)
+            for x_key, y_key in itertools.product(x.nodes.keys(), y.nodes.keys())
+            if self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
+        ]
+
+    def edge_pairs(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_pairs: Collection[tuple[K, K]],
+    ) -> list[tuple[K, K]]:
+        return [
+            (y_key, x_key)
+            for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
+            if self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
+            and (y.edges[y_key].source.key, x.edges[x_key].source.key) in node_pairs
+            and (y.edges[y_key].target.key, x.edges[x_key].target.key) in node_pairs
+        ]
+
     def node_pair_similarities(
         self,
         x: Graph[K, N, E, G],
@@ -136,11 +161,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
         if pairs is None:
-            pairs = [
-                (y_key, x_key)
-                for x_key, y_key in itertools.product(x.nodes.keys(), y.nodes.keys())
-                if self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
-            ]
+            pairs = self.node_pairs(x, y)
 
         node_pair_values = [(x.nodes[x_key], y.nodes[y_key]) for y_key, x_key in pairs]
         node_pair_sims = self.batch_node_sim_func(node_pair_values)
@@ -160,15 +181,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
         if pairs is None:
-            pairs = [
-                (y_key, x_key)
-                for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
-                if self.edge_matcher(x.edges[x_key].value, y.edges[y_key].value)
-                and (y.edges[y_key].source.key, x.edges[x_key].source.key)
-                in node_pair_sims
-                and (y.edges[y_key].target.key, x.edges[x_key].target.key)
-                in node_pair_sims
-            ]
+            pairs = self.edge_pairs(x, y, node_pair_sims.keys())
 
         edge_pair_values = [(x.edges[x_key], y.edges[y_key]) for y_key, x_key in pairs]
         edge_pair_sims = self.edge_sim_func(
