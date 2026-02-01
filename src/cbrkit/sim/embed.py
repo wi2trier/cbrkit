@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import sqlite3
+from collections import ChainMap
 from collections.abc import Iterator, MutableMapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
@@ -220,6 +221,19 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
         finally:
             con.close()
 
+    def _compute_vecs(self, texts: Sequence[str] | set[str]) -> dict[str, NumpyArray]:
+        new_texts = [text for text in texts if text not in self.store]
+
+        if not new_texts:
+            return {}
+
+        if self.func is None:
+            raise ValueError("Conversion function is required for computing embeddings")
+
+        new_vecs = self.func(new_texts)
+
+        return dict(zip(new_texts, new_vecs, strict=True))
+
     @override
     def index(self, texts: Sequence[str], prune: bool) -> None:
         unique_texts = set(texts)
@@ -233,19 +247,12 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
                     con.commit()
             return
 
-        new_texts = [text for text in unique_texts if text not in self.store]
+        new_vecs = self._compute_vecs(unique_texts)
         old_texts = (
             [text for text in self.store if text not in unique_texts] if prune else []
         )
 
-        if new_texts and self.func is None:
-            raise ValueError("Conversion function is required for manual indexing")
-
-        new_vectors: Sequence[NumpyArray] = (
-            self.func(new_texts) if new_texts and self.func is not None else []
-        )
-
-        self.store.update(zip(new_texts, new_vectors, strict=True))
+        self.store.update(new_vecs)
 
         for text in old_texts:
             del self.store[text]
@@ -257,19 +264,22 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
                         f'DELETE FROM "{self.table}" WHERE text = ?',
                         [(text,) for text in old_texts],
                     )
-                if new_texts:
+                if new_vecs:
                     con.executemany(
                         f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
                         [
                             (text, vector.astype(np.float64).tobytes())
-                            for text, vector in zip(new_texts, new_vectors, strict=True)
+                            for text, vector in new_vecs.items()
                         ],
                     )
                 con.commit()
 
     @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        return [self.store[text] for text in texts]
+        new_vecs = self._compute_vecs(texts)
+        tmp_store = ChainMap(new_vecs, self.store)
+
+        return [tmp_store[text] for text in texts]
 
 
 @dataclass(slots=True, init=False)
