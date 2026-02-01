@@ -90,7 +90,7 @@ class IndexableFunc[T](Protocol):
         self,
         data: T,
         /,
-        prune: bool,
+        prune: bool = True,
     ) -> None: ...
 
 

@@ -235,7 +235,7 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
         return dict(zip(new_texts, new_vecs, strict=True))
 
     @override
-    def index(self, texts: Sequence[str], prune: bool) -> None:
+    def index(self, texts: Sequence[str], prune: bool = True) -> None:
         unique_texts = set(texts)
 
         if not texts and prune:
