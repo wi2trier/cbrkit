@@ -14,7 +14,6 @@ from .common import (
 )
 from .greedy import greedy
 from .lap import lap
-from .precompute import precompute
 from .vf2 import vf2, vf2_networkx, vf2_rustworkx
 
 with optional_dependencies():
@@ -32,7 +31,6 @@ __all__ = [
     "dfs",
     "greedy",
     "lap",
-    "precompute",
     "vf2",
     "vf2_networkx",
     "vf2_rustworkx",
