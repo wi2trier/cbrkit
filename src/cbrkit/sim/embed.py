@@ -220,10 +220,11 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
         finally:
             con.close()
 
-    def index(self, texts: Sequence[str]) -> None:
+    @override
+    def index(self, texts: Sequence[str], prune: bool) -> None:
         unique_texts = set(texts)
 
-        if not texts:
+        if not texts and prune:
             self.store.clear()
 
             if self.path is not None and self.table is not None:
@@ -233,7 +234,9 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
             return
 
         new_texts = [text for text in unique_texts if text not in self.store]
-        old_texts = [text for text in self.store if text not in unique_texts]
+        old_texts = (
+            [text for text in self.store if text not in unique_texts] if prune else []
+        )
 
         if new_texts and self.func is None:
             raise ValueError("Conversion function is required for manual indexing")

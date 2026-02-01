@@ -279,7 +279,11 @@ with optional_dependencies():
 
             return retriever
 
-        def index(self, casebase: frozendict[K, str]) -> None:
+        @override
+        def index(self, casebase: frozendict[K, str], prune: bool) -> None:
+            if not prune:
+                raise RuntimeError("BM25 does not support incremental indexing")
+
             self._indexed_retriever = self._build_retriever(casebase)
             self._indexed_casebase = casebase
 
