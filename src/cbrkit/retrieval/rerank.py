@@ -253,7 +253,6 @@ with optional_dependencies():
 
         language: str
         stopwords: list[str] | None = None
-        auto_index: bool = False
         _indexed_retriever: bm25s.BM25 | None = field(
             default=None, init=False, repr=False
         )
@@ -313,20 +312,7 @@ with optional_dependencies():
         ) -> Sequence[dict[K, float]]:
             if self._indexed_retriever and self._indexed_casebase is casebase:
                 retriever = self._indexed_retriever
-            elif self.auto_index and isinstance(casebase, frozendict):
-                self.index(casebase)
-                retriever = self._indexed_retriever
-
-                if retriever is None:
-                    raise RuntimeError(
-                        "Indexed retriever should not be None after indexing."
-                    )
             else:
-                if self.auto_index:
-                    logger.info(
-                        "bm25 auto_index requires frozendict, rebuilding retriever"
-                    )
-
                 retriever = self._build_retriever(casebase)
 
             queries_tokens = bm25s.tokenize(

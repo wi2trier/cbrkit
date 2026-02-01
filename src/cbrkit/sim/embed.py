@@ -174,7 +174,6 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
-    auto_index: bool
     store: MutableMapping[str, NumpyArray] = field(repr=False)
 
     def __init__(
@@ -182,12 +181,10 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
         func: AnyConversionFunc[str, NumpyArray] | None,
         path: FilePath | None = None,
         table: str | None = None,
-        auto_index: bool = True,
     ):
         self.func = batchify_conversion(func) if func is not None else None
         self.path = Path(path) if isinstance(path, str) else path
         self.table = table
-        self.auto_index = auto_index
         self.store = {}
 
         if self.path is not None:
@@ -226,29 +223,6 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
     def index(self, texts: Sequence[str]) -> None:
         unique_texts = set(texts)
 
-        if self.auto_index:
-            new_texts = [text for text in unique_texts if text not in self.store]
-
-            if not new_texts or self.func is None:
-                return
-
-            new_vectors = self.func(new_texts)
-
-            for text, vector in zip(new_texts, new_vectors, strict=True):
-                self.store[text] = vector
-
-            if self.path is not None and self.table is not None:
-                with self.connect() as con:
-                    con.executemany(
-                        f'INSERT OR IGNORE INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                        [
-                            (text, vector.astype(np.float64).tobytes())
-                            for text, vector in zip(new_texts, new_vectors, strict=True)
-                        ],
-                    )
-                    con.commit()
-            return
-
         if not texts:
             self.store.clear()
 
@@ -258,7 +232,6 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
                     con.commit()
             return
 
-        # else: manual indexing
         new_texts = [text for text in unique_texts if text not in self.store]
         old_texts = [text for text in self.store if text not in unique_texts]
 
@@ -288,9 +261,6 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
 
     @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if self.auto_index:
-            self.index(texts)
-
         return [self.store[text] for text in texts]
 
 
