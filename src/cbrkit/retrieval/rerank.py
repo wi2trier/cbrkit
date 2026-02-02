@@ -5,13 +5,21 @@ from typing import Any, cast, override
 
 from frozendict import frozendict
 
-from ..helpers import get_logger, optional_dependencies, run_coroutine
+from ..helpers import (
+    get_logger,
+    optional_dependencies,
+    run_coroutine,
+)
+from ..sim.embed import cache
 from ..typing import (
     Casebase,
+    Float,
     HasMetadata,
     IndexableFunc,
     JsonDict,
+    NumpyArray,
     RetrieverFunc,
+    SimFunc,
 )
 
 logger = get_logger(__name__)
@@ -350,3 +358,84 @@ with optional_dependencies():
                 }
                 for query_id in range(len(queries))
             ]
+
+
+@dataclass(slots=True, init=False)
+class embed[K, S: Float](
+    RetrieverFunc[K, str, S],
+    IndexableFunc[frozendict[K, str]],
+):
+    """Embedding-based semantic retriever with indexing support.
+
+    Args:
+        conversion_func: Embedding function (from embed module).
+        sim_func: Vector similarity function (default: cosine).
+        query_conversion_func: Optional separate embedding function for queries.
+    """
+
+    conversion_func: cache
+    sim_func: SimFunc[NumpyArray, S]
+    query_conversion_func: cache | None
+    _indexed_casebase: frozendict[K, str] | None = field(
+        repr=False, init=False, default=None
+    )
+
+    @override
+    def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
+        if not prune and self._indexed_casebase:
+            self._indexed_casebase = frozendict({**self._indexed_casebase, **casebase})
+        else:
+            self._indexed_casebase = casebase
+
+        self.conversion_func.index(casebase.values(), prune=prune)
+
+    @override
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, str], str]],
+    ) -> Sequence[dict[K, S]]:
+        if not batches:
+            return []
+
+        # Collect all texts for embedding, resolving empty casebases
+        resolved_batches: list[tuple[Casebase[K, str], str]] = []
+        all_case_texts: list[str] = []
+        all_query_texts: list[str] = []
+
+        for cb, query in batches:
+            casebase = (
+                self._indexed_casebase if not cb and self._indexed_casebase else cb
+            )
+            resolved_batches.append((casebase, query))
+            all_case_texts.extend(casebase.values())
+            all_query_texts.append(query)
+
+        # Compute all embeddings in one batch
+        if self.query_conversion_func:
+            all_case_vecs = self.conversion_func(all_case_texts)
+            all_query_vecs = self.query_conversion_func(all_query_texts)
+        else:
+            # Batch all texts together when using the same conversion function
+            all_texts = all_case_texts + all_query_texts
+            all_vecs = self.conversion_func(all_texts)
+            all_case_vecs = all_vecs[: len(all_case_texts)]
+            all_query_vecs = all_vecs[len(all_case_texts) :]
+
+        # Build results
+        results: list[dict[K, S]] = []
+        case_vec_idx = 0
+
+        for query_idx, (casebase, _) in enumerate(resolved_batches):
+            case_keys = casebase.keys()
+            case_vecs = all_case_vecs[case_vec_idx : case_vec_idx + len(case_keys)]
+            case_vec_idx += len(case_keys)
+            query_vec = all_query_vecs[query_idx]
+
+            results.append(
+                {
+                    key: self.sim_func(case_vec, query_vec)
+                    for key, case_vec in zip(case_keys, case_vecs, strict=True)
+                }
+            )
+
+        return results

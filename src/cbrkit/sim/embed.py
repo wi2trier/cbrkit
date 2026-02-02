@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import sqlite3
 from collections import ChainMap
-from collections.abc import Iterator, MutableMapping, Sequence
+from collections.abc import Collection, Iterator, MutableMapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -173,7 +173,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
+class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
@@ -237,7 +237,7 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Sequence[str]]):
         return dict(zip(new_texts, new_vecs, strict=True))
 
     @override
-    def index(self, texts: Sequence[str], prune: bool = True) -> None:
+    def index(self, texts: Collection[str], prune: bool = True) -> None:
         unique_texts = set(texts)
 
         if not texts and prune:

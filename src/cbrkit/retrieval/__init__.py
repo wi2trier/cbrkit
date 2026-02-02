@@ -2,6 +2,7 @@ from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import apply_batches, apply_queries, apply_query
 from .build import build, combine, distribute, dropout, transpose, transpose_value
+from .rerank import embed
 
 with optional_dependencies():
     from .build import chunk
@@ -36,4 +37,5 @@ __all__ = [
     "voyageai",
     "sentence_transformers",
     "bm25",
+    "embed",
 ]
