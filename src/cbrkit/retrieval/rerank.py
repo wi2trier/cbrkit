@@ -281,8 +281,8 @@ with optional_dependencies():
 
         @override
         def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
-            if not prune:
-                raise RuntimeError("BM25 does not support incremental indexing")
+            if not prune and self._indexed_casebase:
+                casebase = frozendict({**self._indexed_casebase, **casebase})
 
             self._indexed_retriever = self._build_retriever(casebase)
             self._indexed_casebase = casebase
@@ -314,6 +314,10 @@ with optional_dependencies():
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
+            # if an empty casebase is given, use the indexed one
+            if not casebase and self._indexed_casebase:
+                casebase = self._indexed_casebase
+
             if self._indexed_retriever and self._indexed_casebase is casebase:
                 retriever = self._indexed_retriever
             else:
