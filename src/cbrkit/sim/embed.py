@@ -414,7 +414,8 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    from pydantic_ai.embeddings import Embedder, EmbedInputType
+    from pydantic_ai.embeddings import Embedder
+    from pydantic_ai.embeddings.result import EmbedInputType
 
     @dataclass(slots=True, frozen=True)
     class pydantic_ai(BatchConversionFunc[str, NumpyArray]):
