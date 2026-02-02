@@ -157,17 +157,19 @@ class build[V, S: Float](BatchSimFunc[V, S]):
         if not batches:
             return []
 
+        case_texts, query_texts = zip(*batches, strict=True)
+
         if self.query_conversion_func:
-            case_texts, query_texts = zip(*batches, strict=True)
             case_vecs = self.conversion_func(case_texts)
             query_vecs = self.query_conversion_func(query_texts)
+        else:
+            # Batch all texts together when using the same conversion function
+            all_texts = list(case_texts) + list(query_texts)
+            all_vecs = self.conversion_func(all_texts)
+            case_vecs = all_vecs[: len(case_texts)]
+            query_vecs = all_vecs[len(case_texts) :]
 
-            return self.sim_func(list(zip(case_vecs, query_vecs, strict=True)))
-
-        texts = list(itertools.chain.from_iterable(batches))
-        vecs = self.conversion_func(texts)
-
-        return self.sim_func([(vecs[i], vecs[i + 1]) for i in range(0, len(vecs), 2)])
+        return self.sim_func(list(zip(case_vecs, query_vecs, strict=True)))
 
 
 @dataclass(slots=True, init=False)
