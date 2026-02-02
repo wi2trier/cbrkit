@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
+from frozendict import frozendict
 
 __all__ = [
     "AdaptationFunc",
@@ -31,6 +32,7 @@ __all__ = [
     "Float",
     "HasMetadata",
     "IndexableFunc",
+    "IndexableRetrieverFunc",
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
@@ -204,6 +206,25 @@ class RetrieverFunc[K, V, S: Float](Protocol):
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[SimMap[K, S]]: ...
+
+
+class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[frozendict[K, V]], Protocol):
+    """Retrieves similar cases from casebases for given queries and supports indexing."""
+
+    casebase: frozendict[K, V] | None
+
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, V], V]],
+        /,
+    ) -> Sequence[SimMap[K, S]]: ...
+
+    def index(
+        self,
+        data: frozendict[K, V],
+        /,
+        prune: bool = True,
+    ) -> None: ...
 
 
 class AdaptationFunc[V](Protocol):

@@ -15,7 +15,7 @@ from ..typing import (
     Casebase,
     Float,
     HasMetadata,
-    IndexableFunc,
+    IndexableRetrieverFunc,
     JsonDict,
     NumpyArray,
     RetrieverFunc,
@@ -256,17 +256,15 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[frozendict[K, str]]):
+    class bm25[K](IndexableRetrieverFunc[K, str, float]):
         """BM25 retriever based on bm25s"""
 
         language: str
         stopwords: list[str] | None = None
-        _indexed_retriever: bm25s.BM25 | None = field(
+        casebase: frozendict[K, str] | None = field(
             default=None, init=False, repr=False
         )
-        _indexed_casebase: frozendict[K, str] | None = field(
-            default=None, init=False, repr=False
-        )
+        _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
 
         @property
         def _stopwords(self) -> str | list[str]:
@@ -289,11 +287,11 @@ with optional_dependencies():
 
         @override
         def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
-            if not prune and self._indexed_casebase:
-                casebase = frozendict({**self._indexed_casebase, **casebase})
+            if not prune and self.casebase:
+                casebase = frozendict({**self.casebase, **casebase})
 
-            self._indexed_retriever = self._build_retriever(casebase)
-            self._indexed_casebase = casebase
+            self._retriever = self._build_retriever(casebase)
+            self.casebase = casebase
 
         @override
         def __call__(
@@ -323,11 +321,11 @@ with optional_dependencies():
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
             # if an empty casebase is given, use the indexed one
-            if not casebase and self._indexed_casebase:
-                casebase = self._indexed_casebase
+            if not casebase and self.casebase:
+                casebase = self.casebase
 
-            if self._indexed_retriever and self._indexed_casebase is casebase:
-                retriever = self._indexed_retriever
+            if self._retriever and self.casebase is casebase:
+                retriever = self._retriever
             else:
                 retriever = self._build_retriever(casebase)
 
@@ -361,10 +359,7 @@ with optional_dependencies():
 
 
 @dataclass(slots=True, init=False)
-class embed[K, S: Float](
-    RetrieverFunc[K, str, S],
-    IndexableFunc[frozendict[K, str]],
-):
+class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
     """Embedding-based semantic retriever with indexing support.
 
     Args:
@@ -376,16 +371,14 @@ class embed[K, S: Float](
     conversion_func: cache
     sim_func: SimFunc[NumpyArray, S]
     query_conversion_func: cache | None
-    _indexed_casebase: frozendict[K, str] | None = field(
-        repr=False, init=False, default=None
-    )
+    casebase: frozendict[K, str] | None = field(repr=False, init=False, default=None)
 
     @override
     def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
-        if not prune and self._indexed_casebase:
-            self._indexed_casebase = frozendict({**self._indexed_casebase, **casebase})
+        if not prune and self.casebase:
+            self.casebase = frozendict({**self.casebase, **casebase})
         else:
-            self._indexed_casebase = casebase
+            self.casebase = casebase
 
         self.conversion_func.index(casebase.values(), prune=prune)
 
@@ -403,9 +396,7 @@ class embed[K, S: Float](
         all_query_texts: list[str] = []
 
         for cb, query in batches:
-            casebase = (
-                self._indexed_casebase if not cb and self._indexed_casebase else cb
-            )
+            casebase = self.casebase if not cb and self.casebase else cb
             resolved_batches.append((casebase, query))
             all_case_texts.extend(casebase.values())
             all_query_texts.append(query)
