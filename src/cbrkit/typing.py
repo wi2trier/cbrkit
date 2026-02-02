@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
@@ -208,6 +208,7 @@ class RetrieverFunc[K, V, S: Float](Protocol):
     ) -> Sequence[SimMap[K, S]]: ...
 
 
+@runtime_checkable
 class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[frozendict[K, V]], Protocol):
     """Retrieves similar cases from casebases for given queries and supports indexing."""
 

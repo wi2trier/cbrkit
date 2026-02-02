@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import polars as pl
@@ -170,3 +170,37 @@ def test_retrieve_nested():
     assert isinstance(model_sim, cbrkit.sim.AttributeValueSim)
     assert model_sim.value == 1.0
     assert model_sim.attributes["make"] == 1.0
+
+
+def test_retrieve_indexed_casebase_resolution() -> None:
+    from frozendict import frozendict
+
+    class FakeIndexableRetriever(cbrkit.typing.IndexableRetrieverFunc[int, str, float]):
+        casebase: frozendict[int, str] | None
+
+        def __init__(self) -> None:
+            self.casebase = None
+
+        def index(self, casebase: frozendict[int, str], prune: bool = True) -> None:
+            self.casebase = casebase
+
+        def __call__(
+            self,
+            batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
+        ) -> Sequence[cbrkit.typing.SimMap[int, float]]:
+            results: list[dict[int, float]] = []
+
+            for casebase, _query in batches:
+                resolved_casebase = casebase or self.casebase or {}
+                results.append({key: 1.0 for key in resolved_casebase})
+
+            return results
+
+    retriever = FakeIndexableRetriever()
+    retriever.index(frozendict({1: "a", 2: "b"}))
+
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+
+    assert result.casebase[1] == "a"
+    assert result.casebase[2] == "b"
+    assert len(result.casebase) == 2
