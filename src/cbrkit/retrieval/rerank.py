@@ -261,9 +261,7 @@ with optional_dependencies():
 
         language: str
         stopwords: list[str] | None = None
-        casebase: frozendict[K, str] | None = field(
-            default=None, init=False, repr=False
-        )
+        casebase: Casebase[K, str] | None = field(default=None, init=False, repr=False)
         _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
 
         @property
@@ -286,9 +284,12 @@ with optional_dependencies():
             return retriever
 
         @override
-        def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
-            if not prune and self.casebase:
-                casebase = frozendict({**self.casebase, **casebase})
+        def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
+            if not prune:
+                raise NotImplementedError("BM25 requires pruning")
+
+            if not isinstance(casebase, frozendict):
+                raise TypeError("BM25 casebase must be a frozendict")
 
             self._retriever = self._build_retriever(casebase)
             self.casebase = casebase
@@ -324,6 +325,7 @@ with optional_dependencies():
             if not casebase and self.casebase:
                 casebase = self.casebase
 
+            # identity check can only be used because `index` enforces frozendict
             if self._retriever and self.casebase is casebase:
                 retriever = self._retriever
             else:
@@ -371,12 +373,12 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
     conversion_func: cache
     sim_func: SimFunc[NumpyArray, S]
     query_conversion_func: cache | None
-    casebase: frozendict[K, str] | None = field(repr=False, init=False, default=None)
+    casebase: Casebase[K, str] | None = field(repr=False, init=False, default=None)
 
     @override
-    def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
+    def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
         if not prune and self.casebase:
-            self.casebase = frozendict({**self.casebase, **casebase})
+            self.casebase = {**self.casebase, **casebase}
         else:
             self.casebase = casebase
 

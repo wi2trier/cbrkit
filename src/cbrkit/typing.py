@@ -6,7 +6,6 @@ from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
-from frozendict import frozendict
 
 __all__ = [
     "AdaptationFunc",
@@ -209,10 +208,10 @@ class RetrieverFunc[K, V, S: Float](Protocol):
 
 
 @runtime_checkable
-class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[frozendict[K, V]], Protocol):
+class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[Casebase[K, V]], Protocol):
     """Retrieves similar cases from casebases for given queries and supports indexing."""
 
-    casebase: frozendict[K, V] | None
+    casebase: Casebase[K, V] | None
 
     def __call__(
         self,
@@ -222,7 +221,7 @@ class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[frozendict[K, V]], Pr
 
     def index(
         self,
-        data: frozendict[K, V],
+        data: Casebase[K, V],
         /,
         prune: bool = True,
     ) -> None: ...
