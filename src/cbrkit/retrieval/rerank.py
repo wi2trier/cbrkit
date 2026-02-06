@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast, override
 
@@ -14,6 +14,7 @@ from ..helpers import (
 from ..sim.embed import cache, default_score_func
 from ..typing import (
     AnySimFunc,
+    BatchConversionFunc,
     BatchSimFunc,
     Casebase,
     Float,
@@ -443,3 +444,167 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
             results.append(dict(zip(case_keys, sims, strict=True)))
 
         return results
+
+
+with optional_dependencies():
+    import lancedb as ldb
+    import numpy as np
+
+    @dataclass(slots=True, frozen=True)
+    class LancedbCasebase[K: int | str](Mapping[K, str]):
+        """Casebase backed by a LanceDB table.
+
+        Keys and values are stored in the table itself.
+        """
+
+        store: ldb.Table
+
+        @override
+        def __getitem__(self, key: K) -> str:
+            ds = self.store.to_lance()
+            result = ds.to_table(filter=f"key = {key!r}", columns=["value"])
+
+            if len(result) == 0:
+                raise KeyError(key)
+
+            return cast(str, result.column("value")[0].as_py())
+
+        @override
+        def __iter__(self) -> Iterator[K]:
+            ds = self.store.to_lance()
+            keys: list[K] = ds.to_table(columns=["key"]).column("key").to_pylist()
+            return iter(keys)
+
+        @override
+        def __len__(self) -> int:
+            return self.store.count_rows()
+
+    @dataclass(slots=True)
+    class lancedb[K: int | str](IndexableRetrieverFunc[K, str, float]):
+        """Vector database-backed retriever using LanceDB.
+
+        Delegates storage and ANN search to an embedded LanceDB database,
+        keeping vectors on disk instead of in process memory.
+
+        Args:
+            conversion_func: Embedding function.
+            uri: Path to the LanceDB database directory.
+            table: Table name within the database.
+            query_conversion_func: Optional separate embedding function for queries.
+        """
+
+        conversion_func: BatchConversionFunc[str, NumpyArray]
+        uri: str
+        table: str
+        query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+        casebase: Casebase[K, str] | None = field(
+            default=None, init=False, repr=False
+        )
+
+        @override
+        def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
+            keys = list(casebase.keys())
+            values = list(casebase.values())
+            vecs = self.conversion_func(values)
+
+            rows = [
+                {
+                    "key": key,
+                    "value": value,
+                    "vector": np.asarray(vec).tolist(),
+                }
+                for key, value, vec in zip(keys, values, vecs, strict=True)
+            ]
+
+            db = ldb.connect(self.uri)
+
+            if prune or self.table not in db.table_names():
+                table = db.create_table(self.table, rows, mode="overwrite")
+            else:
+                table = db.open_table(self.table)
+                table.add(rows)
+
+            table.create_scalar_index("key", replace=True)
+            self.casebase = LancedbCasebase(store=table)
+
+        @override
+        def __call__(
+            self,
+            batches: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[dict[K, float]]:
+            if not batches:
+                return []
+
+            first_casebase = batches[0][0]
+
+            if all(casebase is first_casebase for casebase, _ in batches):
+                logger.debug(
+                    "All casebases are the same, performing for all queries in one go"
+                )
+                return self._call_queries(
+                    [query for _, query in batches], first_casebase
+                )
+
+            logger.debug(
+                "Casebases are different, performing retrieval for each query"
+            )
+            return [
+                self._call_queries([query], casebase)[0]
+                for casebase, query in batches
+            ]
+
+        def _call_queries(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[dict[K, float]]:
+            if self.casebase is not None and self.casebase is casebase:
+                return self._search_db(queries)
+
+            return self._search_brute(queries, casebase)
+
+        def _search_db(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[dict[K, float]]:
+            assert isinstance(self.casebase, LancedbCasebase)
+
+            embed_func = self.query_conversion_func or self.conversion_func
+            query_vecs = embed_func(list(queries))
+            n = len(self.casebase)
+
+            results: list[dict[K, float]] = []
+
+            for qvec in query_vecs:
+                hits = (
+                    self.casebase.store.search(np.asarray(qvec).tolist())
+                    .limit(n)
+                    .to_list()
+                )
+                results.append(
+                    {hit["key"]: 1.0 - hit["_distance"] for hit in hits}
+                )
+
+            return results
+
+        def _search_brute(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[dict[K, float]]:
+            keys = list(casebase.keys())
+            values = list(casebase.values())
+
+            case_vecs = self.conversion_func(values)
+            embed_func = self.query_conversion_func or self.conversion_func
+            query_vecs = embed_func(list(queries))
+
+            sim_func = batchify_sim(default_score_func)
+
+            results: list[dict[K, float]] = []
+
+            for qvec in query_vecs:
+                sims = sim_func([(cv, qvec) for cv in case_vecs])
+                results.append(dict(zip(keys, sims, strict=True)))
+
+            return results

@@ -50,7 +50,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-all = ["cbrkit[api,chunking,cli,eval,graphs,graphviz,llm,nlp,sql,timeseries,transformers]"]
+all = ["cbrkit[api,chunking,cli,eval,graphs,graphviz,lancedb,llm,nlp,sql,timeseries,transformers]"]
 api = [
     "cbrkit[cli]",
     "fastapi>=0.100,<1",
@@ -65,6 +65,7 @@ cli = ["typer>=0.9,<1"]
 eval = ["ranx>=0.3,<1"]
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
 graphviz = ["pygraphviz>=1,<2"]
+lancedb = ["lancedb>=0.20,<1"]
 llm = [
     "cohere>=5,<6",
     "voyageai>=0.3,<1",

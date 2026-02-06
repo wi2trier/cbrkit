@@ -19,6 +19,9 @@ with optional_dependencies():
 with optional_dependencies():
     from .rerank import bm25
 
+with optional_dependencies():
+    from .rerank import LancedbCasebase, lancedb
+
 __all__ = [
     "build",
     "transpose",
@@ -38,4 +41,6 @@ __all__ = [
     "sentence_transformers",
     "bm25",
     "embed",
+    "lancedb",
+    "LancedbCasebase",
 ]
