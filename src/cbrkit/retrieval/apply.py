@@ -31,26 +31,29 @@ def apply_batches[Q, C, V, S: Float](
     for i, retriever_factory in enumerate(retriever_factories, start=1):
         retriever_func = produce_factory(retriever_factory)
         logger.info(f"Processing retriever {i}/{len(retriever_factories)}")
+
+        resolved_values = list(current_batches.values())
+
+        if (
+            isinstance(retriever_func, IndexableRetrieverFunc)
+            and retriever_func.casebase is not None
+        ):
+            resolved_values = [
+                (retriever_func.casebase if not casebase else casebase, query)
+                for casebase, query in resolved_values
+            ]
+
         start_time = default_timer()
-        queries_results = retriever_func(list(current_batches.values()))
+        queries_results = retriever_func(resolved_values)
         end_time = default_timer()
 
         step_queries: dict[Q, QueryResultStep[C, V, S]] = {}
 
-        for (query_key, (casebase, query)), similarities in zip(
-            current_batches.items(), queries_results, strict=True
+        for (query_key, _), (casebase, query), similarities in zip(
+            current_batches.items(), resolved_values, queries_results, strict=True
         ):
-            resolved_casebase = casebase
-
-            if (
-                not resolved_casebase
-                and isinstance(retriever_func, IndexableRetrieverFunc)
-                and retriever_func.casebase is not None
-            ):
-                resolved_casebase = retriever_func.casebase
-
             step_queries[query_key] = QueryResultStep.build(
-                similarities, resolved_casebase, query, duration=0.0
+                similarities, casebase, query, duration=0.0
             )
 
         current_batches = {

@@ -161,6 +161,9 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
+            if not batches:
+                return []
+
             if isinstance(self.model, str):
                 model = SentenceTransformer(self.model, device=self.device)  # pyright: ignore
             else:
@@ -301,6 +304,9 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
+            if not batches:
+                return []
+
             # if all casebases are the same, we can optimize the retrieval
             first_casebase = batches[0][0]
 
@@ -323,10 +329,6 @@ with optional_dependencies():
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
-            # if an empty casebase is given, use the indexed one
-            if not casebase and self.casebase:
-                casebase = self.casebase
-
             # identity check can only be used because `index` enforces frozendict
             if self._retriever and self.casebase is casebase:
                 retriever = self._retriever
@@ -406,13 +408,12 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
         if not batches:
             return []
 
-        # Collect all texts for embedding, resolving empty casebases
+        # Collect all texts for embedding
         resolved_batches: list[tuple[Casebase[K, str], str]] = []
         all_case_texts: list[str] = []
         all_query_texts: list[str] = []
 
-        for cb, query in batches:
-            casebase = self.casebase if not cb and self.casebase else cb
+        for casebase, query in batches:
             resolved_batches.append((casebase, query))
             all_case_texts.extend(casebase.values())
             all_query_texts.append(query)
