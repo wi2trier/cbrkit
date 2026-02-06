@@ -60,6 +60,7 @@ __all__ = [
     "chunkify_overlap",
     "dereference_json_schema",
     "dereference_fastmcp_tool",
+    "dispatch_batches",
     "dist2sim",
     "get_hash",
     "get_logger",
@@ -294,6 +295,38 @@ def chain_map_chunks[U, V](
 
     return [
         [results[idx] for idx in chunk_indexes] for chunk_indexes in batch2chunk_indexes
+    ]
+
+
+def dispatch_batches[K, V, R](
+    batches: Sequence[tuple[Mapping[K, V], V]],
+    call_queries: Callable[[Sequence[V], Mapping[K, V]], Sequence[R]],
+) -> Sequence[R]:
+    """Dispatches batches, optimizing when all casebases are identical.
+
+    When every batch entry shares the same casebase (by identity), all queries
+    are forwarded in a single call.  Otherwise each batch is processed
+    individually.
+
+    Args:
+        batches: Sequence of (casebase, query) pairs.
+        call_queries: Callable that takes a sequence of queries and a single
+            casebase, returning a sequence of results.
+
+    Returns:
+        A flat sequence of results, one per input batch entry.
+    """
+    if not batches:
+        return []
+
+    first_casebase = batches[0][0]
+
+    if all(casebase is first_casebase for casebase, _ in batches):
+        return call_queries([query for _, query in batches], first_casebase)
+
+    return [
+        call_queries([query], casebase)[0]
+        for casebase, query in batches
     ]
 
 

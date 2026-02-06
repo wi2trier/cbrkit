@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -31,7 +31,7 @@ __all__ = [
     "Float",
     "HasMetadata",
     "IndexableFunc",
-    "IndexableRetrieverFunc",
+
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
@@ -206,25 +206,6 @@ class RetrieverFunc[K, V, S: Float](Protocol):
         /,
     ) -> Sequence[SimMap[K, S]]: ...
 
-
-@runtime_checkable
-class IndexableRetrieverFunc[K, V, S: Float](IndexableFunc[Casebase[K, V]], Protocol):
-    """Retrieves similar cases from casebases for given queries and supports indexing."""
-
-    casebase: Casebase[K, V] | None
-
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-        /,
-    ) -> Sequence[SimMap[K, S]]: ...
-
-    def index(
-        self,
-        data: Casebase[K, V],
-        /,
-        prune: bool = True,
-    ) -> None: ...
 
 
 class AdaptationFunc[V](Protocol):

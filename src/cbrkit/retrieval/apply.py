@@ -3,7 +3,8 @@ from timeit import default_timer
 
 from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
 from ..model import QueryResultStep, Result, ResultStep
-from ..typing import Float, IndexableRetrieverFunc, InternalFunc, MaybeFactories, RetrieverFunc
+from ..typing import Float, InternalFunc, MaybeFactories, RetrieverFunc
+from .model import IndexableRetrieverFunc
 
 logger = get_logger(__name__)
 
@@ -34,14 +35,8 @@ def apply_batches[Q, C, V, S: Float](
 
         resolved_values = list(current_batches.values())
 
-        if (
-            isinstance(retriever_func, IndexableRetrieverFunc)
-            and retriever_func.casebase is not None
-        ):
-            resolved_values = [
-                (retriever_func.casebase if not casebase else casebase, query)
-                for casebase, query in resolved_values
-            ]
+        if isinstance(retriever_func, IndexableRetrieverFunc):
+            resolved_values = retriever_func.resolve_batches(resolved_values)
 
         start_time = default_timer()
         queries_results = retriever_func(resolved_values)

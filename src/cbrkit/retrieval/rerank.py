@@ -7,6 +7,7 @@ from frozendict import frozendict
 
 from ..helpers import (
     batchify_sim,
+    dispatch_batches,
     get_logger,
     optional_dependencies,
     run_coroutine,
@@ -19,11 +20,11 @@ from ..typing import (
     Casebase,
     Float,
     HasMetadata,
-    IndexableRetrieverFunc,
     JsonDict,
     NumpyArray,
     RetrieverFunc,
 )
+from .model import IndexableRetrieverFunc
 
 logger = get_logger(__name__)
 
@@ -172,22 +173,10 @@ with optional_dependencies():
 
             model.to(self.device)
 
-            # if all casebases are the same, we can optimize the retrieval
-            first_casebase = batches[0][0]
-
-            if all(casebase is first_casebase for casebase, _ in batches):
-                logger.debug(
-                    "All casebases are the same, performing for all queries in one go"
-                )
-                return self.__call_queries__(
-                    [query for _, query in batches], first_casebase, model
-                )
-
-            logger.debug("Casebases are different, performing retrieval for each query")
-            return [
-                self.__call_query__(query, casebase, model)
-                for casebase, query in batches
-            ]
+            return dispatch_batches(
+                batches,
+                lambda queries, casebase: self.__call_queries__(queries, casebase, model),
+            )
 
         def __call_queries__(
             self,
@@ -223,37 +212,6 @@ with optional_dependencies():
                 }
                 for query_response in response
             ]
-
-        def __call_query__(
-            self,
-            query: str,
-            casebase: Casebase[K, str],
-            model: SentenceTransformer,
-        ) -> dict[K, float]:
-            case_texts = list(casebase.values())
-            query_text = query
-            embeddings = util.normalize_embeddings(
-                model.encode([query_text] + case_texts, convert_to_tensor=True).to(
-                    self.device
-                )
-            )
-            query_embeddings = embeddings[0:1]
-            case_embeddings = embeddings[1:]
-
-            response = util.semantic_search(
-                query_embeddings,
-                case_embeddings,
-                top_k=len(casebase),
-                query_chunk_size=self.query_chunk_size,
-                corpus_chunk_size=self.corpus_chunk_size,
-                score_function=util.dot_score,
-            )[0]
-            key_index = {idx: key for idx, key in enumerate(casebase)}
-
-            return {
-                key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
-                for res in response
-            }
 
 
 with optional_dependencies():
@@ -305,25 +263,7 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            if not batches:
-                return []
-
-            # if all casebases are the same, we can optimize the retrieval
-            first_casebase = batches[0][0]
-
-            if all(casebase is first_casebase for casebase, _ in batches):
-                logger.debug(
-                    "All casebases are the same, performing for all queries in one go"
-                )
-                return self.__call_queries__(
-                    [query for _, query in batches], first_casebase
-                )
-
-            logger.debug("Casebases are different, performing retrieval for each query")
-            return [
-                self.__call_queries__([query], casebase)[0]
-                for casebase, query in batches
-            ]
+            return dispatch_batches(batches, self.__call_queries__)
 
         def __call_queries__(
             self,
@@ -532,26 +472,7 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            if not batches:
-                return []
-
-            first_casebase = batches[0][0]
-
-            if all(casebase is first_casebase for casebase, _ in batches):
-                logger.debug(
-                    "All casebases are the same, performing for all queries in one go"
-                )
-                return self._call_queries(
-                    [query for _, query in batches], first_casebase
-                )
-
-            logger.debug(
-                "Casebases are different, performing retrieval for each query"
-            )
-            return [
-                self._call_queries([query], casebase)[0]
-                for casebase, query in batches
-            ]
+            return dispatch_batches(batches, self._call_queries)
 
         def _call_queries(
             self,

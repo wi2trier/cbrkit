@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 
 import cbrkit
+from cbrkit.typing import Casebase
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:
@@ -175,13 +176,15 @@ def test_retrieve_nested():
 def test_retrieve_indexed_casebase_resolution() -> None:
     from frozendict import frozendict
 
-    class FakeIndexableRetriever(cbrkit.typing.IndexableRetrieverFunc[int, str, float]):
-        casebase: frozendict[int, str] | None
+    class FakeIndexableRetriever(
+        cbrkit.retrieval.IndexableRetrieverFunc[int, str, float]
+    ):
+        casebase: Casebase[int, str] | None
 
         def __init__(self) -> None:
             self.casebase = None
 
-        def index(self, casebase: frozendict[int, str], prune: bool = True) -> None:
+        def index(self, casebase: Casebase[int, str], prune: bool = True) -> None:
             self.casebase = casebase
 
         def __call__(
