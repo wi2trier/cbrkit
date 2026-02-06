@@ -346,13 +346,14 @@ with optional_dependencies():
             )
             max_score = np.max(scores)
             min_score = np.min(scores)
+            score_range = max_score - min_score
 
             key_index = {idx: key for idx, key in enumerate(casebase)}
 
             return [
                 {
                     key_index[case_id]: float(
-                        (score - min_score) / (max_score - min_score)
+                        (score - min_score) / score_range if score_range != 0 else 1.0
                     )
                     for case_id, score in zip(
                         results[query_id], scores[query_id], strict=True
