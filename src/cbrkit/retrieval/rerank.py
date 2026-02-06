@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast, override
+from typing import Any, Literal, cast, override
 
 from frozendict import frozendict
 
@@ -423,38 +423,56 @@ with optional_dependencies():
     class lancedb[K: int | str](IndexableRetrieverFunc[K, str, float]):
         """Vector database-backed retriever using LanceDB.
 
-        Delegates storage and ANN search to an embedded LanceDB database,
-        keeping vectors on disk instead of in process memory.
+        Delegates storage and search to an embedded LanceDB database,
+        keeping data on disk instead of in process memory.
+        Supports vector (ANN), full-text (FTS/BM25), and hybrid search.
 
         Args:
-            conversion_func: Embedding function.
             uri: Path to the LanceDB database directory.
             table: Table name within the database.
+            search_type: Search mode — ``"vector"`` (ANN), ``"fts"`` (BM25),
+                or ``"hybrid"`` (vector + FTS combined).
+            conversion_func: Embedding function. Required for ``"vector"``
+                and ``"hybrid"`` search types.
             query_conversion_func: Optional separate embedding function for queries.
         """
 
-        conversion_func: BatchConversionFunc[str, NumpyArray]
         uri: str
         table: str
+        search_type: Literal["vector", "fts", "hybrid"] = "vector"
+        conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         casebase: Casebase[K, str] | None = field(
             default=None, init=False, repr=False
         )
 
+        def __post_init__(self) -> None:
+            if self.search_type in ("vector", "hybrid") and self.conversion_func is None:
+                raise ValueError(
+                    f"conversion_func is required for search_type={self.search_type!r}"
+                )
+
         @override
         def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
             keys = list(casebase.keys())
             values = list(casebase.values())
-            vecs = self.conversion_func(values)
 
-            rows = [
-                {
-                    "key": key,
-                    "value": value,
-                    "vector": np.asarray(vec).tolist(),
-                }
-                for key, value, vec in zip(keys, values, vecs, strict=True)
-            ]
+            if self.search_type == "fts":
+                rows = [
+                    {"key": key, "value": value}
+                    for key, value in zip(keys, values, strict=True)
+                ]
+            else:
+                assert self.conversion_func is not None
+                vecs = self.conversion_func(values)
+                rows = [
+                    {
+                        "key": key,
+                        "value": value,
+                        "vector": np.asarray(vec).tolist(),
+                    }
+                    for key, value, vec in zip(keys, values, vecs, strict=True)
+                ]
 
             db = ldb.connect(self.uri)
 
@@ -465,6 +483,10 @@ with optional_dependencies():
                 table.add(rows)
 
             table.create_scalar_index("key", replace=True)
+
+            if self.search_type in ("fts", "hybrid"):
+                table.create_fts_index("value", replace=True)
+
             self.casebase = LancedbCasebase(store=table)
 
         @override
@@ -480,15 +502,21 @@ with optional_dependencies():
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
             if self.casebase is not None and self.casebase is casebase:
-                return self._search_db(queries)
+                if self.search_type == "vector":
+                    return self._search_db_vector(queries)
+                elif self.search_type == "fts":
+                    return self._search_db_fts(queries)
+                else:
+                    return self._search_db_hybrid(queries)
 
             return self._search_brute(queries, casebase)
 
-        def _search_db(
+        def _search_db_vector(
             self,
             queries: Sequence[str],
         ) -> Sequence[dict[K, float]]:
             assert isinstance(self.casebase, LancedbCasebase)
+            assert self.conversion_func is not None
 
             embed_func = self.query_conversion_func or self.conversion_func
             query_vecs = embed_func(list(queries))
@@ -508,11 +536,101 @@ with optional_dependencies():
 
             return results
 
+        def _search_db_fts(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[dict[K, float]]:
+            assert isinstance(self.casebase, LancedbCasebase)
+
+            n = len(self.casebase)
+            results: list[dict[K, float]] = []
+
+            for query in queries:
+                hits = (
+                    self.casebase.store.search(query, query_type="fts")
+                    .limit(n)
+                    .to_list()
+                )
+
+                if not hits:
+                    results.append({})
+                    continue
+
+                scores = [hit["_score"] for hit in hits]
+                min_score = min(scores)
+                max_score = max(scores)
+                score_range = max_score - min_score
+
+                results.append(
+                    {
+                        hit["key"]: (
+                            (hit["_score"] - min_score) / score_range
+                            if score_range != 0
+                            else 1.0
+                        )
+                        for hit in hits
+                    }
+                )
+
+            return results
+
+        def _search_db_hybrid(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[dict[K, float]]:
+            assert isinstance(self.casebase, LancedbCasebase)
+            assert self.conversion_func is not None
+
+            embed_func = self.query_conversion_func or self.conversion_func
+            query_vecs = embed_func(list(queries))
+            n = len(self.casebase)
+
+            results: list[dict[K, float]] = []
+
+            for query, qvec in zip(queries, query_vecs, strict=True):
+                hits = (
+                    self.casebase.store.search(query_type="hybrid")
+                    .vector(np.asarray(qvec).tolist())
+                    .text(query)
+                    .limit(n)
+                    .to_list()
+                )
+
+                if not hits:
+                    results.append({})
+                    continue
+
+                scores = [hit["_relevance_score"] for hit in hits]
+                min_score = min(scores)
+                max_score = max(scores)
+                score_range = max_score - min_score
+
+                results.append(
+                    {
+                        hit["key"]: (
+                            (hit["_relevance_score"] - min_score) / score_range
+                            if score_range != 0
+                            else 1.0
+                        )
+                        for hit in hits
+                    }
+                )
+
+            return results
+
         def _search_brute(
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
+            if self.search_type in ("fts", "hybrid"):
+                raise NotImplementedError(
+                    f"Brute-force search is not supported for search_type={self.search_type!r}. "
+                    "Call index() first."
+                )
+
+            assert self.conversion_func is not None
+
             keys = list(casebase.keys())
             values = list(casebase.values())
 
