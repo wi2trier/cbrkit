@@ -6,12 +6,15 @@ from typing import Any, cast, override
 from frozendict import frozendict
 
 from ..helpers import (
+    batchify_sim,
     get_logger,
     optional_dependencies,
     run_coroutine,
 )
-from ..sim.embed import cache
+from ..sim.embed import cache, default_score_func
 from ..typing import (
+    AnySimFunc,
+    BatchSimFunc,
     Casebase,
     Float,
     HasMetadata,
@@ -19,7 +22,6 @@ from ..typing import (
     JsonDict,
     NumpyArray,
     RetrieverFunc,
-    SimFunc,
 )
 
 logger = get_logger(__name__)
@@ -371,9 +373,20 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
     """
 
     conversion_func: cache
-    sim_func: SimFunc[NumpyArray, S]
+    sim_func: BatchSimFunc[NumpyArray, S]
     query_conversion_func: cache | None
     casebase: Casebase[K, str] | None = field(repr=False, init=False, default=None)
+
+    def __init__(
+        self,
+        conversion_func: cache,
+        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,
+        query_conversion_func: cache | None = None,
+    ):
+        self.conversion_func = conversion_func
+        self.sim_func = batchify_sim(sim_func)
+        self.query_conversion_func = query_conversion_func
+        self.casebase = None
 
     @override
     def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
@@ -414,21 +427,17 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
             all_case_vecs = all_vecs[: len(all_case_texts)]
             all_query_vecs = all_vecs[len(all_case_texts) :]
 
-        # Build results
+        # Build results using batched similarity
         results: list[dict[K, S]] = []
         case_vec_idx = 0
 
         for query_idx, (casebase, _) in enumerate(resolved_batches):
-            case_keys = casebase.keys()
+            case_keys = list(casebase.keys())
             case_vecs = all_case_vecs[case_vec_idx : case_vec_idx + len(case_keys)]
             case_vec_idx += len(case_keys)
             query_vec = all_query_vecs[query_idx]
 
-            results.append(
-                {
-                    key: self.sim_func(case_vec, query_vec)
-                    for key, case_vec in zip(case_keys, case_vecs, strict=True)
-                }
-            )
+            sims = self.sim_func([(cv, query_vec) for cv in case_vecs])
+            results.append(dict(zip(case_keys, sims, strict=True)))
 
         return results

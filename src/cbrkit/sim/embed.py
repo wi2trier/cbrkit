@@ -278,6 +278,12 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]
 
     @override
     def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
+        """Compute embeddings for the given texts.
+
+        Texts already in the index are returned from the cache.
+        Uncached texts are computed on-the-fly but not persisted;
+        use ``index`` to persist embeddings.
+        """
         new_vecs = self._compute_vecs(texts)
         tmp_store = ChainMap(new_vecs, self.store)
 
