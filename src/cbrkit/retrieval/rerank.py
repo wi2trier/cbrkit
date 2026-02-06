@@ -350,12 +350,10 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
             return []
 
         # Collect all texts for embedding
-        resolved_batches: list[tuple[Casebase[K, str], str]] = []
         all_case_texts: list[str] = []
         all_query_texts: list[str] = []
 
         for casebase, query in batches:
-            resolved_batches.append((casebase, query))
             all_case_texts.extend(casebase.values())
             all_query_texts.append(query)
 
@@ -374,7 +372,7 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
         results: list[dict[K, S]] = []
         case_vec_idx = 0
 
-        for query_idx, (casebase, _) in enumerate(resolved_batches):
+        for query_idx, (casebase, _) in enumerate(batches):
             case_keys = list(casebase.keys())
             case_vecs = all_case_vecs[case_vec_idx : case_vec_idx + len(case_keys)]
             case_vec_idx += len(case_keys)
@@ -494,9 +492,9 @@ with optional_dependencies():
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[dict[K, float]]:
-            return dispatch_batches(batches, self._call_queries)
+            return dispatch_batches(batches, self.__call_queries__)
 
-        def _call_queries(
+        def __call_queries__(
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
