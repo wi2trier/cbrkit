@@ -29,6 +29,7 @@ from ..typing import (
     SimMap,
     StructuredValue,
 )
+
 logger = get_logger(__name__)
 
 
@@ -88,6 +89,10 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
 
     Useful when the input values need to be converted before retrieval,
     for instance, when the cases are nested and you only need to compare a subset of the values.
+    This wrapper is not compatible with indexed retrieval mode (empty casebase inputs).
+    If the inner retriever resolves an indexed casebase, values are in the converted type ``V2``,
+    so transpose cannot safely reconstruct original ``V1`` values for the returned casebase.
+    Use transpose with non-empty casebases at call time.
 
     Args:
         conversion_func: A function that converts the input values from one type to another.
@@ -104,6 +109,12 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V1], V1]]
     ) -> Sequence[tuple[Casebase[K, V1], SimMap[K, S]]]:
+        if any(len(casebase) == 0 for casebase, _ in batches):
+            raise ValueError(
+                "transpose does not support indexed retrieval mode with empty casebases. "
+                "Pass a non-empty casebase to transpose."
+            )
+
         inner_results = self.retriever_func(
             [
                 (
@@ -143,6 +154,13 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
 
     Returns:
         A retriever function that combines the results from multiple retrievers.
+
+    Notes:
+        When called with a non-empty input casebase, combine returns that original casebase unchanged.
+        When called with an empty casebase (indexed retrieval mode), combine builds the result casebase
+        from retriever outputs and only includes keys that appear in the aggregated similarity map.
+        If multiple retrievers return different values for the same key, combine keeps the last value
+        encountered in retriever order (last one wins).
     """
 
     retriever_funcs: (
@@ -164,12 +182,14 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
 
             for batch_idx in range(len(batches)):
                 combined_sim = self.__call_batch__(
-                    [
-                        batch_results[batch_idx][1]
-                        for batch_results in func_results
-                    ]
+                    [batch_results[batch_idx][1] for batch_results in func_results]
                 )
-                results.append((batches[batch_idx][0], combined_sim))
+                result_casebase = self._resolve_batch_casebase(
+                    batches[batch_idx][0],
+                    combined_sim,
+                    [batch_results[batch_idx][0] for batch_results in func_results],
+                )
+                results.append((result_casebase, combined_sim))
 
             return results
 
@@ -187,11 +207,35 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
                         for func_key, func_results in named_results.items()
                     }
                 )
-                results.append((batches[batch_idx][0], combined_sim))
+                result_casebase = self._resolve_batch_casebase(
+                    batches[batch_idx][0],
+                    combined_sim,
+                    [
+                        func_results[batch_idx][0]
+                        for func_results in named_results.values()
+                    ],
+                )
+                results.append((result_casebase, combined_sim))
 
             return results
 
         raise ValueError(f"Invalid retriever_funcs type: {type(self.retriever_funcs)}")
+
+    def _resolve_batch_casebase(
+        self,
+        original_casebase: Casebase[K, V],
+        combined_sim: SimMap[K, float],
+        candidate_casebases: Sequence[Casebase[K, V]],
+    ) -> Casebase[K, V]:
+        if len(original_casebase) > 0:
+            return original_casebase
+
+        return {
+            key: value
+            for candidate_casebase in candidate_casebases
+            for key, value in candidate_casebase.items()
+            if key in combined_sim
+        }
 
     def __call_batch__(
         self, results: Sequence[SimMap[K, S]] | Mapping[str, SimMap[K, S]]

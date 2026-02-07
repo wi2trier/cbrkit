@@ -8,7 +8,9 @@ from frozendict import frozendict
 from ..helpers import (
     batchify_sim,
     dispatch_batches,
+    dist2sim,
     get_logger,
+    normalize,
     optional_dependencies,
     run_coroutine,
 )
@@ -238,11 +240,22 @@ with optional_dependencies():
     class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[frozendict[K, str]]):
         """BM25 retriever based on bm25s.
 
+        Args:
+            language: Language for stemming.
+            stopwords: Stopword configuration. ``None`` (default) uses the
+                ``language`` for built-in stopwords, a ``str`` overrides the
+                stopwords language independently, and a ``list[str]`` provides
+                custom stopwords.
+            normalize_scores: If ``True`` (default), apply per-query min-max
+                normalization to BM25 scores. If ``False``, return raw BM25
+                scores.
+
         Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
         """
 
         language: str
-        stopwords: list[str] | None = None
+        stopwords: str | list[str] | None = None
+        normalize_scores: bool = True
         _casebase: frozendict[K, str] | None = field(
             default=None, init=False, repr=False
         )
@@ -250,7 +263,7 @@ with optional_dependencies():
 
         @property
         def _stopwords(self) -> str | list[str]:
-            return self.stopwords or self.language
+            return self.stopwords if self.stopwords is not None else self.language
 
         @property
         def _stemmer(self) -> Callable[..., Any]:
@@ -309,17 +322,35 @@ with optional_dependencies():
                 sorted=False,
                 k=len(casebase),
             )
-            max_score = np.max(scores)
-            min_score = np.min(scores)
-            score_range = max_score - min_score
 
             key_index = {idx: key for idx, key in enumerate(casebase)}
 
+            if self.normalize_scores:
+                normalized_scores: list[list[float]] = []
+
+                for query_scores in scores:
+                    query_min = float(np.min(query_scores))
+                    query_max = float(np.max(query_scores))
+                    normalized_scores.append(
+                        [
+                            normalize(float(score), query_min, query_max)
+                            for score in query_scores
+                        ]
+                    )
+
+                return [
+                    {
+                        key_index[case_id]: score
+                        for case_id, score in zip(
+                            results[query_id], normalized_scores[query_id], strict=True
+                        )
+                    }
+                    for query_id in range(len(queries))
+                ]
+
             return [
                 {
-                    key_index[case_id]: float(
-                        (score - min_score) / score_range if score_range != 0 else 1.0
-                    )
+                    key_index[case_id]: float(score)
                     for case_id, score in zip(
                         results[query_id], scores[query_id], strict=True
                     )
@@ -374,40 +405,42 @@ class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str
             return []
 
         resolved = resolve_casebases(batches, self._casebase)
+        sim_maps = dispatch_batches(resolved, self.__call_queries__)
 
-        # Collect all texts for embedding
-        all_case_texts: list[str] = []
-        all_query_texts: list[str] = []
+        return [
+            (casebase, sim_map)
+            for (casebase, _), sim_map in zip(resolved, sim_maps, strict=True)
+        ]
 
-        for casebase, query in resolved:
-            all_case_texts.extend(casebase.values())
-            all_query_texts.append(query)
+    def __call_queries__(
+        self,
+        queries: Sequence[str],
+        casebase: Casebase[K, str],
+    ) -> Sequence[dict[K, S]]:
+        case_texts = list(casebase.values())
+        query_texts = list(queries)
 
-        # Compute all embeddings in one batch
         if self.query_conversion_func:
-            all_case_vecs = self.conversion_func(all_case_texts)
-            all_query_vecs = self.query_conversion_func(all_query_texts)
+            case_vecs = self.conversion_func(case_texts)
+            query_vecs = self.query_conversion_func(query_texts)
         else:
-            # Batch all texts together when using the same conversion function
-            all_texts = all_case_texts + all_query_texts
+            all_texts = case_texts + query_texts
             all_vecs = self.conversion_func(all_texts)
-            all_case_vecs = all_vecs[: len(all_case_texts)]
-            all_query_vecs = all_vecs[len(all_case_texts) :]
+            case_vecs = all_vecs[: len(case_texts)]
+            query_vecs = all_vecs[len(case_texts) :]
 
-        # Build results using batched similarity
-        results: list[tuple[Casebase[K, str], dict[K, S]]] = []
-        case_vec_idx = 0
+        case_keys = list(casebase.keys())
 
-        for query_idx, (casebase, _) in enumerate(resolved):
-            case_keys = list(casebase.keys())
-            case_vecs = all_case_vecs[case_vec_idx : case_vec_idx + len(case_keys)]
-            case_vec_idx += len(case_keys)
-            query_vec = all_query_vecs[query_idx]
-
-            sims = self.sim_func([(cv, query_vec) for cv in case_vecs])
-            results.append((casebase, dict(zip(case_keys, sims, strict=True))))
-
-        return results
+        return [
+            dict(
+                zip(
+                    case_keys,
+                    self.sim_func([(cv, query_vec) for cv in case_vecs]),
+                    strict=True,
+                )
+            )
+            for query_vec in query_vecs
+        ]
 
 
 with optional_dependencies():
@@ -500,7 +533,7 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
-        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             if len(casebase) == 0:
                 if self._table is None:
                     raise ValueError(
@@ -520,7 +553,7 @@ with optional_dependencies():
         def _search_db_vector(
             self,
             queries: Sequence[str],
-        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             assert self._table is not None
             assert self.conversion_func is not None
 
@@ -528,14 +561,14 @@ with optional_dependencies():
             query_vecs = embed_func(list(queries))
             n = self._table.count_rows()
 
-            results: list[tuple[dict[K, str], dict[K, float]]] = []
+            results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for qvec in query_vecs:
                 hits = self._table.search(np.asarray(qvec).tolist()).limit(n).to_list()
                 results.append(
                     (
                         {hit["key"]: hit["value"] for hit in hits},
-                        {hit["key"]: 1.0 - hit["_distance"] for hit in hits},
+                        {hit["key"]: dist2sim(hit["_distance"]) for hit in hits},
                     )
                 )
 
@@ -544,11 +577,11 @@ with optional_dependencies():
         def _search_db_fts(
             self,
             queries: Sequence[str],
-        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             assert self._table is not None
 
             n = self._table.count_rows()
-            results: list[tuple[dict[K, str], dict[K, float]]] = []
+            results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for query in queries:
                 hits = self._table.search(query, query_type="fts").limit(n).to_list()
@@ -557,20 +590,14 @@ with optional_dependencies():
                     results.append(({}, {}))
                     continue
 
-                scores = [hit["_score"] for hit in hits]
-                min_score = min(scores)
-                max_score = max(scores)
-                score_range = max_score - min_score
+                min_score = min(hit["_score"] for hit in hits)
+                max_score = max(hit["_score"] for hit in hits)
 
                 results.append(
                     (
                         {hit["key"]: hit["value"] for hit in hits},
                         {
-                            hit["key"]: (
-                                (hit["_score"] - min_score) / score_range
-                                if score_range != 0
-                                else 1.0
-                            )
+                            hit["key"]: normalize(hit["_score"], min_score, max_score)
                             for hit in hits
                         },
                     )
@@ -581,7 +608,7 @@ with optional_dependencies():
         def _search_db_hybrid(
             self,
             queries: Sequence[str],
-        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             assert self._table is not None
             assert self.conversion_func is not None
 
@@ -589,7 +616,7 @@ with optional_dependencies():
             query_vecs = embed_func(list(queries))
             n = self._table.count_rows()
 
-            results: list[tuple[dict[K, str], dict[K, float]]] = []
+            results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for query, qvec in zip(queries, query_vecs, strict=True):
                 hits = (
@@ -604,19 +631,15 @@ with optional_dependencies():
                     results.append(({}, {}))
                     continue
 
-                scores = [hit["_relevance_score"] for hit in hits]
-                min_score = min(scores)
-                max_score = max(scores)
-                score_range = max_score - min_score
+                min_score = min(hit["_relevance_score"] for hit in hits)
+                max_score = max(hit["_relevance_score"] for hit in hits)
 
                 results.append(
                     (
                         {hit["key"]: hit["value"] for hit in hits},
                         {
-                            hit["key"]: (
-                                (hit["_relevance_score"] - min_score) / score_range
-                                if score_range != 0
-                                else 1.0
+                            hit["key"]: normalize(
+                                hit["_relevance_score"], min_score, max_score
                             )
                             for hit in hits
                         },
@@ -629,7 +652,7 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
-        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             if self.search_type in ("fts", "hybrid"):
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
@@ -647,7 +670,7 @@ with optional_dependencies():
 
             sim_func = batchify_sim(default_score_func)
 
-            results: list[tuple[dict[K, str], dict[K, float]]] = []
+            results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for qvec in query_vecs:
                 sims = sim_func([(cv, qvec) for cv in case_vecs])

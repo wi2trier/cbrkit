@@ -26,7 +26,9 @@ class FakeIndexableRetriever(
     def __call__(
         self,
         batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
-    ) -> Sequence[tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]]:
+    ) -> Sequence[
+        tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]
+    ]:
         return [
             (dict(casebase), {key: 1.0 for key in casebase})
             for casebase, _query in resolve_casebases(batches, self._indexed_casebase)
@@ -225,3 +227,37 @@ def test_retrieve_apply_query_indexed() -> None:
     assert result.casebase[1] == "a"
     assert result.casebase[2] == "b"
     assert len(result.casebase) == 2
+
+
+def test_combine_sequence_indexed() -> None:
+    from frozendict import frozendict
+
+    r1 = FakeIndexableRetriever()
+    r1.index(frozendict({1: "a", 2: "b"}))
+
+    r2 = FakeIndexableRetriever()
+    r2.index(frozendict({1: "a", 2: "b"}))
+
+    retriever = cbrkit.retrieval.combine([r1, r2])
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+
+    assert len(result.casebase) == 2
+    assert result.casebase[1] == "a"
+    assert result.casebase[2] == "b"
+
+
+def test_combine_mapping_indexed() -> None:
+    from frozendict import frozendict
+
+    r1 = FakeIndexableRetriever()
+    r1.index(frozendict({1: "a", 2: "b"}))
+
+    r2 = FakeIndexableRetriever()
+    r2.index(frozendict({1: "a", 2: "b"}))
+
+    retriever = cbrkit.retrieval.combine({"r1": r1, "r2": r2})
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+
+    assert len(result.casebase) == 2
+    assert result.casebase[1] == "a"
+    assert result.casebase[2] == "b"
