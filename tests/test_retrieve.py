@@ -5,11 +5,32 @@ import polars as pl
 import pytest
 
 import cbrkit
+from cbrkit.retrieval.common import resolve_casebases
 from cbrkit.typing import Casebase
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:
     return 1 - abs(x - y) / 100000
+
+
+class FakeIndexableRetriever(
+    cbrkit.typing.RetrieverFunc[int, str, float],
+    cbrkit.typing.IndexableFunc[Casebase[int, str]],
+):
+    def __init__(self) -> None:
+        self._indexed_casebase: dict[int, str] | None = None
+
+    def index(self, casebase: Casebase[int, str], prune: bool = True) -> None:
+        self._indexed_casebase = dict(casebase)
+
+    def __call__(
+        self,
+        batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
+    ) -> Sequence[tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]]:
+        return [
+            (dict(casebase), {key: 1.0 for key in casebase})
+            for casebase, _query in resolve_casebases(batches, self._indexed_casebase)
+        ]
 
 
 @pytest.mark.skip(reason="this test is slow on macOS")
@@ -176,36 +197,30 @@ def test_retrieve_nested():
 def test_retrieve_indexed_casebase_resolution() -> None:
     from frozendict import frozendict
 
-    class FakeIndexableRetriever(
-        cbrkit.typing.RetrieverFunc[int, str, float],
-        cbrkit.typing.IndexableFunc[Casebase[int, str]],
-    ):
-        def __init__(self) -> None:
-            self._indexed_casebase: dict[int, str] | None = None
-
-        def index(self, casebase: Casebase[int, str], prune: bool = True) -> None:
-            self._indexed_casebase = dict(casebase)
-
-        def __call__(
-            self,
-            batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
-        ) -> Sequence[tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]]:
-            results: list[tuple[dict[int, str], dict[int, float]]] = []
-
-            for casebase, _query in batches:
-                resolved = (
-                    casebase if len(casebase) > 0 else self._indexed_casebase or {}
-                )
-                results.append(
-                    (dict(resolved), {key: 1.0 for key in resolved})
-                )
-
-            return results
-
     retriever = FakeIndexableRetriever()
     retriever.index(frozendict({1: "a", 2: "b"}))
 
     result = cbrkit.retrieval.apply_query({}, "a", retriever)
+
+    assert result.casebase[1] == "a"
+    assert result.casebase[2] == "b"
+    assert len(result.casebase) == 2
+
+
+def test_retrieve_indexed_casebase_requires_index() -> None:
+    retriever = FakeIndexableRetriever()
+
+    with pytest.raises(ValueError, match="Call index\\(\\) first"):
+        cbrkit.retrieval.apply_query({}, "a", retriever)
+
+
+def test_retrieve_apply_query_indexed() -> None:
+    from frozendict import frozendict
+
+    retriever = FakeIndexableRetriever()
+    retriever.index(frozendict({1: "a", 2: "b"}))
+
+    result = cbrkit.retrieval.apply_query_indexed("a", retriever)
 
     assert result.casebase[1] == "a"
     assert result.casebase[2] == "b"

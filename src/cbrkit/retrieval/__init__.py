@@ -1,6 +1,12 @@
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
-from .apply import apply_batches, apply_queries, apply_query
+from .apply import (
+    apply_batches,
+    apply_queries,
+    apply_queries_indexed,
+    apply_query,
+    apply_query_indexed,
+)
 from .build import build, combine, distribute, dropout, transpose, transpose_value
 from .rerank import embed
 
@@ -32,7 +38,9 @@ __all__ = [
     "chunk",
     "apply_batches",
     "apply_queries",
+    "apply_queries_indexed",
     "apply_query",
+    "apply_query_indexed",
     "Result",
     "ResultStep",
     "QueryResultStep",

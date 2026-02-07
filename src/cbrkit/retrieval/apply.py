@@ -1,7 +1,13 @@
 from collections.abc import Mapping
 from timeit import default_timer
+from typing import cast
 
-from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
+from ..helpers import (
+    get_logger,
+    get_metadata,
+    produce_factory,
+    produce_sequence,
+)
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import Float, InternalFunc, MaybeFactories, RetrieverFunc
 
@@ -125,6 +131,34 @@ def apply_query[K, V, S: Float](
     """
     return apply_queries(
         casebase,
+        {"default": query},
+        retrievers,
+    )
+
+
+def apply_queries_indexed[Q, C, V, S: Float](
+    queries: Mapping[Q, V],
+    retrievers: MaybeFactories[RetrieverFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
+    """Applies queries using pre-indexed retrievers.
+
+    This helper explicitly opts into indexed retrieval by passing an empty casebase.
+    Every retriever must support indexed retrieval mode.
+    """
+    empty_casebase = cast(Mapping[C, V], {})
+
+    return apply_batches(
+        {query_key: (empty_casebase, query) for query_key, query in queries.items()},
+        retrievers,
+    )
+
+
+def apply_query_indexed[K, V, S: Float](
+    query: V,
+    retrievers: MaybeFactories[RetrieverFunc[K, V, S]],
+) -> Result[str, K, V, S]:
+    """Applies a single query using pre-indexed retrievers."""
+    return apply_queries_indexed(
         {"default": query},
         retrievers,
     )

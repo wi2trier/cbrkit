@@ -234,7 +234,10 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
-        """BM25 retriever based on bm25s."""
+        """BM25 retriever based on bm25s.
+
+        Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
+        """
 
         language: str
         stopwords: list[str] | None = None
@@ -329,6 +332,8 @@ class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str
         conversion_func: Embedding function (from embed module).
         sim_func: Vector similarity function (default: cosine).
         query_conversion_func: Optional separate embedding function for queries.
+
+    Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
     """
 
     conversion_func: cache
@@ -421,6 +426,8 @@ with optional_dependencies():
             conversion_func: Embedding function. Required for ``"vector"``
                 and ``"hybrid"`` search types.
             query_conversion_func: Optional separate embedding function for queries.
+
+        Pass an empty casebase to ``__call__`` to use the indexed database state.
         """
 
         uri: str
@@ -488,7 +495,13 @@ with optional_dependencies():
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
-            if self._table is not None and len(casebase) == 0:
+            if len(casebase) == 0:
+                if self._table is None:
+                    raise ValueError(
+                        "Indexed retrieval was requested with an empty casebase, but no index is available. "
+                        "Call index() first."
+                    )
+
                 if self.search_type == "vector":
                     return self._search_db_vector(queries)
                 elif self.search_type == "fts":
