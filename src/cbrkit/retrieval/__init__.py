@@ -2,7 +2,6 @@ from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import apply_batches, apply_queries, apply_query
 from .build import build, combine, distribute, dropout, transpose, transpose_value
-from .model import IndexableRetrieverFunc
 from .rerank import embed
 
 with optional_dependencies():
@@ -21,10 +20,9 @@ with optional_dependencies():
     from .rerank import bm25
 
 with optional_dependencies():
-    from .rerank import LancedbCasebase, lancedb
+    from .rerank import lancedb
 
 __all__ = [
-    "IndexableRetrieverFunc",
     "build",
     "transpose",
     "transpose_value",
@@ -44,5 +42,4 @@ __all__ = [
     "bm25",
     "embed",
     "lancedb",
-    "LancedbCasebase",
 ]

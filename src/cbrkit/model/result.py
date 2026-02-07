@@ -1,6 +1,6 @@
 from collections.abc import Mapping, Sequence
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from ..helpers import sim_map2ranking, singleton
 from ..typing import (
@@ -14,10 +14,22 @@ from ..typing import (
 class QueryResultStep[K, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
     similarities: SimMap[K, S]
-    ranking: Sequence[K]
+    ranking: Sequence[K] = ()
     casebase: Casebase[K, V]
     query: V
     duration: float
+
+    @model_validator(mode="before")
+    @classmethod
+    def _custom_validator(cls, data: dict) -> dict:
+        assert len(data["similarities"]) == len(data["casebase"]), (
+            "similarities and casebase must have equal length"
+        )
+
+        if not data.get("ranking"):
+            data["ranking"] = tuple(sim_map2ranking(data["similarities"]))
+
+        return data
 
     @property
     def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
@@ -32,25 +44,6 @@ class QueryResultStep[K, V, S: Float](BaseModel):
     @property
     def case(self) -> V:
         return singleton(self.casebase.values())
-
-    @classmethod
-    def build(
-        cls,
-        similarities: Mapping[K, S],
-        unfiltered_casebase: Casebase[K, V],
-        query: V,
-        duration: float,
-    ) -> "QueryResultStep[K, V, S]":
-        ranking = sim_map2ranking(similarities)
-        filtered_casebase = {key: unfiltered_casebase[key] for key in similarities}
-
-        return cls(
-            similarities=similarities,
-            ranking=tuple(ranking),
-            casebase=filtered_casebase,
-            query=query,
-            duration=duration,
-        )
 
     def remove_cases(self) -> "QueryResultStep[K, None, S]":
         return QueryResultStep[K, None, S](

@@ -31,7 +31,6 @@ __all__ = [
     "Float",
     "HasMetadata",
     "IndexableFunc",
-
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
@@ -204,7 +203,7 @@ class RetrieverFunc[K, V, S: Float](Protocol):
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
-    ) -> Sequence[SimMap[K, S]]: ...
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
 
 
 

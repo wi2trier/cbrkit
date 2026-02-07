@@ -177,25 +177,28 @@ def test_retrieve_indexed_casebase_resolution() -> None:
     from frozendict import frozendict
 
     class FakeIndexableRetriever(
-        cbrkit.retrieval.IndexableRetrieverFunc[int, str, float]
+        cbrkit.typing.RetrieverFunc[int, str, float],
+        cbrkit.typing.IndexableFunc[Casebase[int, str]],
     ):
-        casebase: Casebase[int, str] | None
-
         def __init__(self) -> None:
-            self.casebase = None
+            self._indexed_casebase: dict[int, str] | None = None
 
         def index(self, casebase: Casebase[int, str], prune: bool = True) -> None:
-            self.casebase = casebase
+            self._indexed_casebase = dict(casebase)
 
         def __call__(
             self,
             batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
-        ) -> Sequence[cbrkit.typing.SimMap[int, float]]:
-            results: list[dict[int, float]] = []
+        ) -> Sequence[tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]]:
+            results: list[tuple[dict[int, str], dict[int, float]]] = []
 
             for casebase, _query in batches:
-                resolved_casebase = casebase or self.casebase or {}
-                results.append({key: 1.0 for key in resolved_casebase})
+                resolved = (
+                    casebase if len(casebase) > 0 else self._indexed_casebase or {}
+                )
+                results.append(
+                    (dict(resolved), {key: 1.0 for key in resolved})
+                )
 
             return results
 

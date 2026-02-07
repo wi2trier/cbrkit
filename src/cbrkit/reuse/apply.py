@@ -53,10 +53,10 @@ def apply_batches[Q, C, V, S: Float](
         end_time = default_timer()
 
         step_queries = {
-            query_key: QueryResultStep.build(
-                adapted_sims,
-                adapted_casebase,
-                current_batches[query_key][1],
+            query_key: QueryResultStep(
+                similarities=adapted_sims,
+                casebase=adapted_casebase,
+                query=current_batches[query_key][1],
                 duration=0.0,
             )
             for query_key, (adapted_casebase, adapted_sims) in zip(

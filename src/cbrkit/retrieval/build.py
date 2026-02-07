@@ -29,7 +29,6 @@ from ..typing import (
     SimMap,
     StructuredValue,
 )
-
 logger = get_logger(__name__)
 
 
@@ -56,8 +55,11 @@ class dropout[K, V, S: Float](RetrieverFunc[K, V, S]):
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[SimMap[K, S]]:
-        return [self._call_single(entry) for entry in self.retriever_func(batches)]
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
+        return [
+            (casebase, self._call_single(sim_map))
+            for casebase, sim_map in self.retriever_func(batches)
+        ]
 
     def _call_single(self, similarities: SimMap[K, S]) -> SimMap[K, S]:
         ranking = sim_map2ranking(similarities)
@@ -101,8 +103,8 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V1], V1]]
-    ) -> Sequence[SimMap[K, S]]:
-        return self.retriever_func(
+    ) -> Sequence[tuple[Casebase[K, V1], SimMap[K, S]]]:
+        inner_results = self.retriever_func(
             [
                 (
                     {
@@ -114,6 +116,13 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
                 for casebase, query in batches
             ]
         )
+
+        return [
+            (original_casebase, sim_map)
+            for (original_casebase, _), (_, sim_map) in zip(
+                batches, inner_results, strict=True
+            )
+        ]
 
 
 def transpose_value[K, V, S: Float](
@@ -146,34 +155,41 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[SimMap[K, float]]:
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, float]]]:
         if isinstance(self.retriever_funcs, Sequence):
             func_results = [
                 retriever_func(batches) for retriever_func in self.retriever_funcs
             ]
+            results: list[tuple[Casebase[K, V], SimMap[K, float]]] = []
 
-            return [
-                self.__call_batch__(
-                    [batch_results[batch_idx] for batch_results in func_results]
+            for batch_idx in range(len(batches)):
+                combined_sim = self.__call_batch__(
+                    [
+                        batch_results[batch_idx][1]
+                        for batch_results in func_results
+                    ]
                 )
-                for batch_idx in range(len(batches))
-            ]
+                results.append((batches[batch_idx][0], combined_sim))
+
+            return results
 
         elif isinstance(self.retriever_funcs, Mapping):
-            results = {
+            named_results = {
                 func_key: retriever_func(batches)
                 for func_key, retriever_func in self.retriever_funcs.items()
             }
+            results = []
 
-            return [
-                self.__call_batch__(
+            for batch_idx in range(len(batches)):
+                combined_sim = self.__call_batch__(
                     {
-                        func_key: func_results[batch_idx]
-                        for func_key, func_results in results.items()
+                        func_key: func_results[batch_idx][1]
+                        for func_key, func_results in named_results.items()
                     }
                 )
-                for batch_idx in range(len(batches))
-            ]
+                results.append((batches[batch_idx][0], combined_sim))
+
+            return results
 
         raise ValueError(f"Invalid retriever_funcs type: {type(self.retriever_funcs)}")
 
@@ -237,13 +253,15 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
     retriever_func: RetrieverFunc[K, V, S]
     multiprocessing: Pool | int | bool
 
-    def __call_batch__(self, x: Casebase[K, V], y: V) -> SimMap[K, S]:
+    def __call_batch__(
+        self, x: Casebase[K, V], y: V
+    ) -> tuple[Casebase[K, V], SimMap[K, S]]:
         return self.retriever_func([(x, y)])[0]
 
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[SimMap[K, S]]:
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
         return mp_starmap(self.__call_batch__, batches, self.multiprocessing, logger)
 
 
@@ -286,7 +304,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     @override
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
-    ) -> Sequence[SimMap[K, S]]:
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
         sim_func = batchify_sim(self.similarity_func)
         similarities: list[dict[K, S]] = [{} for _ in range(len(batches))]
 
@@ -315,7 +333,10 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
         for (idx, key), sim in zip(flat_batches_index, flat_sims, strict=True):
             similarities[idx][key] = sim
 
-        return similarities
+        return [
+            (casebase, sim_map)
+            for (casebase, _), sim_map in zip(batches, similarities, strict=True)
+        ]
 
 
 with optional_dependencies():
@@ -342,7 +363,7 @@ with optional_dependencies():
         @override
         def __call__(
             self, batches: Sequence[tuple[Casebase[str, str], str]]
-        ) -> Sequence[SimMap[str, S]]:
+        ) -> Sequence[tuple[Casebase[str, str], SimMap[str, S]]]:
             chunked_batches: list[tuple[Casebase[str, str], str]] = []
 
             for casebase, query in batches:

@@ -4,7 +4,6 @@ from timeit import default_timer
 from ..helpers import get_logger, get_metadata, produce_factory, produce_sequence
 from ..model import QueryResultStep, Result, ResultStep
 from ..typing import Float, InternalFunc, MaybeFactories, RetrieverFunc
-from .model import IndexableRetrieverFunc
 
 logger = get_logger(__name__)
 
@@ -35,20 +34,21 @@ def apply_batches[Q, C, V, S: Float](
 
         resolved_values = list(current_batches.values())
 
-        if isinstance(retriever_func, IndexableRetrieverFunc):
-            resolved_values = retriever_func.resolve_batches(resolved_values)
-
         start_time = default_timer()
         queries_results = retriever_func(resolved_values)
         end_time = default_timer()
 
         step_queries: dict[Q, QueryResultStep[C, V, S]] = {}
 
-        for (query_key, _), (casebase, query), similarities in zip(
+        for (query_key, _), (_, query), (result_casebase, similarities) in zip(
             current_batches.items(), resolved_values, queries_results, strict=True
         ):
-            step_queries[query_key] = QueryResultStep.build(
-                similarities, casebase, query, duration=0.0
+            filtered_casebase = {k: result_casebase[k] for k in similarities}
+            step_queries[query_key] = QueryResultStep(
+                similarities=similarities,
+                casebase=filtered_casebase,
+                query=query,
+                duration=0.0,
             )
 
         current_batches = {

@@ -1,9 +1,7 @@
 import asyncio
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
-
-from frozendict import frozendict
 
 from ..helpers import (
     batchify_sim,
@@ -20,13 +18,15 @@ from ..typing import (
     Casebase,
     Float,
     HasMetadata,
+    IndexableFunc,
     JsonDict,
     NumpyArray,
     RetrieverFunc,
 )
-from .model import IndexableRetrieverFunc
+from .common import resolve_casebases
 
 logger = get_logger(__name__)
+
 
 with optional_dependencies():
     from cohere import AsyncClient
@@ -49,13 +49,13 @@ with optional_dependencies():
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[Casebase[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             return run_coroutine(self._retrieve(batches))
 
         async def _retrieve(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[Casebase[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             return await asyncio.gather(
                 *(self._retrieve_single(query, casebase) for casebase, query in batches)
             )
@@ -64,7 +64,7 @@ with optional_dependencies():
             self,
             query: str,
             casebase: Casebase[K, str],
-        ) -> dict[K, float]:
+        ) -> tuple[Casebase[K, str], dict[K, float]]:
             response = await self.client.v2.rerank(
                 model=self.model,
                 query=query,
@@ -74,10 +74,13 @@ with optional_dependencies():
             )
             key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return {
-                key_index[result.index]: result.relevance_score
-                for result in response.results
-            }
+            return (
+                casebase,
+                {
+                    key_index[result.index]: result.relevance_score
+                    for result in response.results
+                },
+            )
 
 
 with optional_dependencies():
@@ -99,13 +102,13 @@ with optional_dependencies():
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[Casebase[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             return run_coroutine(self._retrieve(batches))
 
         async def _retrieve(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[Casebase[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             return await asyncio.gather(
                 *(self._retrieve_single(query, casebase) for casebase, query in batches)
             )
@@ -114,7 +117,7 @@ with optional_dependencies():
             self,
             query: str,
             casebase: Casebase[K, str],
-        ) -> dict[K, float]:
+        ) -> tuple[Casebase[K, str], dict[K, float]]:
             response = await self.client.rerank(
                 model=self.model,
                 query=query,
@@ -123,10 +126,13 @@ with optional_dependencies():
             )
             key_index = {idx: key for idx, key in enumerate(casebase)}
 
-            return {
-                key_index[result.index]: result.relevance_score
-                for result in response.results
-            }
+            return (
+                casebase,
+                {
+                    key_index[result.index]: result.relevance_score
+                    for result in response.results
+                },
+            )
 
 
 with optional_dependencies():
@@ -162,7 +168,7 @@ with optional_dependencies():
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[dict[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             if not batches:
                 return []
 
@@ -173,10 +179,17 @@ with optional_dependencies():
 
             model.to(self.device)
 
-            return dispatch_batches(
+            sim_maps = dispatch_batches(
                 batches,
-                lambda queries, casebase: self.__call_queries__(queries, casebase, model),
+                lambda queries, casebase: self.__call_queries__(
+                    queries, casebase, model
+                ),
             )
+
+            return [
+                (casebase, sim_map)
+                for (casebase, _), sim_map in zip(batches, sim_maps, strict=True)
+            ]
 
         def __call_queries__(
             self,
@@ -220,12 +233,12 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](IndexableRetrieverFunc[K, str, float]):
-        """BM25 retriever based on bm25s"""
+    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
+        """BM25 retriever based on bm25s."""
 
         language: str
         stopwords: list[str] | None = None
-        casebase: Casebase[K, str] | None = field(default=None, init=False, repr=False)
+        _casebase: dict[K, str] | None = field(default=None, init=False, repr=False)
         _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
 
         @property
@@ -252,26 +265,28 @@ with optional_dependencies():
             if not prune:
                 raise NotImplementedError("BM25 requires pruning")
 
-            if not isinstance(casebase, frozendict):
-                raise TypeError("BM25 casebase must be a frozendict")
-
             self._retriever = self._build_retriever(casebase)
-            self.casebase = casebase
+            self._casebase = dict(casebase)
 
         @override
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[dict[K, float]]:
-            return dispatch_batches(batches, self.__call_queries__)
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
+            resolved = resolve_casebases(batches, self._casebase)
+            sim_maps = dispatch_batches(resolved, self.__call_queries__)
+
+            return [
+                (casebase, sim_map)
+                for (casebase, _), sim_map in zip(resolved, sim_maps, strict=True)
+            ]
 
         def __call_queries__(
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[dict[K, float]]:
-            # identity check can only be used because `index` enforces frozendict
-            if self._retriever and self.casebase is casebase:
+            if self._retriever and self._casebase is casebase:
                 retriever = self._retriever
             else:
                 retriever = self._build_retriever(casebase)
@@ -307,7 +322,7 @@ with optional_dependencies():
 
 
 @dataclass(slots=True, init=False)
-class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
+class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str]]):
     """Embedding-based semantic retriever with indexing support.
 
     Args:
@@ -319,7 +334,7 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
     conversion_func: cache
     sim_func: BatchSimFunc[NumpyArray, S]
     query_conversion_func: cache | None
-    casebase: Casebase[K, str] | None = field(repr=False, init=False, default=None)
+    _casebase: dict[K, str] | None = field(repr=False, init=False, default=None)
 
     def __init__(
         self,
@@ -330,14 +345,14 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
         self.conversion_func = conversion_func
         self.sim_func = batchify_sim(sim_func)
         self.query_conversion_func = query_conversion_func
-        self.casebase = None
+        self._casebase = None
 
     @override
     def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
-        if not prune and self.casebase:
-            self.casebase = {**self.casebase, **casebase}
+        if not prune and self._casebase:
+            self._casebase = {**self._casebase, **casebase}
         else:
-            self.casebase = casebase
+            self._casebase = dict(casebase)
 
         self.conversion_func.index(casebase.values(), prune=prune)
 
@@ -345,15 +360,17 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
     def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[dict[K, S]]:
+    ) -> Sequence[tuple[Casebase[K, str], dict[K, S]]]:
         if not batches:
             return []
+
+        resolved = resolve_casebases(batches, self._casebase)
 
         # Collect all texts for embedding
         all_case_texts: list[str] = []
         all_query_texts: list[str] = []
 
-        for casebase, query in batches:
+        for casebase, query in resolved:
             all_case_texts.extend(casebase.values())
             all_query_texts.append(query)
 
@@ -369,17 +386,17 @@ class embed[K, S: Float](IndexableRetrieverFunc[K, str, S]):
             all_query_vecs = all_vecs[len(all_case_texts) :]
 
         # Build results using batched similarity
-        results: list[dict[K, S]] = []
+        results: list[tuple[Casebase[K, str], dict[K, S]]] = []
         case_vec_idx = 0
 
-        for query_idx, (casebase, _) in enumerate(batches):
+        for query_idx, (casebase, _) in enumerate(resolved):
             case_keys = list(casebase.keys())
             case_vecs = all_case_vecs[case_vec_idx : case_vec_idx + len(case_keys)]
             case_vec_idx += len(case_keys)
             query_vec = all_query_vecs[query_idx]
 
             sims = self.sim_func([(cv, query_vec) for cv in case_vecs])
-            results.append(dict(zip(case_keys, sims, strict=True)))
+            results.append((casebase, dict(zip(case_keys, sims, strict=True))))
 
         return results
 
@@ -388,37 +405,8 @@ with optional_dependencies():
     import lancedb as ldb
     import numpy as np
 
-    @dataclass(slots=True, frozen=True)
-    class LancedbCasebase[K: int | str](Mapping[K, str]):
-        """Casebase backed by a LanceDB table.
-
-        Keys and values are stored in the table itself.
-        """
-
-        store: ldb.Table
-
-        @override
-        def __getitem__(self, key: K) -> str:
-            ds = self.store.to_lance()
-            result = ds.to_table(filter=f"key = {key!r}", columns=["value"])
-
-            if len(result) == 0:
-                raise KeyError(key)
-
-            return cast(str, result.column("value")[0].as_py())
-
-        @override
-        def __iter__(self) -> Iterator[K]:
-            ds = self.store.to_lance()
-            keys: list[K] = ds.to_table(columns=["key"]).column("key").to_pylist()
-            return iter(keys)
-
-        @override
-        def __len__(self) -> int:
-            return self.store.count_rows()
-
     @dataclass(slots=True)
-    class lancedb[K: int | str](IndexableRetrieverFunc[K, str, float]):
+    class lancedb[K: int | str](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
         """Vector database-backed retriever using LanceDB.
 
         Delegates storage and search to an embedded LanceDB database,
@@ -440,12 +428,13 @@ with optional_dependencies():
         search_type: Literal["vector", "fts", "hybrid"] = "vector"
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-        casebase: Casebase[K, str] | None = field(
-            default=None, init=False, repr=False
-        )
+        _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
         def __post_init__(self) -> None:
-            if self.search_type in ("vector", "hybrid") and self.conversion_func is None:
+            if (
+                self.search_type in ("vector", "hybrid")
+                and self.conversion_func is None
+            ):
                 raise ValueError(
                     f"conversion_func is required for search_type={self.search_type!r}"
                 )
@@ -485,21 +474,21 @@ with optional_dependencies():
             if self.search_type in ("fts", "hybrid"):
                 table.create_fts_index("value", replace=True)
 
-            self.casebase = LancedbCasebase(store=table)
+            self._table = table
 
         @override
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
-        ) -> Sequence[dict[K, float]]:
+        ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             return dispatch_batches(batches, self.__call_queries__)
 
         def __call_queries__(
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
-        ) -> Sequence[dict[K, float]]:
-            if self.casebase is not None and self.casebase is casebase:
+        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+            if self._table is not None and len(casebase) == 0:
                 if self.search_type == "vector":
                     return self._search_db_vector(queries)
                 elif self.search_type == "fts":
@@ -512,24 +501,23 @@ with optional_dependencies():
         def _search_db_vector(
             self,
             queries: Sequence[str],
-        ) -> Sequence[dict[K, float]]:
-            assert isinstance(self.casebase, LancedbCasebase)
+        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+            assert self._table is not None
             assert self.conversion_func is not None
 
             embed_func = self.query_conversion_func or self.conversion_func
             query_vecs = embed_func(list(queries))
-            n = len(self.casebase)
+            n = self._table.count_rows()
 
-            results: list[dict[K, float]] = []
+            results: list[tuple[dict[K, str], dict[K, float]]] = []
 
             for qvec in query_vecs:
-                hits = (
-                    self.casebase.store.search(np.asarray(qvec).tolist())
-                    .limit(n)
-                    .to_list()
-                )
+                hits = self._table.search(np.asarray(qvec).tolist()).limit(n).to_list()
                 results.append(
-                    {hit["key"]: 1.0 - hit["_distance"] for hit in hits}
+                    (
+                        {hit["key"]: hit["value"] for hit in hits},
+                        {hit["key"]: 1.0 - hit["_distance"] for hit in hits},
+                    )
                 )
 
             return results
@@ -537,21 +525,17 @@ with optional_dependencies():
         def _search_db_fts(
             self,
             queries: Sequence[str],
-        ) -> Sequence[dict[K, float]]:
-            assert isinstance(self.casebase, LancedbCasebase)
+        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+            assert self._table is not None
 
-            n = len(self.casebase)
-            results: list[dict[K, float]] = []
+            n = self._table.count_rows()
+            results: list[tuple[dict[K, str], dict[K, float]]] = []
 
             for query in queries:
-                hits = (
-                    self.casebase.store.search(query, query_type="fts")
-                    .limit(n)
-                    .to_list()
-                )
+                hits = self._table.search(query, query_type="fts").limit(n).to_list()
 
                 if not hits:
-                    results.append({})
+                    results.append(({}, {}))
                     continue
 
                 scores = [hit["_score"] for hit in hits]
@@ -560,14 +544,17 @@ with optional_dependencies():
                 score_range = max_score - min_score
 
                 results.append(
-                    {
-                        hit["key"]: (
-                            (hit["_score"] - min_score) / score_range
-                            if score_range != 0
-                            else 1.0
-                        )
-                        for hit in hits
-                    }
+                    (
+                        {hit["key"]: hit["value"] for hit in hits},
+                        {
+                            hit["key"]: (
+                                (hit["_score"] - min_score) / score_range
+                                if score_range != 0
+                                else 1.0
+                            )
+                            for hit in hits
+                        },
+                    )
                 )
 
             return results
@@ -575,19 +562,19 @@ with optional_dependencies():
         def _search_db_hybrid(
             self,
             queries: Sequence[str],
-        ) -> Sequence[dict[K, float]]:
-            assert isinstance(self.casebase, LancedbCasebase)
+        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
+            assert self._table is not None
             assert self.conversion_func is not None
 
             embed_func = self.query_conversion_func or self.conversion_func
             query_vecs = embed_func(list(queries))
-            n = len(self.casebase)
+            n = self._table.count_rows()
 
-            results: list[dict[K, float]] = []
+            results: list[tuple[dict[K, str], dict[K, float]]] = []
 
             for query, qvec in zip(queries, query_vecs, strict=True):
                 hits = (
-                    self.casebase.store.search(query_type="hybrid")
+                    self._table.search(query_type="hybrid")
                     .vector(np.asarray(qvec).tolist())
                     .text(query)
                     .limit(n)
@@ -595,7 +582,7 @@ with optional_dependencies():
                 )
 
                 if not hits:
-                    results.append({})
+                    results.append(({}, {}))
                     continue
 
                 scores = [hit["_relevance_score"] for hit in hits]
@@ -604,14 +591,17 @@ with optional_dependencies():
                 score_range = max_score - min_score
 
                 results.append(
-                    {
-                        hit["key"]: (
-                            (hit["_relevance_score"] - min_score) / score_range
-                            if score_range != 0
-                            else 1.0
-                        )
-                        for hit in hits
-                    }
+                    (
+                        {hit["key"]: hit["value"] for hit in hits},
+                        {
+                            hit["key"]: (
+                                (hit["_relevance_score"] - min_score) / score_range
+                                if score_range != 0
+                                else 1.0
+                            )
+                            for hit in hits
+                        },
+                    )
                 )
 
             return results
@@ -620,7 +610,7 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
-        ) -> Sequence[dict[K, float]]:
+        ) -> Sequence[tuple[dict[K, str], dict[K, float]]]:
             if self.search_type in ("fts", "hybrid"):
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
@@ -638,10 +628,15 @@ with optional_dependencies():
 
             sim_func = batchify_sim(default_score_func)
 
-            results: list[dict[K, float]] = []
+            results: list[tuple[dict[K, str], dict[K, float]]] = []
 
             for qvec in query_vecs:
                 sims = sim_func([(cv, qvec) for cv in case_vecs])
-                results.append(dict(zip(keys, sims, strict=True)))
+                results.append(
+                    (
+                        dict(casebase),
+                        dict(zip(keys, sims, strict=True)),
+                    )
+                )
 
             return results
