@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Mapping, cast
 
 from pydantic import BaseModel
@@ -24,7 +24,7 @@ class System[
     R1: BaseModel | None,
     R2: BaseModel | None,
 ]:
-    casebase: MaybeFactory[Mapping[K, V]]
+    casebase: MaybeFactory[Mapping[K, V]] = field(default_factory=dict)
     retriever_factory: (
         Callable[
             [R1],
