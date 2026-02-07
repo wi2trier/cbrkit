@@ -509,6 +509,39 @@ retriever = cbrkit.retrieval.distribute(
 )
 ```
 
+### Indexed Retrieval
+
+Some retrievers like `bm25`, `embed`, and `lancedb` support **indexed retrieval**, where the casebase is pre-indexed once and then queried without passing the full casebase each time.
+This is useful for large casebases or when using external search backends.
+
+To use indexed retrieval, first create a retriever and call its `index()` method:
+
+```python
+from frozendict import frozendict
+
+retriever = cbrkit.retrieval.bm25(language="en", limit=10)
+retriever.index(frozendict(casebase))
+```
+
+Then pass an empty casebase (`{}`) to signal that the retriever should use its pre-indexed data:
+
+```python
+result = cbrkit.retrieval.apply_query({}, query, retriever)
+```
+
+As a convenience, CBRkit provides `apply_query_indexed` and `apply_queries_indexed` which handle the empty casebase automatically:
+
+```python
+result = cbrkit.retrieval.apply_query_indexed(query, retriever)
+# or for multiple queries:
+result = cbrkit.retrieval.apply_queries_indexed(queries, retriever)
+```
+
+If a retriever receives an empty casebase but has not been indexed yet, a `ValueError` is raised with a message to call `index()` first.
+
+The `System` class also supports indexed retrieval by defaulting the casebase to an empty dict.
+This allows creating a system where all retrievers are pre-indexed and no casebase needs to be provided at query time.
+
 ## Evaluation
 
 CBRkit provides evaluation tools through the `cbrkit.eval` module for assessing the quality of retrieval results.
