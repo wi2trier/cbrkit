@@ -3,6 +3,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
+from frozendict import frozendict
+
 from ..helpers import (
     batchify_sim,
     dispatch_batches,
@@ -233,7 +235,7 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
+    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[frozendict[K, str]]):
         """BM25 retriever based on bm25s.
 
         Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
@@ -241,7 +243,9 @@ with optional_dependencies():
 
         language: str
         stopwords: list[str] | None = None
-        _casebase: dict[K, str] | None = field(default=None, init=False, repr=False)
+        _casebase: frozendict[K, str] | None = field(
+            default=None, init=False, repr=False
+        )
         _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
 
         @property
@@ -264,12 +268,12 @@ with optional_dependencies():
             return retriever
 
         @override
-        def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
+        def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
             if not prune:
                 raise NotImplementedError("BM25 requires pruning")
 
             self._retriever = self._build_retriever(casebase)
-            self._casebase = dict(casebase)
+            self._casebase = casebase
 
         @override
         def __call__(
@@ -411,7 +415,9 @@ with optional_dependencies():
     import numpy as np
 
     @dataclass(slots=True)
-    class lancedb[K: int | str](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]):
+    class lancedb[K: int | str](
+        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]
+    ):
         """Vector database-backed retriever using LanceDB.
 
         Delegates storage and search to an embedded LanceDB database,
