@@ -465,6 +465,9 @@ with optional_dependencies():
             conversion_func: Embedding function. Required for ``"vector"``
                 and ``"hybrid"`` search types.
             query_conversion_func: Optional separate embedding function for queries.
+            limit: Maximum number of results to return per query.
+                Caps the database-level search to improve performance on large
+                tables. ``None`` (default) returns all rows.
 
         Pass an empty casebase to ``__call__`` to use the indexed database state.
         """
@@ -474,6 +477,7 @@ with optional_dependencies():
         search_type: Literal["vector", "fts", "hybrid"] = "vector"
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+        limit: int | None = None
         _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
         def __post_init__(self) -> None:
@@ -484,6 +488,18 @@ with optional_dependencies():
                 raise ValueError(
                     f"conversion_func is required for search_type={self.search_type!r}"
                 )
+
+        def _search_limit(self) -> int | None:
+            """Return the effective search limit, or ``None`` for unlimited."""
+            if self._table is None:
+                return self.limit
+
+            n = self._table.count_rows()
+
+            if self.limit is not None:
+                return min(self.limit, n)
+
+            return n
 
         @override
         def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
@@ -559,7 +575,7 @@ with optional_dependencies():
 
             embed_func = self.query_conversion_func or self.conversion_func
             query_vecs = embed_func(list(queries))
-            n = self._table.count_rows()
+            n = self._search_limit()
 
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
@@ -580,7 +596,7 @@ with optional_dependencies():
         ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
             assert self._table is not None
 
-            n = self._table.count_rows()
+            n = self._search_limit()
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for query in queries:
@@ -614,7 +630,7 @@ with optional_dependencies():
 
             embed_func = self.query_conversion_func or self.conversion_func
             query_vecs = embed_func(list(queries))
-            n = self._table.count_rows()
+            n = self._search_limit()
 
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
