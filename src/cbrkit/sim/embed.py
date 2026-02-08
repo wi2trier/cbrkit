@@ -173,7 +173,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]):
+class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str], Collection[str]]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
@@ -237,43 +237,61 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]
         return dict(zip(new_texts, new_vecs, strict=True))
 
     @override
-    def index(self, texts: Collection[str], prune: bool = True) -> None:
-        unique_texts = set(texts)
-
-        if not texts and prune:
-            self.store.clear()
-
-            if self.path is not None and self.table is not None:
-                with self.connect() as con:
-                    con.execute(f'DELETE FROM "{self.table}"')
-                    con.commit()
-            return
-
-        new_vecs = self._compute_vecs(unique_texts)
-        old_texts = (
-            [text for text in self.store if text not in unique_texts] if prune else []
-        )
-
-        self.store.update(new_vecs)
-
-        for text in old_texts:
-            del self.store[text]
+    def create_index(self, data: Collection[str]) -> None:
+        """Clear existing store and rebuild from scratch."""
+        self.store.clear()
 
         if self.path is not None and self.table is not None:
             with self.connect() as con:
-                if old_texts:
-                    con.executemany(
-                        f'DELETE FROM "{self.table}" WHERE text = ?',
-                        [(text,) for text in old_texts],
-                    )
-                if new_vecs:
-                    con.executemany(
-                        f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                        [
-                            (text, vector.astype(np.float64).tobytes())
-                            for text, vector in new_vecs.items()
-                        ],
-                    )
+                con.execute(f'DELETE FROM "{self.table}"')
+                con.commit()
+
+        if not data:
+            return
+
+        new_vecs = self._compute_vecs(set(data))
+        self.store.update(new_vecs)
+
+        if self.path is not None and self.table is not None and new_vecs:
+            with self.connect() as con:
+                con.executemany(
+                    f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                    [
+                        (text, vector.astype(np.float64).tobytes())
+                        for text, vector in new_vecs.items()
+                    ],
+                )
+                con.commit()
+
+    @override
+    def update_index(self, data: Collection[str]) -> None:
+        """Add new embeddings to an existing index."""
+        new_vecs = self._compute_vecs(set(data))
+        self.store.update(new_vecs)
+
+        if self.path is not None and self.table is not None and new_vecs:
+            with self.connect() as con:
+                con.executemany(
+                    f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                    [
+                        (text, vector.astype(np.float64).tobytes())
+                        for text, vector in new_vecs.items()
+                    ],
+                )
+                con.commit()
+
+    @override
+    def delete_index(self, data: Collection[str]) -> None:
+        """Remove specific entries from the store and SQLite."""
+        for text in data:
+            self.store.pop(text, None)
+
+        if self.path is not None and self.table is not None and data:
+            with self.connect() as con:
+                con.executemany(
+                    f'DELETE FROM "{self.table}" WHERE text = ?',
+                    [(text,) for text in data],
+                )
                 con.commit()
 
     @override

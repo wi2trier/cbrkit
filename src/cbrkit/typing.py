@@ -83,15 +83,14 @@ class InternalFunc(ABC):
     pass
 
 
-class IndexableFunc[T](Protocol):
+class IndexableFunc[U, D](Protocol):
     """Supports pre-indexing data for efficient processing."""
 
-    def index(
-        self,
-        data: T,
-        /,
-        prune: bool = True,
-    ) -> None: ...
+    def create_index(self, data: U) -> None: ...
+
+    def update_index(self, data: U) -> None: ...
+
+    def delete_index(self, data: D) -> None: ...
 
 
 type Value[T] = T | StructuredValue[T]
@@ -204,7 +203,6 @@ class RetrieverFunc[K, V, S: Float](Protocol):
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
-
 
 
 class AdaptationFunc[V](Protocol):

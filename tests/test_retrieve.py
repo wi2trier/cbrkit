@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import polars as pl
@@ -6,7 +6,6 @@ import pytest
 
 import cbrkit
 from cbrkit.retrieval.common import resolve_casebases
-from cbrkit.typing import Casebase
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:
@@ -15,13 +14,27 @@ def _custom_numeric_sim(x: float, y: float) -> float:
 
 class FakeIndexableRetriever(
     cbrkit.typing.RetrieverFunc[int, str, float],
-    cbrkit.typing.IndexableFunc[Casebase[int, str]],
+    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
 ):
     def __init__(self) -> None:
         self._indexed_casebase: dict[int, str] | None = None
 
-    def index(self, casebase: Casebase[int, str], prune: bool = True) -> None:
-        self._indexed_casebase = dict(casebase)
+    def create_index(self, data: Mapping[int, str]) -> None:
+        self._indexed_casebase = dict(data)
+
+    def update_index(self, data: Mapping[int, str]) -> None:
+        if self._indexed_casebase is None:
+            self.create_index(data)
+            return
+
+        self._indexed_casebase.update(data)
+
+    def delete_index(self, data: Collection[int]) -> None:
+        if self._indexed_casebase is None:
+            return
+
+        for key in data:
+            self._indexed_casebase.pop(key, None)
 
     def __call__(
         self,
@@ -196,68 +209,45 @@ def test_retrieve_nested():
     assert model_sim.attributes["make"] == 1.0
 
 
-def test_retrieve_indexed_casebase_resolution() -> None:
-    from frozendict import frozendict
-
-    retriever = FakeIndexableRetriever()
-    retriever.index(frozendict({1: "a", 2: "b"}))
-
-    result = cbrkit.retrieval.apply_query({}, "a", retriever)
-
-    assert result.casebase[1] == "a"
-    assert result.casebase[2] == "b"
-    assert len(result.casebase) == 2
-
-
-def test_retrieve_indexed_casebase_requires_index() -> None:
+def test_retrieve_indexed_lifecycle() -> None:
     retriever = FakeIndexableRetriever()
 
-    with pytest.raises(ValueError, match="Call index\\(\\) first"):
+    # query before any index raises
+    with pytest.raises(ValueError, match="Call create_index\\(\\) first"):
         cbrkit.retrieval.apply_query({}, "a", retriever)
 
+    # update on empty index delegates to create
+    retriever.update_index({1: "a", 2: "b"})
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 2
 
-def test_retrieve_apply_query_indexed() -> None:
-    from frozendict import frozendict
-
-    retriever = FakeIndexableRetriever()
-    retriever.index(frozendict({1: "a", 2: "b"}))
-
+    # also works via apply_query_indexed
     result = cbrkit.retrieval.apply_query_indexed("a", retriever)
-
-    assert result.casebase[1] == "a"
-    assert result.casebase[2] == "b"
     assert len(result.casebase) == 2
 
+    # update
+    retriever.update_index({3: "c"})
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 3
 
-def test_combine_sequence_indexed() -> None:
-    from frozendict import frozendict
+    # delete
+    retriever.delete_index([2])
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 2
+    assert 2 not in result.casebase
 
+
+def test_retrieve_indexed_combine() -> None:
     r1 = FakeIndexableRetriever()
-    r1.index(frozendict({1: "a", 2: "b"}))
+    r1.create_index({1: "a", 2: "b"})
 
     r2 = FakeIndexableRetriever()
-    r2.index(frozendict({1: "a", 2: "b"}))
+    r2.create_index({1: "a", 2: "b"})
 
-    retriever = cbrkit.retrieval.combine([r1, r2])
-    result = cbrkit.retrieval.apply_query({}, "a", retriever)
-
-    assert len(result.casebase) == 2
-    assert result.casebase[1] == "a"
-    assert result.casebase[2] == "b"
-
-
-def test_combine_mapping_indexed() -> None:
-    from frozendict import frozendict
-
-    r1 = FakeIndexableRetriever()
-    r1.index(frozendict({1: "a", 2: "b"}))
-
-    r2 = FakeIndexableRetriever()
-    r2.index(frozendict({1: "a", 2: "b"}))
-
-    retriever = cbrkit.retrieval.combine({"r1": r1, "r2": r2})
-    result = cbrkit.retrieval.apply_query({}, "a", retriever)
-
-    assert len(result.casebase) == 2
-    assert result.casebase[1] == "a"
-    assert result.casebase[2] == "b"
+    for retriever in [
+        cbrkit.retrieval.combine([r1, r2]),
+        cbrkit.retrieval.combine({"r1": r1, "r2": r2}),
+    ]:
+        result = cbrkit.retrieval.apply_query({}, "a", retriever)
+        assert len(result.casebase) == 2
+        assert result.casebase[1] == "a"

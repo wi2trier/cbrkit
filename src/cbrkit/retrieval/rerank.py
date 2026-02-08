@@ -1,9 +1,7 @@
 import asyncio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
-
-from frozendict import frozendict
 
 from ..helpers import (
     batchify_sim,
@@ -237,7 +235,7 @@ with optional_dependencies():
     import Stemmer
 
     @dataclass(slots=True)
-    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[frozendict[K, str]]):
+    class bm25[K](RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str], Collection[K]]):
         """BM25 retriever based on bm25s.
 
         Args:
@@ -256,7 +254,7 @@ with optional_dependencies():
         language: str
         stopwords: str | list[str] | None = None
         normalize_scores: bool = True
-        _casebase: frozendict[K, str] | None = field(
+        _casebase: dict[K, str] | None = field(
             default=None, init=False, repr=False
         )
         _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
@@ -281,12 +279,34 @@ with optional_dependencies():
             return retriever
 
         @override
-        def index(self, casebase: frozendict[K, str], prune: bool = True) -> None:
-            if not prune:
-                raise NotImplementedError("BM25 requires pruning")
+        def create_index(self, data: Casebase[K, str]) -> None:
+            """Build BM25 index from scratch."""
+            self._casebase = dict(data)
+            self._retriever = self._build_retriever(data)
 
-            self._retriever = self._build_retriever(casebase)
-            self._casebase = casebase
+        @override
+        def update_index(self, data: Casebase[K, str]) -> None:
+            """Merge new data with existing casebase and rebuild index."""
+            if self._casebase is None:
+                self.create_index(data)
+                return
+
+            self._casebase.update(data)
+            self._retriever = self._build_retriever(self._casebase)
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            """Remove keys from the casebase and rebuild index."""
+            if self._casebase is None:
+                return
+
+            for key in data:
+                self._casebase.pop(key, None)
+
+            if self._casebase:
+                self._retriever = self._build_retriever(self._casebase)
+            else:
+                self._retriever = None
 
         @override
         def __call__(
@@ -360,7 +380,7 @@ with optional_dependencies():
 
 
 @dataclass(slots=True, init=False)
-class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str]]):
+class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str], Collection[K]]):
     """Embedding-based semantic retriever with indexing support.
 
     Args:
@@ -388,13 +408,34 @@ class embed[K, S: Float](RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str
         self._casebase = None
 
     @override
-    def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
-        if not prune and self._casebase:
-            self._casebase = {**self._casebase, **casebase}
-        else:
-            self._casebase = dict(casebase)
+    def create_index(self, data: Casebase[K, str]) -> None:
+        """Build embedding index from scratch."""
+        self._casebase = dict(data)
+        self.conversion_func.create_index(data.values())
 
-        self.conversion_func.index(casebase.values(), prune=prune)
+    @override
+    def update_index(self, data: Casebase[K, str]) -> None:
+        """Add new entries to an existing index."""
+        if self._casebase is None:
+            self.create_index(data)
+            return
+
+        self._casebase.update(data)
+        self.conversion_func.update_index(data.values())
+
+    @override
+    def delete_index(self, data: Collection[K]) -> None:
+        """Remove entries by key."""
+        if self._casebase is None:
+            return
+
+        texts_to_delete = [self._casebase[key] for key in data if key in self._casebase]
+
+        for key in data:
+            self._casebase.pop(key, None)
+
+        if texts_to_delete:
+            self.conversion_func.delete_index(texts_to_delete)
 
     @override
     def __call__(
@@ -449,7 +490,7 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class lancedb[K: int | str](
-        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str]]
+        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str], Collection[K]]
     ):
         """Vector database-backed retriever using LanceDB.
 
@@ -501,42 +542,76 @@ with optional_dependencies():
 
             return n
 
-        @override
-        def index(self, casebase: Casebase[K, str], prune: bool = True) -> None:
+        def _build_rows(
+            self, casebase: Casebase[K, str]
+        ) -> list[dict[str, Any]]:
+            """Build row dicts for LanceDB from a casebase."""
             keys = list(casebase.keys())
             values = list(casebase.values())
 
             if self.search_type == "fts":
-                rows = [
+                return [
                     {"key": key, "value": value}
                     for key, value in zip(keys, values, strict=True)
                 ]
-            else:
-                assert self.conversion_func is not None
-                vecs = self.conversion_func(values)
-                rows = [
-                    {
-                        "key": key,
-                        "value": value,
-                        "vector": np.asarray(vec).tolist(),
-                    }
-                    for key, value, vec in zip(keys, values, vecs, strict=True)
-                ]
 
-            db = ldb.connect(self.uri)
+            assert self.conversion_func is not None
+            vecs = self.conversion_func(values)
+            return [
+                {
+                    "key": key,
+                    "value": value,
+                    "vector": np.asarray(vec).tolist(),
+                }
+                for key, value, vec in zip(keys, values, vecs, strict=True)
+            ]
 
-            if prune or self.table not in db.table_names():
-                table = db.create_table(self.table, rows, mode="overwrite")
-            else:
-                table = db.open_table(self.table)
-                table.add(rows)
-
+        def _setup_indices(self, table: ldb.Table) -> None:
+            """Create scalar and optional FTS indices on a table."""
             table.create_scalar_index("key", replace=True)
 
             if self.search_type in ("fts", "hybrid"):
                 table.create_fts_index("value", replace=True)
 
+        @override
+        def create_index(self, data: Casebase[K, str]) -> None:
+            """Overwrite LanceDB table with new data."""
+            rows = self._build_rows(data)
+            db = ldb.connect(self.uri)
+            table = db.create_table(self.table, rows, mode="overwrite")
+            self._setup_indices(table)
             self._table = table
+
+        @override
+        def update_index(self, data: Casebase[K, str]) -> None:
+            """Append rows to an existing LanceDB table."""
+            if self._table is None:
+                self.create_index(data)
+                return
+
+            rows = self._build_rows(data)
+            self._table.add(rows)
+            self._setup_indices(self._table)
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            """Delete rows from the LanceDB table by key."""
+            if self._table is None:
+                return
+
+            if not data:
+                return
+
+            key_list = list(data)
+            sample = key_list[0]
+
+            if isinstance(sample, str):
+                predicate = "key IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
+            else:
+                predicate = "key IN (" + ", ".join(str(k) for k in key_list) + ")"
+
+            self._table.delete(predicate)
+            self._setup_indices(self._table)
 
         @override
         def __call__(
@@ -554,7 +629,7 @@ with optional_dependencies():
                 if self._table is None:
                     raise ValueError(
                         "Indexed retrieval was requested with an empty casebase, but no index is available. "
-                        "Call index() first."
+                        "Call create_index() first."
                     )
 
                 if self.search_type == "vector":
@@ -672,7 +747,7 @@ with optional_dependencies():
             if self.search_type in ("fts", "hybrid"):
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
-                    "Call index() first."
+                    "Call create_index() first."
                 )
 
             assert self.conversion_func is not None

@@ -16,7 +16,7 @@ def resolve_casebases[K, V](
         if any(len(casebase) == 0 for casebase, _ in batches):
             raise ValueError(
                 "Indexed retrieval was requested with an empty casebase, but no index is available. "
-                "Call index() first."
+                "Call create_index() first."
             )
 
         return list(batches)
