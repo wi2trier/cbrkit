@@ -7,11 +7,12 @@ from .apply import (
     apply_query,
     apply_query_indexed,
 )
-from .build import build, combine, distribute, dropout, transpose, transpose_value
-from .rerank import embed
+from .build import build
+from .indexable import embed
+from .wrappers import combine, distribute, dropout, transpose, transpose_value
 
 with optional_dependencies():
-    from .build import chunk
+    from .wrappers import chunk
 
 with optional_dependencies():
     from .rerank import cohere
@@ -23,10 +24,10 @@ with optional_dependencies():
     from .rerank import sentence_transformers
 
 with optional_dependencies():
-    from .rerank import bm25
+    from .indexable import bm25
 
 with optional_dependencies():
-    from .rerank import lancedb
+    from .indexable import lancedb
 
 __all__ = [
     "build",

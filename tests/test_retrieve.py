@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 import cbrkit
-from cbrkit.retrieval.common import resolve_casebases
+from cbrkit.retrieval.indexable import resolve_casebases
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:
