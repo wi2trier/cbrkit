@@ -509,8 +509,18 @@ with optional_dependencies():
             limit: Maximum number of results to return per query.
                 Caps the database-level search to improve performance on large
                 tables. ``None`` (default) returns all rows.
+            columns: Optional callable that produces extra columns for each row.
+                Called with ``(key, value)`` and must return a dict mapping
+                column names to values.  These columns are stored in the
+                LanceDB table alongside the default ``key``, ``value``, and
+                ``vector`` columns.
+            where: Optional SQL filter expression applied during every search
+                query (e.g. ``"category = 'A'"``).  Useful for filtering on
+                columns added via ``columns``.
 
         Pass an empty casebase to ``__call__`` to use the indexed database state.
+        If a table with the given name already exists at ``uri``, it is opened
+        automatically on init and can be queried immediately.
         """
 
         uri: str
@@ -519,6 +529,8 @@ with optional_dependencies():
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         limit: int | None = None
+        columns: Callable[[K, str], dict[str, Any]] | None = None
+        where: str | None = None
         _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
         def __post_init__(self) -> None:
@@ -529,6 +541,11 @@ with optional_dependencies():
                 raise ValueError(
                     f"conversion_func is required for search_type={self.search_type!r}"
                 )
+
+            db = ldb.connect(self.uri)
+
+            if self.table in db.list_tables().tables:
+                self._table = db.open_table(self.table)
 
         def _search_limit(self) -> int | None:
             """Return the effective search limit, or ``None`` for unlimited."""
@@ -550,21 +567,27 @@ with optional_dependencies():
             values = list(casebase.values())
 
             if self.search_type == "fts":
-                return [
+                rows = [
                     {"key": key, "value": value}
                     for key, value in zip(keys, values, strict=True)
                 ]
+            else:
+                assert self.conversion_func is not None
+                vecs = self.conversion_func(values)
+                rows = [
+                    {
+                        "key": key,
+                        "value": value,
+                        "vector": np.asarray(vec).tolist(),
+                    }
+                    for key, value, vec in zip(keys, values, vecs, strict=True)
+                ]
 
-            assert self.conversion_func is not None
-            vecs = self.conversion_func(values)
-            return [
-                {
-                    "key": key,
-                    "value": value,
-                    "vector": np.asarray(vec).tolist(),
-                }
-                for key, value, vec in zip(keys, values, vecs, strict=True)
-            ]
+            if self.columns is not None:
+                for row, key, value in zip(rows, keys, values, strict=True):
+                    row.update(self.columns(key, value))
+
+            return rows
 
         def _setup_indices(self, table: ldb.Table) -> None:
             """Create scalar and optional FTS indices on a table."""
@@ -655,7 +678,12 @@ with optional_dependencies():
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for qvec in query_vecs:
-                hits = self._table.search(np.asarray(qvec).tolist()).limit(n).to_list()
+                q = self._table.search(np.asarray(qvec).tolist()).limit(n)
+
+                if self.where is not None:
+                    q = q.where(self.where)
+
+                hits = q.to_list()
                 results.append(
                     (
                         {hit["key"]: hit["value"] for hit in hits},
@@ -675,7 +703,12 @@ with optional_dependencies():
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for query in queries:
-                hits = self._table.search(query, query_type="fts").limit(n).to_list()
+                q = self._table.search(query, query_type="fts").limit(n)
+
+                if self.where is not None:
+                    q = q.where(self.where)
+
+                hits = q.to_list()
 
                 if not hits:
                     results.append(({}, {}))
@@ -710,13 +743,17 @@ with optional_dependencies():
             results: list[tuple[Casebase[K, str], dict[K, float]]] = []
 
             for query, qvec in zip(queries, query_vecs, strict=True):
-                hits = (
+                q = (
                     self._table.search(query_type="hybrid")
                     .vector(np.asarray(qvec).tolist())
                     .text(query)
                     .limit(n)
-                    .to_list()
                 )
+
+                if self.where is not None:
+                    q = q.where(self.where)
+
+                hits = q.to_list()
 
                 if not hits:
                     results.append(({}, {}))
