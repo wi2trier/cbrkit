@@ -55,7 +55,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
         return [
             (adapted_casebase, adapted_sim)
-            for adapted_casebase, adapted_sim in zip(
+            for adapted_casebase, (_, adapted_sim) in zip(
                 adapted_casebases, adapted_similarities, strict=True
             )
         ]
