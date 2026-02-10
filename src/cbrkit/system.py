@@ -162,12 +162,8 @@ class System[
         reviser_config: R3 = None,
         retainer_config: R4 = None,
     ) -> cbrkit.model.QueryResultStep[K, V, S]:
-        if not self.retriever_factory or not self.reuser_factory:
-            raise ValueError("Retriever or reuser factory is not defined.")
-
-        revisers = (
-            self.reviser_factory(reviser_config) if self.reviser_factory else []
-        )
+        reusers = self.reuser_factory(reuser_config) if self.reuser_factory else []
+        revisers = self.reviser_factory(reviser_config) if self.reviser_factory else []
         retainers = (
             self.retainer_factory(retainer_config) if self.retainer_factory else []
         )
@@ -176,7 +172,7 @@ class System[
             self._load_casebase(casebase),
             query,
             self.retriever_factory(retriever_config),
-            self.reuser_factory(reuser_config),
+            reusers,
             revisers,
             retainers,
         ).final_step.default_query
