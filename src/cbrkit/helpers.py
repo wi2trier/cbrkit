@@ -322,7 +322,10 @@ def dispatch_batches[K, V, R](
 
     first_casebase = batches[0][0]
 
-    if all(casebase is first_casebase for casebase, _ in batches):
+    if all(
+        casebase is first_casebase or (not casebase and not first_casebase)
+        for casebase, _ in batches
+    ):
         return call_queries([query for _, query in batches], first_casebase)
 
     return [
