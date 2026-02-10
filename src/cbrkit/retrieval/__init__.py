@@ -27,6 +27,9 @@ with optional_dependencies():
     from .indexable import bm25
 
 with optional_dependencies():
+    from .indexable import chromadb
+
+with optional_dependencies():
     from .indexable import lancedb
 
 __all__ = [
@@ -49,6 +52,7 @@ __all__ = [
     "voyageai",
     "sentence_transformers",
     "bm25",
+    "chromadb",
     "embed",
     "lancedb",
 ]

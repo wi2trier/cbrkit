@@ -73,6 +73,7 @@ graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
 graphviz = ["pygraphviz>=1,<2"]
 
 # Data
+chromadb = ["chromadb>=1,<2"]
 lancedb = ["lancedb>=0.20,<1"]
 pandas = ["pandas>=2,<3"]
 sql = ["sqlalchemy>=2,<3"]
@@ -94,7 +95,7 @@ api = [
 ]
 
 # Bundle
-all = ["cbrkit[anthropic,api,bm25,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pydantic-ai,spacy,sql,timeseries,transformers,voyageai]"]
+all = ["cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pydantic-ai,spacy,sql,timeseries,transformers,voyageai]"]
 
 [project.urls]
 Repository = "https://github.com/wi2trier/cbrkit"
