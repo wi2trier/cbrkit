@@ -4,16 +4,16 @@ from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
 from typing import cast, override
 
-from ..helpers import get_logger, mp_starmap, produce_factory
+from ..helpers import batchify_sim, get_logger, mp_starmap, produce_factory
 from ..typing import (
     AdaptationFunc,
     AnyAdaptationFunc,
+    AnySimFunc,
     Casebase,
     Float,
     MapAdaptationFunc,
     MaybeFactory,
     ReduceAdaptationFunc,
-    RetrieverFunc,
     ReuserFunc,
     SimMap,
 )
@@ -27,15 +27,15 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
     Args:
         adaptation_func: The adaptation function that will be applied to the cases.
-        retriever_func: The similarity function that will be used to compare the adapted cases to the query.
-        processes: The number of processes that will be used to apply the adaptation function. If processes is set to 1, the adaptation function will be applied in the main process.
+        similarity_func: The similarity function that will be used to compare the adapted cases to the query.
+        multiprocessing: Multiprocessing configuration for adaptation.
 
     Returns:
         The adapted casebases and the similarities between the adapted cases and the query.
     """
 
     adaptation_func: MaybeFactory[AnyAdaptationFunc[K, V]]
-    retriever_func: RetrieverFunc[K, V, S]
+    similarity_func: MaybeFactory[AnySimFunc[V, S]]
     multiprocessing: Pool | int | bool = False
 
     @override
@@ -51,12 +51,28 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 adapted_casebases, batches, strict=True
             )
         ]
-        adapted_similarities = self.retriever_func(adapted_batches)
+
+        # Score adapted cases against queries
+        sim_func = batchify_sim(produce_factory(self.similarity_func))
+
+        flat_batches: list[tuple[V, V]] = []
+        flat_index: list[tuple[int, K]] = []
+
+        for idx, (casebase, query) in enumerate(adapted_batches):
+            for key, case in casebase.items():
+                flat_index.append((idx, key))
+                flat_batches.append((case, query))
+
+        scores = sim_func(flat_batches)
+
+        sim_maps: list[dict[K, S]] = [{} for _ in adapted_batches]
+        for (idx, key), score in zip(flat_index, scores, strict=True):
+            sim_maps[idx][key] = score
 
         return [
-            (adapted_casebase, adapted_sim)
-            for adapted_casebase, (_, adapted_sim) in zip(
-                adapted_casebases, adapted_similarities, strict=True
+            (adapted_casebase, sim_map)
+            for adapted_casebase, sim_map in zip(
+                adapted_casebases, sim_maps, strict=True
             )
         ]
 

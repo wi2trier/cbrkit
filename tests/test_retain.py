@@ -112,14 +112,12 @@ def test_full_cycle_with_revise_and_retain():
                 "price": cbrkit.adapt.numbers.aggregate("mean"),
             }
         ),
-        retriever_func=cbrkit.retrieval.build(
-            cbrkit.sim.attribute_value(
-                attributes={
-                    "price": cbrkit.sim.numbers.linear(max=100000),
-                    "year": cbrkit.sim.numbers.linear(max=50),
-                },
-                aggregator=cbrkit.sim.aggregator(pooling="mean"),
-            )
+        similarity_func=cbrkit.sim.attribute_value(
+            attributes={
+                "price": cbrkit.sim.numbers.linear(max=100000),
+                "year": cbrkit.sim.numbers.linear(max=50),
+            },
+            aggregator=cbrkit.sim.aggregator(pooling="mean"),
         ),
     )
 
