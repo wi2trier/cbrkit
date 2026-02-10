@@ -48,6 +48,6 @@ def test_simple():
         retriever_func=retriever,
     )
 
-    result = cbrkit.cycle.apply_queries(casebase, {"default": query}, retriever, reuser)
+    result = cbrkit.cycle.apply_queries(casebase, {"default": query}, retriever, reuser, [], [])
 
     assert len(result.retrieval.casebase) == len(result.reuse.casebase)

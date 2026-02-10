@@ -7,7 +7,7 @@ from ..typing import (
     Casebase,
     Float,
     MaybeFactories,
-    ReuserFunc,
+    RetainerFunc,
 )
 
 logger = get_logger(__name__)
@@ -15,13 +15,13 @@ logger = get_logger(__name__)
 
 def apply_result[Q, C, V, S: Float](
     result: Result[Q, C, V, S] | ResultStep[Q, C, V, S],
-    reusers: MaybeFactories[ReuserFunc[C, V, S]],
+    retainers: MaybeFactories[RetainerFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
-    """Applies a single query to a casebase using reuser functions.
+    """Applies retainer functions to a previous result.
 
     Args:
-        result: The result that will be used for the query.
-        reusers: The reuser functions that will be applied to the casebase.
+        result: The result whose cases may be retained.
+        retainers: The retainer functions that will be applied.
 
     Returns:
         Returns an object of type Result.
@@ -29,7 +29,7 @@ def apply_result[Q, C, V, S: Float](
     if isinstance(result, ResultStep):
         result = Result(steps=[result], duration=0.0)
 
-    if not produce_sequence(reusers):
+    if not produce_sequence(retainers):
         return result
 
     return apply_batches(
@@ -37,35 +37,44 @@ def apply_result[Q, C, V, S: Float](
             query_key: (entry.casebase, entry.query)
             for query_key, entry in result.queries.items()
         },
-        reusers,
+        retainers,
     )
 
 
 def apply_batches[Q, C, V, S: Float](
     batch: Mapping[Q, tuple[Mapping[C, V], V]],
-    reusers: MaybeFactories[ReuserFunc[C, V, S]],
+    retainers: MaybeFactories[RetainerFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
-    reuser_factories = produce_sequence(reusers)
+    """Applies retainer functions to batches.
+
+    Args:
+        batch: A mapping of queries to (casebase, query) tuples.
+        retainers: Retainer functions that will decide retention and storage.
+
+    Returns:
+        Returns an object of type Result.
+    """
+    retainer_factories = produce_sequence(retainers)
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batch
 
     loop_start_time = default_timer()
 
-    for i, reuser_factory in enumerate(reuser_factories, start=1):
-        reuser_func = produce_factory(reuser_factory)
-        logger.info(f"Processing reuser {i}/{len(reuser_factories)}")
+    for i, retainer_factory in enumerate(retainer_factories, start=1):
+        retainer_func = produce_factory(retainer_factory)
+        logger.info(f"Processing retainer {i}/{len(retainer_factories)}")
         start_time = default_timer()
-        queries_results = reuser_func(list(current_batches.values()))
+        queries_results = retainer_func(list(current_batches.values()))
         end_time = default_timer()
 
         step_queries = {
             query_key: QueryResultStep(
-                similarities=adapted_sims,
-                casebase=adapted_casebase,
+                similarities=retained_sims,
+                casebase=retained_casebase,
                 query=current_batches[query_key][1],
                 duration=0.0,
             )
-            for query_key, (adapted_casebase, adapted_sims) in zip(
+            for query_key, (retained_casebase, retained_sims) in zip(
                 current_batches.keys(), queries_results, strict=True
             )
         }
@@ -73,7 +82,7 @@ def apply_batches[Q, C, V, S: Float](
         steps.append(
             ResultStep(
                 queries=step_queries,
-                metadata=get_metadata(reuser_func),
+                metadata=get_metadata(retainer_func),
                 duration=end_time - start_time,
             )
         )
@@ -88,35 +97,35 @@ def apply_batches[Q, C, V, S: Float](
 def apply_queries[Q, C, V, S: Float](
     casebase: Mapping[C, V],
     queries: Mapping[Q, V],
-    reusers: MaybeFactories[ReuserFunc[C, V, S]],
+    retainers: MaybeFactories[RetainerFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
-    """Applies a single query to a casebase using reuser functions.
+    """Applies retainer functions to multiple queries.
 
     Args:
-        casebase: The casebase for the query.
-        queries: The queries that will be used to adapt the casebase.
-        reusers: The reuser functions that will be applied to the casebase.
+        casebase: The casebase containing cases.
+        queries: The queries.
+        retainers: The retainer functions that will be applied.
 
     Returns:
-        Returns an object of type Result
+        Returns an object of type Result.
     """
     return apply_batches(
         {query_key: (casebase, query) for query_key, query in queries.items()},
-        reusers,
+        retainers,
     )
 
 
 def apply_pair[V, S: Float](
     case: V,
     query: V,
-    reusers: MaybeFactories[ReuserFunc[str, V, S]],
+    retainers: MaybeFactories[RetainerFunc[str, V, S]],
 ) -> Result[str, str, V, S]:
-    """Applies a single query to a single case using reuser functions.
+    """Applies retainer functions to a single case-query pair.
 
     Args:
-        case: The case that will be used for the query.
-        query: The query that will be applied to the case.
-        reusers: The reuser functions that will be applied to the case.
+        case: The case that may be retained.
+        query: The query used for retention.
+        retainers: The retainer functions that will be applied.
 
     Returns:
         Returns an object of type Result.
@@ -124,23 +133,23 @@ def apply_pair[V, S: Float](
     return apply_queries(
         {"default": case},
         {"default": query},
-        reusers,
+        retainers,
     )
 
 
 def apply_query[K, V, S: Float](
     casebase: Casebase[K, V],
     query: V,
-    reusers: MaybeFactories[ReuserFunc[K, V, S]],
+    retainers: MaybeFactories[RetainerFunc[K, V, S]],
 ) -> Result[str, K, V, S]:
-    """Applies a single query to a casebase using reuser functions.
+    """Applies retainer functions to a single query.
 
     Args:
-        casebase: The casebase that will be used for the query.
-        query: The query that will be applied to the case.
-        reusers: The reuser functions that will be applied to the case.
+        casebase: The casebase containing cases.
+        query: The query.
+        retainers: The retainer functions that will be applied.
 
     Returns:
         Returns an object of type Result.
     """
-    return apply_queries(casebase, {"default": query}, reusers)
+    return apply_queries(casebase, {"default": query}, retainers)

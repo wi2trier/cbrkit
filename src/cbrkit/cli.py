@@ -91,6 +91,8 @@ def cycle(
     retriever: str,
     reuser: str,
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    reviser: str | None = None,
+    retainer: str | None = None,
     output_path: Path | None = None,
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
@@ -102,8 +104,16 @@ def cycle(
     reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
         cbrkit.helpers.load_callables(reuser)
     )
+    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
+        cbrkit.helpers.load_callables(reviser) if reviser else []
+    )
+    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
+        cbrkit.helpers.load_callables(retainer) if retainer else []
+    )
 
-    result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
+    result = cbrkit.cycle.apply_queries(
+        casebase, queries, retrievers, reusers, revisers, retainers
+    )
 
     if output_path:
         cbrkit.dumpers.file(output_path, result)
@@ -117,6 +127,8 @@ def synthesis(
     reuser: str,
     synthesizer: str,
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
+    reviser: str | None = None,
+    retainer: str | None = None,
     output_path: Path | None = None,
 ) -> None:
     sys.path.extend(str(x) for x in search_path)
@@ -128,11 +140,19 @@ def synthesis(
     reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
         cbrkit.helpers.load_callables(reuser)
     )
+    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
+        cbrkit.helpers.load_callables(reviser) if reviser else []
+    )
+    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
+        cbrkit.helpers.load_callables(retainer) if retainer else []
+    )
     synthesis_func: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc] = (
         cbrkit.helpers.load_callable(synthesizer)
     )
 
-    cycle_result = cbrkit.cycle.apply_queries(casebase, queries, retrievers, reusers)
+    cycle_result = cbrkit.cycle.apply_queries(
+        casebase, queries, retrievers, reusers, revisers, retainers
+    )
     synthesis_result = cbrkit.synthesis.apply_result(
         cycle_result.final_step, synthesis_func
     )
@@ -145,6 +165,8 @@ def synthesis(
 def serve(
     retriever: Annotated[list[str], typer.Option(default_factory=list)],
     reuser: Annotated[list[str], typer.Option(default_factory=list)],
+    reviser: Annotated[list[str], typer.Option(default_factory=list)],
+    retainer: Annotated[list[str], typer.Option(default_factory=list)],
     synthesizer: Annotated[list[str], typer.Option(default_factory=list)],
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     host: str = "0.0.0.0",
@@ -160,6 +182,8 @@ def serve(
 
     os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
     os.environ["CBRKIT_REUSER"] = ",".join(reuser)
+    os.environ["CBRKIT_REVISER"] = ",".join(reviser)
+    os.environ["CBRKIT_RETAINER"] = ",".join(retainer)
     os.environ["CBRKIT_SYNTHESIZER"] = ",".join(synthesizer)
 
     uvicorn.run(

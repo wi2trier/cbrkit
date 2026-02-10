@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
     retriever: str = ""
     reuser: str = ""
+    reviser: str = ""
+    retainer: str = ""
     synthesizer: str = ""
 
 
@@ -39,6 +41,14 @@ loaded_retrievers: dict[
 loaded_reusers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
     load_callables(settings.reuser)
 )
+
+loaded_revisers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
+    load_callables(settings.reviser)
+)
+
+loaded_retainers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]
+] = load_callables(settings.retainer)
 
 loaded_synthesizers: dict[
     str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc]
@@ -115,6 +125,8 @@ class CycleRequest(BaseModel):
     queries: CasebaseSpec
     retrievers: Annotated[list[str] | str, Field(default_factory=list)]
     reusers: Annotated[list[str] | str, Field(default_factory=list)]
+    revisers: Annotated[list[str] | str, Field(default_factory=list)]
+    retainers: Annotated[list[str] | str, Field(default_factory=list)]
 
 
 @app.post("/cycle")
@@ -126,6 +138,8 @@ def cycle(
         parse_dataset(request.queries),
         parse_callables(request.retrievers, loaded_retrievers),
         parse_callables(request.reusers, loaded_reusers),
+        parse_callables(request.revisers, loaded_revisers),
+        parse_callables(request.retainers, loaded_retainers),
     )
 
 
@@ -135,6 +149,8 @@ class SynthesizeRequest(BaseModel):
     synthesizer: str
     retrievers: Annotated[list[str] | str, Field(default_factory=list)]
     reusers: Annotated[list[str] | str, Field(default_factory=list)]
+    revisers: Annotated[list[str] | str, Field(default_factory=list)]
+    retainers: Annotated[list[str] | str, Field(default_factory=list)]
 
 
 @app.post("/synthesize")
@@ -146,6 +162,8 @@ def synthesize(
         parse_dataset(request.queries),
         parse_callables(request.retrievers, loaded_retrievers),
         parse_callables(request.reusers, loaded_reusers),
+        parse_callables(request.revisers, loaded_revisers),
+        parse_callables(request.retainers, loaded_retainers),
     )
 
     return cbrkit.synthesis.apply_result(

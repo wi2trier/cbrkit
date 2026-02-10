@@ -43,11 +43,14 @@ __all__ = [
     "PositionalFunc",
     "QueryCaseMatrix",
     "ReduceAdaptationFunc",
+    "RetainerFunc",
     "RetrieverFunc",
     "ReuserFunc",
+    "ReviserFunc",
     "SimFunc",
     "SimMap",
     "SimSeq",
+    "StorageFunc",
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
@@ -255,6 +258,37 @@ type AnyAdaptationFunc[K, V] = (
 
 class ReuserFunc[K, V, S: Float = float](Protocol):
     """Reuses cases by adapting and computing similarities for queries."""
+
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, V], V]],
+        /,
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+
+
+class ReviserFunc[K, V, S: Float = float](Protocol):
+    """Revises solutions by assessing quality and optionally repairing them."""
+
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, V], V]],
+        /,
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+
+
+class StorageFunc[K, V](Protocol):
+    """Decides whether and how to store a case in the casebase."""
+
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+        /,
+    ) -> Casebase[K, V]: ...
+
+
+class RetainerFunc[K, V, S: Float = float](Protocol):
+    """Retains cases in the casebase."""
 
     def __call__(
         self,

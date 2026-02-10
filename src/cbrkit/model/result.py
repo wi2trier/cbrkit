@@ -149,18 +149,15 @@ class CycleResult[Q, C, V, S: Float](BaseModel):
     model_config = ConfigDict(frozen=True)
     retrieval: Result[Q, C, V, S]
     reuse: Result[Q, C, V, S]
+    revise: Result[Q, C, V, S]
+    retain: Result[Q, C, V, S]
     duration: float
-
-    @property
-    def final_step(self) -> ResultStep[Q, C, V, S]:
-        if len(self.reuse.steps) > 0:
-            return self.reuse.final_step
-
-        return self.retrieval.final_step
 
     def remove_cases(self) -> "CycleResult[Q, C, None, S]":
         return CycleResult[Q, C, None, S](
             retrieval=self.retrieval.remove_cases(),
             reuse=self.reuse.remove_cases(),
+            revise=self.revise.remove_cases(),
+            retain=self.retain.remove_cases(),
             duration=self.duration,
         )
