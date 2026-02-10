@@ -85,8 +85,8 @@
           overlayAttrs = {
             inherit (config.packages) cbrkit;
           };
-          checks = pythonSet.cbrkit.passthru.tests // {
-            inherit (pythonSet.cbrkit.passthru) docs;
+          checks = pythonSet.cbrkit.tests // {
+            inherit (pythonSet.cbrkit) docs;
           };
           treefmt = {
             projectRootFile = "flake.nix";
@@ -97,7 +97,7 @@
             };
           };
           packages = {
-            inherit (pythonSet.cbrkit.passthru) docs;
+            inherit (pythonSet.cbrkit) docs;
             default = config.packages.cbrkit;
             cbrkit = mkApplication {
               venv = pythonSet.mkVirtualEnv "cbrkit-env" {
