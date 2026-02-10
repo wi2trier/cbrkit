@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, BinaryIO, TextIO, cast
 
 import orjson
-import pandas as pd
 import polars as pl
 import rtoml
 import xmltodict
@@ -52,23 +51,26 @@ def read(data: ReadableType) -> str:
     return read(data.read())  # pyright: ignore
 
 
-@dataclass(slots=True, frozen=True)
-class pandas(Mapping[int, pd.Series]):
-    """A wrapper around a pandas DataFrame to provide a dict-like interface"""
+with optional_dependencies():
+    import pandas as pd
 
-    df: pd.DataFrame
+    @dataclass(slots=True, frozen=True)
+    class pandas(Mapping[int, pd.Series]):
+        """A wrapper around a pandas DataFrame to provide a dict-like interface"""
 
-    def __getitem__(self, key: int | str) -> pd.Series:
-        if isinstance(key, str):
-            return cast(pd.Series, self.df.loc[key])
+        df: pd.DataFrame
 
-        return cast(pd.Series, self.df.iloc[key])
+        def __getitem__(self, key: int | str) -> pd.Series:
+            if isinstance(key, str):
+                return cast(pd.Series, self.df.loc[key])
 
-    def __iter__(self) -> Iterator[int]:
-        return iter(range(self.df.shape[0]))
+            return cast(pd.Series, self.df.iloc[key])
 
-    def __len__(self) -> int:
-        return self.df.shape[0]
+        def __iter__(self) -> Iterator[int]:
+            return iter(range(self.df.shape[0]))
+
+        def __len__(self) -> int:
+            return self.df.shape[0]
 
 
 @dataclass(slots=True, frozen=True)

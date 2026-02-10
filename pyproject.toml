@@ -38,18 +38,51 @@ dependencies = [
     "frozendict>=2,<3",
     "numpy>=2,<3",
     "orjson>=3,<4",
-    "pandas>=2,<3",
     "polars>=1,<2",
     "pydantic>=2,<3",
     "pyyaml>=6,<7",
-    "rich>=13,<15",
     "rtoml>=0.12,<1",
     "scipy>=1,<2",
     "xmltodict>=1,<2",
 ]
 
 [project.optional-dependencies]
-all = ["cbrkit[api,chunking,cli,eval,graphs,graphviz,lancedb,llm,nlp,sql,timeseries,transformers]"]
+# LLM providers
+anthropic = ["anthropic>=0.40,<1"]
+cohere = ["cohere>=5,<6"]
+google = ["google-genai>=1,<2"]
+instructor = ["instructor>=1,<2"]
+ollama = ["ollama>=0.3,<1"]
+openai = ["openai>=1,<3", "tiktoken>=0.8,<1"]
+openai-agents = ["openai-agents>=0.2,<1"]
+pydantic-ai = ["pydantic-ai-slim>=1,<2"]
+voyageai = ["voyageai>=0.3,<1"]
+
+# NLP / text processing
+bm25 = ["bm25s[core,stem]>=0.2,<1"]
+chunking = ["chonkie>=1,<2"]
+levenshtein = ["levenshtein>=0.26,<1"]
+nltk = ["nltk>=3,<4"]
+spacy = ["rich>=13,<15", "spacy>=3.8,<4"]
+
+# ML / embeddings
+transformers = ["sentence-transformers>=3,<6", "torch>=2.5,<3", "transformers>=4,<6"]
+
+# Graphs
+graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
+graphviz = ["pygraphviz>=1,<2"]
+
+# Data
+lancedb = ["lancedb>=0.20,<1"]
+pandas = ["pandas>=2,<3"]
+sql = ["sqlalchemy>=2,<3"]
+
+# Tools
+cli = ["rich>=13,<15", "typer>=0.9,<1"]
+eval = ["ranx>=0.3,<1"]
+timeseries = ["minineedle>=3,<4"]
+
+# Entry points
 api = [
     "cbrkit[cli]",
     "fastapi>=0.100,<1",
@@ -57,39 +90,11 @@ api = [
     "python-multipart>=0.0.15,<1",
     "uvicorn[standard]>=0.30,<1",
     "fastmcp>=2,<3",
-    "jsonref>=1,<2"
+    "jsonref>=1,<2",
 ]
-chunking = ["chonkie>=1,<2"]
-cli = ["typer>=0.9,<1"]
-eval = ["ranx>=0.3,<1"]
-graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
-graphviz = ["pygraphviz>=1,<2"]
-lancedb = ["lancedb>=0.20,<1"]
-llm = [
-    "cohere>=5,<6",
-    "voyageai>=0.3,<1",
-    "ollama>=0.3,<1",
-    "openai>=1,<3",
-    "tiktoken>=0.8,<1",
-    "anthropic>=0.40,<1",
-    "google-genai>=1,<2",
-    "instructor>=1,<2",
-    "openai-agents>=0.2,<1",
-    "pydantic-ai-slim>=1,<2",
-]
-nlp = [
-    "bm25s[core,stem]>=0.2,<1",
-    "levenshtein>=0.26,<1",
-    "nltk>=3,<4",
-    "spacy>=3.8,<4",
-]
-sql = ["sqlalchemy>=2,<3"]
-timeseries = ["minineedle>=3,<4"]
-transformers = [
-    "sentence-transformers>=3,<6",
-    "torch>=2.5,<3",
-    "transformers>=4,<6",
-]
+
+# Bundle
+all = ["cbrkit[anthropic,api,bm25,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pydantic-ai,spacy,sql,timeseries,transformers,voyageai]"]
 
 [project.urls]
 Repository = "https://github.com/wi2trier/cbrkit"

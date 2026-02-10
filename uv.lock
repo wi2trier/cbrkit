@@ -296,11 +296,9 @@ dependencies = [
     { name = "frozendict" },
     { name = "numpy" },
     { name = "orjson" },
-    { name = "pandas" },
     { name = "polars" },
     { name = "pydantic" },
     { name = "pyyaml" },
-    { name = "rich" },
     { name = "rtoml" },
     { name = "scipy" },
     { name = "xmltodict" },
@@ -325,11 +323,13 @@ all = [
     { name = "ollama" },
     { name = "openai" },
     { name = "openai-agents" },
+    { name = "pandas" },
     { name = "pydantic-ai-slim" },
     { name = "pydantic-settings" },
     { name = "pygraphviz" },
     { name = "python-multipart" },
     { name = "ranx" },
+    { name = "rich" },
     { name = "rustworkx" },
     { name = "sentence-transformers" },
     { name = "spacy" },
@@ -341,23 +341,37 @@ all = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "voyageai" },
 ]
+anthropic = [
+    { name = "anthropic" },
+]
 api = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "jsonref" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
+    { name = "rich" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
+]
+bm25 = [
+    { name = "bm25s", extra = ["core", "stem"] },
 ]
 chunking = [
     { name = "chonkie" },
 ]
 cli = [
+    { name = "rich" },
     { name = "typer" },
+]
+cohere = [
+    { name = "cohere" },
 ]
 eval = [
     { name = "ranx" },
+]
+google = [
+    { name = "google-genai" },
 ]
 graphs = [
     { name = "networkx" },
@@ -366,25 +380,36 @@ graphs = [
 graphviz = [
     { name = "pygraphviz" },
 ]
+instructor = [
+    { name = "instructor" },
+]
 lancedb = [
     { name = "lancedb" },
 ]
-llm = [
-    { name = "anthropic" },
-    { name = "cohere" },
-    { name = "google-genai" },
-    { name = "instructor" },
-    { name = "ollama" },
-    { name = "openai" },
-    { name = "openai-agents" },
-    { name = "pydantic-ai-slim" },
-    { name = "tiktoken" },
-    { name = "voyageai" },
-]
-nlp = [
-    { name = "bm25s", extra = ["core", "stem"] },
+levenshtein = [
     { name = "levenshtein" },
+]
+nltk = [
     { name = "nltk" },
+]
+ollama = [
+    { name = "ollama" },
+]
+openai = [
+    { name = "openai" },
+    { name = "tiktoken" },
+]
+openai-agents = [
+    { name = "openai-agents" },
+]
+pandas = [
+    { name = "pandas" },
+]
+pydantic-ai = [
+    { name = "pydantic-ai-slim" },
+]
+spacy = [
+    { name = "rich" },
     { name = "spacy" },
 ]
 sql = [
@@ -397,6 +422,9 @@ transformers = [
     { name = "sentence-transformers" },
     { name = "torch" },
     { name = "transformers" },
+]
+voyageai = [
+    { name = "voyageai" },
 ]
 
 [package.dev-dependencies]
@@ -414,53 +442,54 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.40,<1" },
-    { name = "bm25s", extras = ["core", "stem"], marker = "extra == 'nlp'", specifier = ">=0.2,<1" },
-    { name = "cbrkit", extras = ["api", "chunking", "cli", "eval", "graphs", "graphviz", "lancedb", "llm", "nlp", "sql", "timeseries", "transformers"], marker = "extra == 'all'" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40,<1" },
+    { name = "bm25s", extras = ["core", "stem"], marker = "extra == 'bm25'", specifier = ">=0.2,<1" },
+    { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "instructor", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pydantic-ai", "spacy", "sql", "timeseries", "transformers", "voyageai"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "chonkie", marker = "extra == 'chunking'", specifier = ">=1,<2" },
-    { name = "cohere", marker = "extra == 'llm'", specifier = ">=5,<6" },
+    { name = "cohere", marker = "extra == 'cohere'", specifier = ">=5,<6" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.100,<1" },
     { name = "fastmcp", marker = "extra == 'api'", specifier = ">=2,<3" },
     { name = "frozendict", specifier = ">=2,<3" },
-    { name = "google-genai", marker = "extra == 'llm'", specifier = ">=1,<2" },
-    { name = "instructor", marker = "extra == 'llm'", specifier = ">=1,<2" },
+    { name = "google-genai", marker = "extra == 'google'", specifier = ">=1,<2" },
+    { name = "instructor", marker = "extra == 'instructor'", specifier = ">=1,<2" },
     { name = "jsonref", marker = "extra == 'api'", specifier = ">=1,<2" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.20,<1" },
-    { name = "levenshtein", marker = "extra == 'nlp'", specifier = ">=0.26,<1" },
+    { name = "levenshtein", marker = "extra == 'levenshtein'", specifier = ">=0.26,<1" },
     { name = "minineedle", marker = "extra == 'timeseries'", specifier = ">=3,<4" },
     { name = "networkx", marker = "extra == 'graphs'", specifier = ">=3,<4" },
-    { name = "nltk", marker = "extra == 'nlp'", specifier = ">=3,<4" },
+    { name = "nltk", marker = "extra == 'nltk'", specifier = ">=3,<4" },
     { name = "numpy", specifier = ">=2,<3" },
-    { name = "ollama", marker = "extra == 'llm'", specifier = ">=0.3,<1" },
-    { name = "openai", marker = "extra == 'llm'", specifier = ">=1,<3" },
-    { name = "openai-agents", marker = "extra == 'llm'", specifier = ">=0.2,<1" },
+    { name = "ollama", marker = "extra == 'ollama'", specifier = ">=0.3,<1" },
+    { name = "openai", marker = "extra == 'openai'", specifier = ">=1,<3" },
+    { name = "openai-agents", marker = "extra == 'openai-agents'", specifier = ">=0.2,<1" },
     { name = "orjson", specifier = ">=3,<4" },
-    { name = "pandas", specifier = ">=2,<3" },
+    { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2,<3" },
     { name = "polars", specifier = ">=1,<2" },
     { name = "pydantic", specifier = ">=2,<3" },
-    { name = "pydantic-ai-slim", marker = "extra == 'llm'", specifier = ">=1,<2" },
+    { name = "pydantic-ai-slim", marker = "extra == 'pydantic-ai'", specifier = ">=1,<2" },
     { name = "pydantic-settings", marker = "extra == 'api'", specifier = ">=2,<3" },
     { name = "pygraphviz", marker = "extra == 'graphviz'", specifier = ">=1,<2" },
     { name = "python-multipart", marker = "extra == 'api'", specifier = ">=0.0.15,<1" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "ranx", marker = "extra == 'eval'", specifier = ">=0.3,<1" },
-    { name = "rich", specifier = ">=13,<15" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=13,<15" },
+    { name = "rich", marker = "extra == 'spacy'", specifier = ">=13,<15" },
     { name = "rtoml", specifier = ">=0.12,<1" },
     { name = "rustworkx", marker = "extra == 'graphs'", specifier = ">=0.15,<1" },
     { name = "scipy", specifier = ">=1,<2" },
     { name = "sentence-transformers", marker = "extra == 'transformers'", specifier = ">=3,<6" },
-    { name = "spacy", marker = "extra == 'nlp'", specifier = ">=3.8,<4" },
+    { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.8,<4" },
     { name = "sqlalchemy", marker = "extra == 'sql'", specifier = ">=2,<3" },
-    { name = "tiktoken", marker = "extra == 'llm'", specifier = ">=0.8,<1" },
+    { name = "tiktoken", marker = "extra == 'openai'", specifier = ">=0.8,<1" },
     { name = "torch", marker = "extra == 'transformers'", specifier = ">=2.5,<3" },
     { name = "transformers", marker = "extra == 'transformers'", specifier = ">=4,<6" },
     { name = "typer", marker = "extra == 'cli'", specifier = ">=0.9,<1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30,<1" },
-    { name = "voyageai", marker = "extra == 'llm'", specifier = ">=0.3,<1" },
+    { name = "voyageai", marker = "extra == 'voyageai'", specifier = ">=0.3,<1" },
     { name = "xmltodict", specifier = ">=1,<2" },
 ]
-provides-extras = ["all", "api", "chunking", "cli", "eval", "graphs", "graphviz", "lancedb", "llm", "nlp", "sql", "timeseries", "transformers"]
+provides-extras = ["anthropic", "cohere", "google", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "lancedb", "pandas", "sql", "cli", "eval", "timeseries", "api", "all"]
 
 [package.metadata.requires-dev]
 dev = [
