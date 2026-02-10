@@ -50,7 +50,6 @@ __all__ = [
     "SimFunc",
     "SimMap",
     "SimSeq",
-    "StorageFunc",
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
@@ -274,17 +273,6 @@ class ReviserFunc[K, V, S: Float = float](Protocol):
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
-
-
-class StorageFunc[K, V](Protocol):
-    """Decides whether and how to store a case in the casebase."""
-
-    def __call__(
-        self,
-        casebase: Casebase[K, V],
-        query: V,
-        /,
-    ) -> Casebase[K, V]: ...
 
 
 class RetainerFunc[K, V, S: Float = float](Protocol):

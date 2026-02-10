@@ -7,10 +7,10 @@ from ..typing import (
     AnySimFunc,
     Casebase,
     Float,
+    MapAdaptationFunc,
     MaybeFactory,
     RetainerFunc,
     SimMap,
-    StorageFunc,
 )
 
 logger = get_logger(__name__)
@@ -41,7 +41,7 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
     """
 
     assess_func: MaybeFactory[AnySimFunc[V, S]]
-    storage_func: MaybeFactory[StorageFunc[K, V]]
+    storage_func: MaybeFactory[MapAdaptationFunc[K, V]]
 
     @override
     def __call__(
