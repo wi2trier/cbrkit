@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, cast
+from collections.abc import Iterable, Mapping
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -20,9 +21,9 @@ type CasebaseSpec[K, V] = Iterable[K] | Mapping[K, V] | None
 class System[
     K,
     V: BaseModel,
-    S: Float,
-    R1: BaseModel | None,
-    R2: BaseModel | None,
+    S: Float = float,
+    R1: BaseModel | None = None,
+    R2: BaseModel | None = None,
 ]:
     casebase: MaybeFactory[Mapping[K, V]] = field(default_factory=dict)
     retriever_factory: (

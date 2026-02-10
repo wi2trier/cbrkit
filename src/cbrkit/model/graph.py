@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, ReadOnly, Self, TypedDict
 
 from frozendict import frozendict
 from pydantic import BaseModel
@@ -59,7 +57,7 @@ class Node[K, N](StructuredValue[N]):
         key: K,
         obj: N,
         converter: ConversionFunc[N, N] = identity,
-    ) -> Node[K, N]:
+    ) -> Self:
         return cls(
             converter(obj),
             key,
@@ -86,7 +84,7 @@ class Edge[K, N, E](StructuredValue[E]):
         obj: SerializedEdge[K, E],
         nodes: Mapping[K, Node[K, N]],
         converter: ConversionFunc[E, E] = identity,
-    ) -> Edge[K, N, E]:
+    ) -> Self:
         return cls(
             converter(obj.value),
             key,
@@ -119,7 +117,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         node_converter: ConversionFunc[N, N] = identity,
         edge_converter: ConversionFunc[E, E] = identity,
         graph_converter: ConversionFunc[G, G] = identity,
-    ) -> Graph[K, N, E, G]:
+    ) -> Self:
         nodes = frozendict(
             (key, Node.load(key, value, node_converter))
             for key, value in g.nodes.items()
@@ -136,7 +134,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         nodes: Iterable[Node[K, N]],
         edges: Iterable[Edge[K, N, E]],
         value: G,
-    ) -> Graph[K, N, E, G]:
+    ) -> Self:
         node_map = frozendict((node.key, node) for node in nodes)
         edge_map = frozendict((edge.key, edge) for edge in edges)
 
@@ -308,15 +306,15 @@ with optional_dependencies():
 
 
 class NetworkxNode[K, N](TypedDict):
-    key: K
-    value: N
-    obj: Node[K, N]
+    key: ReadOnly[K]
+    value: ReadOnly[N]
+    obj: ReadOnly[Node[K, N]]
 
 
 class NetworkxEdge[K, N, E](TypedDict):
-    key: K
-    value: E
-    obj: Edge[K, N, E]
+    key: ReadOnly[K]
+    value: ReadOnly[E]
+    obj: ReadOnly[Edge[K, N, E]]
 
 
 with optional_dependencies():

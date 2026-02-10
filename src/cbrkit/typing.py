@@ -97,8 +97,8 @@ type Value[T] = T | StructuredValue[T]
 type Float = Value[float]
 type FilePath = str | Path
 type Casebase[K, V] = Mapping[K, V]
-type SimMap[K, S: Float] = Mapping[K, S]
-type SimSeq[S: Float] = Sequence[S]
+type SimMap[K, S: Float = float] = Mapping[K, S]
+type SimSeq[S: Float = float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
 type Factory[T] = Callable[[], T]
 type MaybeFactory[T] = T | Factory[T]
@@ -171,7 +171,7 @@ class BatchNamedFunc[T](Protocol):
 type AnyNamedFunc[T] = NamedFunc[T] | BatchNamedFunc[T]
 
 
-class SimFunc[V, S: Float](Protocol):
+class SimFunc[V, S: Float = float](Protocol):
     """Computes similarity between two values of type V."""
 
     def __call__(
@@ -182,7 +182,7 @@ class SimFunc[V, S: Float](Protocol):
     ) -> S: ...
 
 
-class BatchSimFunc[V, S: Float](Protocol):
+class BatchSimFunc[V, S: Float = float](Protocol):
     """Computes similarities for multiple value pairs in batch."""
 
     def __call__(
@@ -192,10 +192,10 @@ class BatchSimFunc[V, S: Float](Protocol):
     ) -> SimSeq[S]: ...
 
 
-type AnySimFunc[V, S: Float] = SimFunc[V, S] | BatchSimFunc[V, S]
+type AnySimFunc[V, S: Float = float] = SimFunc[V, S] | BatchSimFunc[V, S]
 
 
-class RetrieverFunc[K, V, S: Float](Protocol):
+class RetrieverFunc[K, V, S: Float = float](Protocol):
     """Retrieves similar cases from casebases for given queries."""
 
     def __call__(
@@ -253,7 +253,7 @@ type AnyAdaptationFunc[K, V] = (
 )
 
 
-class ReuserFunc[K, V, S: Float](Protocol):
+class ReuserFunc[K, V, S: Float = float](Protocol):
     """Reuses cases by adapting and computing similarities for queries."""
 
     def __call__(
@@ -263,7 +263,7 @@ class ReuserFunc[K, V, S: Float](Protocol):
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
 
 
-class AggregatorFunc[K, S: Float](Protocol):
+class AggregatorFunc[K, S: Float = float](Protocol):
     """Aggregates multiple similarity scores into a single value."""
 
     def __call__(
@@ -309,7 +309,7 @@ class EvalMetricFunc(Protocol):
     ) -> float: ...
 
 
-class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
+class SynthesizerPromptFunc[T, K, V, S: Float = float](Protocol):
     """Creates prompts from casebases, queries, and similarities."""
 
     def __call__(
@@ -321,7 +321,7 @@ class SynthesizerPromptFunc[T, K, V, S: Float](Protocol):
     ) -> T: ...
 
 
-class SynthesizerFunc[T, K, V, S: Float](Protocol):
+class SynthesizerFunc[T, K, V, S: Float = float](Protocol):
     """Synthesizes results from casebases, queries, and similarities in batch."""
 
     def __call__(

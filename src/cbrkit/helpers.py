@@ -20,7 +20,7 @@ from importlib import import_module
 from io import BytesIO
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Any, Coroutine, Literal, TypeGuard, cast, override
+from typing import Any, Coroutine, Literal, TypeIs, cast, override
 
 from pydantic import BaseModel, Field, create_model
 
@@ -366,7 +366,7 @@ def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
     return [obj]
 
 
-def is_factory[T](obj: MaybeFactory[T]) -> TypeGuard[Factory[T]]:
+def is_factory[T](obj: MaybeFactory[T]) -> TypeIs[Factory[T]]:
     return callable(obj) and total_params(obj) == 0
 
 
