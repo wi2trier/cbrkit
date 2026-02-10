@@ -4,6 +4,7 @@ import inspect
 import logging
 import math
 import os
+import warnings
 from collections.abc import (
     Callable,
     Collection,
@@ -137,15 +138,15 @@ def optional_dependencies(
     except (ImportError, ModuleNotFoundError) as e:
         match error_handling:
             case "raise":
+                msg = str(e)
                 if extras_name is not None:
-                    print(f"Please install `cbrkit[{extras_name}]`")
-
-                raise e
+                    msg += f". Please install `cbrkit[{extras_name}]`"
+                raise ImportError(msg) from e
             case "warn":
-                print(f"Missing optional dependency: `{e.name}`")
-
+                msg = f"Missing optional dependency: `{e.name}`"
                 if extras_name is not None:
-                    print(f"Please install `cbrkit[{extras_name}]`")
+                    msg += f". Please install `cbrkit[{extras_name}]`"
+                warnings.warn(msg, ImportWarning, stacklevel=2)
             case "ignore":
                 pass
 
