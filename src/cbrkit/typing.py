@@ -88,6 +88,9 @@ class InternalFunc(ABC):
 class IndexableFunc[U, D](Protocol):
     """Supports pre-indexing data for efficient processing."""
 
+    @property
+    def index(self) -> U: ...
+
     def create_index(self, data: U) -> None: ...
 
     def update_index(self, data: U) -> None: ...

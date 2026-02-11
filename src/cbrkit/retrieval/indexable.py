@@ -176,6 +176,10 @@ class _DatabaseRetriever[K](
     @abstractmethod
     def _has_index(self) -> bool: ...
 
+    @property
+    @abstractmethod
+    def index(self) -> Casebase[K, str]: ...
+
     @abstractmethod
     def create_index(self, data: Casebase[K, str]) -> None: ...
 
@@ -215,6 +219,14 @@ class embed[K, S: Float](
         self.sim_func = batchify_sim(sim_func)
         self.query_conversion_func = query_conversion_func
         self._casebase = None
+
+    @property
+    @override
+    def index(self) -> Casebase[K, str]:
+        """Return the indexed casebase."""
+        if self._casebase is None:
+            return {}
+        return self._casebase
 
     @override
     def create_index(self, data: Casebase[K, str]) -> None:
@@ -341,6 +353,14 @@ with optional_dependencies():
             retriever.index(cases_tokens)
 
             return retriever
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase."""
+            if self._casebase is None:
+                return {}
+            return self._casebase
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
@@ -558,6 +578,17 @@ with optional_dependencies():
         @override
         def _has_index(self) -> bool:
             return self._table is not None
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase from the LanceDB table."""
+            if self._table is None:
+                return {}
+            table = self._table.to_arrow()
+            keys = table.column(self.key_column).to_pylist()
+            values = table.column(self.value_column).to_pylist()
+            return dict(zip(keys, values, strict=True))
 
         @override
         def _search_brute(
@@ -827,6 +858,17 @@ with optional_dependencies():
         @override
         def _has_index(self) -> bool:
             return self._collection is not None
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase from the ChromaDB collection."""
+            if self._collection is None:
+                return {}
+            result = self._collection.get()
+            ids = result["ids"]
+            docs = result["documents"] or []
+            return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
 
         def _prepare_documents(
             self,

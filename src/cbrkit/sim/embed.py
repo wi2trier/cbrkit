@@ -236,6 +236,12 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str],
 
         return dict(zip(new_texts, new_vecs, strict=True))
 
+    @property
+    @override
+    def index(self) -> Collection[str]:
+        """Return the indexed texts."""
+        return self.store.keys()
+
     @override
     def create_index(self, data: Collection[str]) -> None:
         """Clear existing store and rebuild from scratch."""
