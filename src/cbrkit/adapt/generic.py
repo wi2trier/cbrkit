@@ -2,11 +2,12 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal, override
 
-from ..helpers import unbatchify_sim, unpack_float
+from ..helpers import unbatchify_adaptation, unbatchify_sim, unpack_float
 from ..typing import (
     AdaptationFunc,
     AnySimFunc,
     Float,
+    SimpleAdaptationFunc,
 )
 
 __all__ = [
@@ -34,7 +35,7 @@ class pipe[V](AdaptationFunc[V]):
         15
     """
 
-    functions: AdaptationFunc[V] | list[AdaptationFunc[V]]
+    functions: SimpleAdaptationFunc[V] | list[SimpleAdaptationFunc[V]]
     similarity_func: AnySimFunc[V, Float] | None = None
     similarity_delta: float = 0.0
     strategy: Literal["continue", "break"] = "continue"
@@ -53,7 +54,7 @@ class pipe[V](AdaptationFunc[V]):
             current_similarity = similarity_func(current_case, query)
 
         for func in functions:
-            adapted_case = func(current_case, query)
+            adapted_case = unbatchify_adaptation(func)(current_case, query)
 
             if similarity_func is not None and current_similarity is not None:
                 adapted_similarity = similarity_func(current_case, adapted_case)

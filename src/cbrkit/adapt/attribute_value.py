@@ -2,8 +2,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, override
 
-from ..helpers import getitem_or_getattr, produce_sequence, setitem_or_setattr
-from ..typing import AdaptationFunc, MaybeSequence
+from ..helpers import (
+    getitem_or_getattr,
+    produce_sequence,
+    setitem_or_setattr,
+    unbatchify_adaptation,
+)
+from ..typing import AdaptationFunc, MaybeSequence, SimpleAdaptationFunc
 
 __all__ = ["attribute_value"]
 
@@ -38,7 +43,7 @@ class attribute_value[V](AdaptationFunc[V]):
         {'name': 'Peter', 'age': 30}
     """
 
-    attributes: Mapping[str, MaybeSequence[AdaptationFunc[Any]]]
+    attributes: Mapping[str, MaybeSequence[SimpleAdaptationFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = getitem_or_getattr
     value_setter: Callable[[Any, str, Any], None] = setitem_or_setattr
 
@@ -51,7 +56,9 @@ class attribute_value[V](AdaptationFunc[V]):
             query_attr_value = self.value_getter(query, attr_name)
 
             for adapt_func in adapt_funcs:
-                case_attr_value = adapt_func(case_attr_value, query_attr_value)
+                case_attr_value = unbatchify_adaptation(adapt_func)(
+                    case_attr_value, query_attr_value
+                )
 
             self.value_setter(case, attr_name, case_attr_value)
 

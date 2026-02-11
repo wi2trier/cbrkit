@@ -1,17 +1,27 @@
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
 from typing import override
 
-from ..helpers import batchify_sim, get_logger, mp_starmap, produce_factory
+from ..helpers import (
+    batchify_adaptation,
+    batchify_sim,
+    chunkify,
+    get_logger,
+    mp_count,
+    mp_map,
+    produce_factory,
+    use_mp,
+)
 from ..typing import (
-    AdaptationFunc,
     AnySimFunc,
     Casebase,
     Float,
     MaybeFactory,
     ReviserFunc,
     SimMap,
+    SimpleAdaptationFunc,
 )
 
 logger = get_logger(__name__)
@@ -31,6 +41,8 @@ class build[K, V, S: Float](ReviserFunc[K, V, S]):
         assess_func: Similarity function to evaluate solution quality.
         repair_func: Optional adaptation function to repair solutions before assessment.
         multiprocessing: Multiprocessing configuration for repair.
+        chunksize: Number of batches to process at a time using the repair function.
+            If 0, it will be set to the number of batches divided by the number of processes.
 
     Returns:
         The revised casebases with quality scores.
@@ -43,8 +55,9 @@ class build[K, V, S: Float](ReviserFunc[K, V, S]):
     """
 
     assess_func: MaybeFactory[AnySimFunc[V, S]]
-    repair_func: MaybeFactory[AdaptationFunc[V]] | None = None
+    repair_func: MaybeFactory[SimpleAdaptationFunc[V]] | None = None
     multiprocessing: Pool | int | bool = False
+    chunksize: int = 0
 
     @override
     def __call__(
@@ -91,8 +104,9 @@ class build[K, V, S: Float](ReviserFunc[K, V, S]):
     def _repair(
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
-        repair_func: AdaptationFunc[V],
+        repair_func: SimpleAdaptationFunc[V],
     ) -> Sequence[Casebase[K, V]]:
+        batch_repair_func = batchify_adaptation(repair_func)
         batches_index: list[tuple[int, K]] = []
         flat_batches: list[tuple[V, V]] = []
 
@@ -101,12 +115,22 @@ class build[K, V, S: Float](ReviserFunc[K, V, S]):
                 batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        repaired_cases = mp_starmap(
-            repair_func,
-            flat_batches,
-            self.multiprocessing,
-            logger,
-        )
+        repaired_cases: Sequence[V]
+
+        if use_mp(self.multiprocessing) or self.chunksize > 0:
+            chunksize = (
+                self.chunksize
+                if self.chunksize > 0
+                else len(flat_batches) // mp_count(self.multiprocessing)
+            )
+            batch_chunks = list(chunkify(flat_batches, chunksize))
+            repaired_chunks = mp_map(
+                batch_repair_func, batch_chunks, self.multiprocessing, logger
+            )
+            repaired_cases = list(itertools.chain.from_iterable(repaired_chunks))
+        else:
+            repaired_cases = list(batch_repair_func(flat_batches))
+
         repaired_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
 
         for (idx, key), repaired_case in zip(

@@ -43,6 +43,8 @@ __all__ = [
     "PositionalFunc",
     "QueryCaseMatrix",
     "ReduceAdaptationFunc",
+    "SimpleAdaptationFunc",
+    "ComplexAdaptationFunc",
     "RetainerFunc",
     "RetrieverFunc",
     "ReuserFunc",
@@ -253,9 +255,11 @@ class ReduceAdaptationFunc[K, V](Protocol):
     ) -> tuple[K, V]: ...
 
 
-type AnyAdaptationFunc[K, V] = (
-    AdaptationFunc[V] | MapAdaptationFunc[K, V] | ReduceAdaptationFunc[K, V]
-)
+type SimpleAdaptationFunc[V] = AdaptationFunc[V] | BatchAdaptationFunc[V]
+
+type ComplexAdaptationFunc[K, V] = MapAdaptationFunc[K, V] | ReduceAdaptationFunc[K, V]
+
+type AnyAdaptationFunc[K, V] = SimpleAdaptationFunc[V] | ComplexAdaptationFunc[K, V]
 
 
 class ReuserFunc[K, V, S: Float = float](Protocol):

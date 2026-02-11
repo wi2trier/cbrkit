@@ -46,6 +46,7 @@ from .typing import (
     PositionalFunc,
     SimFunc,
     SimMap,
+    SimpleAdaptationFunc,
     SimSeq,
     StructuredValue,
     WrappedObject,
@@ -53,6 +54,7 @@ from .typing import (
 
 __all__ = [
     "BATCH_LOGGING_LEVEL",
+    "batchify_adaptation",
     "batchify_named",
     "batchify_positional",
     "callable2model",
@@ -97,6 +99,7 @@ __all__ = [
     "sim_seq2ranking",
     "singleton",
     "total_params",
+    "unbatchify_adaptation",
     "unbatchify_named",
     "unbatchify_positional",
     "unpack_float",
@@ -545,6 +548,34 @@ def batchify_conversion[P, R](
 def unbatchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
+    return unbatchify_positional(func)
+
+
+def batchify_adaptation[V](
+    func: MaybeFactory[SimpleAdaptationFunc[V]],
+) -> "BatchAdaptationFunc[V]":
+    """Normalizes an adaptation function to batch mode.
+
+    Args:
+        func: An adaptation function or batch adaptation function.
+
+    Returns:
+        A batch adaptation function.
+    """
+    return batchify_positional(func)
+
+
+def unbatchify_adaptation[V](
+    func: MaybeFactory[SimpleAdaptationFunc[V]],
+) -> "AdaptationFunc[V]":
+    """Normalizes an adaptation function to single-item mode.
+
+    Args:
+        func: An adaptation function or batch adaptation function.
+
+    Returns:
+        An adaptation function.
+    """
     return unbatchify_positional(func)
 
 

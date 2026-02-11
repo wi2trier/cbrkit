@@ -1,12 +1,22 @@
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from inspect import signature as inspect_signature
 from multiprocessing.pool import Pool
 from typing import cast, override
 
-from ..helpers import batchify_sim, get_logger, mp_starmap, produce_factory
+from ..helpers import (
+    batchify_adaptation,
+    batchify_sim,
+    chunkify,
+    get_logger,
+    mp_count,
+    mp_map,
+    mp_starmap,
+    produce_factory,
+    use_mp,
+)
 from ..typing import (
-    AdaptationFunc,
     AnyAdaptationFunc,
     AnySimFunc,
     Casebase,
@@ -16,9 +26,12 @@ from ..typing import (
     ReduceAdaptationFunc,
     ReuserFunc,
     SimMap,
+    SimpleAdaptationFunc,
 )
 
 logger = get_logger(__name__)
+
+__all__ = ["build"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -29,6 +42,8 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         adaptation_func: The adaptation function that will be applied to the cases.
         similarity_func: The similarity function that will be used to compare the adapted cases to the query.
         multiprocessing: Multiprocessing configuration for adaptation.
+        chunksize: Number of batches to process at a time using the adaptation function.
+            If 0, it will be set to the number of batches divided by the number of processes.
 
     Returns:
         The adapted casebases and the similarities between the adapted cases and the query.
@@ -37,6 +52,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
     adaptation_func: MaybeFactory[AnyAdaptationFunc[K, V]]
     similarity_func: MaybeFactory[AnySimFunc[V, S]]
     multiprocessing: Pool | int | bool = False
+    chunksize: int = 0
 
     @override
     def __call__(
@@ -104,7 +120,7 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
 
             return cast(Sequence[Casebase[K, V]], adaptation_results)
 
-        adapt_func = cast(AdaptationFunc[V], adaptation_func)
+        adapt_func = batchify_adaptation(cast(SimpleAdaptationFunc[V], adaptation_func))
         batches_index: list[tuple[int, K]] = []
         flat_batches: list[tuple[V, V]] = []
 
@@ -113,12 +129,22 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
                 batches_index.append((idx, key))
                 flat_batches.append((case, query))
 
-        adapted_cases = mp_starmap(
-            adapt_func,
-            flat_batches,
-            self.multiprocessing,
-            logger,
-        )
+        adapted_cases: Sequence[V]
+
+        if use_mp(self.multiprocessing) or self.chunksize > 0:
+            chunksize = (
+                self.chunksize
+                if self.chunksize > 0
+                else len(flat_batches) // mp_count(self.multiprocessing)
+            )
+            batch_chunks = list(chunkify(flat_batches, chunksize))
+            adapted_chunks = mp_map(
+                adapt_func, batch_chunks, self.multiprocessing, logger
+            )
+            adapted_cases = list(itertools.chain.from_iterable(adapted_chunks))
+        else:
+            adapted_cases = list(adapt_func(flat_batches))
+
         adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
 
         for (idx, key), adapted_case in zip(batches_index, adapted_cases, strict=True):
