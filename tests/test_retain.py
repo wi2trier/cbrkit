@@ -94,7 +94,12 @@ def test_retain_full_cycle():
     )
 
     result = cbrkit.cycle.apply_query(
-        casebase, query, retriever, reuser, reviser, retainer,
+        casebase,
+        query,
+        retriever,
+        reuser,
+        reviser,
+        retainer,
     )
 
     assert len(result.retrieval.casebase) == 2

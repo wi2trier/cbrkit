@@ -257,3 +257,44 @@ def test_retrieve_indexed_combine() -> None:
         result = cbrkit.retrieval.apply_query({}, "a", retriever)
         assert len(result.casebase) == 2
         assert result.casebase[1] == "a"
+
+
+def test_retrieve_stateful() -> None:
+    cb: dict[int, str] = {0: "a", 1: "b", 2: "c"}
+    retriever = cbrkit.retrieval.stateful(
+        retriever_func=cbrkit.retrieval.build(cbrkit.sim.generic.equality()),
+        casebase=cb,
+    )
+
+    # empty casebase triggers indexed retrieval from reference
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 3
+    assert result.similarities[0] == 1.0
+    assert result.similarities[1] == 0.0
+
+    # also works via apply_query_indexed
+    result = cbrkit.retrieval.apply_query_indexed("a", retriever)
+    assert len(result.casebase) == 3
+
+    # non-empty casebase is used as-is (passthrough)
+    result = cbrkit.retrieval.apply_query({0: "a"}, "a", retriever)
+    assert len(result.casebase) == 1
+
+    # update_index adds entries
+    retriever.update_index({3: "d"})
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 4
+    assert 3 in result.casebase
+
+    # delete_index removes entries
+    retriever.delete_index([1, 2])
+    result = cbrkit.retrieval.apply_query({}, "a", retriever)
+    assert len(result.casebase) == 2
+    assert 1 not in result.casebase
+    assert 2 not in result.casebase
+
+    # create_index replaces the reference
+    retriever.create_index({10: "x"})
+    result = cbrkit.retrieval.apply_query({}, "x", retriever)
+    assert len(result.casebase) == 1
+    assert result.casebase[10] == "x"

@@ -1,5 +1,5 @@
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field
 from multiprocessing.pool import Pool
 from typing import Literal, override
 
@@ -17,10 +17,12 @@ from ..typing import (
     Casebase,
     ConversionFunc,
     Float,
+    IndexableFunc,
     RetrieverFunc,
     SimMap,
     StructuredValue,
 )
+from .indexable import resolve_casebases
 
 logger = get_logger(__name__)
 
@@ -299,6 +301,71 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
         return mp_starmap(self.__call_batch__, batches, self.multiprocessing, logger)
+
+
+@dataclass(slots=True)
+class stateful[K, V, S: Float](
+    RetrieverFunc[K, V, S],
+    IndexableFunc[Casebase[K, V], Collection[K]],
+):
+    """Retriever wrapper that adds indexable support via a reference casebase.
+
+    Wraps a non-indexable retriever and holds a reference to a full
+    casebase.  When called with an empty casebase, the stored reference
+    is used instead (indexed retrieval mode).  The reference can be
+    managed through the ``IndexableFunc`` methods.
+
+    Args:
+        retriever_func: The inner retriever function.
+        casebase: The initial reference casebase.
+
+    Examples:
+        >>> from cbrkit.retrieval import build, stateful
+        >>> from cbrkit.sim.generic import equality
+        >>> cb = {0: "a", 1: "b", 2: "c"}
+        >>> retriever = stateful(
+        ...     retriever_func=build(equality()),
+        ...     casebase=cb,
+        ... )
+        >>> results = retriever([(dict(), "a")])
+        >>> sorted(results[0][1].keys())
+        [0, 1, 2]
+    """
+
+    retriever_func: RetrieverFunc[K, V, S]
+    casebase: Casebase[K, V] = field(repr=False)
+
+    _casebase: dict[K, V] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._casebase = dict(self.casebase)
+
+    @property
+    def index(self) -> Casebase[K, V]:
+        """Return the reference casebase."""
+        return self._casebase
+
+    def create_index(self, data: Casebase[K, V]) -> None:
+        """Replace the reference casebase."""
+        self._casebase = dict(data)
+
+    def update_index(self, data: Casebase[K, V]) -> None:
+        """Merge entries into the reference casebase."""
+        self._casebase.update(data)
+
+    def delete_index(self, data: Collection[K]) -> None:
+        """Remove entries from the reference casebase."""
+        for key in data:
+            self._casebase.pop(key, None)
+
+    @override
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, V], V]],
+        /,
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
+        resolved = resolve_casebases(batches, self._casebase)
+        return self.retriever_func(resolved)
 
 
 with optional_dependencies():
