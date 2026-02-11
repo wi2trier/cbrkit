@@ -4,9 +4,13 @@ from typing import override
 
 from ..typing import Casebase, IndexableFunc, MapAdaptationFunc
 
+type KeyFunc[K, V] = Callable[[Casebase[K, V]], K]
+
 __all__ = [
+    "KeyFunc",
     "auto_key",
     "indexable",
+    "static",
 ]
 
 
@@ -24,7 +28,7 @@ class auto_key[K, V](MapAdaptationFunc[K, V]):
         'c'
     """
 
-    key_func: Callable[[Casebase[K, V]], K]
+    key_func: KeyFunc[K, V]
 
     @override
     def __call__(
@@ -41,19 +45,57 @@ class auto_key[K, V](MapAdaptationFunc[K, V]):
 
 
 @dataclass(slots=True, frozen=True)
+class static[K, V](MapAdaptationFunc[K, V]):
+    """Storage function that generates keys from a fixed casebase.
+
+    Generates a key via ``key_func`` using the provided ``casebase``
+    instead of the pipeline casebase, avoiding key collisions with the
+    full collection.
+    Unlike ``indexable``, this does not maintain any internal state.
+
+    Args:
+        key_func: Callable that generates a new key given a casebase.
+        casebase: The full casebase used for key generation.
+
+    Examples:
+        >>> func = static(
+        ...     key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...     casebase={0: "a", 1: "b", 2: "c"},
+        ... )
+        >>> result = func({1: "b"}, "d")
+        >>> result == {1: "b", 3: "d"}
+        True
+    """
+
+    key_func: KeyFunc[K, V]
+    casebase: Casebase[K, V]
+
+    @override
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+        /,
+    ) -> Casebase[K, V]:
+        new_key = self.key_func(self.casebase)
+        return {**casebase, new_key: query}
+
+
+@dataclass(slots=True, frozen=True)
 class indexable[K, V](MapAdaptationFunc[K, V]):
     """Storage function that keeps an IndexableFunc's index in sync.
 
-    Wraps a base storage function and an IndexableFunc.
+    Generates a key via ``key_func`` and inserts the case into the casebase,
+    routing through the IndexableFunc's index when it is pre-populated.
+
     Behavior depends on whether the index is pre-populated:
 
-    - **Empty index**: the base storage function receives the pipeline
-      casebase directly, and ``create_index`` rebuilds the index from
-      the result.
-    - **Pre-populated index**: the base storage function receives the
-      full index instead of the pipeline casebase.  Only newly added
-      keys are merged back into the pipeline casebase, and the index
-      is updated incrementally via ``update_index``.
+    - **Empty index**: the key is generated from the pipeline casebase,
+      and ``create_index`` rebuilds the index from the result.
+    - **Pre-populated index**: the key is generated from the full index
+      instead of the pipeline casebase.
+      Only newly added keys are merged back into the pipeline casebase,
+      and the index is updated incrementally via ``update_index``.
 
     The pre-populated path lets the retain phase store cases into a
     full collection while the pipeline only carries a filtered subset.
@@ -64,11 +106,11 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         The index will be corrected on the next retain call.
 
     Args:
-        storage_func: Base storage function (e.g., ``auto_key``).
-        indexable_func: The indexable function whose index will be rebuilt.
+        key_func: Callable that generates a new key given a casebase.
+        indexable_func: The indexable function whose index will be kept in sync.
 
     Examples:
-        >>> from cbrkit.retain.storage import auto_key, indexable
+        >>> from cbrkit.retain.storage import indexable
         >>> class Store:
         ...     def __init__(self):
         ...         self._data = {}
@@ -84,7 +126,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         ...             self._data.pop(k, None)
         >>> store = Store()
         >>> func = indexable(
-        ...     storage_func=auto_key(key_func=lambda cb: max(cb.keys(), default=-1) + 1),
+        ...     key_func=lambda cb: max(cb.keys(), default=-1) + 1,
         ...     indexable_func=store,
         ... )
         >>> result = func({0: "a", 1: "b"}, "c")
@@ -103,7 +145,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         True
     """
 
-    storage_func: MapAdaptationFunc[K, V]
+    key_func: KeyFunc[K, V]
     indexable_func: IndexableFunc[Casebase[K, V], Collection[K]]
 
     @override
@@ -116,12 +158,12 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         current_index = self.indexable_func.index
 
         if current_index:
-            updated = self.storage_func(current_index, query)
-            new_keys = set(updated) - set(current_index)
-            new_entries: Casebase[K, V] = {k: updated[k] for k in new_keys}
-            self.indexable_func.update_index(new_entries)
-            return {**casebase, **new_entries}
+            new_key = self.key_func(current_index)
+            new_entry: Casebase[K, V] = {new_key: query}
+            self.indexable_func.update_index(new_entry)
+            return {**casebase, **new_entry}
 
-        updated = self.storage_func(casebase, query)
+        new_key = self.key_func(casebase)
+        updated: Casebase[K, V] = {**casebase, new_key: query}
         self.indexable_func.create_index(updated)
         return updated

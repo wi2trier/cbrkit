@@ -140,7 +140,7 @@ def test_retain_indexable_storage():
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
         storage_func=cbrkit.retain.indexable(
-            storage_func=STORAGE_FUNC,
+            key_func=lambda cb: max(cb.keys(), default=-1) + 1,
             indexable_func=fake,
         ),
     )
@@ -161,7 +161,7 @@ def test_retain_indexable_prepopulated():
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
         storage_func=cbrkit.retain.indexable(
-            storage_func=STORAGE_FUNC,
+            key_func=lambda cb: max(cb.keys(), default=-1) + 1,
             indexable_func=fake,
         ),
     )
