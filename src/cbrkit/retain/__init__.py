@@ -14,7 +14,7 @@ from .apply import (
     apply_result,
 )
 from .build import build, dropout
-from .storage import auto_key
+from .storage import auto_key, indexable
 
 __all__ = [
     "build",
@@ -25,6 +25,7 @@ __all__ = [
     "apply_query",
     "apply_pair",
     "auto_key",
+    "indexable",
     "Result",
     "ResultStep",
     "QueryResultStep",

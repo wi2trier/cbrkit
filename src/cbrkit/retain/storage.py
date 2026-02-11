@@ -1,11 +1,12 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from typing import override
 
-from ..typing import Casebase, MapAdaptationFunc
+from ..typing import Casebase, IndexableFunc, MapAdaptationFunc
 
 __all__ = [
     "auto_key",
+    "indexable",
 ]
 
 
@@ -36,4 +37,91 @@ class auto_key[K, V](MapAdaptationFunc[K, V]):
         updated = dict(casebase)
         updated[new_key] = query
 
+        return updated
+
+
+@dataclass(slots=True, frozen=True)
+class indexable[K, V](MapAdaptationFunc[K, V]):
+    """Storage function that keeps an IndexableFunc's index in sync.
+
+    Wraps a base storage function and an IndexableFunc.
+    Behavior depends on whether the index is pre-populated:
+
+    - **Empty index**: the base storage function receives the pipeline
+      casebase directly, and ``create_index`` rebuilds the index from
+      the result.
+    - **Pre-populated index**: the base storage function receives the
+      full index instead of the pipeline casebase.  Only newly added
+      keys are merged back into the pipeline casebase, and the index
+      is updated incrementally via ``update_index``.
+
+    The pre-populated path lets the retain phase store cases into a
+    full collection while the pipeline only carries a filtered subset.
+
+    Note:
+        When combined with ``dropout``, the index is rebuilt before
+        dropout filters cases.
+        The index will be corrected on the next retain call.
+
+    Args:
+        storage_func: Base storage function (e.g., ``auto_key``).
+        indexable_func: The indexable function whose index will be rebuilt.
+
+    Examples:
+        >>> from cbrkit.retain.storage import auto_key, indexable
+        >>> class Store:
+        ...     def __init__(self):
+        ...         self._data = {}
+        ...     @property
+        ...     def index(self):
+        ...         return self._data
+        ...     def create_index(self, data):
+        ...         self._data = dict(data)
+        ...     def update_index(self, data):
+        ...         self._data.update(data)
+        ...     def delete_index(self, data):
+        ...         for k in data:
+        ...             self._data.pop(k, None)
+        >>> store = Store()
+        >>> func = indexable(
+        ...     storage_func=auto_key(key_func=lambda cb: max(cb.keys(), default=-1) + 1),
+        ...     indexable_func=store,
+        ... )
+        >>> result = func({0: "a", 1: "b"}, "c")
+        >>> result[2]
+        'c'
+        >>> store.index == result
+        True
+
+        Pre-populated index routes storage through the full collection:
+
+        >>> store.create_index({0: "a", 1: "b", 2: "c"})
+        >>> result = func({1: "b"}, "d")
+        >>> result == {1: "b", 3: "d"}
+        True
+        >>> store.index == {0: "a", 1: "b", 2: "c", 3: "d"}
+        True
+    """
+
+    storage_func: MapAdaptationFunc[K, V]
+    indexable_func: IndexableFunc[Casebase[K, V], Collection[K]]
+
+    @override
+    def __call__(
+        self,
+        casebase: Casebase[K, V],
+        query: V,
+        /,
+    ) -> Casebase[K, V]:
+        current_index = self.indexable_func.index
+
+        if current_index:
+            updated = self.storage_func(current_index, query)
+            new_keys = set(updated) - set(current_index)
+            new_entries: Casebase[K, V] = {k: updated[k] for k in new_keys}
+            self.indexable_func.update_index(new_entries)
+            return {**casebase, **new_entries}
+
+        updated = self.storage_func(casebase, query)
+        self.indexable_func.create_index(updated)
         return updated

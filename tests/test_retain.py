@@ -1,3 +1,5 @@
+from collections.abc import Collection, Mapping
+
 import cbrkit
 from cbrkit.helpers import unpack_float
 
@@ -97,3 +99,74 @@ def test_retain_full_cycle():
 
     assert len(result.retrieval.casebase) == 2
     assert len(result.retain.casebase) > 0
+
+
+class FakeIndexableFunc(
+    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
+):
+    def __init__(self) -> None:
+        self._data: dict[int, str] | None = None
+
+    @property
+    def index(self) -> Mapping[int, str]:
+        if self._data is None:
+            return {}
+        return self._data
+
+    def create_index(self, data: Mapping[int, str]) -> None:
+        self._data = dict(data)
+
+    def update_index(self, data: Mapping[int, str]) -> None:
+        if self._data is None:
+            self.create_index(data)
+            return
+        self._data.update(data)
+
+    def delete_index(self, data: Collection[int]) -> None:
+        if self._data is None:
+            return
+        for key in data:
+            self._data.pop(key, None)
+
+
+def test_retain_indexable_storage():
+    """Test indexable storage stores the case and syncs the index."""
+    fake = FakeIndexableFunc()
+    retainer = cbrkit.retain.build(
+        assess_func=cbrkit.sim.generic.equality(),
+        storage_func=cbrkit.retain.indexable(
+            storage_func=STORAGE_FUNC,
+            indexable_func=fake,
+        ),
+    )
+
+    casebase: dict[int, str] = {0: "a", 1: "b"}
+    results = retainer([(casebase, "c")])
+
+    updated_casebase, sim_map = results[0]
+    assert updated_casebase[2] == "c"
+    assert fake.index == updated_casebase
+
+
+def test_retain_indexable_prepopulated():
+    """Test indexable with pre-populated index stores into full collection."""
+    fake = FakeIndexableFunc()
+    fake.create_index({0: "a", 1: "b", 2: "c"})
+
+    retainer = cbrkit.retain.build(
+        assess_func=cbrkit.sim.generic.equality(),
+        storage_func=cbrkit.retain.indexable(
+            storage_func=STORAGE_FUNC,
+            indexable_func=fake,
+        ),
+    )
+
+    # Pipeline casebase is a filtered subset
+    pipeline_casebase: dict[int, str] = {1: "b"}
+    results = retainer([(pipeline_casebase, "d")])
+
+    updated_casebase, sim_map = results[0]
+    # Should return pipeline + newly added key only
+    assert updated_casebase == {1: "b", 3: "d"}
+    # Index should contain original + new entry
+    assert fake.index == {0: "a", 1: "b", 2: "c", 3: "d"}
