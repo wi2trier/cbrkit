@@ -87,7 +87,7 @@ class InternalFunc(ABC):
     pass
 
 
-class IndexableFunc[U, D](Protocol):
+class IndexableFunc[U, D = U](Protocol):
     """Supports pre-indexing data for efficient processing."""
 
     @property
