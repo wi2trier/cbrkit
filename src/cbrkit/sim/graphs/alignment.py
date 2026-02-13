@@ -11,6 +11,8 @@ from ...helpers import (
     unpack_floats,
 )
 from ...model.graph import Edge, Graph, Node, to_sequence
+from typing import Any
+
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc
 from ..wrappers import transpose_value
 from .common import GraphSim
@@ -39,7 +41,7 @@ def _build_node_edge_mappings_and_similarity[K, N, E](
     edges_x: list[Edge[K, N, E]],
     edges_y: list[Edge[K, N, E]],
     edge_sim_func: BatchSimFunc[Edge[K, N, E], Float] | None = None,
-) -> SimilarityData:
+) -> SimilarityData[K]:
     """
     Internal helper for building node/edge mappings & computing average similarities.
 
@@ -57,16 +59,16 @@ def _build_node_edge_mappings_and_similarity[K, N, E](
         sum(unpack_floats(node_sims)) / len(node_sims) if node_sims else 0.0
     )
 
-    node_mapping: dict = {}
-    node_similarities: dict = {}
+    node_mapping: dict[K, K] = {}
+    node_similarities: dict[K, float] = {}
 
     for (xn, yn), sim_val in zip(node_pairs, node_sims, strict=True):
         node_mapping[yn.key] = xn.key
         node_similarities[yn.key] = unpack_float(sim_val)
 
     edge_similarity = None
-    edge_mapping: dict = {}
-    edge_similarities: dict = {}
+    edge_mapping: dict[K, K] = {}
+    edge_similarities: dict[K, float] = {}
 
     if edge_sim_func:
         edge_pairs = list(zip(edges_x, edges_y, strict=True))
@@ -276,8 +278,8 @@ with optional_dependencies():
         batched_edge_sim_func: BatchSimFunc[Edge[K, N, E], Float] | None = field(
             init=False
         )
-        dataflow_in_sim_func: SimFunc | None = None
-        dataflow_out_sim_func: SimFunc | None = None
+        dataflow_in_sim_func: SimFunc[Any, float] | None = None
+        dataflow_out_sim_func: SimFunc[Any, float] | None = None
         l_t: float = 1.0
         l_i: float = 0.0
         l_o: float = 0.0

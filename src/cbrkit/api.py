@@ -35,23 +35,23 @@ def load_callables(value: str) -> dict[str, Any]:
 
 
 loaded_retrievers: dict[
-    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]
 ] = load_callables(settings.retriever)
 
-loaded_reusers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
-    load_callables(settings.reuser)
-)
+loaded_reusers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]
+] = load_callables(settings.reuser)
 
-loaded_revisers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
-    load_callables(settings.reviser)
-)
+loaded_revisers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc[Any, Any, Any]]
+] = load_callables(settings.reviser)
 
-loaded_retainers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
-    load_callables(settings.retainer)
-)
+loaded_retainers: dict[
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc[Any, Any, Any]]
+] = load_callables(settings.retainer)
 
 loaded_synthesizers: dict[
-    str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc]
+    str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc[Any, Any, Any, Any]]
 ] = load_callables(settings.synthesizer)
 
 

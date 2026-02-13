@@ -361,7 +361,7 @@ def log_batch(
         logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
 
 
-def total_params(func: Callable) -> int:
+def total_params(func: Callable[..., Any]) -> int:
     return len(inspect.signature(func).parameters)
 
 
@@ -723,14 +723,14 @@ def load_object(import_name: str) -> Any:
     return getattr(module, obj_name)
 
 
-def load_callable(import_name: str) -> Callable:
+def load_callable(import_name: str) -> Callable[..., Any]:
     return load_object(import_name)
 
 
 def load_callables(
     import_names: MaybeSequence[str],
-) -> list[Callable]:
-    functions: list[Callable] = []
+) -> list[Callable[..., Any]]:
+    functions: list[Callable[..., Any]] = []
     names = [import_names] if isinstance(import_names, str) else list(import_names)
 
     for import_name in names:
@@ -738,7 +738,7 @@ def load_callables(
 
         if isinstance(obj, Sequence):
             assert all(isinstance(func, Callable) for func in obj)
-            functions.extend(cast(Sequence[Callable], obj))
+            functions.extend(cast(Sequence[Callable[..., Any]], obj))
         elif isinstance(obj, Callable):
             functions.append(obj)
 
@@ -747,8 +747,8 @@ def load_callables(
 
 def load_callables_map(
     import_names: MaybeSequence[str],
-) -> dict[str, Callable]:
-    functions: dict[str, Callable] = {}
+) -> dict[str, Callable[..., Any]]:
+    functions: dict[str, Callable[..., Any]] = {}
     names = [import_names] if isinstance(import_names, str) else list(import_names)
 
     for import_name in names:
@@ -791,7 +791,7 @@ def mp_count(pool_or_processes: Pool | int | bool) -> int:
     elif isinstance(pool_or_processes, int):
         return pool_or_processes
     elif isinstance(pool_or_processes, Pool):
-        return pool_or_processes._processes  # type: ignore[unresolved-attribute]
+        return getattr(pool_or_processes, "_processes")
 
     return os.cpu_count() or 1
 

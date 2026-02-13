@@ -6,7 +6,7 @@ from collections.abc import Collection, Iterator, MutableMapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, cast, override
+from typing import Any, Literal, cast, override
 
 import numpy as np
 
@@ -378,7 +378,7 @@ with optional_dependencies():
         from rich.progress import Progress, TaskID
 
         @dataclass(slots=True)
-        class ProgressHook(AbstractContextManager):
+        class ProgressHook(AbstractContextManager[Any]):
             description: str
             progress: Progress = field(default_factory=Progress, init=False)
             task: TaskID | None = field(default=None, init=False)

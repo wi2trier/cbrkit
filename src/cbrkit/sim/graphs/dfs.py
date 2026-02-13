@@ -39,7 +39,7 @@ with optional_dependencies():
         upper_bound: float | None = None
         strictly_decreasing: bool = True
         timeout: float | None = None
-        roots_func: RootsFunc | None = None
+        roots_func: RootsFunc[K, N, E, G] | None = None
 
         def __call__(
             self,

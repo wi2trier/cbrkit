@@ -72,12 +72,12 @@ def _normalize_results[K](
     return normalized
 
 
-class _StorageDelegator[K](
+class _StorageDelegator[K, _ST: IndexableFunc[Any, Any, Any]](
     IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
 ):
     """Mixin that forwards IndexableFunc methods to ``self.storage``."""
 
-    storage: IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+    storage: _ST
 
     @property
     @override
@@ -431,7 +431,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class lancedb[K: int | str](
         RetrieverFunc[K, str, float],
-        _StorageDelegator[K],
+        _StorageDelegator[K, lancedb_storage[K]],
     ):
         """Retriever wrapper for a LanceDB storage backend.
 
@@ -662,7 +662,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class chromadb[K: str](
         RetrieverFunc[K, str, float],
-        _StorageDelegator[K],
+        _StorageDelegator[K, chromadb_storage[K]],
     ):
         """Retriever wrapper for a ChromaDB storage backend.
 

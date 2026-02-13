@@ -94,7 +94,7 @@ class System[
         return _retrieval_apply_query(
             self._load_casebase(casebase),
             query,
-            self.retriever_factory(config),
+            self.retriever_factory(config),  # pyright: ignore[reportArgumentType]
         ).default_query
 
     def reuse(
@@ -110,7 +110,7 @@ class System[
         return _reuse_apply_query(
             self._load_casebase(casebase),
             query,
-            self.reuser_factory(config),
+            self.reuser_factory(config),  # pyright: ignore[reportArgumentType]
         ).default_query
 
     def revise(
@@ -136,7 +136,7 @@ class System[
         return _revise_apply_query(
             self._load_casebase(casebase),
             query,
-            self.reviser_factory(config),
+            self.reviser_factory(config),  # pyright: ignore[reportArgumentType]
         ).default_query
 
     def retain(
@@ -162,7 +162,7 @@ class System[
         return _retain_apply_query(
             self._load_casebase(casebase),
             query,
-            self.retainer_factory(config),
+            self.retainer_factory(config),  # pyright: ignore[reportArgumentType]
         ).default_query
 
     def cycle(
@@ -178,16 +178,16 @@ class System[
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")
 
-        reusers = self.reuser_factory(reuser_config) if self.reuser_factory else []
-        revisers = self.reviser_factory(reviser_config) if self.reviser_factory else []
+        reusers = self.reuser_factory(reuser_config) if self.reuser_factory else []  # pyright: ignore[reportArgumentType]
+        revisers = self.reviser_factory(reviser_config) if self.reviser_factory else []  # pyright: ignore[reportArgumentType]
         retainers = (
-            self.retainer_factory(retainer_config) if self.retainer_factory else []
+            self.retainer_factory(retainer_config) if self.retainer_factory else []  # pyright: ignore[reportArgumentType]
         )
 
         return _cycle_apply_query(
             self._load_casebase(casebase),
             query,
-            self.retriever_factory(retriever_config),
+            self.retriever_factory(retriever_config),  # pyright: ignore[reportArgumentType]
             reusers,
             revisers,
             retainers,

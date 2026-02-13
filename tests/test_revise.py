@@ -1,3 +1,5 @@
+from typing import Any
+
 import cbrkit
 from cbrkit.helpers import unpack_float
 
@@ -38,7 +40,7 @@ def test_revise_with_repair():
     }
     query = {"price": 10000, "year": 2010}
 
-    def repair_func(case: dict, query: dict) -> dict:
+    def repair_func(case: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
         # Simple repair: average price between case and query
         return {
             "price": (case["price"] + query["price"]) // 2,

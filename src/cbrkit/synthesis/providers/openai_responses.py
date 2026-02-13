@@ -143,8 +143,9 @@ with optional_dependencies():
                 )
 
             for output in res.output:
-                if hasattr(output, "content") and output.content is not None:
-                    for content in output.content:  # type: ignore[union-attr]
+                content_list = getattr(output, "content", None)
+                if content_list is not None:
+                    for content in content_list:
                         if content.type == "refusal":
                             raise ValueError("Refusal", res)
 

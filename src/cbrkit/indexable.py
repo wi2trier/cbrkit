@@ -278,8 +278,8 @@ with optional_dependencies():
         path: str
         collection: str
         index_type: Literal["dense", "sparse", "hybrid"] = "dense"
-        embedding_func: cdb.EmbeddingFunction | None = None
-        sparse_embedding_func: cdb.SparseEmbeddingFunction | None = None
+        embedding_func: cdb.EmbeddingFunction[Any] | None = None
+        sparse_embedding_func: cdb.SparseEmbeddingFunction[Any] | None = None
         metadata_func: Callable[[K, str], cdb.Metadata] | None = None
         sparse_key: str = "sparse_embedding"
         _client: ClientAPI = field(init=False, repr=False)

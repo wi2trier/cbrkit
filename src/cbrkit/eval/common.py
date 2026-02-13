@@ -2,7 +2,7 @@ import itertools
 import statistics
 import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from ..helpers import (
     get_logger,
@@ -257,7 +257,7 @@ def kendall_tau(
         max_idx = min(len(run_k), len(sorted_qrel_relevant))
         run_ranking = sorted_run[:max_idx]
         qrel_ranking = sorted_qrel_relevant[:max_idx]
-        score: Any = kendalltau(run_ranking, qrel_ranking)
+        score = kendalltau(run_ranking, qrel_ranking)  # pyright: ignore[reportArgumentType]
 
         scores.append(score.statistic)
 

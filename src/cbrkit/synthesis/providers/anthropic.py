@@ -84,8 +84,8 @@ with optional_dependencies():
                 and issubclass(self.response_type, str)
                 and len(res.content) > 0
             ):
-                aggregated_content = "".join(  # type: ignore[arg-type]
-                    block.text for block in res.content if hasattr(block, "text")
+                aggregated_content = "".join(
+                    getattr(block, "text", "") for block in res.content
                 )
                 return Response(cast(R, aggregated_content), usage)
 

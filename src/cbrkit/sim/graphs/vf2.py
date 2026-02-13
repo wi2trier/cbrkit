@@ -45,7 +45,7 @@ class VF2Base[K, N, E, G](
         y: Graph[K, N, E, G],
     ) -> GraphSim[K]:
         node_mappings: list[frozendict[K, K]] = []
-        next_permutations: list[Graph] = [y]
+        next_permutations: list[Graph[K, N, E, G]] = [y]
 
         while next_permutations and not node_mappings:
             current_permutations = next_permutations
@@ -105,7 +105,7 @@ class VF2Base[K, N, E, G](
 
 
 @dataclass(slots=True)
-class vf2_rustworkx[K, N, E, G](VF2Base):
+class vf2_rustworkx[K, N, E, G](VF2Base[K, N, E, G]):
     id_order: bool = False
     induced: bool = False
     call_limit: int | None = None
@@ -177,7 +177,7 @@ class vf2_rustworkx[K, N, E, G](VF2Base):
 
 
 @dataclass(slots=True)
-class vf2_networkx[K, N, E, G](VF2Base):
+class vf2_networkx[K, N, E, G](VF2Base[K, N, E, G]):
     def node_mappings(
         self,
         x: Graph[K, N, E, G],

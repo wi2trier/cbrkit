@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -21,7 +22,7 @@ class QueryResultStep[K, V, S: Float](BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _custom_validator(cls, data: dict) -> dict:
+    def _custom_validator(cls, data: dict[str, Any]) -> dict[str, Any]:
         assert len(data["similarities"]) == len(data["casebase"]), (
             "similarities and casebase must have equal length"
         )

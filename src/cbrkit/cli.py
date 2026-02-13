@@ -5,7 +5,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import orjson
 
@@ -39,7 +39,7 @@ def retrieve(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(retriever)
     )
 
@@ -74,7 +74,7 @@ def reuse(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(reuser)
     )
 
@@ -98,16 +98,16 @@ def cycle(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(retriever)
     )
-    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(reuser)
     )
-    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
+    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(reviser) if reviser else []
     )
-    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
+    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(retainer) if retainer else []
     )
 
@@ -134,19 +134,19 @@ def synthesis(
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc]] = (
+    retrievers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(retriever)
     )
-    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc]] = (
+    reusers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(reuser)
     )
-    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]] = (
+    revisers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(reviser) if reviser else []
     )
-    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
+    retainers: list[cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc[Any, Any, Any]]] = (
         cbrkit.helpers.load_callables(retainer) if retainer else []
     )
-    synthesis_func: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc] = (
+    synthesis_func: cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc[Any, Any, Any, Any]] = (
         cbrkit.helpers.load_callable(synthesizer)
     )
 

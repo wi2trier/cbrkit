@@ -2,7 +2,7 @@ import heapq
 from collections.abc import Collection, Sequence, Set
 from dataclasses import asdict, dataclass, field
 from itertools import product
-from typing import cast, override
+from typing import Any, cast, override
 
 import numpy as np
 
@@ -85,7 +85,7 @@ with optional_dependencies():
         @override
         def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
             try:
-                alignment = smith.SmithWaterman(cast(Sequence, x), cast(Sequence, y))
+                alignment = smith.SmithWaterman(cast(Sequence[Any], x), cast(Sequence[Any], y))
                 alignment.change_matrix(
                     core.ScoreMatrix(
                         match=self.match_score,
