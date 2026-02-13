@@ -244,29 +244,45 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]
 
     @override
     def create_index(self, data: Collection[str]) -> None:
-        """Clear existing store and rebuild from scratch."""
-        self.store.clear()
+        """Rebuild index, reusing existing embeddings where possible."""
+        data_set = set(data)
+
+        if not data_set:
+            self.store.clear()
+
+            if self.path is not None and self.table is not None:
+                with self.connect() as con:
+                    con.execute(f'DELETE FROM "{self.table}"')
+                    con.commit()
+
+            return
+
+        # Remove entries no longer needed
+        stale_keys = set(self.store.keys()) - data_set
+        for key in stale_keys:
+            del self.store[key]
+
+        # Compute only new embeddings (_compute_vecs skips texts already in store)
+        new_vecs = self._compute_vecs(data_set)
+        self.store.update(new_vecs)
 
         if self.path is not None and self.table is not None:
             with self.connect() as con:
-                con.execute(f'DELETE FROM "{self.table}"')
-                con.commit()
+                if stale_keys:
+                    con.executemany(
+                        f'DELETE FROM "{self.table}" WHERE text = ?',
+                        [(text,) for text in stale_keys],
+                    )
 
-        if not data:
-            return
+                if new_vecs:
+                    con.executemany(
+                        f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                        [
+                            (text, vector.astype(np.float64).tobytes())
+                            for text, vector in new_vecs.items()
+                        ],
+                    )
 
-        new_vecs = self._compute_vecs(set(data))
-        self.store.update(new_vecs)
-
-        if self.path is not None and self.table is not None and new_vecs:
-            with self.connect() as con:
-                con.executemany(
-                    f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                    [
-                        (text, vector.astype(np.float64).tobytes())
-                        for text, vector in new_vecs.items()
-                    ],
-                )
                 con.commit()
 
     @override

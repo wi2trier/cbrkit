@@ -230,7 +230,7 @@ class embed[K, S: Float](
 
     @override
     def create_index(self, data: Casebase[K, str]) -> None:
-        """Build embedding index from scratch."""
+        """Rebuild embedding index, reusing cached embeddings where possible."""
         self._casebase = dict(data)
         self.conversion_func.create_index(data.values())
 
@@ -364,7 +364,10 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Build BM25 index from scratch."""
+            """Rebuild BM25 index, skipping rebuild when data is unchanged."""
+            if self._casebase is not None and dict(data) == self._casebase:
+                return
+
             self._casebase = dict(data)
             self._retriever = self._build_retriever(data)
 
@@ -628,11 +631,37 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Overwrite LanceDB table with new data."""
-            rows = self._build_rows(data)
-            table = self._db.create_table(self.table, rows, mode="overwrite")
-            self._setup_indices(table)
-            self._table = table
+            """Rebuild LanceDB table, reusing existing rows where possible."""
+            if not data or self._table is None:
+                rows = self._build_rows(data)
+                table = self._db.create_table(self.table, rows, mode="overwrite")
+                self._setup_indices(table)
+                self._table = table
+                return
+
+            existing = self.index
+            new_keys = set(data.keys())
+            old_keys = set(existing.keys())
+
+            stale_keys = old_keys - new_keys
+            changed_or_new: Casebase[K, str] = {
+                k: data[k]
+                for k in new_keys
+                if k not in existing or existing[k] != data[k]
+            }
+
+            if not stale_keys and not changed_or_new:
+                return
+
+            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & old_keys)
+            if keys_to_delete:
+                self.delete_index(keys_to_delete)
+
+            if changed_or_new:
+                rows = self._build_rows(changed_or_new)
+                self._table.add(rows)
+
+            self._setup_indices(self._table)
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
@@ -889,21 +918,43 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Create or overwrite a ChromaDB collection with new data."""
-            try:
-                self._client.delete_collection(self.collection)
-            except Exception:
-                pass
+            """Rebuild ChromaDB collection, reusing existing documents where possible."""
+            if self._collection is None:
+                collection = self._client.create_collection(
+                    name=self.collection,
+                    schema=self._build_schema(),
+                    embedding_function=self.embedding_func,
+                )
 
-            collection = self._client.create_collection(
-                name=self.collection,
-                schema=self._build_schema(),
-                embedding_function=self.embedding_func,
-            )
+                if data:
+                    ids, documents, metadatas = self._prepare_documents(data)
+                    collection.add(ids=ids, documents=documents, metadatas=metadatas)
 
-            ids, documents, metadatas = self._prepare_documents(data)
-            collection.add(ids=ids, documents=documents, metadatas=metadatas)
-            self._collection = collection
+                self._collection = collection
+                return
+
+            existing = self.index
+            new_keys = set(data.keys())
+            old_keys = set(existing.keys())
+
+            stale_keys = old_keys - new_keys
+            changed_or_new: Casebase[K, str] = {
+                k: data[k]
+                for k in new_keys
+                if k not in existing or existing[k] != data[k]
+            }
+
+            if not stale_keys and not changed_or_new:
+                return
+
+            if stale_keys:
+                self.delete_index(stale_keys)
+
+            if changed_or_new:
+                ids, documents, metadatas = self._prepare_documents(changed_or_new)
+                self._collection.upsert(
+                    ids=ids, documents=documents, metadatas=metadatas
+                )
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
