@@ -78,9 +78,7 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
 
         return [
             (casebase, sim_map)
-            for (casebase, _), sim_map in zip(
-                updated_batches, sim_maps, strict=True
-            )
+            for (casebase, _), sim_map in zip(updated_batches, sim_maps, strict=True)
         ]
 
 

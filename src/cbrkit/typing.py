@@ -88,29 +88,29 @@ class InternalFunc(ABC):
     pass
 
 
-class IndexableFunc[U, D = U, V = U](Protocol):
+class IndexableFunc[T, K = T, V = T](Protocol):
     """Supports pre-indexing data for efficient processing.
 
     Type Parameters:
-        U: The full index type (e.g., ``Casebase[K, V]``).
-        D: The keys/deletion identifier type (e.g., ``Collection[K]``).
+        T: The full index type (e.g., ``Casebase[K, V]``).
+        K: The keys type (e.g., ``Collection[K]``).
         V: The values type (e.g., ``Collection[V]``).
     """
 
     @property
-    def index(self) -> U: ...
+    def index(self) -> T: ...
 
     @property
-    def keys(self) -> D: ...
+    def keys(self) -> K: ...
 
     @property
     def values(self) -> V: ...
 
-    def create_index(self, data: U) -> None: ...
+    def create_index(self, data: T, /) -> None: ...
 
-    def update_index(self, data: U) -> None: ...
+    def update_index(self, data: T, /) -> None: ...
 
-    def delete_index(self, data: D) -> None: ...
+    def delete_index(self, keys: K, /) -> None: ...
 
 
 type Value[T] = T | StructuredValue[T]

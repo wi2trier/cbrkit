@@ -173,7 +173,10 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str], Collection[str], Collection[NumpyArray]]):
+class cache(
+    BatchConversionFunc[str, NumpyArray],
+    IndexableFunc[Collection[str], Collection[str], Collection[NumpyArray]],
+):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None

@@ -43,7 +43,9 @@ with optional_dependencies():
     import numpy as np
 
     @dataclass(slots=True)
-    class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]):
+    class lancedb[K: int | str](
+        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+    ):
         """LanceDB storage backend.
 
         Manages an embedded LanceDB database on disk.  Supports dense
@@ -233,13 +235,9 @@ with optional_dependencies():
             col = self.key_column
 
             if isinstance(sample, str):
-                predicate = (
-                    f"{col} IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
-                )
+                predicate = f"{col} IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
             else:
-                predicate = (
-                    f"{col} IN (" + ", ".join(str(k) for k in key_list) + ")"
-                )
+                predicate = f"{col} IN (" + ", ".join(str(k) for k in key_list) + ")"
 
             self._table.delete(predicate)
             self._setup_indices(self._table)
@@ -250,7 +248,9 @@ with optional_dependencies():
     from chromadb.api import ClientAPI
 
     @dataclass(slots=True)
-    class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]):
+    class chromadb[K: str](
+        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+    ):
         """ChromaDB storage backend.
 
         Manages a persistent ChromaDB collection.  Supports dense,
@@ -283,9 +283,7 @@ with optional_dependencies():
         metadata_func: Callable[[K, str], cdb.Metadata] | None = None
         sparse_key: str = "sparse_embedding"
         _client: ClientAPI = field(init=False, repr=False)
-        _collection: cdb.Collection | None = field(
-            default=None, init=False, repr=False
-        )
+        _collection: cdb.Collection | None = field(default=None, init=False, repr=False)
 
         def __post_init__(self) -> None:
             if self.index_type in ("dense", "hybrid") and self.embedding_func is None:
@@ -384,9 +382,7 @@ with optional_dependencies():
 
                 if data:
                     ids, documents, metadatas = self._prepare_documents(data)
-                    collection.add(
-                        ids=ids, documents=documents, metadatas=metadatas
-                    )
+                    collection.add(ids=ids, documents=documents, metadatas=metadatas)
 
                 self._collection = collection
                 return
@@ -422,9 +418,7 @@ with optional_dependencies():
                 return
 
             ids, documents, metadatas = self._prepare_documents(data)
-            self._collection.upsert(
-                ids=ids, documents=documents, metadatas=metadatas
-            )
+            self._collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
 
         @override
         def delete_index(self, data: Collection[K]) -> None:

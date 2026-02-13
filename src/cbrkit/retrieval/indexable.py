@@ -74,7 +74,8 @@ def _normalize_results[K](
 
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
-    RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+    RetrieverFunc[K, str, S],
+    IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
 ):
     """Embedding-based semantic retriever with indexing support.
 
@@ -116,7 +117,7 @@ class embed[K, S: Float](
         """Return the indexed keys."""
         if self._casebase is None:
             return []
-        return list(self._casebase.keys())
+        return self._casebase.keys()
 
     @property
     @override
@@ -124,7 +125,7 @@ class embed[K, S: Float](
         """Return the indexed values."""
         if self._casebase is None:
             return []
-        return list(self._casebase.values())
+        return self._casebase.values()
 
     @override
     def create_index(self, data: Casebase[K, str]) -> None:
@@ -210,7 +211,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class bm25[K](
-        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+        RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
     ):
         """BM25 retriever based on bm25s.
 
@@ -266,7 +268,7 @@ with optional_dependencies():
             """Return the indexed keys."""
             if self._casebase is None:
                 return []
-            return list(self._casebase.keys())
+            return self._casebase.keys()
 
         @property
         @override
@@ -826,7 +828,11 @@ with optional_dependencies():
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
             assert self.storage._collection is not None
 
-            n = self.limit if self.limit is not None else self.storage._collection.count()
+            n = (
+                self.limit
+                if self.limit is not None
+                else self.storage._collection.count()
+            )
 
             if n == 0:
                 return [({}, {}) for _ in queries]

@@ -30,13 +30,13 @@ class FakeIndexableRetriever(
     def keys(self) -> Collection[int]:
         if self._indexed_casebase is None:
             return []
-        return list(self._indexed_casebase.keys())
+        return self._indexed_casebase.keys()
 
     @property
     def values(self) -> Collection[str]:
         if self._indexed_casebase is None:
             return []
-        return list(self._indexed_casebase.values())
+        return self._indexed_casebase.values()
 
     def create_index(self, data: Mapping[int, str]) -> None:
         self._indexed_casebase = dict(data)

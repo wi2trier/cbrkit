@@ -1,5 +1,5 @@
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Literal, override
@@ -365,13 +365,13 @@ class persist[K, V, S: Float](
     """
 
     retriever_func: RetrieverFunc[K, V, S]
-    casebase: Casebase[K, V] = field(default_factory=dict, repr=False)
+    casebase: InitVar[Casebase[K, V]] = field(default_factory=dict)
     path: FilePath | None = None
 
     _casebase: dict[K, V] = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
-        if self.casebase and self.path is not None:
+    def __post_init__(self, casebase: Casebase[K, V]) -> None:
+        if casebase and self.path is not None:
             raise ValueError("Cannot specify both 'casebase' and 'path'")
 
         if self.path is not None:
@@ -381,7 +381,7 @@ class persist[K, V, S: Float](
                 self._casebase = dict(loaders.path(path))
                 return
 
-        self._casebase = dict(self.casebase)
+        self._casebase = dict(casebase)
 
     def _dump(self) -> None:
         if self.path is not None:
@@ -397,13 +397,13 @@ class persist[K, V, S: Float](
     @override
     def keys(self) -> Collection[K]:
         """Return the reference casebase keys."""
-        return list(self._casebase.keys())
+        return self._casebase.keys()
 
     @property
     @override
     def values(self) -> Collection[V]:
         """Return the reference casebase values."""
-        return list(self._casebase.values())
+        return self._casebase.values()
 
     @override
     def create_index(self, data: Casebase[K, V]) -> None:

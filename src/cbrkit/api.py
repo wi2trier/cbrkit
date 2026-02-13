@@ -46,9 +46,9 @@ loaded_revisers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc]
     load_callables(settings.reviser)
 )
 
-loaded_retainers: dict[
-    str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]
-] = load_callables(settings.retainer)
+loaded_retainers: dict[str, cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc]] = (
+    load_callables(settings.retainer)
+)
 
 loaded_synthesizers: dict[
     str, cbrkit.typing.MaybeFactory[cbrkit.typing.SynthesizerFunc]

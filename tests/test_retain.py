@@ -130,7 +130,7 @@ class FakeIndexableFunc(
     def keys(self) -> Collection[int]:
         if self._data is None:
             return []
-        return list(self._data.keys())
+        return self._data.keys()
 
     @property
     def values(self) -> Collection[str]:

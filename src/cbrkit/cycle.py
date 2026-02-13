@@ -67,9 +67,7 @@ def apply_batches[Q, C, V, S: Float](
     start_time = default_timer()
     retrieval_result = apply_retrieval_batches(batches, retrievers)
 
-    return _complete_cycle(
-        retrieval_result, reusers, revisers, retainers, start_time
-    )
+    return _complete_cycle(retrieval_result, reusers, revisers, retainers, start_time)
 
 
 def apply_queries[Q, C, V, S: Float](
@@ -96,9 +94,7 @@ def apply_queries[Q, C, V, S: Float](
     start_time = default_timer()
     retrieval_result = apply_retrieval_queries(casebase, queries, retrievers)
 
-    return _complete_cycle(
-        retrieval_result, reusers, revisers, retainers, start_time
-    )
+    return _complete_cycle(retrieval_result, reusers, revisers, retainers, start_time)
 
 
 def apply_query[K, V, S: Float](

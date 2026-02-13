@@ -26,10 +26,12 @@ from typing import Any, Coroutine, Literal, TypeIs, cast, override
 from pydantic import BaseModel, Field, create_model
 
 from .typing import (
+    AdaptationFunc,
     AnyConversionFunc,
     AnyNamedFunc,
     AnyPositionalFunc,
     AnySimFunc,
+    BatchAdaptationFunc,
     BatchConversionFunc,
     BatchNamedFunc,
     BatchPositionalFunc,
@@ -331,10 +333,7 @@ def dispatch_batches[K, V, R](
     ):
         return call_queries([query for _, query in batches], first_casebase)
 
-    return [
-        call_queries([query], casebase)[0]
-        for casebase, query in batches
-    ]
+    return [call_queries([query], casebase)[0] for casebase, query in batches]
 
 
 def dist2sim(distance: float) -> float:
@@ -553,7 +552,7 @@ def unbatchify_conversion[P, R](
 
 def batchify_adaptation[V](
     func: MaybeFactory[SimpleAdaptationFunc[V]],
-) -> "BatchAdaptationFunc[V]":
+) -> BatchAdaptationFunc[V]:
     """Normalizes an adaptation function to batch mode.
 
     Args:
@@ -567,7 +566,7 @@ def batchify_adaptation[V](
 
 def unbatchify_adaptation[V](
     func: MaybeFactory[SimpleAdaptationFunc[V]],
-) -> "AdaptationFunc[V]":
+) -> AdaptationFunc[V]:
     """Normalizes an adaptation function to single-item mode.
 
     Args:
