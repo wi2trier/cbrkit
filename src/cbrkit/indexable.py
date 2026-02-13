@@ -43,7 +43,7 @@ with optional_dependencies():
     import numpy as np
 
     @dataclass(slots=True)
-    class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
+    class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]):
         """LanceDB storage backend.
 
         Manages an embedded LanceDB database on disk.  Supports dense
@@ -146,6 +146,34 @@ with optional_dependencies():
             values = table.column(self.value_column).to_pylist()
             return dict(zip(keys, values, strict=True))
 
+        @property
+        @override
+        def keys(self) -> Collection[K]:
+            """Return just the keys from the LanceDB table."""
+            if self._table is None:
+                return []
+            return (
+                self._table.search()
+                .select([self.key_column])
+                .to_arrow()
+                .column(self.key_column)
+                .to_pylist()
+            )
+
+        @property
+        @override
+        def values(self) -> Collection[str]:
+            """Return just the values from the LanceDB table."""
+            if self._table is None:
+                return []
+            return (
+                self._table.search()
+                .select([self.value_column])
+                .to_arrow()
+                .column(self.value_column)
+                .to_pylist()
+            )
+
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
             """Rebuild LanceDB table, reusing existing rows where possible."""
@@ -222,7 +250,7 @@ with optional_dependencies():
     from chromadb.api import ClientAPI
 
     @dataclass(slots=True)
-    class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
+    class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]):
         """ChromaDB storage backend.
 
         Manages a persistent ChromaDB collection.  Supports dense,
@@ -327,6 +355,22 @@ with optional_dependencies():
             ids = result["ids"]
             docs = result["documents"] or []
             return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
+
+        @property
+        @override
+        def keys(self) -> Collection[K]:
+            """Return just the document IDs from the ChromaDB collection."""
+            if self._collection is None:
+                return []
+            return [cast(K, id_) for id_ in self._collection.get(include=[])["ids"]]
+
+        @property
+        @override
+        def values(self) -> Collection[str]:
+            """Return just the documents from the ChromaDB collection."""
+            if self._collection is None:
+                return []
+            return self._collection.get()["documents"] or []
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:

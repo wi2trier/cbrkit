@@ -14,7 +14,7 @@ def _custom_numeric_sim(x: float, y: float) -> float:
 
 class FakeIndexableRetriever(
     cbrkit.typing.RetrieverFunc[int, str, float],
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
+    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int], Collection[str]],
 ):
     def __init__(self) -> None:
         self._indexed_casebase: dict[int, str] | None = None
@@ -24,6 +24,18 @@ class FakeIndexableRetriever(
         if self._indexed_casebase is None:
             return {}
         return self._indexed_casebase
+
+    @property
+    def keys(self) -> Collection[int]:
+        if self._indexed_casebase is None:
+            return []
+        return list(self._indexed_casebase.keys())
+
+    @property
+    def values(self) -> Collection[str]:
+        if self._indexed_casebase is None:
+            return []
+        return list(self._indexed_casebase.values())
 
     def create_index(self, data: Mapping[int, str]) -> None:
         self._indexed_casebase = dict(data)

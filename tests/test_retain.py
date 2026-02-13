@@ -21,7 +21,7 @@ def test_retain_build():
     query = {"price": 10000, "year": 2010}
 
     storage_func = cbrkit.retain.static(
-        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        key_func=lambda keys: max(keys, default=-1) + 1,
         casebase=casebase,
     )
     retainer = cbrkit.retain.build(
@@ -47,7 +47,7 @@ def test_retain_dropout():
     query = {"price": 10000, "year": 2010}
 
     storage_func = cbrkit.retain.static(
-        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        key_func=lambda keys: max(keys, default=-1) + 1,
         casebase=casebase,
     )
     inner = cbrkit.retain.build(assess_func=SIM_FUNC, storage_func=storage_func)
@@ -93,7 +93,7 @@ def test_retain_full_cycle():
     reviser = cbrkit.revise.build(assess_func=SIM_FUNC)
 
     storage_func = cbrkit.retain.static(
-        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        key_func=lambda keys: max(keys, default=-1) + 1,
         casebase=casebase,
     )
     retainer = cbrkit.retain.build(
@@ -115,7 +115,7 @@ def test_retain_full_cycle():
 
 
 class FakeIndexableFunc(
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
+    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int], Collection[str]],
 ):
     def __init__(self) -> None:
         self._data: dict[int, str] | None = None
@@ -125,6 +125,18 @@ class FakeIndexableFunc(
         if self._data is None:
             return {}
         return self._data
+
+    @property
+    def keys(self) -> Collection[int]:
+        if self._data is None:
+            return []
+        return list(self._data.keys())
+
+    @property
+    def values(self) -> Collection[str]:
+        if self._data is None:
+            return []
+        return list(self._data.values())
 
     def create_index(self, data: Mapping[int, str]) -> None:
         self._data = dict(data)
@@ -148,7 +160,7 @@ def test_retain_indexable_storage():
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
         storage_func=cbrkit.retain.indexable(
-            key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+            key_func=lambda keys: max(keys, default=-1) + 1,
             indexable_func=fake,
         ),
     )
@@ -169,7 +181,7 @@ def test_retain_indexable_prepopulated():
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
         storage_func=cbrkit.retain.indexable(
-            key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+            key_func=lambda keys: max(keys, default=-1) + 1,
             indexable_func=fake,
         ),
     )

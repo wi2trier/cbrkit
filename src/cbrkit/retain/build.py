@@ -35,7 +35,7 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
         >>> retainer = build(
         ...     assess_func=cbrkit.sim.generic.equality(),
         ...     storage_func=cbrkit.retain.static(
-        ...         key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...         key_func=lambda keys: max(keys, default=-1) + 1,
         ...         casebase={},
         ...     ),
         ... )
@@ -103,7 +103,7 @@ class dropout[K, V, S: Float](RetainerFunc[K, V, S]):
         ...     retainer_func=cbrkit.retain.build(
         ...         assess_func=cbrkit.sim.generic.equality(),
         ...         storage_func=cbrkit.retain.static(
-        ...             key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...             key_func=lambda keys: max(keys, default=-1) + 1,
         ...             casebase={},
         ...         ),
         ...     ),

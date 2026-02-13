@@ -74,7 +74,7 @@ def _normalize_results[K](
 
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
-    RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str], Collection[K]]
+    RetrieverFunc[K, str, S], IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
 ):
     """Embedding-based semantic retriever with indexing support.
 
@@ -109,6 +109,22 @@ class embed[K, S: Float](
         if self._casebase is None:
             return {}
         return self._casebase
+
+    @property
+    @override
+    def keys(self) -> Collection[K]:
+        """Return the indexed keys."""
+        if self._casebase is None:
+            return []
+        return list(self._casebase.keys())
+
+    @property
+    @override
+    def values(self) -> Collection[str]:
+        """Return the indexed values."""
+        if self._casebase is None:
+            return []
+        return list(self._casebase.values())
 
     @override
     def create_index(self, data: Casebase[K, str]) -> None:
@@ -194,7 +210,7 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class bm25[K](
-        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str], Collection[K]]
+        RetrieverFunc[K, str, float], IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
     ):
         """BM25 retriever based on bm25s.
 
@@ -243,6 +259,22 @@ with optional_dependencies():
             if self._casebase is None:
                 return {}
             return self._casebase
+
+        @property
+        @override
+        def keys(self) -> Collection[K]:
+            """Return the indexed keys."""
+            if self._casebase is None:
+                return []
+            return list(self._casebase.keys())
+
+        @property
+        @override
+        def values(self) -> Collection[str]:
+            """Return the indexed values."""
+            if self._casebase is None:
+                return []
+            return list(self._casebase.values())
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
@@ -356,7 +388,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class lancedb[K: int | str](
         RetrieverFunc[K, str, float],
-        IndexableFunc[Casebase[K, str], Collection[K]],
+        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
     ):
         """Retriever wrapper for a LanceDB storage backend.
 
@@ -393,6 +425,18 @@ with optional_dependencies():
         def index(self) -> Casebase[K, str]:
             """Return the indexed casebase from the underlying storage."""
             return self.storage.index
+
+        @property
+        @override
+        def keys(self) -> Collection[K]:
+            """Return the indexed keys from the underlying storage."""
+            return self.storage.keys
+
+        @property
+        @override
+        def values(self) -> Collection[str]:
+            """Return the indexed values from the underlying storage."""
+            return self.storage.values
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
@@ -612,7 +656,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class chromadb[K: str](
         RetrieverFunc[K, str, float],
-        IndexableFunc[Casebase[K, str], Collection[K]],
+        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
     ):
         """Retriever wrapper for a ChromaDB storage backend.
 
@@ -649,6 +693,18 @@ with optional_dependencies():
         def index(self) -> Casebase[K, str]:
             """Return the indexed casebase from the underlying storage."""
             return self.storage.index
+
+        @property
+        @override
+        def keys(self) -> Collection[K]:
+            """Return the indexed keys from the underlying storage."""
+            return self.storage.keys
+
+        @property
+        @override
+        def values(self) -> Collection[str]:
+            """Return the indexed values from the underlying storage."""
+            return self.storage.values
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:

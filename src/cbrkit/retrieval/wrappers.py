@@ -306,7 +306,7 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
 @dataclass(slots=True)
 class stateful[K, V, S: Float](
     RetrieverFunc[K, V, S],
-    IndexableFunc[Casebase[K, V], Collection[K]],
+    IndexableFunc[Casebase[K, V], Collection[K], Collection[V]],
 ):
     """Retriever wrapper that adds indexable support via a reference casebase.
 
@@ -341,18 +341,34 @@ class stateful[K, V, S: Float](
         self._casebase = dict(self.casebase)
 
     @property
+    @override
     def index(self) -> Casebase[K, V]:
         """Return the reference casebase."""
         return self._casebase
 
+    @property
+    @override
+    def keys(self) -> Collection[K]:
+        """Return the reference casebase keys."""
+        return list(self._casebase.keys())
+
+    @property
+    @override
+    def values(self) -> Collection[V]:
+        """Return the reference casebase values."""
+        return list(self._casebase.values())
+
+    @override
     def create_index(self, data: Casebase[K, V]) -> None:
         """Replace the reference casebase."""
         self._casebase = dict(data)
 
+    @override
     def update_index(self, data: Casebase[K, V]) -> None:
         """Merge entries into the reference casebase."""
         self._casebase.update(data)
 
+    @override
     def delete_index(self, data: Collection[K]) -> None:
         """Remove entries from the reference casebase."""
         for key in data:

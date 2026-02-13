@@ -173,7 +173,7 @@ class build[V, S: Float](BatchSimFunc[V, S]):
 
 
 @dataclass(slots=True, init=False)
-class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]):
+class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str], Collection[str], Collection[NumpyArray]]):
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
@@ -241,6 +241,18 @@ class cache(BatchConversionFunc[str, NumpyArray], IndexableFunc[Collection[str]]
     def index(self) -> Collection[str]:
         """Return the indexed texts."""
         return self.store.keys()
+
+    @property
+    @override
+    def keys(self) -> Collection[str]:
+        """Return the indexed text keys."""
+        return self.store.keys()
+
+    @property
+    @override
+    def values(self) -> Collection[NumpyArray]:
+        """Return the cached embedding vectors."""
+        return self.store.values()
 
     @override
     def create_index(self, data: Collection[str]) -> None:

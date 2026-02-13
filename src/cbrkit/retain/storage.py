@@ -1,10 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from typing import Any, override
 
 from ..typing import Casebase, IndexableFunc, MapAdaptationFunc
 
-type KeyFunc[K, V] = Callable[[Casebase[K, V]], K]
+type KeyFunc[K] = Callable[[Collection[K]], K]
 
 __all__ = [
     "KeyFunc",
@@ -24,12 +24,12 @@ class static[K, V](MapAdaptationFunc[K, V]):
     Unlike ``indexable``, this does not maintain any internal state.
 
     Args:
-        key_func: Callable that generates a new key given a casebase.
+        key_func: Callable that generates a new key given a collection of keys.
         casebase: The full casebase used for key generation.
 
     Examples:
         >>> func = static(
-        ...     key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...     key_func=lambda keys: max(keys, default=-1) + 1,
         ...     casebase={0: "a", 1: "b", 2: "c"},
         ... )
         >>> result = func({1: "b"}, "d")
@@ -37,7 +37,7 @@ class static[K, V](MapAdaptationFunc[K, V]):
         True
     """
 
-    key_func: KeyFunc[K, V]
+    key_func: KeyFunc[K]
     casebase: Casebase[K, V] = field(repr=False)
 
     @override
@@ -50,7 +50,7 @@ class static[K, V](MapAdaptationFunc[K, V]):
         combined = dict(self.casebase)
 
         for value in casebase.values():
-            new_key = self.key_func(combined)
+            new_key = self.key_func(combined.keys())
             combined[new_key] = value
 
         return combined
@@ -61,20 +61,20 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
     """Storage function that keeps an IndexableFunc's index in sync.
 
     Adds the pipeline casebase values to the index with new keys
-    generated via ``key_func``, then rebuilds the index via
-    ``create_index``.
+    generated via ``key_func``, then updates the index via
+    ``update_index``.
 
-    Keys are generated from the current index contents (or an empty
-    dict when no index exists yet) to avoid collisions with existing
-    entries.
+    Only the keys are loaded from the index for key generation,
+    and only new entries are persisted via ``update_index``,
+    avoiding a full database round-trip.
 
     Note:
-        When combined with ``dropout``, the index is rebuilt before
+        When combined with ``dropout``, the index is updated before
         dropout filters cases.
         The index will be corrected on the next retain call.
 
     Args:
-        key_func: Callable that generates a new key given a casebase.
+        key_func: Callable that generates a new key given a collection of keys.
         indexable_func: The indexable function whose index will be kept in sync.
 
     Examples:
@@ -85,6 +85,12 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         ...     @property
         ...     def index(self):
         ...         return self._data
+        ...     @property
+        ...     def keys(self):
+        ...         return self._data.keys()
+        ...     @property
+        ...     def values(self):
+        ...         return self._data.values()
         ...     def create_index(self, data):
         ...         self._data = dict(data)
         ...     def update_index(self, data):
@@ -94,7 +100,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         ...             self._data.pop(k, None)
         >>> store = Store()
         >>> func = indexable(
-        ...     key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...     key_func=lambda keys: max(keys, default=-1) + 1,
         ...     indexable_func=store,
         ... )
         >>> result = func({0: "a", 1: "b"}, "c")
@@ -113,7 +119,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         True
     """
 
-    key_func: KeyFunc[K, V]
+    key_func: KeyFunc[K]
     indexable_func: IndexableFunc[Casebase[K, V], Any]
 
     @override
@@ -123,12 +129,15 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         query: V,
         /,
     ) -> Casebase[K, V]:
-        combined = dict(self.indexable_func.index or {})
+        existing_keys = set(self.indexable_func.keys)
+        new_entries: dict[K, V] = {}
 
         for value in casebase.values():
-            new_key = self.key_func(combined)
-            combined[new_key] = value
+            new_key = self.key_func(existing_keys)
+            existing_keys.add(new_key)
+            new_entries[new_key] = value
 
-        self.indexable_func.create_index(combined)
+        if new_entries:
+            self.indexable_func.update_index(new_entries)
 
-        return combined
+        return self.indexable_func.index
