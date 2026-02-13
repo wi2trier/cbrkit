@@ -72,35 +72,6 @@ def _normalize_results[K](
     return normalized
 
 
-class _StorageDelegator[K, _ST: IndexableFunc[Any, Any]](
-    IndexableFunc[Casebase[K, str], Collection[K]],
-):
-    """Mixin that forwards IndexableFunc methods to ``self.storage``."""
-
-    storage: _ST
-
-    @property
-    @override
-    def index(self) -> Casebase[K, str]:
-        """Return the indexed casebase from the underlying storage."""
-        return self.storage.index
-
-    @override
-    def create_index(self, data: Casebase[K, str]) -> None:
-        """Delegate to the underlying storage."""
-        self.storage.create_index(data)
-
-    @override
-    def update_index(self, data: Casebase[K, str]) -> None:
-        """Delegate to the underlying storage."""
-        self.storage.update_index(data)
-
-    @override
-    def delete_index(self, data: Collection[K]) -> None:
-        """Delegate to the underlying storage."""
-        self.storage.delete_index(data)
-
-
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
     RetrieverFunc[K, str, S],
@@ -387,7 +358,6 @@ with optional_dependencies():
     @dataclass(slots=True)
     class lancedb[K: int | str](
         RetrieverFunc[K, str, float],
-        _StorageDelegator[K, lancedb_storage[K]],
     ):
         """Retriever wrapper for a LanceDB storage backend.
 
@@ -618,7 +588,6 @@ with optional_dependencies():
     @dataclass(slots=True)
     class chromadb[K: str](
         RetrieverFunc[K, str, float],
-        _StorageDelegator[K, chromadb_storage[K]],
     ):
         """Retriever wrapper for a ChromaDB storage backend.
 
