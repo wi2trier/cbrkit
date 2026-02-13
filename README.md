@@ -333,9 +333,30 @@ cbrkit.sim.attribute_value(
 )
 ```
 
+## CBR Cycle Phases
+
+All four phases of the CBR cycle — retrieval, reuse, revise, and retain — follow the same unified protocol `CbrFunc` (defined in `cbrkit.typing`).
+Each phase function takes a casebase and a query, and returns an updated casebase together with a score map.
+The casebase in the output may differ from the input depending on the phase (e.g., adapted cases in reuse, newly stored cases in retain).
+The score map assigns a floating-point score to each case in the output casebase, with phase-specific semantics:
+
+- **Retrieval**: Similarity scores between cases and the query.
+- **Reuse**: Quality scores of adapted cases compared to the query.
+- **Revise**: Assessment scores evaluating solution correctness.
+- **Retain**: Fitness scores for retained cases.
+
+This uniform interface makes it easy to compose phases into pipelines and to swap implementations.
+The phase-specific type aliases `RetrieverFunc`, `ReuserFunc`, `ReviserFunc`, and `RetainerFunc` are provided for clarity but are structurally identical to `CbrFunc`.
+
+Each phase result has the following attributes:
+
+- `similarities`: A dictionary containing the scores for each case.
+- `ranking`: A list of case keys sorted by their score.
+- `casebase`: The casebase containing the output cases.
+
 ## Retrieval
 
-The final step is to retrieve cases based on the loaded queries.
+The first phase is to retrieve cases based on the loaded queries.
 The `cbrkit.retrieval` module provides utility functions for this purpose.
 You first build a retrieval pipeline by specifying a global similarity function and optionally a limit for the number of retrieved cases.
 
@@ -439,35 +460,94 @@ An overview of all available adaptation functions can be found in the [module do
 
 ## Reuse
 
-The reuse phase applies adaptation functions to retrieved cases. The `cbrkit.reuse` module provides utility functions for this purpose. You first build a reuse pipeline by specifying a global adaptation function:
+The reuse phase applies adaptation functions to retrieved cases and scores the adapted results.
+The `cbrkit.reuse` module provides utility functions for this purpose.
+You build a reuse pipeline by specifying an adaptation function and a similarity function:
 
 ```python
 reuser = cbrkit.reuse.build(
-    cbrkit.adapt.attribute_value(...),
+    adaptation_func=cbrkit.adapt.attribute_value(...),
+    similarity_func=cbrkit.sim.attribute_value(...),
 )
 ```
 
-This reuser can then be applied to the retrieval result to adapt cases based on a query:
+This reuser can then be applied to a retrieval result to adapt cases based on a query:
 
 ```python
-result = cbrkit.reuse.apply_query(retrieval_result, query, reuser)
+result = cbrkit.reuse.apply_result(retrieval_result, reuser)
 ```
 
-Our result has the following attributes:
-
-- `adaptations`: A dictionary containing the adapted values for each case.
-- `ranking`: A list of case indices matching the retrieval result.
-- `casebase`: The casebase containing only the adapted cases.
+As with all CBR phases, the result contains `similarities` (quality scores of adapted cases), `ranking`, and `casebase` (containing the adapted cases).
 
 Multiple reuse pipelines can be combined by passing them as a list or tuple:
 
 ```python
 reuser1 = cbrkit.reuse.build(...)
 reuser2 = cbrkit.reuse.build(...)
-result = cbrkit.reuse.apply_query(retrieval_result, query, (reuser1, reuser2))
+result = cbrkit.reuse.apply_result(retrieval_result, (reuser1, reuser2))
 ```
 
 The result structure follows the same pattern as the retrieval results with `final_step` and `steps` attributes.
+
+## Revise
+
+The revise phase assesses the quality of solutions produced by the reuse phase and optionally repairs them.
+The `cbrkit.revise` module provides utility functions for this purpose.
+You build a revise pipeline by specifying an assessment function and an optional repair function:
+
+```python
+reviser = cbrkit.revise.build(
+    assess_func=cbrkit.sim.attribute_value(...),
+    repair_func=some_adaptation_func,  # optional
+)
+```
+
+The reviser can be applied to a reuse result:
+
+```python
+result = cbrkit.revise.apply_result(reuse_result, reviser)
+```
+
+When a `repair_func` is provided, solutions are repaired before assessment.
+The result contains `similarities` with quality assessment scores for each case.
+
+## Retain
+
+The retain phase decides whether and how to integrate new cases into the casebase.
+The `cbrkit.retain` module provides utility functions for this purpose.
+You build a retain pipeline by specifying an assessment function and a storage function:
+
+```python
+retainer = cbrkit.retain.build(
+    assess_func=cbrkit.sim.generic.equality(),
+    storage_func=cbrkit.retain.auto_key(
+        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+    ),
+)
+```
+
+CBRkit provides several built-in storage functions:
+
+- `auto_key`: Generates a new key for the case based on the existing casebase.
+- `static`: Generates a key from a fixed reference casebase to avoid collisions.
+- `indexable`: Keeps an `IndexableFunc`'s index in sync with the casebase.
+
+You can filter retained cases based on their assessment scores using the `dropout` wrapper:
+
+```python
+retainer = cbrkit.retain.dropout(
+    retainer_func=cbrkit.retain.build(...),
+    min_similarity=0.5,
+)
+```
+
+The retainer can be applied to a revise result:
+
+```python
+result = cbrkit.retain.apply_result(revise_result, retainer)
+```
+
+The result contains `similarities` with fitness scores and `casebase` with the updated cases.
 
 ## Advanced Retrieval
 
