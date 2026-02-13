@@ -118,7 +118,7 @@ def concordances(
     # Later, we us the original similarities as their ordering corresponds to the qrel odering
     sorted_run = sorted(run.items(), key=lambda x: x[1], reverse=True)
     run_k = dict(sorted_run[: k if k > 0 else len(sorted_run)])
-    qrel_relevant = {k: v for k, v in qrel.items() if v >= relevance_level}
+    qrel_relevant = {doc: score for doc, score in qrel.items() if score >= relevance_level}
 
     keys = list(qrel_relevant.keys())
 
@@ -170,6 +170,14 @@ def correctness(
     k: int,
     relevance_level: int,
 ) -> float:
+    """Compute average pairwise ranking correctness over shared queries.
+
+    Examples:
+        >>> qrels = {"q": {"a": 3, "b": 2, "c": 1}}
+        >>> run = {"q": {"a": 0.9, "b": 0.5, "c": 0.1}}
+        >>> correctness(qrels, run, k=0, relevance_level=1)
+        1.0
+    """
     keys = set(qrels.keys()).intersection(set(run.keys()))
     scores = [
         _correctness_single(qrels[key], run[key], k, relevance_level) for key in keys
@@ -202,6 +210,14 @@ def completeness(
     k: int,
     relevance_level: int,
 ) -> float:
+    """Compute average pairwise ranking coverage over shared queries.
+
+    Examples:
+        >>> qrels = {"q": {"a": 3, "b": 2, "c": 1}}
+        >>> run = {"q": {"a": 0.9, "b": 0.5, "c": 0.1}}
+        >>> completeness(qrels, run, k=2, relevance_level=1)
+        0.3333333333333333
+    """
     keys = set(qrels.keys()).intersection(set(run.keys()))
     scores = [
         _completeness_single(qrels[key], run[key], k, relevance_level) for key in keys
@@ -219,6 +235,14 @@ def mean_score(
     k: int,
     relevance_level: int,
 ) -> float:
+    """Compute mean retrieval score over the top-k results for each query.
+
+    Examples:
+        >>> qrels = {"q": {"a": 3, "b": 2, "c": 1}}
+        >>> run = {"q": {"a": 0.9, "b": 0.5, "c": 0.1}}
+        >>> mean_score(qrels, run, k=2, relevance_level=1)
+        0.7
+    """
     keys = set(qrels.keys()).intersection(set(run.keys()))
 
     scores: list[float] = []
@@ -241,6 +265,22 @@ def kendall_tau(
     k: int,
     relevance_level: int,
 ) -> float:
+    """Compute average Kendall's tau between run and qrel-induced rankings.
+
+    For each shared query, only documents with relevance >= relevance_level
+    that also appear in the (optionally top-k filtered) run are considered.
+    Scipy's kendalltau is called directly on the paired qrel/run scores,
+    which naturally handles ties.
+
+    Examples:
+        >>> qrels = {"q": {"a": 3, "b": 2, "c": 1, "d": 0}}
+        >>> run_perfect = {"q": {"a": 0.99, "b": 0.66, "c": 0.33, "d": 0.01}}
+        >>> run_reverse = {"q": {"a": 0.01, "b": 0.33, "c": 0.66, "d": 0.99}}
+        >>> kendall_tau(qrels, run_perfect, k=0, relevance_level=1)
+        1.0
+        >>> kendall_tau(qrels, run_reverse, k=0, relevance_level=1)
+        -1.0
+    """
     from scipy.stats import kendalltau
 
     keys = set(qrels.keys()).intersection(set(run.keys()))
@@ -248,18 +288,23 @@ def kendall_tau(
     scores: list[float] = []
 
     for key in keys:
-        qrel_relevant = {k for k, v in qrels[key].items() if v >= relevance_level}
-        sorted_qrel_relevant = sorted(qrel_relevant, key=lambda x: qrels[key][x])
+        qrel_relevant = {
+            doc for doc, score in qrels[key].items() if score >= relevance_level
+        }
 
         sorted_run = sorted(run[key].keys(), key=lambda x: run[key][x], reverse=True)
-        run_k = sorted_run[: k if k > 0 else len(sorted_run)]
+        run_k = set(sorted_run[: k if k > 0 else len(sorted_run)])
 
-        max_idx = min(len(run_k), len(sorted_qrel_relevant))
-        run_ranking = sorted_run[:max_idx]
-        qrel_ranking = sorted_qrel_relevant[:max_idx]
-        score = kendalltau(run_ranking, qrel_ranking)  # pyright: ignore[reportArgumentType]
+        common_docs = list(qrel_relevant & run_k)
 
-        scores.append(score.statistic)
+        if len(common_docs) < 2:
+            continue
+
+        qrel_scores = [qrels[key][doc] for doc in common_docs]
+        run_scores = [run[key][doc] for doc in common_docs]
+        score = kendalltau(qrel_scores, run_scores)
+
+        scores.append(float(score.statistic))
 
     try:
         return statistics.mean(scores)
