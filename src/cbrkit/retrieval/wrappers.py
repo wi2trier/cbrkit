@@ -325,7 +325,7 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
 @dataclass(slots=True)
 class persist[K, V, S: Float](
     RetrieverFunc[K, V, S],
-    IndexableFunc[Casebase[K, V], Collection[K], Collection[V]],
+    IndexableFunc[Casebase[K, V], Collection[K]],
 ):
     """Retriever wrapper with indexable support and optional file persistence.
 
@@ -399,18 +399,6 @@ class persist[K, V, S: Float](
     def index(self) -> Casebase[K, V]:
         """Return the reference casebase."""
         return self._casebase
-
-    @property
-    @override
-    def keys(self) -> Collection[K]:
-        """Return the reference casebase keys."""
-        return self._casebase.keys()
-
-    @property
-    @override
-    def values(self) -> Collection[V]:
-        """Return the reference casebase values."""
-        return self._casebase.values()
 
     @override
     def create_index(self, data: Casebase[K, V]) -> None:

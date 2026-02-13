@@ -88,23 +88,16 @@ class InternalFunc(ABC):
     pass
 
 
-class IndexableFunc[T, K = T, V = T](Protocol):
+class IndexableFunc[T, K = T](Protocol):
     """Supports pre-indexing data for efficient processing.
 
     Type Parameters:
         T: The full index type (e.g., ``Casebase[K, V]``).
-        K: The keys type (e.g., ``Collection[K]``).
-        V: The values type (e.g., ``Collection[V]``).
+        K: The keys/delete type (e.g., ``Collection[K]``).
     """
 
     @property
     def index(self) -> T: ...
-
-    @property
-    def keys(self) -> K: ...
-
-    @property
-    def values(self) -> V: ...
 
     def create_index(self, data: T, /) -> None: ...
 

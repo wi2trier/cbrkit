@@ -115,7 +115,7 @@ def test_retain_full_cycle():
 
 
 class FakeIndexableFunc(
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int], Collection[str]],
+    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
 ):
     def __init__(self) -> None:
         self._data: dict[int, str] | None = None
@@ -125,18 +125,6 @@ class FakeIndexableFunc(
         if self._data is None:
             return {}
         return self._data
-
-    @property
-    def keys(self) -> Collection[int]:
-        if self._data is None:
-            return []
-        return self._data.keys()
-
-    @property
-    def values(self) -> Collection[str]:
-        if self._data is None:
-            return []
-        return list(self._data.values())
 
     def create_index(self, data: Mapping[int, str]) -> None:
         self._data = dict(data)
