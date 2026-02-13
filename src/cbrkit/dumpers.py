@@ -215,15 +215,17 @@ def path(
 ) -> None:
     """Writes arbitrary data to a file or directory.
 
-    If the data is a mapping, it will be written to a directory.
-    Otherwise, it will be written to a file.
+    If the path has a known file extension, data is written as a single
+    file.  Otherwise it is written as a directory of files.
 
     Args:
-        data: Data to write to the file or directory.
         path: Path of the output file or directory.
+        data: Data to write.
     """
+    if isinstance(path, str):
+        path = Path(path)
 
-    if isinstance(data, Mapping):
-        directory(path, data)
-    else:
+    if path.suffix in dumpers:
         file(path, data)
+    else:
+        directory(path, data)

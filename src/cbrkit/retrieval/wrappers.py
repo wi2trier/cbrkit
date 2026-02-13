@@ -1,8 +1,10 @@
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from multiprocessing.pool import Pool
+from pathlib import Path
 from typing import Literal, override
 
+from .. import dumpers, loaders
 from ..helpers import (
     get_logger,
     get_value,
@@ -16,6 +18,7 @@ from ..typing import (
     AggregatorFunc,
     Casebase,
     ConversionFunc,
+    FilePath,
     Float,
     IndexableFunc,
     RetrieverFunc,
@@ -25,6 +28,15 @@ from ..typing import (
 from .indexable import resolve_casebases
 
 logger = get_logger(__name__)
+
+__all__ = [
+    "combine",
+    "distribute",
+    "dropout",
+    "persist",
+    "transpose",
+    "transpose_value",
+]
 
 
 @dataclass(slots=True, frozen=True)
@@ -304,41 +316,76 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
 
 
 @dataclass(slots=True)
-class stateful[K, V, S: Float](
+class persist[K, V, S: Float](
     RetrieverFunc[K, V, S],
     IndexableFunc[Casebase[K, V], Collection[K], Collection[V]],
 ):
-    """Retriever wrapper that adds indexable support via a reference casebase.
+    """Retriever wrapper with indexable support and optional file persistence.
 
     Wraps a non-indexable retriever and holds a reference to a full
     casebase.  When called with an empty casebase, the stored reference
     is used instead (indexed retrieval mode).  The reference can be
     managed through the ``IndexableFunc`` methods.
 
+    If a path is provided, the casebase is loaded from disk on
+    initialization (when the path exists) and automatically saved back
+    on every index mutation.  The path may point to a single file or a
+    directory of files.  The format is auto-detected from the file
+    extension.  Supported formats: ``.json``, ``.yaml``, ``.yml``,
+    ``.toml``, ``.csv``, ``.txt``.
+
     Args:
         retriever_func: The inner retriever function.
         casebase: The initial reference casebase.
+            Mutually exclusive with ``path``.
+        path: Optional file or directory path for persistence.
+            Mutually exclusive with ``casebase``.
 
     Examples:
-        >>> from cbrkit.retrieval import build, stateful
+        In-memory usage:
+
+        >>> from cbrkit.retrieval import build, persist
         >>> from cbrkit.sim.generic import equality
         >>> cb = {0: "a", 1: "b", 2: "c"}
-        >>> retriever = stateful(
+        >>> retriever = persist(
         ...     retriever_func=build(equality()),
         ...     casebase=cb,
         ... )
         >>> results = retriever([(dict(), "a")])
         >>> sorted(results[0][1].keys())
         [0, 1, 2]
+
+        File-based persistence (auto-saved on every mutation):
+
+        >>> retriever = persist(
+        ...     retriever_func=build(equality()),
+        ...     path="casebase.json",
+        ... )  # doctest: +SKIP
+        >>> retriever.update_index({0: "a", 1: "b"})  # doctest: +SKIP
     """
 
     retriever_func: RetrieverFunc[K, V, S]
-    casebase: Casebase[K, V] = field(repr=False)
+    casebase: Casebase[K, V] = field(default_factory=dict, repr=False)
+    path: FilePath | None = None
 
     _casebase: dict[K, V] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self.casebase and self.path is not None:
+            raise ValueError("Cannot specify both 'casebase' and 'path'")
+
+        if self.path is not None:
+            path = Path(self.path) if isinstance(self.path, str) else self.path
+
+            if path.exists():
+                self._casebase = dict(loaders.path(path))
+                return
+
         self._casebase = dict(self.casebase)
+
+    def _dump(self) -> None:
+        if self.path is not None:
+            dumpers.path(self.path, self._casebase)
 
     @property
     @override
@@ -362,17 +409,20 @@ class stateful[K, V, S: Float](
     def create_index(self, data: Casebase[K, V]) -> None:
         """Replace the reference casebase."""
         self._casebase = dict(data)
+        self._dump()
 
     @override
     def update_index(self, data: Casebase[K, V]) -> None:
         """Merge entries into the reference casebase."""
         self._casebase.update(data)
+        self._dump()
 
     @override
     def delete_index(self, data: Collection[K]) -> None:
         """Remove entries from the reference casebase."""
         for key in data:
             self._casebase.pop(key, None)
+        self._dump()
 
     @override
     def __call__(

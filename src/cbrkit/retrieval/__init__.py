@@ -9,7 +9,7 @@ from .apply import (
 )
 from .build import build
 from .indexable import embed
-from .wrappers import combine, distribute, dropout, stateful, transpose, transpose_value
+from .wrappers import combine, distribute, dropout, persist, transpose, transpose_value
 
 with optional_dependencies():
     from .wrappers import chunk
@@ -55,5 +55,5 @@ __all__ = [
     "chromadb",
     "embed",
     "lancedb",
-    "stateful",
+    "persist",
 ]
