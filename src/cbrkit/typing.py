@@ -24,6 +24,7 @@ __all__ = [
     "BatchPositionalFunc",
     "BatchSimFunc",
     "Casebase",
+    "CbrFunc",
     "ConversionFunc",
     "EvalMetricFunc",
     "Factory",
@@ -202,14 +203,28 @@ class BatchSimFunc[V, S: Float = float](Protocol):
 type AnySimFunc[V, S: Float = float] = SimFunc[V, S] | BatchSimFunc[V, S]
 
 
-class RetrieverFunc[K, V, S: Float = float](Protocol):
-    """Retrieves similar cases from casebases for given queries."""
+class CbrFunc[K, V, S: Float = float](Protocol):
+    """Unified protocol for all CBR cycle phases.
+
+    Each phase function takes a sequence of (casebase, query) batches
+    and returns a sequence of (casebase, score_map) results.
+    The casebase in the output may differ from the input depending on the
+    phase (e.g., adapted cases in reuse, newly stored cases in retain).
+    The score map assigns a floating-point score to each case in the output
+    casebase, with phase-specific semantics.
+    """
 
     def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+
+
+class RetrieverFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
+    """Retrieves similar cases from casebases for given queries."""
+
+    ...
 
 
 class AdaptationFunc[V](Protocol):
@@ -262,34 +277,22 @@ type ComplexAdaptationFunc[K, V] = MapAdaptationFunc[K, V] | ReduceAdaptationFun
 type AnyAdaptationFunc[K, V] = SimpleAdaptationFunc[V] | ComplexAdaptationFunc[K, V]
 
 
-class ReuserFunc[K, V, S: Float = float](Protocol):
+class ReuserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Reuses cases by adapting and computing similarities for queries."""
 
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-        /,
-    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+    ...
 
 
-class ReviserFunc[K, V, S: Float = float](Protocol):
+class ReviserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Revises solutions by assessing quality and optionally repairing them."""
 
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-        /,
-    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+    ...
 
 
-class RetainerFunc[K, V, S: Float = float](Protocol):
+class RetainerFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retains cases in the casebase."""
 
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-        /,
-    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]: ...
+    ...
 
 
 class AggregatorFunc[K, S: Float = float](Protocol):
