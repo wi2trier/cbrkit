@@ -62,7 +62,7 @@ with optional_dependencies():
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
-                output_format=self.response_type
+                output_format=self.response_type  # type: ignore[arg-type]
                 if issubclass(self.response_type, BaseModel)
                 else omit,
             )
@@ -84,8 +84,8 @@ with optional_dependencies():
                 and issubclass(self.response_type, str)
                 and len(res.content) > 0
             ):
-                aggregated_content = "".join(
-                    block.text for block in res.content if block.type == "text"
+                aggregated_content = "".join(  # type: ignore[arg-type]
+                    block.text for block in res.content if hasattr(block, "text")
                 )
                 return Response(cast(R, aggregated_content), usage)
 

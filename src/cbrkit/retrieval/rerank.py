@@ -164,7 +164,7 @@ with optional_dependencies():
                 return []
 
             if isinstance(self.model, str):
-                model = SentenceTransformer(self.model, device=self.device)  # pyright: ignore
+                model = SentenceTransformer(self.model, device=self.device)
             else:
                 model = self.model
 
@@ -211,7 +211,7 @@ with optional_dependencies():
 
             return [
                 {
-                    key_index[cast(int, res["corpus_id"])]: cast(float, res["score"])
+                    key_index[cast(int, res["corpus_id"])]: float(res["score"])
                     for res in query_response
                 }
                 for query_response in response

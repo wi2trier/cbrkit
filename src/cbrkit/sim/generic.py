@@ -1,6 +1,6 @@
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, cast, override
 
 from ..helpers import get_metadata, unbatchify_sim
 from ..typing import (
@@ -70,15 +70,16 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
         self.symmetric = symmetric
         self.table = {}
 
-        if isinstance(default, Callable):
-            self.default = unbatchify_sim(default)
-        elif default is None:
+        if default is None:
             self.default = None
+        elif isinstance(default, Callable):
+            self.default = unbatchify_sim(cast(AnySimFunc[V | Any, float], default))
         else:
             self.default = static(default)
 
         if isinstance(entries, Mapping):
-            for (x, y), val in entries.items():
+            entry_map = cast(Mapping[tuple[V, V], float], entries)
+            for (x, y), val in entry_map.items():
                 self.table[(x, y)] = val
 
                 if self.symmetric:

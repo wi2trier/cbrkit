@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, ReadOnly, Self, TypedDict, cast
+from typing import Any, Literal, ReadOnly, Self, TypedDict
 
 from frozendict import frozendict
 from pydantic import BaseModel

@@ -2,7 +2,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import InitVar, dataclass, field
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Literal, override
+from typing import Literal, cast, override
 
 from ..dumpers import path as _dump_path
 from ..loaders import path as _load_path
@@ -181,31 +181,13 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
     def __call__(
         self, batches: Sequence[tuple[Casebase[K, V], V]]
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, float]]]:
-        if isinstance(self.retriever_funcs, Sequence):
-            func_results = [
-                retriever_func(batches) for retriever_func in self.retriever_funcs
-            ]
-            results: list[tuple[Casebase[K, V], SimMap[K, float]]] = []
-
-            for batch_idx in range(len(batches)):
-                combined_sim = self.__call_batch__(
-                    [batch_results[batch_idx][1] for batch_results in func_results]
-                )
-                result_casebase = self._resolve_batch_casebase(
-                    batches[batch_idx][0],
-                    combined_sim,
-                    [batch_results[batch_idx][0] for batch_results in func_results],
-                )
-                results.append((result_casebase, combined_sim))
-
-            return results
-
-        elif isinstance(self.retriever_funcs, Mapping):
+        if isinstance(self.retriever_funcs, Mapping):
+            funcs_map = cast(Mapping[str, RetrieverFunc[K, V, S]], self.retriever_funcs)
             named_results = {
                 func_key: retriever_func(batches)
-                for func_key, retriever_func in self.retriever_funcs.items()
+                for func_key, retriever_func in funcs_map.items()
             }
-            results = []
+            results: list[tuple[Casebase[K, V], SimMap[K, float]]] = []
 
             for batch_idx in range(len(batches)):
                 combined_sim = self.__call_batch__(
@@ -221,6 +203,24 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
                         func_results[batch_idx][0]
                         for func_results in named_results.values()
                     ],
+                )
+                results.append((result_casebase, combined_sim))
+
+            return results
+
+        elif isinstance(self.retriever_funcs, Sequence):
+            funcs_seq = cast(Sequence[RetrieverFunc[K, V, S]], self.retriever_funcs)
+            func_results = [retriever_func(batches) for retriever_func in funcs_seq]
+            results = []
+
+            for batch_idx in range(len(batches)):
+                combined_sim = self.__call_batch__(
+                    [batch_results[batch_idx][1] for batch_results in func_results]
+                )
+                result_casebase = self._resolve_batch_casebase(
+                    batches[batch_idx][0],
+                    combined_sim,
+                    [batch_results[batch_idx][0] for batch_results in func_results],
                 )
                 results.append((result_casebase, combined_sim))
 
@@ -249,28 +249,16 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
     ) -> SimMap[K, float]:
         case_keys: set[K]
 
-        if isinstance(results, Sequence):
-            if self.strategy == "intersection":
-                case_keys = set().intersection(*(result.keys() for result in results))
-            elif self.strategy == "union":
-                case_keys = set().union(*(result.keys() for result in results))
-            else:
-                raise ValueError(f"Unknown strategy: {self.strategy}")
-
-            return {
-                case_key: self.aggregator(
-                    [result.get(case_key, self.default_sim) for result in results]
-                )
-                for case_key in case_keys
-            }
-
-        elif isinstance(results, Mapping):
+        if isinstance(results, Mapping):
+            results_map = cast(Mapping[str, SimMap[K, S]], results)
             if self.strategy == "intersection":
                 case_keys = set().intersection(
-                    *(result.keys() for result in results.values())
+                    *(result.keys() for result in results_map.values())
                 )
             elif self.strategy == "union":
-                case_keys = set().union(*(result.keys() for result in results.values()))
+                case_keys = set().union(
+                    *(result.keys() for result in results_map.values())
+                )
             else:
                 raise ValueError(f"Unknown strategy: {self.strategy}")
 
@@ -278,8 +266,26 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
                 case_key: self.aggregator(
                     {
                         func_key: result.get(case_key, self.default_sim)
-                        for func_key, result in results.items()
+                        for func_key, result in results_map.items()
                     }
+                )
+                for case_key in case_keys
+            }
+
+        elif isinstance(results, Sequence):
+            results_seq = cast(Sequence[SimMap[K, S]], results)
+            if self.strategy == "intersection":
+                case_keys = set().intersection(
+                    *(result.keys() for result in results_seq)
+                )
+            elif self.strategy == "union":
+                case_keys = set().union(*(result.keys() for result in results_seq))
+            else:
+                raise ValueError(f"Unknown strategy: {self.strategy}")
+
+            return {
+                case_key: self.aggregator(
+                    [result.get(case_key, self.default_sim) for result in results_seq]
                 )
                 for case_key in case_keys
             }

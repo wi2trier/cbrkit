@@ -1,6 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import Literal, cast, override
 
 from ..helpers import unbatchify_adaptation, unbatchify_sim, unpack_float
 from ..typing import (
@@ -54,7 +54,9 @@ class pipe[V](AdaptationFunc[V]):
             current_similarity = similarity_func(current_case, query)
 
         for func in functions:
-            adapted_case = unbatchify_adaptation(func)(current_case, query)
+            adapted_case = unbatchify_adaptation(cast(SimpleAdaptationFunc[V], func))(
+                current_case, query
+            )
 
             if similarity_func is not None and current_similarity is not None:
                 adapted_similarity = similarity_func(current_case, adapted_case)

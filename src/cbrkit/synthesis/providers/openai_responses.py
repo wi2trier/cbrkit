@@ -125,7 +125,7 @@ with optional_dependencies():
                     top_logprobs=if_given(self.top_logprobs),
                     top_p=if_given(self.top_p),
                     text=text_param,
-                    text_format=text_format,
+                    text_format=text_format,  # type: ignore[arg-type]
                     extra_headers=self.extra_headers,
                     extra_query=self.extra_query,
                     extra_body=self.extra_body,
@@ -143,8 +143,8 @@ with optional_dependencies():
                 )
 
             for output in res.output:
-                if output.type == "message":
-                    for content in output.content:
+                if hasattr(output, "content") and output.content is not None:
+                    for content in output.content:  # type: ignore[union-attr]
                         if content.type == "refusal":
                             raise ValueError("Refusal", res)
 

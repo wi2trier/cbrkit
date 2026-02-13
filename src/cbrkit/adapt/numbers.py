@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import override
+from typing import cast, override
 
 from ..sim.aggregator import PoolingName, pooling_funcs
 from ..typing import AdaptationFunc, PoolingFunc
@@ -32,14 +32,14 @@ class aggregate(AdaptationFunc[Number]):
         20.0
     """
 
-    pooling: PoolingName | PoolingFunc = "mean"
+    pooling: PoolingName | PoolingFunc[Number] = "mean"
     case_factor: Number = 1.0
     query_factor: Number = 1.0
 
     @override
     def __call__(self, case: Number, query: Number) -> float:
-        pooling_func = (
-            pooling_funcs[self.pooling]
+        pooling_func: PoolingFunc[Number] = (
+            pooling_funcs[cast(PoolingName, self.pooling)]
             if isinstance(self.pooling, str)
             else self.pooling
         )

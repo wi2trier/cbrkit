@@ -119,7 +119,7 @@ with optional_dependencies():
             return self.similarity(
                 x,
                 y,
-                node_mapping,
+                node_mapping,  # type: ignore[arg-type]
                 edge_mapping,
                 node_pair_sims,
                 edge_pair_sims,

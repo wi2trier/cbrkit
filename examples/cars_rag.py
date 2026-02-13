@@ -31,7 +31,7 @@ class Response(BaseModel):
 
 
 synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.pydantic_ai(
+    cbrkit.synthesis.providers.pydantic_ai(  # type: ignore[arg-type]
         Agent(
             OpenAIChatModel("gpt-5.1-codex"),
             output_type=str,

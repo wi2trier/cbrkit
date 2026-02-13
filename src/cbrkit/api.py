@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -57,7 +57,7 @@ loaded_synthesizers: dict[
 
 def parse_dataset(obj: CasebaseSpec) -> Mapping[str, Any]:
     if isinstance(obj, dict):
-        return obj
+        return cast(dict[str, Any], obj)
 
     data: Mapping[Any, Any] = {}
 
@@ -185,4 +185,4 @@ def openapi_generator():
     return app.openapi_schema
 
 
-app.openapi = openapi_generator
+app.openapi = openapi_generator  # type: ignore[assignment]

@@ -141,7 +141,6 @@ class Taxonomy:
 TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
 
 
-@dataclass(slots=True, frozen=True)
 class TaxonomySimFunc(Protocol):
     def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float: ...
 

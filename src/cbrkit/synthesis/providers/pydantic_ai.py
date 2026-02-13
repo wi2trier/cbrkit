@@ -31,16 +31,12 @@ with optional_dependencies():
             user_prompt: str | Sequence[UserContent] | None = None
             message_history: Sequence[ModelMessage] | None = None
 
-            if isinstance(prompt, str) or all(
-                isinstance(msg, UserContent) for msg in prompt
-            ):
-                user_prompt = cast(str | Sequence[UserContent], prompt)
-            if all(isinstance(msg, ModelRequest | ModelResponse) for msg in prompt):
+            if isinstance(prompt, str):
+                user_prompt = prompt
+            elif all(isinstance(msg, (ModelRequest, ModelResponse)) for msg in prompt):
                 message_history = cast(Sequence[ModelMessage], prompt)
             else:
-                raise ValueError(
-                    "Prompt must be a string, a sequence of UserContent, or a sequence of ModelMessage."
-                )
+                user_prompt = cast(Sequence[UserContent], prompt)
 
             response: AgentRunResult[R] | None = None
 

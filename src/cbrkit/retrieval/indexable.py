@@ -136,7 +136,7 @@ class embed[K, S: Float](
     def __init__(
         self,
         conversion_func: cache,
-        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,
+        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,  # type: ignore[assignment]
         query_conversion_func: cache | None = None,
     ):
         self.conversion_func = conversion_func
@@ -248,7 +248,7 @@ class embed[K, S: Float](
 with optional_dependencies():
     import bm25s
     import numpy as np
-    import Stemmer
+    import Stemmer  # type: ignore[import-untyped]
 
     @dataclass(slots=True)
     class bm25[K](

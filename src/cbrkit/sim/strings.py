@@ -4,7 +4,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import override
+from typing import cast, override
 
 from ..helpers import optional_dependencies
 from ..typing import FilePath, JsonDict, SimFunc
@@ -77,8 +77,9 @@ class table(static_table[str]):
                 parsed_entries = entries
             else:
                 if isinstance(entries, Mapping):
+                    entry_map = cast(Mapping[tuple[str, str], float], entries)
                     parsed_entries = {
-                        (k[0].lower(), k[1].lower()): v for k, v in entries.items()
+                        (k[0].lower(), k[1].lower()): v for k, v in entry_map.items()
                     }
                 else:
                     parsed_entries = [(x.lower(), y.lower(), z) for x, y, z in entries]

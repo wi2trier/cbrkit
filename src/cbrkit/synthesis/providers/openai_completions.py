@@ -94,7 +94,7 @@ with optional_dependencies():
                 res = await self.client.beta.chat.completions.parse(
                     model=self.model,
                     messages=messages,
-                    response_format=self.response_type
+                    response_format=self.response_type  # type: ignore[arg-type]
                     if tools is None and issubclass(self.response_type, BaseModel)
                     else omit,
                     tools=if_given(tools),

@@ -128,7 +128,7 @@ def run_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
 
     if loop is not None and loop.is_running():
         with ThreadPoolExecutor(max_workers=1) as executor:
-            return executor.submit(asyncio.run, coro).result()
+            return cast(T, executor.submit(asyncio.run, coro).result())
 
     return asyncio.run(coro)
 
@@ -240,9 +240,9 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
         raise ValueError(f"Expected exactly one element, but got {len(x)}")
 
     if isinstance(x, Mapping):
-        return next(iter(x.values()))
+        return cast(T, next(iter(x.values())))
     elif isinstance(x, Collection):
-        return next(iter(x))
+        return cast(T, next(iter(x)))
 
     raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
 
@@ -366,8 +366,11 @@ def total_params(func: Callable) -> int:
 
 
 def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
+    if isinstance(obj, str):
+        return cast(list[T], [obj])
+
     if isinstance(obj, Sequence):
-        return list(obj)
+        return cast(list[T], list(obj))
 
     return [obj]
 
@@ -385,7 +388,7 @@ def produce_factory[T](obj: MaybeFactory[T]) -> T:
 
 def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
     if isinstance(obj, Sequence):
-        return [produce_factory(item) for item in obj]
+        return cast(list[T], [produce_factory(item) for item in obj])
 
     return [produce_factory(obj)]
 
@@ -728,8 +731,9 @@ def load_callables(
     import_names: MaybeSequence[str],
 ) -> list[Callable]:
     functions: list[Callable] = []
+    names = [import_names] if isinstance(import_names, str) else list(import_names)
 
-    for import_name in produce_sequence(import_names):
+    for import_name in names:
         obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
@@ -745,8 +749,9 @@ def load_callables_map(
     import_names: MaybeSequence[str],
 ) -> dict[str, Callable]:
     functions: dict[str, Callable] = {}
+    names = [import_names] if isinstance(import_names, str) else list(import_names)
 
-    for import_name in produce_sequence(import_names):
+    for import_name in names:
         obj = load_object(import_name)
 
         if isinstance(obj, Mapping):
@@ -786,7 +791,7 @@ def mp_count(pool_or_processes: Pool | int | bool) -> int:
     elif isinstance(pool_or_processes, int):
         return pool_or_processes
     elif isinstance(pool_or_processes, Pool):
-        return pool_or_processes._processes  # pyright: ignore[reportAttributeAccessIssue]
+        return pool_or_processes._processes  # type: ignore[unresolved-attribute]
 
     return os.cpu_count() or 1
 
@@ -926,7 +931,7 @@ def callable2model(
         )
         fields[param.name] = (field_type, field_config)
 
-    return create_model(func.__name__, **fields)
+    return create_model(get_name(func), **fields)
 
 
 with optional_dependencies():

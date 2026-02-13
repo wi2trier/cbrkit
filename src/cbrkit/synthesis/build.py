@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import Literal, cast, override
 
 from ..helpers import (
     batchify_conversion,
@@ -53,7 +53,15 @@ class chunks[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
             for casebase, query, similarities in batches
         ]
 
-        results_per_batch = chain_map_chunks(chunked_batches, self.synthesis_func)
+        results_per_batch = chain_map_chunks(
+            chunked_batches,
+            cast(
+                AnyConversionFunc[
+                    tuple[Casebase[K, V], V | None, SimMap[K, S] | None], R2
+                ],
+                self.synthesis_func,
+            ),
+        )
 
         return conversion_func(results_per_batch)
 

@@ -86,7 +86,7 @@ class System[
         query: V,
         *,
         casebase: CasebaseSpec[K, V] = None,
-        config: R1 = None,
+        config: R1 | None = None,
     ) -> QueryResultStep[K, V, S]:
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")
@@ -102,7 +102,7 @@ class System[
         query: V,
         *,
         casebase: CasebaseSpec[K, V] = None,
-        config: R2 = None,
+        config: R2 | None = None,
     ) -> QueryResultStep[K, V, S]:
         if not self.reuser_factory:
             raise ValueError("Reuser factory is not defined.")
@@ -118,7 +118,7 @@ class System[
         query: V,
         *,
         casebase: CasebaseSpec[K, V] = None,
-        config: R3 = None,
+        config: R3 | None = None,
     ) -> QueryResultStep[K, V, S]:
         """Revise solutions by assessing quality and optionally repairing them.
 
@@ -144,7 +144,7 @@ class System[
         query: V,
         *,
         casebase: CasebaseSpec[K, V] = None,
-        config: R4 = None,
+        config: R4 | None = None,
     ) -> QueryResultStep[K, V, S]:
         """Retain cases in the casebase.
 
@@ -170,10 +170,10 @@ class System[
         query: V,
         *,
         casebase: CasebaseSpec[K, V] = None,
-        retriever_config: R1 = None,
-        reuser_config: R2 = None,
-        reviser_config: R3 = None,
-        retainer_config: R4 = None,
+        retriever_config: R1 | None = None,
+        reuser_config: R2 | None = None,
+        reviser_config: R3 | None = None,
+        retainer_config: R4 | None = None,
     ) -> QueryResultStep[K, V, S]:
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")

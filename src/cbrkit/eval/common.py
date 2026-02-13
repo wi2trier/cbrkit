@@ -257,7 +257,7 @@ def kendall_tau(
         max_idx = min(len(run_k), len(sorted_qrel_relevant))
         run_ranking = sorted_run[:max_idx]
         qrel_ranking = sorted_qrel_relevant[:max_idx]
-        score: Any = kendalltau(run_ranking, qrel_ranking)  # pyright: ignore
+        score: Any = kendalltau(run_ranking, qrel_ranking)
 
         scores.append(score.statistic)
 

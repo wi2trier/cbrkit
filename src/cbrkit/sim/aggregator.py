@@ -1,6 +1,6 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import override
+from typing import cast, override
 
 from ..helpers import unpack_float
 from ..typing import (
@@ -47,7 +47,7 @@ class aggregator[K](AggregatorFunc[K, Float]):
     @override
     def __call__(self, similarities: SimMap[K, Float] | SimSeq[Float]) -> float:
         pooling_func = (
-            pooling_funcs[self.pooling]
+            pooling_funcs[cast(PoolingName, self.pooling)]
             if isinstance(self.pooling, str)
             else self.pooling
         )
@@ -61,14 +61,15 @@ class aggregator[K](AggregatorFunc[K, Float]):
         if isinstance(similarities, Mapping) and isinstance(
             self.pooling_weights, Mapping
         ):
+            sim_map = cast(SimMap[K, Float], similarities)
+            weight_map = cast(SimMap[K, float], self.pooling_weights)
             sims = [
-                unpack_float(sim)
-                * self.pooling_weights.get(key, self.default_pooling_weight)
-                for key, sim in similarities.items()
+                unpack_float(sim) * weight_map.get(key, self.default_pooling_weight)
+                for key, sim in sim_map.items()
             ]
-            pooling_factor = len(similarities) / sum(
-                self.pooling_weights.get(key, self.default_pooling_weight)
-                for key in similarities.keys()
+            pooling_factor = len(sim_map) / sum(
+                weight_map.get(key, self.default_pooling_weight)
+                for key in sim_map.keys()
             )
         elif isinstance(similarities, Sequence) and isinstance(
             self.pooling_weights, Sequence
@@ -79,9 +80,11 @@ class aggregator[K](AggregatorFunc[K, Float]):
             ]
             pooling_factor = len(similarities) / sum(self.pooling_weights)
         elif isinstance(similarities, Sequence) and self.pooling_weights is None:
-            sims = [unpack_float(s) for s in similarities]
+            sim_seq = cast(SimSeq[Float], similarities)
+            sims = [unpack_float(s) for s in sim_seq]
         elif isinstance(similarities, Mapping) and self.pooling_weights is None:
-            sims = [unpack_float(s) for s in similarities.values()]
+            sim_map = cast(SimMap[K, Float], similarities)
+            sims = [unpack_float(s) for s in sim_map.values()]
         else:
             raise NotImplementedError()
 

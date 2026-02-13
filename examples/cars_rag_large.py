@@ -31,7 +31,7 @@ provider = cbrkit.synthesis.providers.pydantic_ai(
     deps=None,
 )
 synthesizer = cbrkit.synthesis.build(
-    provider,
+    provider,  # type: ignore[arg-type]
     prompt,
 )
 queries = [casebase[i] for i in range(2)]
@@ -49,7 +49,7 @@ batches = [
 pooling_prompt = cbrkit.synthesis.prompts.pooling(
     "Which of the following cars is the best replacement for the queried cars?"
 )
-pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)
+pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)  # type: ignore[arg-type]
 get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, size=10)
 response = get_result(batches)
 print("Response:")

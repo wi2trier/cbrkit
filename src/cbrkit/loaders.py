@@ -48,7 +48,7 @@ def read(data: ReadableType) -> str:
     elif isinstance(data, bytes | bytearray):
         return data.decode("utf-8")
 
-    return read(data.read())  # pyright: ignore
+    return read(data.read())
 
 
 with optional_dependencies():
@@ -64,7 +64,7 @@ with optional_dependencies():
             if isinstance(key, str):
                 return cast(pd.Series, self.df.loc[key])
 
-            return cast(pd.Series, self.df.iloc[key])
+            return self.df.iloc[key]
 
         def __iter__(self) -> Iterator[int]:
             return iter(range(self.df.shape[0]))
@@ -107,7 +107,7 @@ class csv(ConversionFunc[Iterable[str] | ReadableType, dict[int, dict[str, str]]
         if isinstance(source, ReadableType):
             source = read(source).splitlines()
 
-        reader = csvlib.DictReader(source)  # pyright: ignore
+        reader = csvlib.DictReader(source)
         data: dict[int, dict[str, str]] = {}
         row: dict[str, str]
 

@@ -82,31 +82,22 @@ class combine[V, S: Float](BatchSimFunc[V, float]):
     def __post_init__(
         self, sim_funcs: Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]
     ):
-        if isinstance(sim_funcs, Sequence):
-            self.batch_sim_funcs = [batchify_sim(func) for func in sim_funcs]
-        elif isinstance(sim_funcs, Mapping):
+        if isinstance(sim_funcs, Mapping):
+            funcs_map = cast(Mapping[str, AnySimFunc[V, S]], sim_funcs)
             self.batch_sim_funcs = {
-                key: batchify_sim(func) for key, func in sim_funcs.items()
+                key: batchify_sim(func) for key, func in funcs_map.items()
             }
+        elif isinstance(sim_funcs, Sequence):
+            self.batch_sim_funcs = [batchify_sim(func) for func in sim_funcs]
         else:
             raise ValueError(f"Invalid sim_funcs type: {type(sim_funcs)}")
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[float]:
-        if isinstance(self.batch_sim_funcs, Sequence):
-            func_results = [func(batches) for func in self.batch_sim_funcs]
-
-            return [
-                self.aggregator(
-                    [batch_results[batch_idx] for batch_results in func_results]
-                )
-                for batch_idx in range(len(batches))
-            ]
-
-        elif isinstance(self.batch_sim_funcs, Mapping):
+        if isinstance(self.batch_sim_funcs, Mapping):
+            funcs_map = cast(Mapping[str, BatchSimFunc[V, S]], self.batch_sim_funcs)
             func_results = {
-                func_key: func(batches)
-                for func_key, func in self.batch_sim_funcs.items()
+                func_key: func(batches) for func_key, func in funcs_map.items()
             }
 
             return [
@@ -115,6 +106,16 @@ class combine[V, S: Float](BatchSimFunc[V, float]):
                         func_key: batch_results[batch_idx]
                         for func_key, batch_results in func_results.items()
                     }
+                )
+                for batch_idx in range(len(batches))
+            ]
+
+        elif isinstance(self.batch_sim_funcs, Sequence):
+            func_results = [func(batches) for func in self.batch_sim_funcs]
+
+            return [
+                self.aggregator(
+                    [batch_results[batch_idx] for batch_results in func_results]
                 )
                 for batch_idx in range(len(batches))
             ]
@@ -221,12 +222,12 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
         self.key_getter = key_getter
         self.table = {}
 
-        if isinstance(default, Callable):
-            self.default = batchify_sim(default)
-        elif default is None:
+        if default is None:
             self.default = None
+        elif isinstance(default, Callable):
+            self.default = batchify_sim(cast(AnySimFunc[U, S], default))
         else:
-            self.default = batchify_sim(static(default))
+            self.default = batchify_sim(static(cast(S, default)))
 
         for key, val in entries.items():
             func = batchify_sim(val)
@@ -287,7 +288,7 @@ def type_table[U, V, S: Float](
     default: AnySimFunc[U, S] | S | None = None,
 ) -> BatchSimFunc[U | V, S]:
     return dynamic_table(
-        entries=entries,
+        entries=cast(Mapping[type, AnySimFunc[..., S]], entries),
         key_getter=type,
         default=default,
         symmetric=False,
