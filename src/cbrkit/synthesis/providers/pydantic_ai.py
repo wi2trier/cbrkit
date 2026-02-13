@@ -2,10 +2,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast, override
 
-from cbrkit import helpers
-from cbrkit.typing import MaybeSequence
-
-from ...helpers import get_logger, optional_dependencies
+from ...helpers import get_logger, optional_dependencies, produce_sequence
+from ...typing import MaybeSequence
 from .model import AsyncProvider
 
 logger = get_logger(__name__)
@@ -28,7 +26,7 @@ with optional_dependencies():
 
         @override
         async def __call_batch__(self, prompt: PydanticAiPrompt) -> AgentRunResult[R]:
-            agents = helpers.produce_sequence(self.agents)
+            agents = produce_sequence(self.agents)
 
             user_prompt: str | Sequence[UserContent] | None = None
             message_history: Sequence[ModelMessage] | None = None

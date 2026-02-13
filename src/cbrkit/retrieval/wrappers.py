@@ -4,7 +4,8 @@ from multiprocessing.pool import Pool
 from pathlib import Path
 from typing import Literal, override
 
-from .. import dumpers, loaders
+from ..dumpers import path as _dump_path
+from ..loaders import path as _load_path
 from ..helpers import (
     get_logger,
     get_value,
@@ -365,12 +366,12 @@ class persist[K, V, S: Float](
     """
 
     retriever_func: RetrieverFunc[K, V, S]
-    casebase: InitVar[Casebase[K, V]] = field(default_factory=dict)
+    casebase: InitVar[Casebase[K, V] | None] = None
     path: FilePath | None = None
 
     _casebase: dict[K, V] = field(init=False, repr=False)
 
-    def __post_init__(self, casebase: Casebase[K, V]) -> None:
+    def __post_init__(self, casebase: Casebase[K, V] | None) -> None:
         if casebase and self.path is not None:
             raise ValueError("Cannot specify both 'casebase' and 'path'")
 
@@ -378,14 +379,14 @@ class persist[K, V, S: Float](
             path = Path(self.path) if isinstance(self.path, str) else self.path
 
             if path.exists():
-                self._casebase = dict(loaders.path(path))
+                self._casebase = dict(_load_path(path))
                 return
 
-        self._casebase = dict(casebase)
+        self._casebase = dict(casebase) if casebase else {}
 
     def _dump(self) -> None:
         if self.path is not None:
-            dumpers.path(self.path, self._casebase)
+            _dump_path(self.path, self._casebase)
 
     @property
     @override

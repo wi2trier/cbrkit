@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, ReadOnly, Self, TypedDict
+from typing import Any, Literal, ReadOnly, Self, TypedDict, cast
 
 from frozendict import frozendict
 from pydantic import BaseModel
@@ -340,10 +340,12 @@ with optional_dependencies():
             (
                 edge.source.key,
                 edge.target.key,
-                NetworkxEdge(
-                    key=edge.key,
-                    value=edge.value,
-                    obj=edge,
+                dict(
+                    NetworkxEdge(
+                        key=edge.key,
+                        value=edge.value,
+                        obj=edge,
+                    )
                 ),
             )
             for edge in g.edges.values()

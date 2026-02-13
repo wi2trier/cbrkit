@@ -384,6 +384,7 @@ with optional_dependencies():
             task: TaskID | None = field(default=None, init=False)
 
             def __enter__(self):
+                super().__enter__()
                 self.progress.start()
                 return self
 
@@ -473,7 +474,7 @@ with optional_dependencies():
             with self.model.select_pipes(enable=[]):
                 docs_iterator = self.model.pipe(texts)
 
-            return [cast(NumpyArray, doc.vector) for doc in docs_iterator]
+            return [np.asarray(doc.vector, dtype=np.float64) for doc in docs_iterator]
 
 
 with optional_dependencies():

@@ -154,7 +154,7 @@ def synthesis(
         casebase, queries, retrievers, reusers, revisers, retainers
     )
     synthesis_result = cbrkit.synthesis.apply_result(
-        cycle_result.final_step, synthesis_func
+        cycle_result.retain, synthesis_func
     )
 
     if output_path:

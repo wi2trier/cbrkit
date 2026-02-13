@@ -120,7 +120,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
     """
 
     key_func: KeyFunc[K]
-    indexable_func: IndexableFunc[Casebase[K, V], Any]
+    indexable_func: IndexableFunc[Casebase[K, V], Any, Any]
 
     @override
     def __call__(

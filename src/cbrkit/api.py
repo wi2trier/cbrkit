@@ -167,7 +167,7 @@ def synthesize(
     )
 
     return cbrkit.synthesis.apply_result(
-        cycle_result.final_step,
+        cycle_result.retain,
         loaded_synthesizers[request.synthesizer],
     )
 

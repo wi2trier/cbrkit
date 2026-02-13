@@ -234,7 +234,7 @@ class lap[K, N, E, G](
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
 
         node_mapping = frozendict(
-            (row2y[r], col2x[c])
+            (row2y[int(r)], col2x[int(c)])
             for r, c in zip(row_idx, col_idx, strict=True)
             # only consider substitutions
             if cost_matrix[r, c] < np.inf and r in row2y and c in col2x

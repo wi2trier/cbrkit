@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from functools import partial
-from typing import cast, override
+from typing import Any, cast, override
 from uuid import uuid1
 
-from cbrkit import helpers
-from cbrkit.typing import MaybeSequence
-
-from ...helpers import get_logger, optional_dependencies
+from ...helpers import get_logger, optional_dependencies, produce_sequence
+from ...typing import MaybeSequence
 from .model import AsyncProvider
 
 logger = get_logger(__name__)
@@ -39,14 +37,14 @@ with optional_dependencies():
 
         @override
         async def __call_batch__(self, prompt: OpenaiAgentsPrompt) -> TypedRunResult[R]:
-            agents = helpers.produce_sequence(self.agents)
+            agents = produce_sequence(self.agents)
 
             if not agents:
                 raise ValueError("No agents given.")
 
             head_agent, *tail_agents = agents
 
-            session = SQLiteSession(uuid1().hex) if len(agents) > 1 else None
+            session: Any = SQLiteSession(uuid1().hex) if len(agents) > 1 else None
 
             run = partial(
                 Runner.run,

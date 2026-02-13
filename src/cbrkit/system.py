@@ -4,9 +4,22 @@ from typing import cast
 
 from pydantic import BaseModel
 
-import cbrkit
-from cbrkit.helpers import produce_factory
-from cbrkit.typing import Float, MaybeFactories, MaybeFactory
+from .cycle import apply_query as _cycle_apply_query
+from .helpers import produce_factory
+from .model.result import QueryResultStep
+from .retain import apply_query as _retain_apply_query
+from .retrieval import apply_query as _retrieval_apply_query
+from .reuse import apply_query as _reuse_apply_query
+from .revise import apply_query as _revise_apply_query
+from .typing import (
+    Float,
+    MaybeFactories,
+    MaybeFactory,
+    RetainerFunc,
+    RetrieverFunc,
+    ReuserFunc,
+    ReviserFunc,
+)
 
 __all__ = [
     "System",
@@ -30,28 +43,28 @@ class System[
     retriever_factory: (
         Callable[
             [R1],
-            MaybeFactories[cbrkit.typing.RetrieverFunc[K, V, S]],
+            MaybeFactories[RetrieverFunc[K, V, S]],
         ]
         | None
     ) = None
     reuser_factory: (
         Callable[
             [R2],
-            MaybeFactories[cbrkit.typing.ReuserFunc[K, V, S]],
+            MaybeFactories[ReuserFunc[K, V, S]],
         ]
         | None
     ) = None
     reviser_factory: (
         Callable[
             [R3],
-            MaybeFactories[cbrkit.typing.ReviserFunc[K, V, S]],
+            MaybeFactories[ReviserFunc[K, V, S]],
         ]
         | None
     ) = None
     retainer_factory: (
         Callable[
             [R4],
-            MaybeFactories[cbrkit.typing.RetainerFunc[K, V, S]],
+            MaybeFactories[RetainerFunc[K, V, S]],
         ]
         | None
     ) = None
@@ -74,11 +87,11 @@ class System[
         *,
         casebase: CasebaseSpec[K, V] = None,
         config: R1 = None,
-    ) -> cbrkit.model.QueryResultStep[K, V, S]:
+    ) -> QueryResultStep[K, V, S]:
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")
 
-        return cbrkit.retrieval.apply_query(
+        return _retrieval_apply_query(
             self._load_casebase(casebase),
             query,
             self.retriever_factory(config),
@@ -90,11 +103,11 @@ class System[
         *,
         casebase: CasebaseSpec[K, V] = None,
         config: R2 = None,
-    ) -> cbrkit.model.QueryResultStep[K, V, S]:
+    ) -> QueryResultStep[K, V, S]:
         if not self.reuser_factory:
             raise ValueError("Reuser factory is not defined.")
 
-        return cbrkit.reuse.apply_query(
+        return _reuse_apply_query(
             self._load_casebase(casebase),
             query,
             self.reuser_factory(config),
@@ -106,7 +119,7 @@ class System[
         *,
         casebase: CasebaseSpec[K, V] = None,
         config: R3 = None,
-    ) -> cbrkit.model.QueryResultStep[K, V, S]:
+    ) -> QueryResultStep[K, V, S]:
         """Revise solutions by assessing quality and optionally repairing them.
 
         Args:
@@ -120,7 +133,7 @@ class System[
         if not self.reviser_factory:
             raise ValueError("Reviser factory is not defined.")
 
-        return cbrkit.revise.apply_query(
+        return _revise_apply_query(
             self._load_casebase(casebase),
             query,
             self.reviser_factory(config),
@@ -132,7 +145,7 @@ class System[
         *,
         casebase: CasebaseSpec[K, V] = None,
         config: R4 = None,
-    ) -> cbrkit.model.QueryResultStep[K, V, S]:
+    ) -> QueryResultStep[K, V, S]:
         """Retain cases in the casebase.
 
         Args:
@@ -146,7 +159,7 @@ class System[
         if not self.retainer_factory:
             raise ValueError("Retainer factory is not defined.")
 
-        return cbrkit.retain.apply_query(
+        return _retain_apply_query(
             self._load_casebase(casebase),
             query,
             self.retainer_factory(config),
@@ -161,18 +174,21 @@ class System[
         reuser_config: R2 = None,
         reviser_config: R3 = None,
         retainer_config: R4 = None,
-    ) -> cbrkit.model.QueryResultStep[K, V, S]:
+    ) -> QueryResultStep[K, V, S]:
+        if not self.retriever_factory:
+            raise ValueError("Retriever factory is not defined.")
+
         reusers = self.reuser_factory(reuser_config) if self.reuser_factory else []
         revisers = self.reviser_factory(reviser_config) if self.reviser_factory else []
         retainers = (
             self.retainer_factory(retainer_config) if self.retainer_factory else []
         )
 
-        return cbrkit.cycle.apply_query(
+        return _cycle_apply_query(
             self._load_casebase(casebase),
             query,
             self.retriever_factory(retriever_config),
             reusers,
             revisers,
             retainers,
-        ).final_step.default_query
+        ).retain.final_step.default_query

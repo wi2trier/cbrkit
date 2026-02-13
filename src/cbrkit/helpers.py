@@ -733,8 +733,8 @@ def load_callables(
         obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
-            assert all(isinstance(func, Callable) for func in functions)
-            functions.extend(obj)
+            assert all(isinstance(func, Callable) for func in obj)
+            functions.extend(cast(Sequence[Callable], obj))
         elif isinstance(obj, Callable):
             functions.append(obj)
 
@@ -786,7 +786,7 @@ def mp_count(pool_or_processes: Pool | int | bool) -> int:
     elif isinstance(pool_or_processes, int):
         return pool_or_processes
     elif isinstance(pool_or_processes, Pool):
-        return pool_or_processes._processes  # type: ignore
+        return pool_or_processes._processes  # pyright: ignore[reportAttributeAccessIssue]
 
     return os.cpu_count() or 1
 

@@ -1,8 +1,8 @@
 from collections.abc import Mapping
 from timeit import default_timer
 
-from .. import model
 from ..helpers import get_logger, get_metadata, produce_factory
+from ..model.result import Result as _PhaseResult, ResultStep as _PhaseResultStep
 from ..typing import Casebase, Float, MaybeFactory, SynthesizerFunc
 from .model import QueryResultStep, Result, ResultStep
 
@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 
 def apply_result[R, Q, C, V, S: Float](
-    result: model.Result[Q, C, V, S] | model.ResultStep[Q, C, V, S],
+    result: _PhaseResult[Q, C, V, S] | _PhaseResultStep[Q, C, V, S],
     synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
     return apply_batches(
