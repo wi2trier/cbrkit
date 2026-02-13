@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
@@ -51,143 +50,26 @@ def resolve_casebases[K, V](
     ]
 
 
-class _DatabaseRetriever[K](
-    RetrieverFunc[K, str, float],
-    IndexableFunc[Casebase[K, str], Collection[K]],
-    ABC,
-):
-    """Base class for database-backed retrievers.
+def _normalize_results[K](
+    results: Sequence[tuple[Casebase[K, str], SimMap[K, float]]],
+    enabled: bool,
+) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+    """Apply per-query min-max normalization if enabled."""
+    if not enabled:
+        return results
 
-    Subclasses are dataclasses that provide fields and override abstract
-    methods.  This class supplies ``__call__``, dispatch logic, and
-    brute-force dense vector search.
-    """
+    normalized: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
-    # Annotations only — actual fields provided by dataclass subclasses.
-    search_type: Literal["dense", "sparse", "hybrid"]
-    normalize_scores: bool
+    for cb, sm in results:
+        if not sm:
+            normalized.append((cb, sm))
+            continue
 
-    # -- concrete helpers --------------------------------------------------
+        mn = min(sm.values())
+        mx = max(sm.values())
+        normalized.append((cb, {k: normalize(v, mn, mx) for k, v in sm.items()}))
 
-    @override
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if not batches:
-            return []
-
-        return dispatch_batches(batches, self._dispatch)
-
-    def _dispatch(
-        self,
-        queries: Sequence[str],
-        casebase: Casebase[K, str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if len(casebase) == 0:
-            if not self._has_index():
-                raise ValueError(
-                    "Indexed retrieval was requested with an empty casebase, "
-                    "but no index is available. Call create_index() first."
-                )
-
-            return self._search_db(queries)
-
-        return self._search_brute(queries, casebase)
-
-    def _search_brute(
-        self,
-        queries: Sequence[str],
-        casebase: Casebase[K, str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        """Brute-force search fallback for non-indexed casebases.
-
-        Subclasses that support brute-force search should override this.
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not support brute-force search. "
-            "Call create_index() first."
-        )
-
-    # -- DB search dispatch + normalization --------------------------------
-
-    def _normalize_results(
-        self,
-        results: Sequence[tuple[Casebase[K, str], SimMap[K, float]]],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        """Apply per-query min-max normalization if enabled."""
-        if not self.normalize_scores:
-            return results
-
-        normalized: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
-
-        for cb, sm in results:
-            if not sm:
-                normalized.append((cb, sm))
-                continue
-
-            mn = min(sm.values())
-            mx = max(sm.values())
-            normalized.append((cb, {k: normalize(v, mn, mx) for k, v in sm.items()}))
-
-        return normalized
-
-    def _search_db(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        """Dispatch to the appropriate search method and normalize scores."""
-        match self.search_type:
-            case "dense":
-                results = self._search_db_dense(queries)
-            case "sparse":
-                results = self._search_db_sparse(queries)
-            case "hybrid":
-                results = self._search_db_hybrid(queries)
-
-        return self._normalize_results(results)
-
-    def _search_db_dense(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        raise NotImplementedError(
-            f"{type(self).__name__} does not support dense search"
-        )
-
-    def _search_db_sparse(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        raise NotImplementedError(
-            f"{type(self).__name__} does not support sparse search"
-        )
-
-    def _search_db_hybrid(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        raise NotImplementedError(
-            f"{type(self).__name__} does not support hybrid search"
-        )
-
-    # -- abstract interface ------------------------------------------------
-
-    @abstractmethod
-    def _has_index(self) -> bool: ...
-
-    @property
-    @abstractmethod
-    def index(self) -> Casebase[K, str]: ...
-
-    @abstractmethod
-    def create_index(self, data: Casebase[K, str]) -> None: ...
-
-    @abstractmethod
-    def update_index(self, data: Casebase[K, str]) -> None: ...
-
-    @abstractmethod
-    def delete_index(self, data: Collection[K]) -> None: ...
+    return normalized
 
 
 @dataclass(slots=True, init=False)
@@ -467,151 +349,140 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    import lancedb as ldb
     import numpy as np
 
-    @dataclass(slots=True)
-    class lancedb[K: int | str](_DatabaseRetriever[K]):
-        """Vector database-backed retriever using LanceDB.
+    from ..indexable import lancedb as lancedb_storage
 
-        Delegates storage and search to an embedded LanceDB database,
-        keeping data on disk instead of in process memory.
-        Supports dense (ANN), sparse (FTS/BM25), and hybrid search.
+    @dataclass(slots=True)
+    class lancedb[K: int | str](
+        RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
+    ):
+        """Retriever wrapper for a LanceDB storage backend.
+
+        Delegates storage to a :class:`~cbrkit.indexable.lancedb` instance
+        and performs search queries against it.  Multiple retriever
+        instances can share the same storage to query with different
+        search types.
 
         Args:
-            uri: Path to the LanceDB database directory.
-            table: Table name within the database.
+            storage: LanceDB storage instance.
             search_type: Search mode — ``"dense"`` (ANN), ``"sparse"``
                 (BM25), or ``"hybrid"`` (dense + sparse combined).
-            conversion_func: Embedding function. Required for ``"dense"``
-                and ``"hybrid"`` search types.
             query_conversion_func: Optional separate embedding function
-                for queries.
+                for queries.  Falls back to the storage's
+                ``conversion_func``.
             limit: Maximum number of results to return per query.
-                Caps the database-level search to improve performance on
-                large tables. ``None`` (default) returns all rows.
-            key_column: Column name for case keys.
-            value_column: Column name for case text values.
-            vector_column: Column name for dense embedding vectors.
-            metadata_func: Optional callable that produces extra columns
-                for each row. Called with ``(key, value)`` and must return
-                a dict mapping column names to values.
+                ``None`` (default) returns all rows.
             where: Optional SQL filter expression applied during every
                 search query (e.g. ``"category = 'A'"``).
             normalize_scores: Apply per-query min-max normalization.
-
-        Pass an empty casebase to ``__call__`` to use the indexed database
-        state. If a table with the given name already exists at ``uri``,
-        it is opened automatically on init and can be queried immediately.
         """
 
-        uri: str
-        table: str
+        storage: lancedb_storage[K]
         search_type: Literal["dense", "sparse", "hybrid"] = "dense"
-        conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         limit: int | None = None
-        key_column: str = "key"
-        value_column: str = "value"
-        vector_column: str = "vector"
-        metadata_func: Callable[[K, str], dict[str, Any]] | None = None
         where: str | None = None
         normalize_scores: bool = True
-        _db: ldb.DBConnection = field(init=False, repr=False)
-        _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
-        def __post_init__(self) -> None:
-            if self.search_type in ("dense", "hybrid") and self.conversion_func is None:
-                raise ValueError(
-                    f"conversion_func is required for search_type={self.search_type!r}"
-                )
+        # -- IndexableFunc delegation ------------------------------------------
 
-            self._db = ldb.connect(self.uri)
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase from the underlying storage."""
+            return self.storage.index
 
-            if self.table in self._db.list_tables().tables:
-                self._table = self._db.open_table(self.table)
+        @override
+        def create_index(self, data: Casebase[K, str]) -> None:
+            """Delegate to the underlying storage."""
+            self.storage.create_index(data)
+
+        @override
+        def update_index(self, data: Casebase[K, str]) -> None:
+            """Delegate to the underlying storage."""
+            self.storage.update_index(data)
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            """Delegate to the underlying storage."""
+            self.storage.delete_index(data)
+
+        # -- RetrieverFunc -----------------------------------------------------
+
+        @override
+        def __call__(
+            self,
+            batches: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if not batches:
+                return []
+
+            return dispatch_batches(batches, self._dispatch)
+
+        def _dispatch(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if len(casebase) == 0:
+                if not self.storage.has_index():
+                    raise ValueError(
+                        "Indexed retrieval was requested with an empty casebase, "
+                        "but no index is available. Call create_index() first."
+                    )
+
+                return self._search_db(queries)
+
+            return self._search_brute(queries, casebase)
+
+        # -- search helpers ----------------------------------------------------
 
         def _search_limit(self) -> int | None:
-            """Return the effective search limit, or ``None`` for unlimited."""
-            if self._table is None:
-                return self.limit
+            """Return the effective search limit."""
+            n = self.storage.search_limit()
 
-            n = self._table.count_rows()
+            if n is None:
+                return self.limit
 
             if self.limit is not None:
                 return min(self.limit, n)
 
             return n
 
-        def _build_rows(self, casebase: Casebase[K, str]) -> list[dict[str, Any]]:
-            """Build row dicts for LanceDB from a casebase."""
-            keys = list(casebase.keys())
-            values = list(casebase.values())
+        def _hits_to_result(
+            self,
+            hits: list[dict[str, Any]],
+            score_key: str,
+        ) -> tuple[Casebase[K, str], SimMap[K, float]]:
+            """Convert LanceDB hit dicts to a (casebase, score_map) pair."""
+            kc = self.storage.key_column
+            vc = self.storage.value_column
+            return (
+                {hit[kc]: hit[vc] for hit in hits},
+                {hit[kc]: float(hit[score_key]) for hit in hits},
+            )
 
-            if self.search_type == "sparse":
-                rows = [
-                    {self.key_column: key, self.value_column: value}
-                    for key, value in zip(keys, values, strict=True)
-                ]
-            else:
-                assert self.conversion_func is not None
-                vecs = self.conversion_func(values)
-                rows = [
-                    {
-                        self.key_column: key,
-                        self.value_column: value,
-                        self.vector_column: np.asarray(vec).tolist(),
-                    }
-                    for key, value, vec in zip(keys, values, vecs, strict=True)
-                ]
-
-            if self.metadata_func is not None:
-                for row, key, value in zip(rows, keys, values, strict=True):
-                    row.update(self.metadata_func(key, value))
-
-            return rows
-
-        def _setup_indices(self, table: ldb.Table) -> None:
-            """Create scalar and optional FTS indices on a table."""
-            table.create_scalar_index(self.key_column, replace=True)
-
-            if self.search_type in ("sparse", "hybrid"):
-                table.create_fts_index(self.value_column, replace=True)
-
-        @override
-        def _has_index(self) -> bool:
-            return self._table is not None
-
-        @property
-        @override
-        def index(self) -> Casebase[K, str]:
-            """Return the indexed casebase from the LanceDB table."""
-            if self._table is None:
-                return {}
-            table = self._table.to_arrow()
-            keys = table.column(self.key_column).to_pylist()
-            values = table.column(self.value_column).to_pylist()
-            return dict(zip(keys, values, strict=True))
-
-        @override
         def _search_brute(
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Brute-force dense vector search for non-indexed casebases."""
             if self.search_type != "dense":
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
                     "Call create_index() first."
                 )
 
-            assert self.conversion_func is not None
+            assert self.storage.conversion_func is not None
 
             keys = list(casebase.keys())
             values = list(casebase.values())
 
-            case_vecs = self.conversion_func(values)
-            embed_func = self.query_conversion_func or self.conversion_func
+            case_vecs = self.storage.conversion_func(values)
+            embed_func = self.query_conversion_func or self.storage.conversion_func
             query_vecs = embed_func(list(queries))
 
             sim_func = batchify_sim(default_score_func)
@@ -629,101 +500,38 @@ with optional_dependencies():
 
             return results
 
-        @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild LanceDB table, reusing existing rows where possible."""
-            if not data or self._table is None:
-                rows = self._build_rows(data)
-                table = self._db.create_table(self.table, rows, mode="overwrite")
-                self._setup_indices(table)
-                self._table = table
-                return
-
-            existing = self.index
-            new_keys = set(data.keys())
-            old_keys = set(existing.keys())
-
-            stale_keys = old_keys - new_keys
-            changed_or_new: Casebase[K, str] = {
-                k: data[k]
-                for k in new_keys
-                if k not in existing or existing[k] != data[k]
-            }
-
-            if not stale_keys and not changed_or_new:
-                return
-
-            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & old_keys)
-            if keys_to_delete:
-                self.delete_index(keys_to_delete)
-
-            if changed_or_new:
-                rows = self._build_rows(changed_or_new)
-                self._table.add(rows)
-
-            self._setup_indices(self._table)
-
-        @override
-        def update_index(self, data: Casebase[K, str]) -> None:
-            """Append rows to an existing LanceDB table."""
-            if self._table is None:
-                self.create_index(data)
-                return
-
-            rows = self._build_rows(data)
-            self._table.add(rows)
-            self._setup_indices(self._table)
-
-        @override
-        def delete_index(self, data: Collection[K]) -> None:
-            """Delete rows from the LanceDB table by key."""
-            if self._table is None:
-                return
-
-            if not data:
-                return
-
-            key_list = list(data)
-            sample = key_list[0]
-            col = self.key_column
-
-            if isinstance(sample, str):
-                predicate = f"{col} IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
-            else:
-                predicate = f"{col} IN (" + ", ".join(str(k) for k in key_list) + ")"
-
-            self._table.delete(predicate)
-            self._setup_indices(self._table)
-
-        def _hits_to_result(
+        def _search_db(
             self,
-            hits: list[dict[str, Any]],
-            score_key: str,
-        ) -> tuple[Casebase[K, str], SimMap[K, float]]:
-            """Convert LanceDB hit dicts to a (casebase, score_map) pair."""
-            return (
-                {hit[self.key_column]: hit[self.value_column] for hit in hits},
-                {hit[self.key_column]: float(hit[score_key]) for hit in hits},
-            )
+            queries: Sequence[str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Dispatch to the appropriate search method and normalize scores."""
+            match self.search_type:
+                case "dense":
+                    results = self._search_db_dense(queries)
+                case "sparse":
+                    results = self._search_db_sparse(queries)
+                case "hybrid":
+                    results = self._search_db_hybrid(queries)
 
-        @override
+            return _normalize_results(results, self.normalize_scores)
+
         def _search_db_dense(
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self._table is not None
-            assert self.conversion_func is not None
+            assert self.storage._table is not None
+            assert self.storage.conversion_func is not None
 
-            embed_func = self.query_conversion_func or self.conversion_func
+            embed_func = self.query_conversion_func or self.storage.conversion_func
             query_vecs = embed_func(list(queries))
             n = self._search_limit()
 
             results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
             for qvec in query_vecs:
-                q = self._table.search(
+                q = self.storage._table.search(
                     np.asarray(qvec).tolist(),
-                    vector_column_name=self.vector_column,
+                    vector_column_name=self.storage.vector_column,
                 ).limit(n)
 
                 if self.where is not None:
@@ -735,18 +543,17 @@ with optional_dependencies():
 
             return results
 
-        @override
         def _search_db_sparse(
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self._table is not None
+            assert self.storage._table is not None
 
             n = self._search_limit()
             results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
             for query in queries:
-                q = self._table.search(query, query_type="fts").limit(n)
+                q = self.storage._table.search(query, query_type="fts").limit(n)
 
                 if self.where is not None:
                     q = q.where(self.where)
@@ -761,15 +568,14 @@ with optional_dependencies():
 
             return results
 
-        @override
         def _search_db_hybrid(
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self._table is not None
-            assert self.conversion_func is not None
+            assert self.storage._table is not None
+            assert self.storage.conversion_func is not None
 
-            embed_func = self.query_conversion_func or self.conversion_func
+            embed_func = self.query_conversion_func or self.storage.conversion_func
             query_vecs = embed_func(list(queries))
             n = self._search_limit()
 
@@ -777,7 +583,7 @@ with optional_dependencies():
 
             for query, qvec in zip(queries, query_vecs, strict=True):
                 q = (
-                    self._table.search(query_type="hybrid")
+                    self.storage._table.search(query_type="hybrid")
                     .vector(np.asarray(qvec).tolist())
                     .text(query)
                     .limit(n)
@@ -799,183 +605,98 @@ with optional_dependencies():
 
 with optional_dependencies():
     import chromadb as cdb
-    from chromadb.api import ClientAPI
     from chromadb.api.types import SearchResult
 
-    @dataclass(slots=True)
-    class chromadb[K: str](_DatabaseRetriever[K]):
-        """ChromaDB-backed retriever with dense, sparse, and hybrid search.
+    from ..indexable import chromadb as chromadb_storage
 
-        Embedding is handled entirely by ChromaDB's embedding function
-        protocols.  Pass a ChromaDB ``EmbeddingFunction`` for dense search
-        and/or a ``SparseEmbeddingFunction`` for sparse search.
+    @dataclass(slots=True)
+    class chromadb[K: str](
+        RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
+    ):
+        """Retriever wrapper for a ChromaDB storage backend.
+
+        Delegates storage to a :class:`~cbrkit.indexable.chromadb` instance
+        and performs search queries against it.  Multiple retriever
+        instances can share the same storage to query with different
+        search types.
 
         Uses ChromaDB's ``Search`` API with ``Knn`` for dense/sparse
         ranking and ``Rrf`` (Reciprocal Rank Fusion) for hybrid search.
 
         Args:
-            path: Directory for PersistentClient storage.
-            collection: Collection name.
+            storage: ChromaDB storage instance.
             search_type: ``"dense"`` (ANN), ``"sparse"`` (BM25/SPLADE),
                 or ``"hybrid"`` (dense + sparse combined via RRF).
-            embedding_func: ChromaDB ``EmbeddingFunction`` for dense
-                embeddings. Required for ``"dense"`` and ``"hybrid"``.
-            sparse_embedding_func: ChromaDB ``SparseEmbeddingFunction``
-                for sparse embeddings. Required for ``"sparse"`` and
-                ``"hybrid"``.
             limit: Max results per query (``None`` = all).
-            metadata_func: Produces extra metadata per document from
-                ``(key, value)``.
-            sparse_key: Key name for the sparse vector index in the
-                ChromaDB schema.
             rrf_k: Smoothing parameter for RRF (default: 60).
             rrf_weights: Weights for ``(dense, sparse)`` in RRF
                 (default: ``(0.7, 0.3)``).
             normalize_scores: Apply per-query min-max normalization.
         """
 
-        path: str
-        collection: str
+        storage: chromadb_storage[K]
         search_type: Literal["dense", "sparse", "hybrid"] = "dense"
-        embedding_func: cdb.EmbeddingFunction | None = None
-        sparse_embedding_func: cdb.SparseEmbeddingFunction | None = None
         limit: int | None = None
-        metadata_func: Callable[[K, str], cdb.Metadata] | None = None
-        sparse_key: str = "sparse_embedding"
         rrf_k: int = 60
         rrf_weights: tuple[float, float] = field(default=(0.7, 0.3))
         normalize_scores: bool = True
-        _client: ClientAPI = field(init=False, repr=False)
-        _collection: cdb.Collection | None = field(default=None, init=False, repr=False)
 
-        def __post_init__(self) -> None:
-            if self.search_type in ("dense", "hybrid") and self.embedding_func is None:
-                raise ValueError(
-                    f"embedding_func is required for search_type={self.search_type!r}"
-                )
-            if (
-                self.search_type in ("sparse", "hybrid")
-                and self.sparse_embedding_func is None
-            ):
-                raise ValueError(
-                    f"sparse_embedding_func is required for search_type={self.search_type!r}"
-                )
-
-            self._client = cdb.PersistentClient(path=self.path)
-
-            try:
-                self._collection = self._client.get_collection(
-                    self.collection,
-                    embedding_function=self.embedding_func,
-                )
-            except Exception:
-                self._collection = None
-
-        def _build_schema(self) -> cdb.Schema | None:
-            """Build collection schema with sparse vector index if needed."""
-            if self.search_type not in ("sparse", "hybrid"):
-                return None
-
-            return cdb.Schema().create_index(
-                key=self.sparse_key,
-                config=cdb.SparseVectorIndexConfig(
-                    embedding_function=self.sparse_embedding_func,
-                    source_key=cdb.K.DOCUMENT.name,
-                ),
-            )
-
-        @override
-        def _has_index(self) -> bool:
-            return self._collection is not None
+        # -- IndexableFunc delegation ------------------------------------------
 
         @property
         @override
         def index(self) -> Casebase[K, str]:
-            """Return the indexed casebase from the ChromaDB collection."""
-            if self._collection is None:
-                return {}
-            result = self._collection.get()
-            ids = result["ids"]
-            docs = result["documents"] or []
-            return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
-
-        def _prepare_documents(
-            self,
-            data: Casebase[K, str],
-        ) -> tuple[list[str], list[str], list[cdb.Metadata] | None]:
-            """Prepare IDs, documents, and metadatas from a casebase."""
-            ids = [str(k) for k in data.keys()]
-            values = list(data.values())
-            metadatas: list[cdb.Metadata] | None = None
-
-            if self.metadata_func is not None:
-                metadatas = [
-                    self.metadata_func(k, v)
-                    for k, v in zip(data.keys(), values, strict=True)
-                ]
-
-            return ids, values, metadatas
+            """Return the indexed casebase from the underlying storage."""
+            return self.storage.index
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild ChromaDB collection, reusing existing documents where possible."""
-            if self._collection is None:
-                collection = self._client.create_collection(
-                    name=self.collection,
-                    schema=self._build_schema(),
-                    embedding_function=self.embedding_func,
-                )
-
-                if data:
-                    ids, documents, metadatas = self._prepare_documents(data)
-                    collection.add(ids=ids, documents=documents, metadatas=metadatas)
-
-                self._collection = collection
-                return
-
-            existing = self.index
-            new_keys = set(data.keys())
-            old_keys = set(existing.keys())
-
-            stale_keys = old_keys - new_keys
-            changed_or_new: Casebase[K, str] = {
-                k: data[k]
-                for k in new_keys
-                if k not in existing or existing[k] != data[k]
-            }
-
-            if not stale_keys and not changed_or_new:
-                return
-
-            if stale_keys:
-                self.delete_index(stale_keys)
-
-            if changed_or_new:
-                ids, documents, metadatas = self._prepare_documents(changed_or_new)
-                self._collection.upsert(
-                    ids=ids, documents=documents, metadatas=metadatas
-                )
+            """Delegate to the underlying storage."""
+            self.storage.create_index(data)
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
-            """Upsert documents into an existing ChromaDB collection."""
-            if self._collection is None:
-                self.create_index(data)
-                return
-
-            ids, documents, metadatas = self._prepare_documents(data)
-            self._collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            """Delegate to the underlying storage."""
+            self.storage.update_index(data)
 
         @override
         def delete_index(self, data: Collection[K]) -> None:
-            """Remove documents by ID from the ChromaDB collection."""
-            if self._collection is None:
-                return
+            """Delegate to the underlying storage."""
+            self.storage.delete_index(data)
 
-            ids = [str(k) for k in data]
+        # -- RetrieverFunc -----------------------------------------------------
 
-            if ids:
-                self._collection.delete(ids=ids)
+        @override
+        def __call__(
+            self,
+            batches: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if not batches:
+                return []
+
+            return dispatch_batches(batches, self._dispatch)
+
+        def _dispatch(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if len(casebase) == 0:
+                if not self.storage.has_index():
+                    raise ValueError(
+                        "Indexed retrieval was requested with an empty casebase, "
+                        "but no index is available. Call create_index() first."
+                    )
+
+                return self._search_db(queries)
+
+            raise NotImplementedError(
+                "chromadb does not support brute-force search. "
+                "Call create_index() first."
+            )
+
+        # -- search helpers ----------------------------------------------------
 
         def _process_result(
             self,
@@ -1016,7 +737,11 @@ with optional_dependencies():
                 case "dense":
                     return cdb.Knn(query=query, limit=n)
                 case "sparse":
-                    return cdb.Knn(query=query, key=self.sparse_key, limit=n)
+                    return cdb.Knn(
+                        query=query,
+                        key=self.storage.sparse_key,
+                        limit=n,
+                    )
                 case "hybrid":
                     default_rank = n * 10
                     return cdb.Rrf(
@@ -1029,7 +754,7 @@ with optional_dependencies():
                             ),
                             cdb.Knn(
                                 query=query,
-                                key=self.sparse_key,
+                                key=self.storage.sparse_key,
                                 return_rank=True,
                                 limit=n,
                                 default=default_rank,
@@ -1039,14 +764,13 @@ with optional_dependencies():
                         k=self.rrf_k,
                     )
 
-        @override
         def _search_db(
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self._collection is not None
+            assert self.storage._collection is not None
 
-            n = self.limit or self._collection.count()
+            n = self.limit if self.limit is not None else self.storage._collection.count()
 
             if n == 0:
                 return [({}, {}) for _ in queries]
@@ -1063,9 +787,10 @@ with optional_dependencies():
                 (lambda s: -s) if self.search_type == "hybrid" else dist2sim
             )
 
-            return self._normalize_results(
+            return _normalize_results(
                 self._process_result(
-                    self._collection.search(searches),
+                    self.storage._collection.search(searches),
                     score_transform=score_transform,
-                )
+                ),
+                self.normalize_scores,
             )

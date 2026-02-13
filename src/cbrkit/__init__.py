@@ -15,6 +15,7 @@ from . import (
     dumpers,
     eval,
     helpers,
+    indexable,
     loaders,
     model,
     retain,
@@ -29,10 +30,12 @@ from . import (
 
 __all__ = [
     "adapt",
+    "constants",
     "cycle",
     "dumpers",
     "eval",
     "helpers",
+    "indexable",
     "loaders",
     "model",
     "retain",
@@ -41,9 +44,8 @@ __all__ = [
     "revise",
     "sim",
     "synthesis",
-    "typing",
-    "constants",
     "system",
+    "typing",
 ]
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

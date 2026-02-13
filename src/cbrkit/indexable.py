@@ -1,0 +1,394 @@
+"""Pure storage backends for indexable retrieval.
+
+This module provides storage classes that implement
+:class:`~cbrkit.typing.IndexableFunc` without any retrieval logic.
+Each backend manages database connections, data ingestion, and index
+maintenance.  Retriever wrappers in :mod:`cbrkit.retrieval` consume
+these storage instances to perform search queries.
+
+Example:
+    Create a shared LanceDB storage and attach multiple retrievers::
+
+        import cbrkit
+
+        storage = cbrkit.indexable.lancedb(
+            uri="./db",
+            table="cases",
+            index_type="hybrid",
+            conversion_func=embed_func,
+        )
+        storage.create_index(casebase)
+
+        dense_retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="dense")
+        sparse_retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="sparse")
+"""
+
+from collections.abc import Callable, Collection
+from dataclasses import dataclass, field
+from typing import Any, Literal, cast, override
+
+from .helpers import get_logger, optional_dependencies
+from .typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray
+
+__all__ = [
+    "chromadb",
+    "lancedb",
+]
+
+logger = get_logger(__name__)
+
+
+with optional_dependencies():
+    import lancedb as ldb
+    import numpy as np
+
+    @dataclass(slots=True)
+    class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
+        """LanceDB storage backend.
+
+        Manages an embedded LanceDB database on disk.  Supports dense
+        (vector), sparse (FTS/BM25), and hybrid index types which
+        control what data is stored and what indices are built.
+
+        Args:
+            uri: Path to the LanceDB database directory.
+            table: Table name within the database.
+            index_type: Determines what data is stored and which
+                indices are created.  ``"dense"`` stores embeddings,
+                ``"sparse"`` builds an FTS index, ``"hybrid"`` does
+                both.
+            conversion_func: Embedding function.  Required for
+                ``"dense"`` and ``"hybrid"`` index types.
+            key_column: Column name for case keys.
+            value_column: Column name for case text values.
+            vector_column: Column name for dense embedding vectors.
+            metadata_func: Optional callable that produces extra
+                columns for each row.  Called with ``(key, value)``
+                and must return a dict mapping column names to values.
+        """
+
+        uri: str
+        table: str
+        index_type: Literal["dense", "sparse", "hybrid"] = "dense"
+        conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+        key_column: str = "key"
+        value_column: str = "value"
+        vector_column: str = "vector"
+        metadata_func: Callable[[K, str], dict[str, Any]] | None = None
+        _db: ldb.DBConnection = field(init=False, repr=False)
+        _table: ldb.Table | None = field(default=None, init=False, repr=False)
+
+        def __post_init__(self) -> None:
+            if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
+                raise ValueError(
+                    f"conversion_func is required for index_type={self.index_type!r}"
+                )
+
+            self._db = ldb.connect(self.uri)
+
+            if self.table in self._db.list_tables().tables:
+                self._table = self._db.open_table(self.table)
+
+        def has_index(self) -> bool:
+            """Return whether a table exists in the database."""
+            return self._table is not None
+
+        def search_limit(self) -> int | None:
+            """Return the total number of rows, or ``None`` when empty."""
+            if self._table is None:
+                return None
+
+            return self._table.count_rows()
+
+        def _build_rows(self, casebase: Casebase[K, str]) -> list[dict[str, Any]]:
+            """Build row dicts for LanceDB from a casebase."""
+            keys = list(casebase.keys())
+            values = list(casebase.values())
+
+            if self.index_type == "sparse":
+                rows = [
+                    {self.key_column: key, self.value_column: value}
+                    for key, value in zip(keys, values, strict=True)
+                ]
+            else:
+                assert self.conversion_func is not None
+                vecs = self.conversion_func(values)
+                rows = [
+                    {
+                        self.key_column: key,
+                        self.value_column: value,
+                        self.vector_column: np.asarray(vec).tolist(),
+                    }
+                    for key, value, vec in zip(keys, values, vecs, strict=True)
+                ]
+
+            if self.metadata_func is not None:
+                for row, key, value in zip(rows, keys, values, strict=True):
+                    row.update(self.metadata_func(key, value))
+
+            return rows
+
+        def _setup_indices(self, table: ldb.Table) -> None:
+            """Create scalar and optional FTS indices on a table."""
+            table.create_scalar_index(self.key_column, replace=True)
+
+            if self.index_type in ("sparse", "hybrid"):
+                table.create_fts_index(self.value_column, replace=True)
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase from the LanceDB table."""
+            if self._table is None:
+                return {}
+            table = self._table.to_arrow()
+            keys = table.column(self.key_column).to_pylist()
+            values = table.column(self.value_column).to_pylist()
+            return dict(zip(keys, values, strict=True))
+
+        @override
+        def create_index(self, data: Casebase[K, str]) -> None:
+            """Rebuild LanceDB table, reusing existing rows where possible."""
+            if not data or self._table is None:
+                rows = self._build_rows(data)
+                table = self._db.create_table(self.table, rows, mode="overwrite")
+                self._setup_indices(table)
+                self._table = table
+                return
+
+            existing = self.index
+            new_keys = set(data.keys())
+            old_keys = set(existing.keys())
+
+            stale_keys = old_keys - new_keys
+            changed_or_new: Casebase[K, str] = {
+                k: data[k]
+                for k in new_keys
+                if k not in existing or existing[k] != data[k]
+            }
+
+            if not stale_keys and not changed_or_new:
+                return
+
+            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & old_keys)
+            if keys_to_delete:
+                self.delete_index(keys_to_delete)
+
+            if changed_or_new:
+                rows = self._build_rows(changed_or_new)
+                self._table.add(rows)
+
+            self._setup_indices(self._table)
+
+        @override
+        def update_index(self, data: Casebase[K, str]) -> None:
+            """Append rows to an existing LanceDB table."""
+            if self._table is None:
+                self.create_index(data)
+                return
+
+            rows = self._build_rows(data)
+            self._table.add(rows)
+            self._setup_indices(self._table)
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            """Delete rows from the LanceDB table by key."""
+            if self._table is None:
+                return
+
+            if not data:
+                return
+
+            key_list = list(data)
+            sample = key_list[0]
+            col = self.key_column
+
+            if isinstance(sample, str):
+                predicate = (
+                    f"{col} IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
+                )
+            else:
+                predicate = (
+                    f"{col} IN (" + ", ".join(str(k) for k in key_list) + ")"
+                )
+
+            self._table.delete(predicate)
+            self._setup_indices(self._table)
+
+
+with optional_dependencies():
+    import chromadb as cdb
+    from chromadb.api import ClientAPI
+
+    @dataclass(slots=True)
+    class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
+        """ChromaDB storage backend.
+
+        Manages a persistent ChromaDB collection.  Supports dense,
+        sparse, and hybrid index types which control what embedding
+        functions and schema are configured.
+
+        Args:
+            path: Directory for PersistentClient storage.
+            collection: Collection name.
+            index_type: Determines what embeddings and indices are
+                configured.  ``"dense"`` uses the embedding function,
+                ``"sparse"`` uses the sparse embedding function,
+                ``"hybrid"`` uses both.
+            embedding_func: ChromaDB ``EmbeddingFunction`` for dense
+                embeddings.  Required for ``"dense"`` and ``"hybrid"``.
+            sparse_embedding_func: ChromaDB
+                ``SparseEmbeddingFunction`` for sparse embeddings.
+                Required for ``"sparse"`` and ``"hybrid"``.
+            metadata_func: Produces extra metadata per document from
+                ``(key, value)``.
+            sparse_key: Key name for the sparse vector index in the
+                ChromaDB schema.
+        """
+
+        path: str
+        collection: str
+        index_type: Literal["dense", "sparse", "hybrid"] = "dense"
+        embedding_func: cdb.EmbeddingFunction | None = None
+        sparse_embedding_func: cdb.SparseEmbeddingFunction | None = None
+        metadata_func: Callable[[K, str], cdb.Metadata] | None = None
+        sparse_key: str = "sparse_embedding"
+        _client: ClientAPI = field(init=False, repr=False)
+        _collection: cdb.Collection | None = field(
+            default=None, init=False, repr=False
+        )
+
+        def __post_init__(self) -> None:
+            if self.index_type in ("dense", "hybrid") and self.embedding_func is None:
+                raise ValueError(
+                    f"embedding_func is required for index_type={self.index_type!r}"
+                )
+            if (
+                self.index_type in ("sparse", "hybrid")
+                and self.sparse_embedding_func is None
+            ):
+                raise ValueError(
+                    f"sparse_embedding_func is required for index_type={self.index_type!r}"
+                )
+
+            self._client = cdb.PersistentClient(path=self.path)
+
+            try:
+                self._collection = self._client.get_collection(
+                    self.collection,
+                    embedding_function=self.embedding_func,
+                )
+            except Exception:
+                self._collection = None
+
+        def has_index(self) -> bool:
+            """Return whether a collection exists."""
+            return self._collection is not None
+
+        def _build_schema(self) -> cdb.Schema | None:
+            """Build collection schema with sparse vector index if needed."""
+            if self.index_type not in ("sparse", "hybrid"):
+                return None
+
+            return cdb.Schema().create_index(
+                key=self.sparse_key,
+                config=cdb.SparseVectorIndexConfig(
+                    embedding_function=self.sparse_embedding_func,
+                    source_key=cdb.K.DOCUMENT.name,
+                ),
+            )
+
+        def _prepare_documents(
+            self,
+            data: Casebase[K, str],
+        ) -> tuple[list[str], list[str], list[cdb.Metadata] | None]:
+            """Prepare IDs, documents, and metadatas from a casebase."""
+            ids = [str(k) for k in data.keys()]
+            values = list(data.values())
+            metadatas: list[cdb.Metadata] | None = None
+
+            if self.metadata_func is not None:
+                metadatas = [
+                    self.metadata_func(k, v)
+                    for k, v in zip(data.keys(), values, strict=True)
+                ]
+
+            return ids, values, metadatas
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            """Return the indexed casebase from the ChromaDB collection."""
+            if self._collection is None:
+                return {}
+
+            result = self._collection.get()
+            ids = result["ids"]
+            docs = result["documents"] or []
+            return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
+
+        @override
+        def create_index(self, data: Casebase[K, str]) -> None:
+            """Rebuild ChromaDB collection, reusing existing documents where possible."""
+            if self._collection is None:
+                collection = self._client.create_collection(
+                    name=self.collection,
+                    schema=self._build_schema(),
+                    embedding_function=self.embedding_func,
+                )
+
+                if data:
+                    ids, documents, metadatas = self._prepare_documents(data)
+                    collection.add(
+                        ids=ids, documents=documents, metadatas=metadatas
+                    )
+
+                self._collection = collection
+                return
+
+            existing = self.index
+            new_keys = set(data.keys())
+            old_keys = set(existing.keys())
+
+            stale_keys = old_keys - new_keys
+            changed_or_new: Casebase[K, str] = {
+                k: data[k]
+                for k in new_keys
+                if k not in existing or existing[k] != data[k]
+            }
+
+            if not stale_keys and not changed_or_new:
+                return
+
+            if stale_keys:
+                self.delete_index(stale_keys)
+
+            if changed_or_new:
+                ids, documents, metadatas = self._prepare_documents(changed_or_new)
+                self._collection.upsert(
+                    ids=ids, documents=documents, metadatas=metadatas
+                )
+
+        @override
+        def update_index(self, data: Casebase[K, str]) -> None:
+            """Upsert documents into an existing ChromaDB collection."""
+            if self._collection is None:
+                self.create_index(data)
+                return
+
+            ids, documents, metadatas = self._prepare_documents(data)
+            self._collection.upsert(
+                ids=ids, documents=documents, metadatas=metadatas
+            )
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            """Remove documents by ID from the ChromaDB collection."""
+            if self._collection is None:
+                return
+
+            ids = [str(k) for k in data]
+
+            if ids:
+                self._collection.delete(ids=ids)
