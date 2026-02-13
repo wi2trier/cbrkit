@@ -72,6 +72,47 @@ def _normalize_results[K](
     return normalized
 
 
+class _StorageDelegator[K](
+    IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
+):
+    """Mixin that forwards IndexableFunc methods to ``self.storage``."""
+
+    storage: IndexableFunc[Casebase[K, str], Collection[K], Collection[str]]
+
+    @property
+    @override
+    def index(self) -> Casebase[K, str]:
+        """Return the indexed casebase from the underlying storage."""
+        return self.storage.index
+
+    @property
+    @override
+    def keys(self) -> Collection[K]:
+        """Return the indexed keys from the underlying storage."""
+        return self.storage.keys
+
+    @property
+    @override
+    def values(self) -> Collection[str]:
+        """Return the indexed values from the underlying storage."""
+        return self.storage.values
+
+    @override
+    def create_index(self, data: Casebase[K, str]) -> None:
+        """Delegate to the underlying storage."""
+        self.storage.create_index(data)
+
+    @override
+    def update_index(self, data: Casebase[K, str]) -> None:
+        """Delegate to the underlying storage."""
+        self.storage.update_index(data)
+
+    @override
+    def delete_index(self, data: Collection[K]) -> None:
+        """Delegate to the underlying storage."""
+        self.storage.delete_index(data)
+
+
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
     RetrieverFunc[K, str, S],
@@ -390,7 +431,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class lancedb[K: int | str](
         RetrieverFunc[K, str, float],
-        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
+        _StorageDelegator[K],
     ):
         """Retriever wrapper for a LanceDB storage backend.
 
@@ -419,43 +460,6 @@ with optional_dependencies():
         limit: int | None = None
         where: str | None = None
         normalize_scores: bool = True
-
-        # -- IndexableFunc delegation ------------------------------------------
-
-        @property
-        @override
-        def index(self) -> Casebase[K, str]:
-            """Return the indexed casebase from the underlying storage."""
-            return self.storage.index
-
-        @property
-        @override
-        def keys(self) -> Collection[K]:
-            """Return the indexed keys from the underlying storage."""
-            return self.storage.keys
-
-        @property
-        @override
-        def values(self) -> Collection[str]:
-            """Return the indexed values from the underlying storage."""
-            return self.storage.values
-
-        @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.create_index(data)
-
-        @override
-        def update_index(self, data: Casebase[K, str]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.update_index(data)
-
-        @override
-        def delete_index(self, data: Collection[K]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.delete_index(data)
-
-        # -- RetrieverFunc -----------------------------------------------------
 
         @override
         def __call__(
@@ -658,7 +662,7 @@ with optional_dependencies():
     @dataclass(slots=True)
     class chromadb[K: str](
         RetrieverFunc[K, str, float],
-        IndexableFunc[Casebase[K, str], Collection[K], Collection[str]],
+        _StorageDelegator[K],
     ):
         """Retriever wrapper for a ChromaDB storage backend.
 
@@ -687,43 +691,6 @@ with optional_dependencies():
         rrf_k: int = 60
         rrf_weights: tuple[float, float] = field(default=(0.7, 0.3))
         normalize_scores: bool = True
-
-        # -- IndexableFunc delegation ------------------------------------------
-
-        @property
-        @override
-        def index(self) -> Casebase[K, str]:
-            """Return the indexed casebase from the underlying storage."""
-            return self.storage.index
-
-        @property
-        @override
-        def keys(self) -> Collection[K]:
-            """Return the indexed keys from the underlying storage."""
-            return self.storage.keys
-
-        @property
-        @override
-        def values(self) -> Collection[str]:
-            """Return the indexed values from the underlying storage."""
-            return self.storage.values
-
-        @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.create_index(data)
-
-        @override
-        def update_index(self, data: Casebase[K, str]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.update_index(data)
-
-        @override
-        def delete_index(self, data: Collection[K]) -> None:
-            """Delegate to the underlying storage."""
-            self.storage.delete_index(data)
-
-        # -- RetrieverFunc -----------------------------------------------------
 
         @override
         def __call__(
