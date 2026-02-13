@@ -14,7 +14,7 @@ from .apply import (
     apply_result,
 )
 from .build import build, dropout
-from .storage import KeyFunc, auto_key, indexable, static
+from .storage import KeyFunc, indexable, static
 
 __all__ = [
     "build",
@@ -25,7 +25,6 @@ __all__ = [
     "apply_query",
     "apply_pair",
     "KeyFunc",
-    "auto_key",
     "indexable",
     "static",
     "Result",

@@ -34,8 +34,9 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
         >>> import cbrkit
         >>> retainer = build(
         ...     assess_func=cbrkit.sim.generic.equality(),
-        ...     storage_func=cbrkit.retain.auto_key(
+        ...     storage_func=cbrkit.retain.static(
         ...         key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...         casebase={},
         ...     ),
         ... )
     """
@@ -101,8 +102,9 @@ class dropout[K, V, S: Float](RetainerFunc[K, V, S]):
         >>> retainer = dropout(
         ...     retainer_func=cbrkit.retain.build(
         ...         assess_func=cbrkit.sim.generic.equality(),
-        ...         storage_func=cbrkit.retain.auto_key(
+        ...         storage_func=cbrkit.retain.static(
         ...             key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        ...             casebase={},
         ...         ),
         ...     ),
         ...     min_similarity=0.5,

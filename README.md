@@ -520,16 +520,16 @@ You build a retain pipeline by specifying an assessment function and a storage f
 ```python
 retainer = cbrkit.retain.build(
     assess_func=cbrkit.sim.generic.equality(),
-    storage_func=cbrkit.retain.auto_key(
+    storage_func=cbrkit.retain.static(
         key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        casebase=casebase,
     ),
 )
 ```
 
 CBRkit provides several built-in storage functions:
 
-- `auto_key`: Generates a new key for the case based on the existing casebase.
-- `static`: Generates a key from a fixed reference casebase to avoid collisions.
+- `static`: Generates keys from a fixed reference casebase to avoid collisions.
 - `indexable`: Keeps an `IndexableFunc`'s index in sync with the casebase.
 
 You can filter retained cases based on their assessment scores using the `dropout` wrapper:

@@ -203,7 +203,7 @@ def get_metadata(obj: Any) -> JsonEntry:
         }
 
     if isinstance(obj, dict):
-        return {key: get_metadata(value) for key, value in obj.items()}
+        return {str(key): get_metadata(value) for key, value in obj.items()}
 
     if isinstance(obj, list):
         return [get_metadata(value) for value in obj]

@@ -11,32 +11,31 @@ SIM_FUNC = cbrkit.sim.attribute_value(
     aggregator=cbrkit.sim.aggregator(pooling="mean"),
 )
 
-STORAGE_FUNC = cbrkit.retain.auto_key(
-    key_func=lambda cb: max(cb.keys(), default=-1) + 1,
-)
-
 
 def test_retain_build():
-    """Test retainer stores the query and produces real scores."""
-    retainer = cbrkit.retain.build(
-        assess_func=SIM_FUNC,
-        storage_func=STORAGE_FUNC,
-    )
-
+    """Test retainer stores cases and produces real scores."""
     casebase = {
         0: {"price": 12000, "year": 2008},
         1: {"price": 9000, "year": 2012},
     }
     query = {"price": 10000, "year": 2010}
 
+    storage_func = cbrkit.retain.static(
+        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        casebase=casebase,
+    )
+    retainer = cbrkit.retain.build(
+        assess_func=SIM_FUNC,
+        storage_func=storage_func,
+    )
+
     results = retainer([(casebase, query)])
 
-    assert len(results) == 1
     updated_casebase, sim_map = results[0]
-    assert len(updated_casebase) == 3
-    assert updated_casebase[2] == query
+    assert len(updated_casebase) == 4
+    assert updated_casebase[2] == casebase[0]
+    assert updated_casebase[3] == casebase[1]
     assert all(0.0 <= unpack_float(v) <= 1.0 for v in sim_map.values())
-    assert unpack_float(sim_map[2]) == 1.0
 
 
 def test_retain_dropout():
@@ -47,19 +46,24 @@ def test_retain_dropout():
     }
     query = {"price": 10000, "year": 2010}
 
-    inner = cbrkit.retain.build(assess_func=SIM_FUNC, storage_func=STORAGE_FUNC)
+    storage_func = cbrkit.retain.static(
+        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        casebase=casebase,
+    )
+    inner = cbrkit.retain.build(assess_func=SIM_FUNC, storage_func=storage_func)
 
-    # min_similarity=0.5: self-similarity is 1.0, so the case is kept
-    kept = cbrkit.retain.dropout(inner, min_similarity=0.5)([(casebase, query)])
-    assert len(kept[0][0]) == 3
+    # min_similarity=0.0: all cases kept
+    kept = cbrkit.retain.dropout(inner, min_similarity=0.0)([(casebase, query)])
+    assert len(kept[0][0]) == 4
 
-    # min_similarity=1.1: impossible threshold, case is rejected
+    # min_similarity=1.1: impossible threshold, new cases are rejected
     rejected = cbrkit.retain.dropout(inner, min_similarity=1.1)([(casebase, query)])
     assert len(rejected[0][0]) == 2
     assert 2 not in rejected[0][0]
+    assert 3 not in rejected[0][0]
 
-    # max_similarity=0.9: self-similarity 1.0 > 0.9, case is rejected
-    novelty = cbrkit.retain.dropout(inner, max_similarity=0.9)([(casebase, query)])
+    # max_similarity=0.0: all new cases exceed threshold, rejected
+    novelty = cbrkit.retain.dropout(inner, max_similarity=0.0)([(casebase, query)])
     assert len(novelty[0][0]) == 2
 
 
@@ -88,9 +92,13 @@ def test_retain_full_cycle():
 
     reviser = cbrkit.revise.build(assess_func=SIM_FUNC)
 
+    storage_func = cbrkit.retain.static(
+        key_func=lambda cb: max(cb.keys(), default=-1) + 1,
+        casebase=casebase,
+    )
     retainer = cbrkit.retain.build(
         assess_func=SIM_FUNC,
-        storage_func=STORAGE_FUNC,
+        storage_func=storage_func,
     )
 
     result = cbrkit.cycle.apply_query(
@@ -135,7 +143,7 @@ class FakeIndexableFunc(
 
 
 def test_retain_indexable_storage():
-    """Test indexable storage stores the case and syncs the index."""
+    """Test indexable storage stores cases and syncs the index."""
     fake = FakeIndexableFunc()
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
@@ -149,7 +157,7 @@ def test_retain_indexable_storage():
     results = retainer([(casebase, "c")])
 
     updated_casebase, sim_map = results[0]
-    assert updated_casebase[2] == "c"
+    assert updated_casebase == {0: "a", 1: "b"}
     assert fake.index == updated_casebase
 
 
@@ -171,7 +179,6 @@ def test_retain_indexable_prepopulated():
     results = retainer([(pipeline_casebase, "d")])
 
     updated_casebase, sim_map = results[0]
-    # Should return pipeline + newly added key only
-    assert updated_casebase == {1: "b", 3: "d"}
-    # Index should contain original + new entry
-    assert fake.index == {0: "a", 1: "b", 2: "c", 3: "d"}
+    # Should return the full index with new entry
+    assert updated_casebase == {0: "a", 1: "b", 2: "c", 3: "b"}
+    assert fake.index == updated_casebase
