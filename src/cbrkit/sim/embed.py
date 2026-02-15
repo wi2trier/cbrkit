@@ -41,12 +41,15 @@ __all__ = [
     "angular",
     "euclidean",
     "manhattan",
+    "sparse_dot",
+    "sparse_cosine",
     "build",
     "cache",
     "concat",
     "spacy",
     "load_spacy",
     "sentence_transformers",
+    "sparse_encoder",
     "splade",
     "bm25",
     "pydantic_ai",
@@ -124,28 +127,91 @@ class manhattan(SimFunc[NumpyArray, float]):
         return 1 / (1 + np.sum(np.abs(u - v)).__float__())
 
 
+@dataclass(slots=True, frozen=True)
+class sparse_dot(SimFunc[SparseVector, float]):
+    """Dot product similarity for sparse vectors.
+
+    Computes the dot product over shared dimensions and normalizes
+    to [0, 1].  Returns 0.0 for empty vectors.
+
+    Examples:
+        >>> sparse_dot()({0: 1.0, 1: 2.0}, {0: 3.0, 1: 4.0})
+        1.0
+        >>> sparse_dot()({}, {0: 1.0})
+        0.0
+    """
+
+    @override
+    def __call__(self, u: SparseVector, v: SparseVector) -> float:
+        if not u or not v:
+            return 0.0
+
+        dot_prod = sum(u[idx] * v[idx] for idx in u.keys() & v.keys())
+        normalized = (dot_prod + 1.0) / 2.0
+
+        return max(0.0, min(1.0, normalized))
+
+
+@dataclass(slots=True, frozen=True)
+class sparse_cosine(SimFunc[SparseVector, float]):
+    """Cosine similarity for sparse vectors.
+
+    Computes cosine similarity between two sparse vectors and normalizes
+    to [0, 1].  Returns 0.0 for empty vectors or zero norms.
+
+    Examples:
+        >>> sparse_cosine()({0: 1.0, 1: 0.0}, {0: 1.0, 1: 0.0})
+        1.0
+        >>> sparse_cosine()({0: 1.0}, {1: 1.0})
+        0.5
+        >>> sparse_cosine()({}, {0: 1.0})
+        0.0
+    """
+
+    @override
+    def __call__(self, u: SparseVector, v: SparseVector) -> float:
+        if not u or not v:
+            return 0.0
+
+        dot_prod = sum(u[idx] * v[idx] for idx in u.keys() & v.keys())
+
+        u_norm = sum(val * val for val in u.values()) ** 0.5
+        v_norm = sum(val * val for val in v.values()) ** 0.5
+
+        if u_norm == 0.0 or v_norm == 0.0:
+            return 0.0
+
+        cos_val = dot_prod / (u_norm * v_norm)
+        cos_sim = (cos_val + 1.0) / 2.0
+
+        return max(0.0, min(1.0, cos_sim))
+
+
 default_score_func: SimFunc[NumpyArray, float] = cosine()
 
 
 @dataclass(slots=True, init=False)
-class build[V, S: Float](BatchSimFunc[V, S]):
-    """Embedding-based semantic similarity
+class build[V, E, S: Float](BatchSimFunc[V, S]):
+    """Embedding-based semantic similarity.
+
+    Generic over embedding type ``E``, supporting both dense
+    (``NumpyArray``) and sparse (``SparseVector``) embeddings.
 
     Args:
-        conversion_func: Embedding function
-        sim_func: Similarity score function
-        query_conversion_func: Optional query embedding function
+        conversion_func: Embedding function producing type ``E``.
+        sim_func: Similarity score function for type ``E``.
+        query_conversion_func: Optional query embedding function.
     """
 
-    conversion_func: BatchConversionFunc[V, NumpyArray]
-    sim_func: BatchSimFunc[NumpyArray, S]
-    query_conversion_func: BatchConversionFunc[V, NumpyArray] | None
+    conversion_func: BatchConversionFunc[V, E]
+    sim_func: BatchSimFunc[E, S]
+    query_conversion_func: BatchConversionFunc[V, E] | None
 
     def __init__(
         self,
-        conversion_func: AnyConversionFunc[V, NumpyArray],
-        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,  # type: ignore[assignment]
-        query_conversion_func: AnyConversionFunc[V, NumpyArray] | None = None,
+        conversion_func: AnyConversionFunc[V, E],
+        sim_func: AnySimFunc[E, S] = default_score_func,  # type: ignore[assignment]
+        query_conversion_func: AnyConversionFunc[V, E] | None = None,
     ):
         self.conversion_func = batchify_conversion(conversion_func)
         self.sim_func = batchify_sim(sim_func)
@@ -563,15 +629,16 @@ with optional_dependencies():
     from sentence_transformers.sparse_encoder import SparseEncoder
 
     @dataclass(slots=True)
-    class splade(BatchConversionFunc[str, SparseVector], HasMetadata):
-        """Sparse lexical embeddings using SPLADE models via
-        `sentence-transformers <https://www.sbert.net/>`_.
+    class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
+        """Sparse embeddings using `sentence-transformers <https://www.sbert.net/>`_ SparseEncoder.
 
-        Produces sparse vectors where each dimension corresponds to a
-        vocabulary token and the value represents the token's importance.
+        Wraps any ``SparseEncoder`` model, including SPLADE variants and other
+        sparse embedding models.  Produces sparse vectors where each dimension
+        corresponds to a vocabulary token and the value represents the token's
+        importance.
 
         Args:
-            model: Either the name of a SPLADE model (e.g.,
+            model: Either the name of a sparse model (e.g.,
                 ``"naver/splade-cocondenser-ensembledistil"``) or a
                 ``SparseEncoder`` instance.
             batch_size: Batch size for encoding.
@@ -639,6 +706,8 @@ with optional_dependencies():
                     result[row][col] = val
 
             return result
+
+    splade = sparse_encoder
 
 
 with optional_dependencies():
