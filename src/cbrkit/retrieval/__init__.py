@@ -32,6 +32,9 @@ with optional_dependencies():
 with optional_dependencies():
     from .indexable import lancedb
 
+with optional_dependencies():
+    from .indexable import zvec
+
 __all__ = [
     "build",
     "transpose",
@@ -56,4 +59,5 @@ __all__ = [
     "embed",
     "lancedb",
     "persist",
+    "zvec",
 ]

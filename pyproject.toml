@@ -77,6 +77,7 @@ chromadb = ["chromadb>=1,<2"]
 lancedb = ["lancedb>=0.20,<1"]
 pandas = ["pandas>=2,<3"]
 sql = ["sqlalchemy>=2,<3"]
+# zvec = ["zvec>=0.2,<1"]
 
 # Tools
 cli = ["rich>=13,<15", "typer>=0.9,<1"]
