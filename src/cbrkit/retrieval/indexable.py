@@ -21,6 +21,7 @@ from ..typing import (
     NumpyArray,
     RetrieverFunc,
     SimMap,
+    SparseVector,
 )
 
 logger = get_logger(__name__)
@@ -221,7 +222,8 @@ class embed[K, S: Float](
 with optional_dependencies():
     import bm25s
     import numpy as np
-    import Stemmer  # type: ignore[import-untyped]
+
+    from ..sim.embed import bm25 as bm25_embed
 
     @dataclass(slots=True)
     class bm25[K](
@@ -230,12 +232,13 @@ with optional_dependencies():
     ):
         """BM25 retriever based on bm25s.
 
+        Delegates BM25 model management to a
+        :class:`~cbrkit.sim.embed.bm25` instance and performs
+        BM25 scoring for retrieval.
+
         Args:
-            language: Language for stemming.
-            stopwords: Stopword configuration. ``None`` (default) uses the
-                ``language`` for built-in stopwords, a ``str`` overrides the
-                stopwords language independently, and a ``list[str]`` provides
-                custom stopwords.
+            conversion_func: BM25 sparse embedding function
+                (from :mod:`cbrkit.sim.embed`).
             normalize_scores: If ``True`` (default), apply per-query min-max
                 normalization to BM25 scores. If ``False``, return raw BM25
                 scores.
@@ -243,79 +246,61 @@ with optional_dependencies():
         Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
         """
 
-        language: str
-        stopwords: str | list[str] | None = None
+        conversion_func: bm25_embed
         normalize_scores: bool = True
-        _casebase: dict[K, str] | None = field(default=None, init=False, repr=False)
-        _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
-
-        @property
-        def _stopwords(self) -> str | list[str]:
-            return self.stopwords if self.stopwords is not None else self.language
-
-        @property
-        def _stemmer(self) -> Stemmer.Stemmer:
-            return Stemmer.Stemmer(self.language)
-
-        def _build_retriever(self, casebase: Casebase[K, str]) -> bm25s.BM25:
-            cases_tokens = bm25s.tokenize(
-                list(casebase.values()),
-                stemmer=self._stemmer,
-                stopwords=self._stopwords,
-            )
-            retriever = bm25s.BM25()
-            retriever.index(cases_tokens)
-
-            return retriever
+        _keys: list[K] | None = field(default=None, init=False, repr=False)
 
         @property
         @override
         def index(self) -> Casebase[K, str]:
             """Return the indexed casebase."""
-            if self._casebase is None:
+            corpus = self.conversion_func._corpus
+            if self._keys is None or corpus is None:
                 return {}
-            return self._casebase
+            return dict(zip(self._keys, corpus, strict=True))
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild BM25 index, skipping rebuild when data is unchanged."""
-            if self._casebase is not None and dict(data) == self._casebase:
-                return
-
-            self._casebase = dict(data)
-            self._retriever = self._build_retriever(data)
+            """Rebuild BM25 index."""
+            self._keys = list(data.keys())
+            self.conversion_func.create_index(data.values())
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
             """Merge new data with existing casebase and rebuild index."""
-            if self._casebase is None:
+            if self._keys is None:
                 self.create_index(data)
                 return
 
-            self._casebase.update(data)
-            self._retriever = self._build_retriever(self._casebase)
+            merged = dict(self.index)
+            merged.update(data)
+            self.create_index(merged)
 
         @override
         def delete_index(self, data: Collection[K]) -> None:
             """Remove keys from the casebase and rebuild index."""
-            if self._casebase is None:
+            if self._keys is None:
                 return
 
-            for key in data:
-                self._casebase.pop(key, None)
-
-            if self._casebase:
-                self._retriever = self._build_retriever(self._casebase)
-            else:
-                self._retriever = None
+            remove = set(data)
+            remaining = {k: v for k, v in self.index.items() if k not in remove}
+            self.create_index(remaining)
 
         @override
         def __call__(
             self,
             batches: Sequence[tuple[Casebase[K, str], str]],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            resolved = resolve_casebases(batches, self._casebase)
-            sim_maps = dispatch_batches(resolved, self.__call_queries__)
+            indexed = self.index or None
+            resolved = resolve_casebases(batches, indexed)
+
+            def call_queries(
+                queries: Sequence[str],
+                casebase: Casebase[K, str],
+            ) -> Sequence[dict[K, float]]:
+                return self.__call_queries__(queries, casebase, indexed)
+
+            sim_maps = dispatch_batches(resolved, call_queries)
 
             return [
                 (casebase, sim_map)
@@ -326,16 +311,21 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
             casebase: Casebase[K, str],
+            indexed: Casebase[K, str] | None,
         ) -> Sequence[dict[K, float]]:
-            if self._retriever and self._casebase is casebase:
-                retriever = self._retriever
+            if (
+                self.conversion_func._retriever is not None
+                and indexed is not None
+                and casebase is indexed
+            ):
+                retriever = self.conversion_func._retriever
             else:
-                retriever = self._build_retriever(casebase)
+                retriever = self.conversion_func._build_retriever(casebase.values())
 
             queries_tokens = bm25s.tokenize(
                 cast(list[str], queries),
-                stemmer=self._stemmer,
-                stopwords=self._stopwords,
+                stemmer=self.conversion_func._stemmer,
+                stopwords=self.conversion_func._stopwords,
             )
 
             results, scores = retriever.retrieve(
@@ -805,7 +795,7 @@ with optional_dependencies():
         storage: zvec_storage[K]
         search_type: Literal["dense", "sparse", "hybrid"] = "dense"
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-        sparse_query_conversion_func: BatchConversionFunc[str, dict[int, float]] | None = None
+        sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
         limit: int | None = None
         filter: str | None = None
         rrf_k: int = 60

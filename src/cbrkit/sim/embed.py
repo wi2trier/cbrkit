@@ -32,6 +32,7 @@ from ..typing import (
     NumpyArray,
     SimFunc,
     SimSeq,
+    SparseVector,
 )
 
 __all__ = [
@@ -46,6 +47,8 @@ __all__ = [
     "spacy",
     "load_spacy",
     "sentence_transformers",
+    "splade",
+    "bm25",
     "pydantic_ai",
     "openai",
     "ollama",
@@ -554,6 +557,205 @@ with optional_dependencies():
             )
 
             return list(vecs)
+
+
+with optional_dependencies():
+    from sentence_transformers.sparse_encoder import SparseEncoder
+
+    @dataclass(slots=True)
+    class splade(BatchConversionFunc[str, SparseVector], HasMetadata):
+        """Sparse lexical embeddings using SPLADE models via
+        `sentence-transformers <https://www.sbert.net/>`_.
+
+        Produces sparse vectors where each dimension corresponds to a
+        vocabulary token and the value represents the token's importance.
+
+        Args:
+            model: Either the name of a SPLADE model (e.g.,
+                ``"naver/splade-cocondenser-ensembledistil"``) or a
+                ``SparseEncoder`` instance.
+            batch_size: Batch size for encoding.
+            show_progress_bar: Whether to show a progress bar.
+        """
+
+        model: SparseEncoder
+        batch_size: int
+        show_progress_bar: bool | None
+        _metadata: JsonDict
+
+        def __init__(
+            self,
+            model: str | SparseEncoder,
+            batch_size: int = 32,
+            show_progress_bar: bool | None = None,
+        ):
+            self._metadata = {}
+            self.batch_size = batch_size
+            self.show_progress_bar = show_progress_bar
+
+            if isinstance(model, str):
+                self.model = SparseEncoder(model)
+                self._metadata["model"] = model
+            else:
+                self.model = model
+                self._metadata["model"] = (
+                    model.model_card_data.model_id
+                    or model.model_card_data.base_model
+                    or "custom"
+                )
+
+        @property
+        @override
+        def metadata(self) -> JsonDict:
+            return self._metadata
+
+        @override
+        def __call__(self, texts: Sequence[str]) -> Sequence[SparseVector]:
+            if not texts:
+                return []
+
+            embeddings = cast(
+                Any,
+                self.model.encode(
+                    cast(list[str], texts),
+                    batch_size=self.batch_size,
+                    show_progress_bar=self.show_progress_bar,
+                    convert_to_sparse_tensor=True,
+                ),
+            )
+
+            # Convert 2D sparse COO tensor to list of {token_id: weight}
+            coalesced = embeddings.coalesce()
+            indices = coalesced.indices()  # [2, nnz]
+            values = coalesced.values()  # [nnz]
+
+            result: list[SparseVector] = [{} for _ in range(len(texts))]
+
+            for idx in range(indices.shape[1]):
+                row = int(indices[0, idx])
+                col = int(indices[1, idx])
+                val = float(values[idx])
+                if val != 0.0:
+                    result[row][col] = val
+
+            return result
+
+
+with optional_dependencies():
+    import bm25s
+    import Stemmer  # type: ignore[import-untyped]
+    from bm25s.tokenization import Tokenized
+
+    @dataclass(slots=True)
+    class bm25(
+        BatchConversionFunc[str, SparseVector],
+        IndexableFunc[Collection[str]],
+    ):
+        """BM25-based sparse embeddings using
+        `bm25s <https://github.com/xhluca/bm25s>`_.
+
+        Produces sparse vectors where each dimension corresponds to a
+        vocabulary token and the value represents the term frequency.
+        Requires fitting on a corpus via ``create_index`` before use.
+
+        Args:
+            language: Language for stemming and stopwords.
+            stopwords: Stopword configuration.  ``None`` uses the
+                language default, a ``str`` sets the stopwords language
+                independently, and a ``list[str]`` provides custom
+                stopwords.
+        """
+
+        language: str = "english"
+        stopwords: str | list[str] | None = None
+        _corpus: list[str] | None = field(default=None, init=False, repr=False)
+        _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
+
+        @property
+        def _stopwords(self) -> str | list[str]:
+            return self.stopwords if self.stopwords is not None else self.language
+
+        @property
+        def _stemmer(self) -> Stemmer.Stemmer:
+            return Stemmer.Stemmer(self.language)
+
+        def _build_retriever(self, texts: Collection[str]) -> bm25s.BM25:
+            tokens = bm25s.tokenize(
+                list(texts),
+                stemmer=self._stemmer,
+                stopwords=self._stopwords,
+            )
+            retriever = bm25s.BM25()
+            retriever.index(tokens)
+            return retriever
+
+        @property
+        @override
+        def index(self) -> Collection[str]:
+            if self._corpus is None:
+                return []
+            return self._corpus
+
+        @override
+        def create_index(self, data: Collection[str]) -> None:
+            self._corpus = list(data)
+            if self._corpus:
+                self._retriever = self._build_retriever(self._corpus)
+            else:
+                self._retriever = None
+
+        @override
+        def update_index(self, data: Collection[str]) -> None:
+            if self._corpus is None:
+                self.create_index(data)
+                return
+            self._corpus.extend(data)
+            self._retriever = self._build_retriever(self._corpus)
+
+        @override
+        def delete_index(self, data: Collection[str]) -> None:
+            if self._corpus is None:
+                return
+            remove_set = set(data)
+            self._corpus = [t for t in self._corpus if t not in remove_set]
+            if self._corpus:
+                self._retriever = self._build_retriever(self._corpus)
+            else:
+                self._retriever = None
+
+        @override
+        def __call__(self, texts: Sequence[str]) -> Sequence[SparseVector]:
+            if not texts:
+                return []
+            if self._retriever is None:
+                raise ValueError(
+                    "BM25 model must be fitted first. Call create_index()."
+                )
+
+            tokenized = cast(
+                Tokenized,
+                bm25s.tokenize(
+                    list(texts),
+                    stemmer=self._stemmer,
+                    stopwords=self._stopwords,
+                ),
+            )
+            corpus_vocab = self._retriever.vocab_dict
+            query_reverse = {v: k for k, v in tokenized.vocab.items()}
+            result: list[SparseVector] = []
+
+            for token_ids in tokenized.ids:
+                sparse_vec: SparseVector = {}
+                for tid in token_ids:
+                    token_str = query_reverse.get(int(tid))
+                    if token_str is not None and token_str in corpus_vocab:
+                        corpus_id = corpus_vocab[token_str]
+                        sparse_vec[corpus_id] = (
+                            sparse_vec.get(corpus_id, 0.0) + 1.0
+                        )
+                result.append(sparse_vec)
+
+            return result
 
 
 with optional_dependencies():

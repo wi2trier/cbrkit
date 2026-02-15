@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
 from .helpers import get_logger, optional_dependencies
-from .typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray
+from .typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray, SparseVector
 
 __all__ = [
     "chromadb",
@@ -442,7 +442,7 @@ with optional_dependencies():
             conversion_func: Dense embedding function.  Required for
                 ``"dense"`` and ``"hybrid"`` index types.
             sparse_conversion_func: Sparse embedding function returning
-                ``dict[int, float]`` per document.  Required for
+                ``SparseVector`` per document.  Required for
                 ``"sparse"`` and ``"hybrid"`` index types.
             metric_type: Distance metric for dense vector search.
             metadata_func: Optional callable that produces extra scalar
@@ -458,7 +458,7 @@ with optional_dependencies():
         collection: str
         index_type: Literal["dense", "sparse", "hybrid"] = "dense"
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-        sparse_conversion_func: BatchConversionFunc[str, dict[int, float]] | None = None
+        sparse_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
         metric_type: Literal["cosine", "ip", "l2"] = "cosine"
         metadata_func: Callable[[K, str], dict[str, Any]] | None = None
         value_field: str = "value"

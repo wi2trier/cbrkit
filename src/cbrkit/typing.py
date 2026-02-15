@@ -53,6 +53,7 @@ __all__ = [
     "SimFunc",
     "SimMap",
     "SimSeq",
+    "SparseVector",
     "StructuredValue",
     "SynthesizerFunc",
     "SynthesizerPromptFunc",
@@ -65,6 +66,7 @@ type JsonEntry = (
 )
 type JsonDict = dict[str, JsonEntry]
 type NumpyArray = npt.NDArray[np.float64]
+type SparseVector = dict[int, float]
 
 
 @dataclass(slots=True, frozen=True)
