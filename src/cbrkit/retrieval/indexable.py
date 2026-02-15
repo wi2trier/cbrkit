@@ -72,6 +72,36 @@ def _normalize_results[K](
     return normalized
 
 
+def _brute_force_dense_search[K](
+    queries: Sequence[str],
+    casebase: Casebase[K, str],
+    conversion_func: BatchConversionFunc[str, NumpyArray],
+    query_conversion_func: BatchConversionFunc[str, NumpyArray] | None,
+) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+    """Shared brute-force dense vector search for non-indexed casebases."""
+    keys = list(casebase.keys())
+    values = list(casebase.values())
+
+    case_vecs = conversion_func(values)
+    embed_func = query_conversion_func or conversion_func
+    query_vecs = embed_func(list(queries))
+
+    sim_func = batchify_sim(default_score_func)
+
+    results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
+
+    for qvec in query_vecs:
+        sims = sim_func([(cv, qvec) for cv in case_vecs])
+        results.append(
+            (
+                dict(casebase),
+                dict(zip(keys, sims, strict=True)),
+            )
+        )
+
+    return results
+
+
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
     RetrieverFunc[K, str, S],
@@ -453,28 +483,11 @@ with optional_dependencies():
                 )
 
             assert self.storage.conversion_func is not None
-
-            keys = list(casebase.keys())
-            values = list(casebase.values())
-
-            case_vecs = self.storage.conversion_func(values)
-            embed_func = self.query_conversion_func or self.storage.conversion_func
-            query_vecs = embed_func(list(queries))
-
-            sim_func = batchify_sim(default_score_func)
-
-            results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
-
-            for qvec in query_vecs:
-                sims = sim_func([(cv, qvec) for cv in case_vecs])
-                results.append(
-                    (
-                        dict(casebase),
-                        dict(zip(keys, sims, strict=True)),
-                    )
-                )
-
-            return results
+            return _brute_force_dense_search(
+                queries, casebase,
+                self.storage.conversion_func,
+                self.query_conversion_func,
+            )
 
         def _search_db(
             self,
@@ -872,28 +885,11 @@ with optional_dependencies():
                 )
 
             assert self.storage.conversion_func is not None
-
-            keys = list(casebase.keys())
-            values = list(casebase.values())
-
-            case_vecs = self.storage.conversion_func(values)
-            embed_func = self.query_conversion_func or self.storage.conversion_func
-            query_vecs = embed_func(list(queries))
-
-            sim_func = batchify_sim(default_score_func)
-
-            results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
-
-            for qvec in query_vecs:
-                sims = sim_func([(cv, qvec) for cv in case_vecs])
-                results.append(
-                    (
-                        dict(casebase),
-                        dict(zip(keys, sims, strict=True)),
-                    )
-                )
-
-            return results
+            return _brute_force_dense_search(
+                queries, casebase,
+                self.storage.conversion_func,
+                self.query_conversion_func,
+            )
 
         def _search_db(
             self,

@@ -23,7 +23,7 @@ Example:
         sparse_retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="sparse")
 """
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
@@ -37,6 +37,22 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+
+def _compute_index_diff[K](
+    existing: Casebase[K, str],
+    data: Casebase[K, str],
+) -> tuple[set[K], Casebase[K, str]]:
+    """Compute stale keys and changed/new entries for index updates."""
+    new_keys = set(data.keys())
+    old_keys = set(existing.keys())
+    stale_keys = old_keys - new_keys
+    changed_or_new: Casebase[K, str] = {
+        k: data[k]
+        for k in new_keys
+        if k not in existing or existing[k] != data[k]
+    }
+    return stale_keys, changed_or_new
 
 
 with optional_dependencies():
@@ -160,20 +176,12 @@ with optional_dependencies():
                 return
 
             existing = self.index
-            new_keys = set(data.keys())
-            old_keys = set(existing.keys())
-
-            stale_keys = old_keys - new_keys
-            changed_or_new: Casebase[K, str] = {
-                k: data[k]
-                for k in new_keys
-                if k not in existing or existing[k] != data[k]
-            }
+            stale_keys, changed_or_new = _compute_index_diff(existing, data)
 
             if not stale_keys and not changed_or_new:
                 return
 
-            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & old_keys)
+            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & set(existing.keys()))
             if keys_to_delete:
                 self.delete_index(keys_to_delete)
 
@@ -345,15 +353,7 @@ with optional_dependencies():
                 return
 
             existing = self.index
-            new_keys = set(data.keys())
-            old_keys = set(existing.keys())
-
-            stale_keys = old_keys - new_keys
-            changed_or_new: Casebase[K, str] = {
-                k: data[k]
-                for k in new_keys
-                if k not in existing or existing[k] != data[k]
-            }
+            stale_keys, changed_or_new = _compute_index_diff(existing, data)
 
             if not stale_keys and not changed_or_new:
                 return
@@ -392,6 +392,35 @@ with optional_dependencies():
 with optional_dependencies():
     import numpy as np
     import zvec as zv
+
+    @dataclass(slots=True, frozen=True)
+    class _ZvecCasebaseView[K: str](Mapping[K, str]):
+        """Lazy mapping backed by a zvec collection.
+
+        Keys are tracked in-memory; values are fetched on demand
+        via ``Collection.fetch()``.
+        """
+
+        _collection: zv.Collection
+        _value_field: str
+        _keys: frozenset[K]
+
+        def __getitem__(self, key: K) -> str:
+            if key not in self._keys:
+                raise KeyError(key)
+            result = self._collection.fetch(key)
+            if key not in result:
+                raise KeyError(key)
+            return result[key].field(self._value_field) or ""
+
+        def __iter__(self) -> Iterator[K]:
+            return iter(self._keys)
+
+        def __len__(self) -> int:
+            return len(self._keys)
+
+        def __hash__(self) -> int:
+            return id(self)
 
     @dataclass(slots=True)
     class zvec[K: str](
@@ -436,7 +465,8 @@ with optional_dependencies():
         dense_vector_name: str = "dense"
         sparse_vector_name: str = "sparse"
         _collection: zv.Collection | None = field(default=None, init=False, repr=False)
-        _casebase: dict[K, str] | None = field(default=None, init=False, repr=False)
+        _keys: set[K] | None = field(default=None, init=False, repr=False)
+        _metadata_field_names: frozenset[str] | None = field(default=None, init=False, repr=False)
 
         def __post_init__(self) -> None:
             if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
@@ -473,10 +503,10 @@ with optional_dependencies():
 
         def search_limit(self) -> int | None:
             """Return the total number of indexed documents, or ``None`` when empty."""
-            if self._casebase is None:
+            if self._keys is None:
                 return None
 
-            return len(self._casebase)
+            return len(self._keys)
 
         @staticmethod
         def _infer_field_type(value: Any) -> zv.DataType:
@@ -566,7 +596,15 @@ with optional_dependencies():
                     doc_vectors[self.sparse_vector_name] = sparse_vecs[i]
 
                 if self.metadata_func is not None:
-                    doc_fields.update(self.metadata_func(key, value))
+                    meta = self.metadata_func(key, value)
+                    if self._metadata_field_names is None:
+                        self._metadata_field_names = frozenset(meta.keys())
+                    elif set(meta.keys()) != self._metadata_field_names:
+                        raise ValueError(
+                            f"metadata_func returned fields {set(meta.keys())} for key={key!r}, "
+                            f"expected {self._metadata_field_names}"
+                        )
+                    doc_fields.update(meta)
 
                 docs.append(
                     zv.Doc(id=str(key), vectors=doc_vectors, fields=doc_fields)
@@ -578,20 +616,20 @@ with optional_dependencies():
         @override
         def index(self) -> Casebase[K, str]:
             """Return the indexed casebase."""
-            if self._casebase is None:
+            if self._keys is None or self._collection is None:
                 return {}
-            return self._casebase
+            return _ZvecCasebaseView(self._collection, self.value_field, frozenset(self._keys))
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
             """Rebuild zvec collection, reusing existing documents where possible."""
-            if self._collection is None or self._casebase is None:
+            if self._collection is None or self._keys is None:
                 if self._collection is not None:
                     self._collection.destroy()
                     self._collection = None
 
                 if not data:
-                    self._casebase = {}
+                    self._keys = set()
                     return
 
                 schema = self._build_schema(data)
@@ -600,19 +638,11 @@ with optional_dependencies():
                 collection.insert(docs)
 
                 self._collection = collection
-                self._casebase = dict(data)
+                self._keys = set(data.keys())
                 return
 
-            existing = self._casebase
-            new_keys = set(data.keys())
-            old_keys = set(existing.keys())
-
-            stale_keys = old_keys - new_keys
-            changed_or_new: Casebase[K, str] = {
-                k: data[k]
-                for k in new_keys
-                if k not in existing or existing[k] != data[k]
-            }
+            existing = self.index
+            stale_keys, changed_or_new = _compute_index_diff(existing, data)
 
             if not stale_keys and not changed_or_new:
                 return
@@ -624,7 +654,7 @@ with optional_dependencies():
                 docs = self._build_docs(changed_or_new)
                 self._collection.upsert(docs)
 
-            self._casebase = dict(data)
+            self._keys = set(data.keys())
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
@@ -636,10 +666,10 @@ with optional_dependencies():
             docs = self._build_docs(data)
             self._collection.upsert(docs)
 
-            if self._casebase is None:
-                self._casebase = dict(data)
+            if self._keys is None:
+                self._keys = set(data.keys())
             else:
-                self._casebase.update(data)
+                self._keys.update(data.keys())
 
         @override
         def delete_index(self, data: Collection[K]) -> None:
@@ -652,6 +682,5 @@ with optional_dependencies():
             if ids:
                 self._collection.delete(ids)
 
-            if self._casebase is not None:
-                for key in data:
-                    self._casebase.pop(key, None)
+            if self._keys is not None:
+                self._keys -= set(data)
