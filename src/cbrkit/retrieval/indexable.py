@@ -10,6 +10,7 @@ from ..helpers import (
     normalize,
     optional_dependencies,
 )
+from ..indexable import _compute_index_diff
 from ..sim.embed import cache, default_score_func
 from ..typing import (
     AnySimFunc,
@@ -144,33 +145,59 @@ class embed[K, S: Float](
 
     @override
     def create_index(self, data: Casebase[K, str]) -> None:
-        """Rebuild embedding index, reusing cached embeddings where possible."""
-        self._casebase = dict(data)
-        self.conversion_func.create_index(data.values())
+        """Ensure the embedding index exists and sync it with *data*.
+
+        On first call the casebase and embedding cache are built from
+        scratch.  On subsequent calls the existing casebase is diffed
+        against *data* and only stale or changed entries are
+        deleted/added via :meth:`delete_index` and :meth:`update_index`.
+        """
+        if self._casebase is None:
+            self._casebase = dict(data)
+            self.conversion_func.create_index(data.values())
+            return
+
+        existing = self._casebase
+        stale_keys, changed_or_new = _compute_index_diff(existing, data)
+
+        if not stale_keys and not changed_or_new:
+            return
+
+        if stale_keys:
+            self.delete_index(stale_keys)
+
+        if changed_or_new:
+            self.update_index(changed_or_new)
 
     @override
     def update_index(self, data: Casebase[K, str]) -> None:
-        """Add new entries to an existing index."""
+        """Add new entries to the embedding index.
+
+        If no index exists yet, delegates to :meth:`create_index`.
+        """
         if self._casebase is None:
             self.create_index(data)
             return
 
-        self._casebase.update(data)
+        if not data:
+            return
+
         self.conversion_func.update_index(data.values())
+        self._casebase.update(data)
 
     @override
     def delete_index(self, data: Collection[K]) -> None:
-        """Remove entries by key."""
-        if self._casebase is None:
+        """Remove entries by key from the embedding index."""
+        if self._casebase is None or not data:
             return
 
         texts_to_delete = [self._casebase[key] for key in data if key in self._casebase]
 
-        for key in data:
-            self._casebase.pop(key, None)
-
         if texts_to_delete:
             self.conversion_func.delete_index(texts_to_delete)
+
+        for key in data:
+            self._casebase.pop(key, None)
 
     @override
     def __call__(

@@ -43,7 +43,17 @@ def _compute_index_diff[K](
     existing: Casebase[K, str],
     data: Casebase[K, str],
 ) -> tuple[set[K], Casebase[K, str]]:
-    """Compute stale keys and changed/new entries for index updates."""
+    """Compute stale keys and changed/new entries for index updates.
+
+    Args:
+        existing: The current indexed casebase.
+        data: The desired casebase to sync with.
+
+    Returns:
+        A tuple ``(stale_keys, changed_or_new)`` where *stale_keys* are
+        keys present in *existing* but absent from *data*, and
+        *changed_or_new* maps keys whose values differ or are new.
+    """
     new_keys = set(data.keys())
     old_keys = set(existing.keys())
     stale_keys = old_keys - new_keys
@@ -167,8 +177,14 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild LanceDB table, reusing existing rows where possible."""
-            if not data or self._table is None:
+            """Ensure the LanceDB table exists and sync it with *data*.
+
+            On first call the table is created from scratch.  On subsequent
+            calls existing rows are diffed against *data* and only stale
+            or changed entries are deleted/re-added via
+            :meth:`delete_index` and :meth:`update_index`.
+            """
+            if self._table is None:
                 rows = self._build_rows(data)
                 table = self._db.create_table(self.table, rows, mode="overwrite")
                 self._setup_indices(table)
@@ -181,21 +197,25 @@ with optional_dependencies():
             if not stale_keys and not changed_or_new:
                 return
 
+            # LanceDB has no upsert – delete changed keys before re-adding.
             keys_to_delete = stale_keys | (set(changed_or_new.keys()) & set(existing.keys()))
             if keys_to_delete:
                 self.delete_index(keys_to_delete)
 
             if changed_or_new:
-                rows = self._build_rows(changed_or_new)
-                self._table.add(rows)
-
-            self._setup_indices(self._table)
+                self.update_index(changed_or_new)
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
-            """Append rows to an existing LanceDB table."""
+            """Append rows to the LanceDB table.
+
+            If no table exists yet, delegates to :meth:`create_index`.
+            """
             if self._table is None:
                 self.create_index(data)
+                return
+
+            if not data:
                 return
 
             rows = self._build_rows(data)
@@ -205,10 +225,7 @@ with optional_dependencies():
         @override
         def delete_index(self, data: Collection[K]) -> None:
             """Delete rows from the LanceDB table by key."""
-            if self._table is None:
-                return
-
-            if not data:
+            if self._table is None or not data:
                 return
 
             key_list = list(data)
@@ -337,7 +354,13 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild ChromaDB collection, reusing existing documents where possible."""
+            """Ensure the ChromaDB collection exists and sync it with *data*.
+
+            On first call the collection is created from scratch.  On
+            subsequent calls existing documents are diffed against *data*
+            and only stale or changed entries are deleted/upserted via
+            :meth:`delete_index` and :meth:`update_index`.
+            """
             if self._collection is None:
                 collection = self._client.create_collection(
                     name=self.collection,
@@ -362,16 +385,19 @@ with optional_dependencies():
                 self.delete_index(stale_keys)
 
             if changed_or_new:
-                ids, documents, metadatas = self._prepare_documents(changed_or_new)
-                self._collection.upsert(
-                    ids=ids, documents=documents, metadatas=metadatas
-                )
+                self.update_index(changed_or_new)
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
-            """Upsert documents into an existing ChromaDB collection."""
+            """Upsert documents into the ChromaDB collection.
+
+            If no collection exists yet, delegates to :meth:`create_index`.
+            """
             if self._collection is None:
                 self.create_index(data)
+                return
+
+            if not data:
                 return
 
             ids, documents, metadatas = self._prepare_documents(data)
@@ -380,7 +406,7 @@ with optional_dependencies():
         @override
         def delete_index(self, data: Collection[K]) -> None:
             """Remove documents by ID from the ChromaDB collection."""
-            if self._collection is None:
+            if self._collection is None or not data:
                 return
 
             ids = [str(k) for k in data]
@@ -622,7 +648,13 @@ with optional_dependencies():
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
-            """Rebuild zvec collection, reusing existing documents where possible."""
+            """Ensure the zvec collection exists and sync it with *data*.
+
+            On first call the collection is created from scratch.  On
+            subsequent calls existing documents are diffed against *data*
+            and only stale or changed entries are deleted/upserted via
+            :meth:`delete_index` and :meth:`update_index`.
+            """
             if self._collection is None or self._keys is None:
                 if self._collection is not None:
                     self._collection.destroy()
@@ -651,30 +683,32 @@ with optional_dependencies():
                 self.delete_index(stale_keys)
 
             if changed_or_new:
-                docs = self._build_docs(changed_or_new)
-                self._collection.upsert(docs)
+                self.update_index(changed_or_new)
 
             self._keys = set(data.keys())
 
         @override
         def update_index(self, data: Casebase[K, str]) -> None:
-            """Upsert documents into an existing zvec collection."""
-            if self._collection is None:
+            """Upsert documents into the zvec collection.
+
+            If no collection or key set exists yet, delegates to
+            :meth:`create_index`.
+            """
+            if self._collection is None or self._keys is None:
                 self.create_index(data)
+                return
+
+            if not data:
                 return
 
             docs = self._build_docs(data)
             self._collection.upsert(docs)
-
-            if self._keys is None:
-                self._keys = set(data.keys())
-            else:
-                self._keys.update(data.keys())
+            self._keys.update(data.keys())
 
         @override
         def delete_index(self, data: Collection[K]) -> None:
             """Remove documents by ID from the zvec collection."""
-            if self._collection is None:
+            if self._collection is None or self._keys is None or not data:
                 return
 
             ids = [str(k) for k in data]

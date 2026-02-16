@@ -50,7 +50,6 @@ __all__ = [
     "load_spacy",
     "sentence_transformers",
     "sparse_encoder",
-    "splade",
     "bm25",
     "pydantic_ai",
     "openai",
@@ -316,50 +315,37 @@ class cache(
 
     @override
     def create_index(self, data: Collection[str]) -> None:
-        """Rebuild index, reusing existing embeddings where possible."""
+        """Ensure the embedding cache exists and sync it with *data*.
+
+        On first call the cache is populated from scratch.  On
+        subsequent calls existing entries are diffed against *data*
+        and only stale or new entries are removed/added via
+        :meth:`delete_index` and :meth:`update_index`.
+        """
         data_set = set(data)
 
         if not data_set:
-            self.store.clear()
-
-            if self.path is not None and self.table is not None:
-                with self.connect() as con:
-                    con.execute(f'DELETE FROM "{self.table}"')
-                    con.commit()
-
+            self.delete_index(list(self.store.keys()))
             return
 
-        # Remove entries no longer needed
         stale_keys = set(self.store.keys()) - data_set
-        for key in stale_keys:
-            del self.store[key]
+        new_keys = data_set - set(self.store.keys())
 
-        # Compute only new embeddings (_compute_vecs skips texts already in store)
-        new_vecs = self._compute_vecs(data_set)
-        self.store.update(new_vecs)
+        if not stale_keys and not new_keys:
+            return
 
-        if self.path is not None and self.table is not None:
-            with self.connect() as con:
-                if stale_keys:
-                    con.executemany(
-                        f'DELETE FROM "{self.table}" WHERE text = ?',
-                        [(text,) for text in stale_keys],
-                    )
+        if stale_keys:
+            self.delete_index(stale_keys)
 
-                if new_vecs:
-                    con.executemany(
-                        f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
-                        [
-                            (text, vector.astype(np.float64).tobytes())
-                            for text, vector in new_vecs.items()
-                        ],
-                    )
-
-                con.commit()
+        if new_keys:
+            self.update_index(new_keys)
 
     @override
     def update_index(self, data: Collection[str]) -> None:
-        """Add new embeddings to an existing index."""
+        """Add new embeddings to the cache.
+
+        Texts already present in the cache are skipped.
+        """
         new_vecs = self._compute_vecs(set(data))
         self.store.update(new_vecs)
 
@@ -376,11 +362,14 @@ class cache(
 
     @override
     def delete_index(self, data: Collection[str]) -> None:
-        """Remove specific entries from the store and SQLite."""
+        """Remove specific entries from the cache and SQLite."""
+        if not data:
+            return
+
         for text in data:
             self.store.pop(text, None)
 
-        if self.path is not None and self.table is not None and data:
+        if self.path is not None and self.table is not None:
             with self.connect() as con:
                 con.executemany(
                     f'DELETE FROM "{self.table}" WHERE text = ?',
@@ -707,8 +696,6 @@ with optional_dependencies():
 
             return result
 
-    splade = sparse_encoder
-
 
 with optional_dependencies():
     import bm25s
@@ -819,9 +806,7 @@ with optional_dependencies():
                     token_str = query_reverse.get(int(tid))
                     if token_str is not None and token_str in corpus_vocab:
                         corpus_id = corpus_vocab[token_str]
-                        sparse_vec[corpus_id] = (
-                            sparse_vec.get(corpus_id, 0.0) + 1.0
-                        )
+                        sparse_vec[corpus_id] = sparse_vec.get(corpus_id, 0.0) + 1.0
                 result.append(sparse_vec)
 
             return result
