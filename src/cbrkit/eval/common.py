@@ -118,7 +118,9 @@ def concordances(
     # Later, we us the original similarities as their ordering corresponds to the qrel odering
     sorted_run = sorted(run.items(), key=lambda x: x[1], reverse=True)
     run_k = dict(sorted_run[: k if k > 0 else len(sorted_run)])
-    qrel_relevant = {doc: score for doc, score in qrel.items() if score >= relevance_level}
+    qrel_relevant = {
+        doc: score for doc, score in qrel.items() if score >= relevance_level
+    }
 
     keys = list(qrel_relevant.keys())
 

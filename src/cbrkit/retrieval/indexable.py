@@ -501,7 +501,8 @@ with optional_dependencies():
 
             assert self.storage.conversion_func is not None
             return _brute_force_dense_search(
-                queries, casebase,
+                queries,
+                casebase,
                 self.storage.conversion_func,
                 self.query_conversion_func,
             )
@@ -782,7 +783,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     import numpy as np
-    import zvec as zv
+    import zvec as zv  # type: ignore[import-not-found]
 
     from ..indexable import zvec as zvec_storage
 
@@ -822,7 +823,9 @@ with optional_dependencies():
         storage: zvec_storage[K]
         search_type: Literal["dense", "sparse", "hybrid"] = "dense"
         query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-        sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
+        sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = (
+            None
+        )
         limit: int | None = None
         filter: str | None = None
         rrf_k: int = 60
@@ -903,7 +906,8 @@ with optional_dependencies():
 
             assert self.storage.conversion_func is not None
             return _brute_force_dense_search(
-                queries, casebase,
+                queries,
+                casebase,
                 self.storage.conversion_func,
                 self.query_conversion_func,
             )
@@ -959,8 +963,7 @@ with optional_dependencies():
             assert self.storage.sparse_conversion_func is not None
 
             sparse_func = (
-                self.sparse_query_conversion_func
-                or self.storage.sparse_conversion_func
+                self.sparse_query_conversion_func or self.storage.sparse_conversion_func
             )
             query_vecs = sparse_func(list(queries))
             n = self._search_limit()
@@ -997,8 +1000,7 @@ with optional_dependencies():
 
             embed_func = self.query_conversion_func or self.storage.conversion_func
             sparse_func = (
-                self.sparse_query_conversion_func
-                or self.storage.sparse_conversion_func
+                self.sparse_query_conversion_func or self.storage.sparse_conversion_func
             )
 
             query_vecs = embed_func(list(queries))

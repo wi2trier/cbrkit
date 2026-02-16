@@ -85,7 +85,9 @@ with optional_dependencies():
         @override
         def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
             try:
-                alignment = smith.SmithWaterman(cast(Sequence[Any], x), cast(Sequence[Any], y))
+                alignment = smith.SmithWaterman(
+                    cast(Sequence[Any], x), cast(Sequence[Any], y)
+                )
                 alignment.change_matrix(
                     core.ScoreMatrix(
                         match=self.match_score,

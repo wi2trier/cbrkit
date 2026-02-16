@@ -28,7 +28,13 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
 from .helpers import get_logger, optional_dependencies
-from .typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray, SparseVector
+from .typing import (
+    BatchConversionFunc,
+    Casebase,
+    IndexableFunc,
+    NumpyArray,
+    SparseVector,
+)
 
 __all__ = [
     "chromadb",
@@ -58,9 +64,7 @@ def _compute_index_diff[K](
     old_keys = set(existing.keys())
     stale_keys = old_keys - new_keys
     changed_or_new: Casebase[K, str] = {
-        k: data[k]
-        for k in new_keys
-        if k not in existing or existing[k] != data[k]
+        k: data[k] for k in new_keys if k not in existing or existing[k] != data[k]
     }
     return stale_keys, changed_or_new
 
@@ -70,9 +74,7 @@ with optional_dependencies():
     import numpy as np
 
     @dataclass(slots=True)
-    class lancedb[K: int | str](
-        IndexableFunc[Casebase[K, str], Collection[K]]
-    ):
+    class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         """LanceDB storage backend.
 
         Manages an embedded LanceDB database on disk.  Supports dense
@@ -198,7 +200,9 @@ with optional_dependencies():
                 return
 
             # LanceDB has no upsert – delete changed keys before re-adding.
-            keys_to_delete = stale_keys | (set(changed_or_new.keys()) & set(existing.keys()))
+            keys_to_delete = stale_keys | (
+                set(changed_or_new.keys()) & set(existing.keys())
+            )
             if keys_to_delete:
                 self.delete_index(keys_to_delete)
 
@@ -246,9 +250,7 @@ with optional_dependencies():
     from chromadb.api import ClientAPI
 
     @dataclass(slots=True)
-    class chromadb[K: str](
-        IndexableFunc[Casebase[K, str], Collection[K]]
-    ):
+    class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
         """ChromaDB storage backend.
 
         Manages a persistent ChromaDB collection.  Supports dense,
@@ -417,7 +419,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     import numpy as np
-    import zvec as zv
+    import zvec as zv  # type: ignore[import-not-found]
 
     @dataclass(slots=True, frozen=True)
     class _ZvecCasebaseView[K: str](Mapping[K, str]):
@@ -449,9 +451,7 @@ with optional_dependencies():
             return id(self)
 
     @dataclass(slots=True)
-    class zvec[K: str](
-        IndexableFunc[Casebase[K, str], Collection[K]]
-    ):
+    class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
         """Zvec storage backend.
 
         Manages an embedded zvec collection on disk.  Supports dense
@@ -492,7 +492,9 @@ with optional_dependencies():
         sparse_vector_name: str = "sparse"
         _collection: zv.Collection | None = field(default=None, init=False, repr=False)
         _keys: set[K] | None = field(default=None, init=False, repr=False)
-        _metadata_field_names: frozenset[str] | None = field(default=None, init=False, repr=False)
+        _metadata_field_names: frozenset[str] | None = field(
+            default=None, init=False, repr=False
+        )
 
         def __post_init__(self) -> None:
             if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
@@ -583,13 +585,9 @@ with optional_dependencies():
                 sample_key = next(iter(data.keys()))
                 sample_meta = self.metadata_func(sample_key, data[sample_key])
                 for fname, fval in sample_meta.items():
-                    fields.append(
-                        zv.FieldSchema(fname, self._infer_field_type(fval))
-                    )
+                    fields.append(zv.FieldSchema(fname, self._infer_field_type(fval)))
 
-            return zv.CollectionSchema(
-                self.collection, fields=fields, vectors=vectors
-            )
+            return zv.CollectionSchema(self.collection, fields=fields, vectors=vectors)
 
         def _build_docs(self, casebase: Casebase[K, str]) -> list[zv.Doc]:
             """Build zvec Doc objects from a casebase."""
@@ -614,9 +612,9 @@ with optional_dependencies():
                 doc_fields: dict[str, Any] = {self.value_field: value}
 
                 if dense_vecs is not None:
-                    doc_vectors[self.dense_vector_name] = (
-                        np.asarray(dense_vecs[i]).tolist()
-                    )
+                    doc_vectors[self.dense_vector_name] = np.asarray(
+                        dense_vecs[i]
+                    ).tolist()
 
                 if sparse_vecs is not None:
                     doc_vectors[self.sparse_vector_name] = sparse_vecs[i]
@@ -632,9 +630,7 @@ with optional_dependencies():
                         )
                     doc_fields.update(meta)
 
-                docs.append(
-                    zv.Doc(id=str(key), vectors=doc_vectors, fields=doc_fields)
-                )
+                docs.append(zv.Doc(id=str(key), vectors=doc_vectors, fields=doc_fields))
 
             return docs
 
@@ -644,7 +640,9 @@ with optional_dependencies():
             """Return the indexed casebase."""
             if self._keys is None or self._collection is None:
                 return {}
-            return _ZvecCasebaseView(self._collection, self.value_field, frozenset(self._keys))
+            return _ZvecCasebaseView(
+                self._collection, self.value_field, frozenset(self._keys)
+            )
 
         @override
         def create_index(self, data: Casebase[K, str]) -> None:
