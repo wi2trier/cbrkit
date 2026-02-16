@@ -135,6 +135,11 @@ class embed[K, S: Float](
         self.query_conversion_func = query_conversion_func
         self._casebase = None
 
+    @override
+    def has_index(self) -> bool:
+        """Return whether an embedding index has been created."""
+        return self._casebase is not None
+
     @property
     @override
     def index(self) -> Casebase[K, str]:
@@ -276,6 +281,11 @@ with optional_dependencies():
         conversion_func: bm25_embed
         normalize_scores: bool = True
         _keys: list[K] | None = field(default=None, init=False, repr=False)
+
+        @override
+        def has_index(self) -> bool:
+            """Return whether a BM25 index has been created."""
+            return self._keys is not None
 
         @property
         @override

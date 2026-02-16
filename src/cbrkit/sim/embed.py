@@ -307,6 +307,11 @@ class cache(
 
         return dict(zip(new_texts, new_vecs, strict=True))
 
+    @override
+    def has_index(self) -> bool:
+        """Return whether the cache contains any entries."""
+        return bool(self.store)
+
     @property
     @override
     def index(self) -> Collection[str]:
@@ -744,6 +749,11 @@ with optional_dependencies():
             retriever = bm25s.BM25()
             retriever.index(tokens)
             return retriever
+
+        @override
+        def has_index(self) -> bool:
+            """Return whether a BM25 corpus has been indexed."""
+            return self._corpus is not None
 
         @property
         @override

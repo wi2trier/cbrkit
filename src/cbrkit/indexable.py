@@ -120,6 +120,7 @@ with optional_dependencies():
             if self.table in self._db.list_tables().tables:
                 self._table = self._db.open_table(self.table)
 
+        @override
         def has_index(self) -> bool:
             """Return whether a table exists in the database."""
             return self._table is not None
@@ -308,6 +309,7 @@ with optional_dependencies():
             except Exception:
                 self._collection = None
 
+        @override
         def has_index(self) -> bool:
             """Return whether a collection exists."""
             return self._collection is not None
@@ -525,6 +527,7 @@ with optional_dependencies():
                 case "l2":
                     return zv.MetricType.L2
 
+        @override
         def has_index(self) -> bool:
             """Return whether a collection exists on disk."""
             return self._collection is not None

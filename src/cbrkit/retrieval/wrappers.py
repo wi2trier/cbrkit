@@ -394,6 +394,11 @@ class persist[K, V, S: Float](
         if self.path is not None:
             _dump_path(self.path, self._casebase)
 
+    @override
+    def has_index(self) -> bool:
+        """Return whether the reference casebase is non-empty."""
+        return bool(self._casebase)
+
     @property
     @override
     def index(self) -> Casebase[K, V]:

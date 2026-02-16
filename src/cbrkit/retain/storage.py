@@ -81,6 +81,8 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         ...     @property
         ...     def index(self):
         ...         return self._data
+        ...     def has_index(self):
+        ...         return bool(self._data)
         ...     def create_index(self, data):
         ...         self._data = dict(data)
         ...     def update_index(self, data):
