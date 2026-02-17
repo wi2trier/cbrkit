@@ -793,7 +793,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     import numpy as np
-    import zvec as zv  # type: ignore[import-not-found]
+    import zvec as zv
 
     from ..indexable import zvec as zvec_storage
 
