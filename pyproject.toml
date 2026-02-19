@@ -75,7 +75,7 @@ graphviz = ["pygraphviz>=1,<2"]
 # Data
 chromadb = ["chromadb>=1,<2"]
 lancedb = ["lancedb>=0.20,<1"]
-pandas = ["pandas>=2,<3"]
+pandas = ["pandas>=2,<4"]
 sql = ["sqlalchemy>=2,<3"]
 zvec = ["zvec>=0.2,<1"]
 
@@ -108,7 +108,7 @@ Changelog = "https://github.com/wi2trier/cbrkit/releases"
 cbrkit = "cbrkit.cli:app"
 
 [dependency-groups]
-dev = ["pandas-stubs>=2,<3", "scipy-stubs>=1,<2"]
+dev = ["pandas-stubs>=2,<4", "scipy-stubs>=1,<2"]
 test = ["pytest>=9,<10", "pytest-cov>=7,<8"]
 docs = ["pdoc>=16,<17"]
 
