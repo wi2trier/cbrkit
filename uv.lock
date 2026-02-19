@@ -603,7 +603,7 @@ requires-dist = [
     { name = "rtoml", specifier = ">=0.12,<1" },
     { name = "rustworkx", marker = "extra == 'graphs'", specifier = ">=0.15,<1" },
     { name = "scipy", specifier = ">=1,<2" },
-    { name = "sentence-transformers", marker = "extra == 'transformers'", specifier = ">=3,<6" },
+    { name = "sentence-transformers", marker = "extra == 'transformers'", specifier = ">=4,<6" },
     { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.8,<4" },
     { name = "sqlalchemy", marker = "extra == 'sql'", specifier = ">=2,<3" },
     { name = "tiktoken", marker = "extra == 'openai'", specifier = ">=0.8,<1" },
