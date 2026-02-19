@@ -306,15 +306,14 @@ wheels = [
 
 [[package]]
 name = "bm25s"
-version = "0.2.14"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
-    { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/72/5ad06c30991ba494242785a3ab8987deb01c07dfc1c492847bde221e62bf/bm25s-0.2.14.tar.gz", hash = "sha256:7b6717770fffbdb3b962e5fe8ef1e6eac7f285d0fbc14484b321e136df837139", size = 59266, upload-time = "2025-09-08T17:06:30.728Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/30/0a3f0772101750613ad4662ceb599fee007d2027e52ac917b7eedec6649b/bm25s-0.3.0.tar.gz", hash = "sha256:591aa454d03763bdbc89961823f03fde0016467ceb5a1438363ef1ec3f0a09c9", size = 73998, upload-time = "2026-02-17T19:38:57.214Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/3e/e3ae2f0fb0f8f46f9c787fa419ca5203ff850d0630749a26baf0a6570453/bm25s-0.2.14-py3-none-any.whl", hash = "sha256:76cdb70ae40747941b150a1ec16a9c20c576d6534d0a3c3eebb303c779b3cf65", size = 55128, upload-time = "2025-09-08T17:06:29.324Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/90/bc786debc06d7dce2f8385fbe7f8da8c52ca9b7a1f72516a11888c1af150/bm25s-0.3.0-py3-none-any.whl", hash = "sha256:ef515019afafdc5bc181af71097dab78928b76601a1f2745b5761c9bccb6e6dd", size = 69068, upload-time = "2026-02-17T19:38:55.902Z" },
 ]
 
 [package.optional-dependencies]
@@ -323,6 +322,9 @@ core = [
     { name = "orjson" },
     { name = "pystemmer" },
     { name = "tqdm" },
+]
+indexing = [
+    { name = "scipy" },
 ]
 stem = [
     { name = "pystemmer" },
@@ -421,7 +423,7 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "anthropic" },
-    { name = "bm25s", extra = ["core", "stem"] },
+    { name = "bm25s", extra = ["core", "indexing", "stem"] },
     { name = "chonkie" },
     { name = "chromadb" },
     { name = "cohere" },
@@ -471,7 +473,7 @@ api = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 bm25 = [
-    { name = "bm25s", extra = ["core", "stem"] },
+    { name = "bm25s", extra = ["core", "indexing", "stem"] },
 ]
 chromadb = [
     { name = "chromadb" },
@@ -565,7 +567,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40,<1" },
-    { name = "bm25s", extras = ["core", "stem"], marker = "extra == 'bm25'", specifier = ">=0.2,<1" },
+    { name = "bm25s", extras = ["core", "stem", "indexing"], marker = "extra == 'bm25'", specifier = ">=0.3,<1" },
     { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chromadb", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "instructor", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pydantic-ai", "spacy", "sql", "timeseries", "transformers", "voyageai", "zvec"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "chonkie", marker = "extra == 'chunking'", specifier = ">=1,<2" },

@@ -59,7 +59,7 @@ pydantic-ai = ["pydantic-ai-slim>=1,<2"]
 voyageai = ["voyageai>=0.3,<1"]
 
 # NLP / text processing
-bm25 = ["bm25s[core,stem]>=0.2,<1"]
+bm25 = ["bm25s[core,stem,indexing]>=0.3,<1"]
 chunking = ["chonkie>=1,<2"]
 levenshtein = ["levenshtein>=0.26,<1"]
 nltk = ["nltk>=3,<4"]
