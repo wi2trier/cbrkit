@@ -530,7 +530,6 @@ pydantic-ai = [
     { name = "pydantic-ai-slim" },
 ]
 spacy = [
-    { name = "rich" },
     { name = "spacy" },
 ]
 sql = [
@@ -599,7 +598,6 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "ranx", marker = "extra == 'eval'", specifier = ">=0.3,<1" },
     { name = "rich", marker = "extra == 'cli'", specifier = ">=13,<15" },
-    { name = "rich", marker = "extra == 'spacy'", specifier = ">=13,<15" },
     { name = "rtoml", specifier = ">=0.12,<1" },
     { name = "rustworkx", marker = "extra == 'graphs'", specifier = ">=0.15,<1" },
     { name = "scipy", specifier = ">=1,<2" },
