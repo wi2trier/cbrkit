@@ -439,7 +439,6 @@ all = [
     { name = "fastmcp" },
     { name = "google-genai" },
     { name = "instructor" },
-    { name = "jsonref" },
     { name = "lancedb" },
     { name = "levenshtein" },
     { name = "minineedle" },
@@ -473,7 +472,6 @@ anthropic = [
 api = [
     { name = "fastapi" },
     { name = "fastmcp" },
-    { name = "jsonref" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
     { name = "rich" },
@@ -585,7 +583,6 @@ requires-dist = [
     { name = "frozendict", specifier = ">=2,<3" },
     { name = "google-genai", marker = "extra == 'google'", specifier = ">=1,<2" },
     { name = "instructor", marker = "extra == 'instructor'", specifier = ">=1,<2" },
-    { name = "jsonref", marker = "extra == 'api'", specifier = ">=1,<2" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.20,<1" },
     { name = "levenshtein", marker = "extra == 'levenshtein'", specifier = ">=0.26,<1" },
     { name = "minineedle", marker = "extra == 'timeseries'", specifier = ">=3,<4" },

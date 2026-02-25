@@ -80,9 +80,6 @@ def mcp_retrieve(
     return system.retrieve(query, config=config)
 
 
-cbrkit.helpers.dereference_fastmcp_tool(mcp_retrieve)
-
-
 @mcp.resource("casebase://{key}")
 def mcp_case(key: int) -> CarModel:
     return cbrkit.helpers.produce_factory(system.casebase)[key]

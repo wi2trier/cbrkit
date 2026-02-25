@@ -63,8 +63,6 @@ __all__ = [
     "chain_map_chunks",
     "chunkify",
     "chunkify_overlap",
-    "dereference_json_schema",
-    "dereference_fastmcp_tool",
     "dispatch_batches",
     "dist2sim",
     "get_hash",
@@ -932,30 +930,3 @@ def callable2model(
         fields[param.name] = (field_type, field_config)
 
     return create_model(get_name(func), **fields)
-
-
-with optional_dependencies():
-    import jsonref
-    from fastmcp.tools.tool import FunctionTool
-    from fastmcp.utilities.json_schema import compress_schema
-
-    # https://github.com/jlowin/fastmcp/pull/1427
-    def dereference_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
-        return compress_schema(
-            cast(
-                dict[str, Any],
-                jsonref.replace_refs(
-                    schema,
-                    jsonschema=True,
-                    merge_props=True,
-                    lazy_load=False,
-                    proxies=False,
-                ),
-            )
-        )
-
-    def dereference_fastmcp_tool(tool: FunctionTool) -> None:
-        tool.parameters = dereference_json_schema(tool.parameters)
-
-        if tool.output_schema is not None:
-            tool.output_schema = dereference_json_schema(tool.output_schema)
