@@ -464,7 +464,6 @@ all = [
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "voyageai" },
-    { name = "zvec" },
 ]
 anthropic = [
     { name = "anthropic" },
@@ -552,9 +551,6 @@ transformers = [
 voyageai = [
     { name = "voyageai" },
 ]
-zvec = [
-    { name = "zvec" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -616,9 +612,8 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.30,<1" },
     { name = "voyageai", marker = "extra == 'voyageai'", specifier = ">=0.3,<1" },
     { name = "xmltodict", specifier = ">=1,<2" },
-    { name = "zvec", marker = "extra == 'zvec'", git = "https://github.com/alibaba/zvec?tag=v0.2.0" },
 ]
-provides-extras = ["anthropic", "cohere", "google", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "sql", "zvec", "cli", "eval", "timeseries", "api", "all"]
+provides-extras = ["anthropic", "cohere", "google", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "sql", "cli", "eval", "timeseries", "api", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -5737,12 +5732,4 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/38/f249a2050ad1eea0bb364046153942e34abba95dd5520af199aed86fbb49/zstandard-0.25.0-cp314-cp314-win32.whl", hash = "sha256:da469dc041701583e34de852d8634703550348d5822e66a0c827d39b05365b12", size = 444513, upload-time = "2025-09-14T22:18:20.61Z" },
     { url = "https://files.pythonhosted.org/packages/3a/43/241f9615bcf8ba8903b3f0432da069e857fc4fd1783bd26183db53c4804b/zstandard-0.25.0-cp314-cp314-win_amd64.whl", hash = "sha256:c19bcdd826e95671065f8692b5a4aa95c52dc7a02a4c5a0cac46deb879a017a2", size = 516118, upload-time = "2025-09-14T22:18:17.849Z" },
     { url = "https://files.pythonhosted.org/packages/f0/ef/da163ce2450ed4febf6467d77ccb4cd52c4c30ab45624bad26ca0a27260c/zstandard-0.25.0-cp314-cp314-win_arm64.whl", hash = "sha256:d7541afd73985c630bafcd6338d2518ae96060075f9463d7dc14cfb33514383d", size = 476940, upload-time = "2025-09-14T22:18:19.088Z" },
-]
-
-[[package]]
-name = "zvec"
-version = "0.2.0"
-source = { git = "https://github.com/alibaba/zvec?tag=v0.2.0#1d5aeeed1df6e104443edf23891798f1ff0a8bf7" }
-dependencies = [
-    { name = "numpy" },
 ]
