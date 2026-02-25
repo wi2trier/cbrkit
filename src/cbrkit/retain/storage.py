@@ -17,11 +17,11 @@ __all__ = [
 class static[K, V](MapAdaptationFunc[K, V]):
     """Storage function that generates keys from a fixed casebase.
 
-    Generates keys via ``key_func`` using the provided ``casebase``
+    Generates keys via `key_func` using the provided `casebase`
     instead of the pipeline casebase, avoiding key collisions with the
     full collection.
     Each value in the pipeline casebase is added with a new key.
-    Unlike ``indexable``, this does not maintain any internal state.
+    Unlike `indexable`, this does not maintain any internal state.
 
     Args:
         key_func: Callable that generates a new key given a collection of keys.
@@ -60,12 +60,12 @@ class static[K, V](MapAdaptationFunc[K, V]):
 class indexable[K, V](MapAdaptationFunc[K, V]):
     """Storage function that keeps an IndexableFunc's index in sync.
 
-    Loads the full index once, generates new keys via ``key_func``,
-    and persists only the new entries via ``update_index``.
+    Loads the full index once, generates new keys via `key_func`,
+    and persists only the new entries via `update_index`.
     Returns the local dict directly, avoiding a second index scan.
 
     Note:
-        When combined with ``dropout``, the index is updated before
+        When combined with `dropout`, the index is updated before
         dropout filters cases.
         The index will be corrected on the next retain call.
 

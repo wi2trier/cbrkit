@@ -97,8 +97,8 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
     Useful when the input values need to be converted before retrieval,
     for instance, when the cases are nested and you only need to compare a subset of the values.
     This wrapper is not compatible with indexed retrieval mode (empty casebase inputs).
-    If the inner retriever resolves an indexed casebase, values are in the converted type ``V2``,
-    so transpose cannot safely reconstruct original ``V1`` values for the returned casebase.
+    If the inner retriever resolves an indexed casebase, values are in the converted type `V2`,
+    so transpose cannot safely reconstruct original `V1` values for the returned casebase.
     Use transpose with non-empty casebases at call time.
 
     Args:
@@ -297,9 +297,9 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
 class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
     """Wrapper that parallelizes retrieval across batches.
 
-    While ``build`` flattens all batches into a single list of pairwise
+    While `build` flattens all batches into a single list of pairwise
     comparisons and parallelizes individual similarity computations,
-    ``distribute`` calls the wrapped retriever separately for each
+    `distribute` calls the wrapped retriever separately for each
     (casebase, query) pair and parallelizes those calls using multiprocessing.
 
     Use this when you have many independent queries and want to process
@@ -307,7 +307,7 @@ class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
 
     Args:
         retriever_func: The retriever function to be used.
-            Typically constructed with the ``build`` function.
+            Typically constructed with the `build` function.
         multiprocessing: Either a boolean to enable multiprocessing with all cores
             or an integer to specify the number of processes to use or a multiprocessing.Pool object.
             Parallelizes the individual batch calls to the retriever.
@@ -341,21 +341,21 @@ class persist[K, V, S: Float](
     Wraps a non-indexable retriever and holds a reference to a full
     casebase.  When called with an empty casebase, the stored reference
     is used instead (indexed retrieval mode).  The reference can be
-    managed through the ``IndexableFunc`` methods.
+    managed through the `IndexableFunc` methods.
 
     If a path is provided, the casebase is loaded from disk on
     initialization (when the path exists) and automatically saved back
     on every index mutation.  The path may point to a single file or a
     directory of files.  The format is auto-detected from the file
-    extension.  Supported formats: ``.json``, ``.yaml``, ``.yml``,
-    ``.toml``, ``.csv``, ``.txt``.
+    extension.  Supported formats: `.json`, `.yaml`, `.yml`,
+    `.toml`, `.csv`, `.txt`.
 
     Args:
         retriever_func: The inner retriever function.
         casebase: The initial reference casebase.
-            Mutually exclusive with ``path``.
+            Mutually exclusive with `path`.
         path: Optional file or directory path for persistence.
-            Mutually exclusive with ``casebase``.
+            Mutually exclusive with `casebase`.
 
     Examples:
         In-memory usage:

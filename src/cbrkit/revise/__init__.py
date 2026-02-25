@@ -5,17 +5,17 @@ adapted solutions using a similarity function.
 Optionally, a repair function can be applied to fix solutions before assessment.
 
 Building Revisers:
-    ``build``: Creates a reviser from an assessment function (``assess_func``)
-    and an optional repair function (``repair_func``).
-    The assessment function is a similarity function that scores solutions.
-    The repair function is an adaptation function applied before assessment.
+- `build`: Creates a reviser from an assessment function (`assess_func`)
+  and an optional repair function (`repair_func`).
+  The assessment function is a similarity function that scores solutions.
+  The repair function is an adaptation function applied before assessment.
 
 Applying Revisers:
-    ``apply_result``: Applies the reviser to a reuse result.
-    ``apply_query``: Applies the reviser to a single query against a casebase.
-    ``apply_queries``: Applies the reviser to multiple queries.
-    ``apply_batches``: Applies the reviser to batches of (casebase, query) pairs.
-    ``apply_pair``: Applies the reviser to a single (case, query) pair.
+- `apply_result`: Applies the reviser to a reuse result.
+- `apply_query`: Applies the reviser to a single query against a casebase.
+- `apply_queries`: Applies the reviser to multiple queries.
+- `apply_batches`: Applies the reviser to batches of (casebase, query) pairs.
+- `apply_pair`: Applies the reviser to a single (case, query) pair.
 
 Multiple revisers can be composed by passing them as a list or tuple.
 

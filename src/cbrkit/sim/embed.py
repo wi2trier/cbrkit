@@ -193,12 +193,12 @@ default_score_func: SimFunc[NumpyArray, float] = cosine()
 class build[V, E, S: Float](BatchSimFunc[V, S]):
     """Embedding-based semantic similarity.
 
-    Generic over embedding type ``E``, supporting both dense
-    (``NumpyArray``) and sparse (``SparseVector``) embeddings.
+    Generic over embedding type `E`, supporting both dense
+    (`NumpyArray`) and sparse (`SparseVector`) embeddings.
 
     Args:
-        conversion_func: Embedding function producing type ``E``.
-        sim_func: Similarity score function for type ``E``.
+        conversion_func: Embedding function producing type `E`.
+        sim_func: Similarity score function for type `E`.
         query_conversion_func: Optional query embedding function.
     """
 
@@ -388,7 +388,7 @@ class cache(
 
         Texts already in the index are returned from the cache.
         Uncached texts are computed on-the-fly but not persisted;
-        use ``index`` to persist embeddings.
+        use `index` to persist embeddings.
         """
         new_vecs = self._compute_vecs(texts)
         tmp_store = ChainMap(new_vecs, self.store)
@@ -626,15 +626,15 @@ with optional_dependencies():
     class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
         """Sparse embeddings using `sentence-transformers <https://www.sbert.net/>`_ SparseEncoder.
 
-        Wraps any ``SparseEncoder`` model, including SPLADE variants and other
+        Wraps any `SparseEncoder` model, including SPLADE variants and other
         sparse embedding models.  Produces sparse vectors where each dimension
         corresponds to a vocabulary token and the value represents the token's
         importance.
 
         Args:
             model: Either the name of a sparse model (e.g.,
-                ``"naver/splade-cocondenser-ensembledistil"``) or a
-                ``SparseEncoder`` instance.
+                `"naver/splade-cocondenser-ensembledistil"`) or a
+                `SparseEncoder` instance.
             batch_size: Batch size for encoding.
             show_progress_bar: Whether to show a progress bar.
         """
@@ -717,13 +717,13 @@ with optional_dependencies():
 
         Produces sparse vectors where each dimension corresponds to a
         vocabulary token and the value represents the term frequency.
-        Requires fitting on a corpus via ``create_index`` before use.
+        Requires fitting on a corpus via `create_index` before use.
 
         Args:
             language: Language for stemming and stopwords.
-            stopwords: Stopword configuration.  ``None`` uses the
-                language default, a ``str`` sets the stopwords language
-                independently, and a ``list[str]`` provides custom
+            stopwords: Stopword configuration.  `None` uses the
+                language default, a `str` sets the stopwords language
+                independently, and a `list[str]` provides custom
                 stopwords.
         """
 

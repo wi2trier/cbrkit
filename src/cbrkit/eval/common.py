@@ -61,7 +61,7 @@ def parse_metric(spec: str) -> tuple[str, int, int]:
     """Parse a metric specification string into its components.
 
     Args:
-        spec: Metric string, optionally with ``@k`` and ``-lN`` suffixes.
+        spec: Metric string, optionally with `@k` and `-lN` suffixes.
 
     Returns:
         A tuple of (metric_name, k, relevance_level).

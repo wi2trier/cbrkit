@@ -116,7 +116,7 @@ class embed[K, S: Float](
         sim_func: Vector similarity function (default: cosine).
         query_conversion_func: Optional separate embedding function for queries.
 
-    Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
+    Pass an empty casebase to `__call__` to use the pre-indexed casebase.
     """
 
     conversion_func: cache
@@ -271,11 +271,11 @@ with optional_dependencies():
         Args:
             conversion_func: BM25 sparse embedding function
                 (from :mod:`cbrkit.sim.embed`).
-            normalize_scores: If ``True`` (default), apply per-query min-max
-                normalization to BM25 scores. If ``False``, return raw BM25
+            normalize_scores: If `True` (default), apply per-query min-max
+                normalization to BM25 scores. If `False`, return raw BM25
                 scores.
 
-        Pass an empty casebase to ``__call__`` to use the pre-indexed casebase.
+        Pass an empty casebase to `__call__` to use the pre-indexed casebase.
         """
 
         conversion_func: bm25_embed
@@ -425,15 +425,15 @@ with optional_dependencies():
 
         Args:
             storage: LanceDB storage instance.
-            search_type: Search mode — ``"dense"`` (ANN), ``"sparse"``
-                (BM25), or ``"hybrid"`` (dense + sparse combined).
+            search_type: Search mode — `"dense"` (ANN), `"sparse"`
+                (BM25), or `"hybrid"` (dense + sparse combined).
             query_conversion_func: Optional separate embedding function
                 for queries.  Falls back to the storage's
-                ``conversion_func``.
+                `conversion_func`.
             limit: Maximum number of results to return per query.
-                ``None`` (default) returns all rows.
+                `None` (default) returns all rows.
             where: Optional SQL filter expression applied during every
-                search query (e.g. ``"category = 'A'"``).
+                search query (e.g. `"category = 'A'"`).
             normalize_scores: Apply per-query min-max normalization.
         """
 
@@ -637,17 +637,17 @@ with optional_dependencies():
         instances can share the same storage to query with different
         search types.
 
-        Uses ChromaDB's ``Search`` API with ``Knn`` for dense/sparse
-        ranking and ``Rrf`` (Reciprocal Rank Fusion) for hybrid search.
+        Uses ChromaDB's `Search` API with `Knn` for dense/sparse
+        ranking and `Rrf` (Reciprocal Rank Fusion) for hybrid search.
 
         Args:
             storage: ChromaDB storage instance.
-            search_type: ``"dense"`` (ANN), ``"sparse"`` (BM25/SPLADE),
-                or ``"hybrid"`` (dense + sparse combined via RRF).
-            limit: Max results per query (``None`` = all).
+            search_type: `"dense"` (ANN), `"sparse"` (BM25/SPLADE),
+                or `"hybrid"` (dense + sparse combined via RRF).
+            limit: Max results per query (`None` = all).
             rrf_k: Smoothing parameter for RRF (default: 60).
-            rrf_weights: Weights for ``(dense, sparse)`` in RRF
-                (default: ``(0.7, 0.3)``).
+            rrf_weights: Weights for `(dense, sparse)` in RRF
+                (default: `(0.7, 0.3)`).
             normalize_scores: Apply per-query min-max normalization.
         """
 
@@ -808,21 +808,21 @@ with optional_dependencies():
         instances can share the same storage to query with different
         search types.
 
-        Uses zvec's built-in ``RrfReRanker`` for hybrid search.
+        Uses zvec's built-in `RrfReRanker` for hybrid search.
 
         Args:
             storage: Zvec storage instance.
-            search_type: Search mode — ``"dense"`` (ANN), ``"sparse"``
-                (sparse vectors), or ``"hybrid"`` (dense + sparse
+            search_type: Search mode — `"dense"` (ANN), `"sparse"`
+                (sparse vectors), or `"hybrid"` (dense + sparse
                 combined via RRF).
             query_conversion_func: Optional separate dense embedding
                 function for queries.  Falls back to the storage's
-                ``conversion_func``.
+                `conversion_func`.
             sparse_query_conversion_func: Optional separate sparse
                 embedding function for queries.  Falls back to the
-                storage's ``sparse_conversion_func``.
+                storage's `sparse_conversion_func`.
             limit: Maximum number of results to return per query.
-                ``None`` (default) returns all indexed documents.
+                `None` (default) returns all indexed documents.
             filter: Optional filter expression applied during every
                 search query.
             rrf_k: RRF smoothing parameter for hybrid search

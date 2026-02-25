@@ -35,7 +35,7 @@ class build[K, V, S: Float](RetrieverFunc[K, V, S]):
     individual similarity computations within batches.
 
     To parallelize across batches instead (i.e., process each (casebase, query)
-    pair independently), wrap the result with ``distribute``.
+    pair independently), wrap the result with `distribute`.
 
     Args:
         similarity_func: Similarity function to compute the similarity between cases.

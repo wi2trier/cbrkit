@@ -51,7 +51,7 @@ def _compute_index_diff[K](
         data: The desired casebase to sync with.
 
     Returns:
-        A tuple ``(stale_keys, changed_or_new)`` where *stale_keys* are
+        A tuple `(stale_keys, changed_or_new)` where *stale_keys* are
         keys present in *existing* but absent from *data*, and
         *changed_or_new* maps keys whose values differ or are new.
     """
@@ -80,16 +80,16 @@ with optional_dependencies():
             uri: Path to the LanceDB database directory.
             table: Table name within the database.
             index_type: Determines what data is stored and which
-                indices are created.  ``"dense"`` stores embeddings,
-                ``"sparse"`` builds an FTS index, ``"hybrid"`` does
+                indices are created.  `"dense"` stores embeddings,
+                `"sparse"` builds an FTS index, `"hybrid"` does
                 both.
             conversion_func: Embedding function.  Required for
-                ``"dense"`` and ``"hybrid"`` index types.
+                `"dense"` and `"hybrid"` index types.
             key_column: Column name for case keys.
             value_column: Column name for case text values.
             vector_column: Column name for dense embedding vectors.
             metadata_func: Optional callable that produces extra
-                columns for each row.  Called with ``(key, value)``
+                columns for each row.  Called with `(key, value)`
                 and must return a dict mapping column names to values.
         """
 
@@ -121,7 +121,7 @@ with optional_dependencies():
             return self._table is not None
 
         def search_limit(self) -> int | None:
-            """Return the total number of rows, or ``None`` when empty."""
+            """Return the total number of rows, or `None` when empty."""
             if self._table is None:
                 return None
 
@@ -257,16 +257,16 @@ with optional_dependencies():
             path: Directory for PersistentClient storage.
             collection: Collection name.
             index_type: Determines what embeddings and indices are
-                configured.  ``"dense"`` uses the embedding function,
-                ``"sparse"`` uses the sparse embedding function,
-                ``"hybrid"`` uses both.
-            embedding_func: ChromaDB ``EmbeddingFunction`` for dense
-                embeddings.  Required for ``"dense"`` and ``"hybrid"``.
+                configured.  `"dense"` uses the embedding function,
+                `"sparse"` uses the sparse embedding function,
+                `"hybrid"` uses both.
+            embedding_func: ChromaDB `EmbeddingFunction` for dense
+                embeddings.  Required for `"dense"` and `"hybrid"`.
             sparse_embedding_func: ChromaDB
-                ``SparseEmbeddingFunction`` for sparse embeddings.
-                Required for ``"sparse"`` and ``"hybrid"``.
+                `SparseEmbeddingFunction` for sparse embeddings.
+                Required for `"sparse"` and `"hybrid"`.
             metadata_func: Produces extra metadata per document from
-                ``(key, value)``.
+                `(key, value)`.
             sparse_key: Key name for the sparse vector index in the
                 ChromaDB schema.
         """
@@ -423,7 +423,7 @@ with optional_dependencies():
         """Lazy mapping backed by a zvec collection.
 
         Keys are tracked in-memory; values are fetched on demand
-        via ``Collection.fetch()``.
+        via `Collection.fetch()`.
         """
 
         _collection: zv.Collection
@@ -460,17 +460,17 @@ with optional_dependencies():
             path: Directory path for the zvec collection.
             collection: Collection name used in the schema.
             index_type: Determines what vectors are stored and which
-                indices are created.  ``"dense"`` stores dense
-                embeddings, ``"sparse"`` stores sparse embeddings,
-                ``"hybrid"`` stores both.
+                indices are created.  `"dense"` stores dense
+                embeddings, `"sparse"` stores sparse embeddings,
+                `"hybrid"` stores both.
             conversion_func: Dense embedding function.  Required for
-                ``"dense"`` and ``"hybrid"`` index types.
+                `"dense"` and `"hybrid"` index types.
             sparse_conversion_func: Sparse embedding function returning
-                ``SparseVector`` per document.  Required for
-                ``"sparse"`` and ``"hybrid"`` index types.
+                `SparseVector` per document.  Required for
+                `"sparse"` and `"hybrid"` index types.
             metric_type: Distance metric for dense vector search.
             metadata_func: Optional callable that produces extra scalar
-                fields for each document.  Called with ``(key, value)``
+                fields for each document.  Called with `(key, value)`
                 and must return a dict mapping field names to values.
                 All documents must produce the same set of field names.
             value_field: Field name for storing case text values.
@@ -529,7 +529,7 @@ with optional_dependencies():
             return self._collection is not None
 
         def search_limit(self) -> int | None:
-            """Return the total number of indexed documents, or ``None`` when empty."""
+            """Return the total number of indexed documents, or `None` when empty."""
             if self._keys is None:
                 return None
 

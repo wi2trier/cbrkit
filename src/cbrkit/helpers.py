@@ -116,7 +116,7 @@ def run_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
 
     When an event loop is already running in the current thread, the coroutine
     runs on a fresh loop in a background thread and this call blocks for its
-    result. Otherwise the coroutine runs via ``asyncio.run``.
+    result. Otherwise the coroutine runs via `asyncio.run`.
     """
 
     try:

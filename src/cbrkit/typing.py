@@ -94,8 +94,8 @@ class IndexableFunc[T, K = T](Protocol):
     """Supports pre-indexing data for efficient processing.
 
     Type Parameters:
-        T: The full index type (e.g., ``Casebase[K, V]``).
-        K: The keys/delete type (e.g., ``Collection[K]``).
+        T: The full index type (e.g., `Casebase[K, V]`).
+        K: The keys/delete type (e.g., `Collection[K]`).
     """
 
     @property
