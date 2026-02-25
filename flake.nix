@@ -95,9 +95,13 @@
             inherit (pythonSet.cbrkit) docs;
             default = config.packages.cbrkit;
             cbrkit = mkApplication {
-              venv = pythonSet.mkVirtualEnv "cbrkit-env" {
-                cbrkit = [ "all" ];
-              };
+              venv =
+                (pythonSet.mkVirtualEnv "cbrkit-env" {
+                  cbrkit = [ "all" ];
+                }).overrideAttrs
+                  (oldAttrs: {
+                    venvIgnoreCollisions = [ "${pkgs.python3.sitePackages}/griffe/*" ];
+                  });
               package = pythonSet.cbrkit;
             };
             docker = pkgs.dockerTools.streamLayeredImage {

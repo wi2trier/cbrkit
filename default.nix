@@ -44,9 +44,6 @@ let
         pygraphviz = {
           setuptools = [ ];
         };
-        pyperclip = {
-          setuptools = [ ];
-        };
         cbor = {
           setuptools = [ ];
         };
@@ -81,12 +78,17 @@ let
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
               cacert
-              (final.mkVirtualEnv "cbrkit-test-env" {
-                cbrkit = [
-                  "all"
-                  "test"
-                ];
-              })
+              (
+                (final.mkVirtualEnv "cbrkit-test-env" {
+                  cbrkit = [
+                    "all"
+                    "test"
+                  ];
+                }).overrideAttrs
+                (oldAttrs: {
+                  venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
+                })
+              )
             ];
             dontConfigure = true;
             buildPhase = ''
@@ -105,12 +107,17 @@ let
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
               cacert
-              (final.mkVirtualEnv "cbrkit-docs-env" {
-                cbrkit = [
-                  "all"
-                  "docs"
-                ];
-              })
+              (
+                (final.mkVirtualEnv "cbrkit-docs-env" {
+                  cbrkit = [
+                    "all"
+                    "docs"
+                  ];
+                }).overrideAttrs
+                (oldAttrs: {
+                  venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
+                })
+              )
             ];
             dontConfigure = true;
             buildPhase = ''
