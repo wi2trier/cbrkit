@@ -265,7 +265,7 @@ class paths(TaxonomySimFunc):
 
     ![path steps](../../../../assets/taxonomy/path.png)
 
-    Examples:)
+    Examples:
         >>> sim = build("./data/cars-taxonomy.yaml", paths())
         >>> sim("audi", "Volkswagen AG")
         0.8333333333333334
