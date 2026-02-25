@@ -132,8 +132,7 @@ let
             installPhase = ''
               runHook preInstall
 
-              mkdir -p "$out/assets"
-              cp -rf ./assets/**/{*.png,*.gif} "$out/assets"
+              cp -rf ./assets "$out/assets"
 
               runHook postInstall
             '';
