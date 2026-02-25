@@ -93,6 +93,8 @@ let
             dontConfigure = true;
             buildPhase = ''
               runHook preBuild
+              export HOME=$(mktemp -d)
+              export NUMBA_CACHE_DIR=$HOME/.numba_cache
               pytest --cov-report=html
               runHook postBuild
             '';

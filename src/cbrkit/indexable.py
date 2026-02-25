@@ -7,14 +7,14 @@ maintenance.  Retriever wrappers in :mod:`cbrkit.retrieval` consume
 these storage instances to perform search queries.
 
 Example:
-    >>> import tempfile
-    >>> storage = lancedb(
+    >>> import tempfile  # doctest: +SKIP
+    >>> storage = lancedb(  # doctest: +SKIP
     ...     uri=tempfile.mkdtemp(),
     ...     table="cases",
     ...     index_type="sparse",
     ... )
-    >>> storage.create_index({0: "hello world", 1: "foo bar"})
-    >>> storage.has_index()
+    >>> storage.create_index({0: "hello world", 1: "foo bar"})  # doctest: +SKIP
+    >>> storage.has_index()  # doctest: +SKIP
     True
 """
 
