@@ -8,7 +8,8 @@ in parallel with score aggregation.
 
 Building Retrievers:
     ``build``: Creates a retriever from a similarity function.
-    Supports multiprocessing for large casebases.
+    Flattens all batches into pairwise comparisons and optionally parallelizes
+    the similarity computations within batches.
     ``dropout``: Wraps a retriever with filtering by ``min_similarity`` and/or ``limit``.
 
 Applying Retrievers:
@@ -20,7 +21,8 @@ Applying Retrievers:
 
 Wrappers:
     ``combine``: Merges results from multiple retrievers using an aggregator.
-    ``distribute``: Splits the casebase into chunks for distributed retrieval.
+    ``distribute``: Parallelizes retrieval across batches by calling the wrapped
+    retriever separately for each (casebase, query) pair.
     ``persist``: Caches retrieval results to disk.
     ``transpose`` / ``transpose_value``: Transforms cases/queries before retrieval.
     ``chunk``: Splits cases into chunks for retrieval (requires ``chunking`` extra).

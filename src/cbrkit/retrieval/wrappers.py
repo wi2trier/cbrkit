@@ -295,13 +295,22 @@ class combine[K, V, S: Float](RetrieverFunc[K, V, float]):
 
 @dataclass(slots=True, frozen=True)
 class distribute[K, V, S: Float](RetrieverFunc[K, V, S]):
-    """Distributes the retrieval process by passing each batch separately to the retriever function.
+    """Wrapper that parallelizes retrieval across batches.
+
+    While ``build`` flattens all batches into a single list of pairwise
+    comparisons and parallelizes individual similarity computations,
+    ``distribute`` calls the wrapped retriever separately for each
+    (casebase, query) pair and parallelizes those calls using multiprocessing.
+
+    Use this when you have many independent queries and want to process
+    them in parallel as separate retrieval tasks.
 
     Args:
         retriever_func: The retriever function to be used.
-            Typically constructed with the `build` function.
+            Typically constructed with the ``build`` function.
         multiprocessing: Either a boolean to enable multiprocessing with all cores
             or an integer to specify the number of processes to use or a multiprocessing.Pool object.
+            Parallelizes the individual batch calls to the retriever.
 
     Returns:
         A retriever function that distributes the retrieval process.

@@ -26,14 +26,24 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class build[K, V, S: Float](RetrieverFunc[K, V, S]):
-    """Based on the similarity function this function creates a retriever function.
+    """Creates a retriever from a similarity function.
+
+    This is the core building block for retrieval pipelines.
+    It flattens all (casebase, query) batches into a single list of pairwise
+    comparisons and evaluates them together using the similarity function.
+    When multiprocessing is enabled, parallelism occurs at the level of
+    individual similarity computations within batches.
+
+    To parallelize across batches instead (i.e., process each (casebase, query)
+    pair independently), wrap the result with ``distribute``.
 
     Args:
         similarity_func: Similarity function to compute the similarity between cases.
         multiprocessing: Either a boolean to enable multiprocessing with all cores
             or an integer to specify the number of processes to use or a multiprocessing.Pool object.
-        chunksize: Number of batches to process at a time using the similarity function.
-            If None, it will be set to the number of batches divided by the number of processes.
+            Parallelizes the similarity computations within batches.
+        chunksize: Number of pairs to process at a time using the similarity function.
+            If 0, it will be set to the number of pairs divided by the number of processes.
 
     Returns:
         A retriever function that computes the similarity between cases.

@@ -713,7 +713,10 @@ result = cbrkit.retrieval.apply_query(casebase, query, combined)
 
 ### Distributed Processing
 
-For large-scale retrieval, use the `distribute` wrapper to process each batch in parallel:
+`build` and `distribute` offer two different levels of parallelism.
+`build(sim_func, multiprocessing=True)` parallelizes the **similarity computations** within batches: all (casebase, query) pairs are flattened into individual comparisons and distributed across processes.
+`distribute(retriever, multiprocessing=True)` parallelizes across **batches**: each (casebase, query) pair is passed to the wrapped retriever as a separate process.
+Use `distribute` when you have many independent queries and want to process them in parallel as separate retrieval tasks:
 
 ```python
 retriever = cbrkit.retrieval.distribute(
@@ -964,13 +967,15 @@ casebase = frozendict(cbrkit.loaders.file("cases.json"))
 
 ### Multiprocessing Support
 
-The `cbrkit.retrieval.build` function supports multiprocessing for large casebases:
+The `cbrkit.retrieval.build` function supports multiprocessing to parallelize similarity computations within batches:
 
 ```python
 retriever = cbrkit.retrieval.build(sim_func, multiprocessing=True)
 # or with a specific number of processes:
 retriever = cbrkit.retrieval.build(sim_func, multiprocessing=4)
 ```
+
+To parallelize across batches instead, see [Distributed Processing](#distributed-processing).
 
 ## Logging
 
