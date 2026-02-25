@@ -92,6 +92,7 @@ class table(static_table[str]):
     @property
     @override
     def metadata(self) -> JsonDict:
+        """Return metadata including case sensitivity for the string table."""
         meta = super(table, self).metadata
         meta["case_sensitive"] = self.case_sensitive
         return meta

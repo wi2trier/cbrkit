@@ -71,17 +71,25 @@ type SparseVector = dict[int, float]
 
 @dataclass(slots=True, frozen=True)
 class StructuredValue[T]:
+    """Wraps a typed value with optional structured metadata."""
+
     value: T
 
 
 class WrappedObject[T](ABC):
+    """Base class for objects that wrap another callable."""
+
     __wrapped__: T
 
 
 class HasMetadata(ABC):
+    """Provides metadata about the object for result steps."""
+
     @property
     @abstractmethod
-    def metadata(self) -> JsonDict: ...
+    def metadata(self) -> JsonDict:
+        """Return metadata describing this object's configuration."""
+        ...
 
 
 class InternalFunc(ABC):
@@ -99,15 +107,25 @@ class IndexableFunc[T, K = T](Protocol):
     """
 
     @property
-    def index(self) -> T: ...
+    def index(self) -> T:
+        """Return the current index data."""
+        ...
 
-    def has_index(self) -> bool: ...
+    def has_index(self) -> bool:
+        """Return whether an index has been created."""
+        ...
 
-    def create_index(self, data: T, /) -> None: ...
+    def create_index(self, data: T, /) -> None:
+        """Create or replace the index from the given data."""
+        ...
 
-    def update_index(self, data: T, /) -> None: ...
+    def update_index(self, data: T, /) -> None:
+        """Add or update entries in the index."""
+        ...
 
-    def delete_index(self, keys: K, /) -> None: ...
+    def delete_index(self, keys: K, /) -> None:
+        """Remove entries from the index by key."""
+        ...
 
 
 type Value[T] = T | StructuredValue[T]

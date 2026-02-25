@@ -39,6 +39,8 @@ class System[
     R3: BaseModel | None = None,
     R4: BaseModel | None = None,
 ]:
+    """Configurable CBR system that orchestrates retrieval, reuse, revision, and retention."""
+
     casebase: MaybeFactory[Mapping[K, V]] = field(default_factory=dict)
     retriever_factory: (
         Callable[
@@ -88,6 +90,7 @@ class System[
         casebase: CasebaseSpec[K, V] = None,
         config: R1 | None = None,
     ) -> QueryResultStep[K, V, S]:
+        """Retrieve similar cases from the casebase for the given query."""
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")
 
@@ -104,6 +107,7 @@ class System[
         casebase: CasebaseSpec[K, V] = None,
         config: R2 | None = None,
     ) -> QueryResultStep[K, V, S]:
+        """Reuse retrieved cases by adapting them for the given query."""
         if not self.reuser_factory:
             raise ValueError("Reuser factory is not defined.")
 
@@ -175,6 +179,7 @@ class System[
         reviser_config: R3 | None = None,
         retainer_config: R4 | None = None,
     ) -> QueryResultStep[K, V, S]:
+        """Run a full CBR cycle of retrieval, reuse, revision, and retention."""
         if not self.retriever_factory:
             raise ValueError("Retriever factory is not defined.")
 

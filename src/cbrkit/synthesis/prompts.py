@@ -25,6 +25,8 @@ __all__ = [
 
 @dataclass(slots=True, frozen=True)
 class concat[K, V, S: Float](SynthesizerPromptFunc[str, K, V, S]):
+    """Concatenates multiple prompt functions into a single prompt."""
+
     prompts: Sequence[SynthesizerPromptFunc[str, K, V, S] | str]
     separator: str = "\n\n"
 
@@ -42,6 +44,8 @@ class concat[K, V, S: Float](SynthesizerPromptFunc[str, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
+    """Converts input values before passing them to a prompt function."""
+
     prompt_func: SynthesizerPromptFunc[P, K, V2, S]
     conversion_func: ConversionFunc[V1, V2]
 
@@ -61,10 +65,12 @@ class transpose[P, K, V1, V2, S: Float](SynthesizerPromptFunc[P, K, V1, S]):
 def transpose_value[P, K, V, S: Float](
     func: SynthesizerPromptFunc[P, K, V, S],
 ) -> SynthesizerPromptFunc[P, K, StructuredValue[V], S]:
+    """Wrap a prompt function to extract values from structured value inputs."""
     return transpose(func, get_value)
 
 
 def encode[T](value: T, encoder: ConversionFunc[T, str]) -> str:
+    """Encode a value to a string, using the encoder for non-primitive types."""
     if value is None:
         return ""
     elif isinstance(value, str):

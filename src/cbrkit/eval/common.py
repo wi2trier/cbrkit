@@ -22,6 +22,7 @@ def compute_score_metric[C, S: Float, T](
     run_scores: Mapping[C, S],
     metric_func: Callable[[list[float], list[float]], T],
 ) -> T:
+    """Compute a score metric over shared keys between qrel and run scores."""
     keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
 
     return metric_func(
@@ -36,6 +37,7 @@ def compute_score_metrics[Q, C, S: Float, T](
     metric_funcs: dict[str, Callable[[list[float], list[float]], T]],
     aggregation_func: ConversionFunc[list[T], T] | None = None,
 ) -> dict[str, T | float]:
+    """Compute multiple score metrics across all shared queries."""
     metric_values: dict[str, T | float] = {}
     keys = set(qrel_scores.keys()).intersection(set(run_scores.keys()))
 
@@ -356,6 +358,7 @@ def compute[Q, C, S: Float](
     metrics: Sequence[str] = DEFAULT_METRICS,
     metric_funcs: Mapping[str, EvalMetricFunc] | None = None,
 ) -> dict[str, float]:
+    """Evaluate retrieval results against relevance judgments using the given metrics."""
     import ranx
 
     if metric_funcs is None:
@@ -503,6 +506,7 @@ def similarities_to_qrels[Q, C](
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
+    """Convert float similarity scores to integer relevance judgments."""
     if max_qrel is None:
         return {
             query: {

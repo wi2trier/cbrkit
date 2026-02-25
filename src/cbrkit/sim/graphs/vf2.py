@@ -36,7 +36,9 @@ class VF2Base[K, N, E, G](
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
-    ) -> list[frozendict[K, K]]: ...
+    ) -> list[frozendict[K, K]]:
+        """Returns all subgraph isomorphism node mappings between the two graphs."""
+        ...
 
     @override
     def __call__(
@@ -106,6 +108,8 @@ class VF2Base[K, N, E, G](
 
 @dataclass(slots=True)
 class vf2_rustworkx[K, N, E, G](VF2Base[K, N, E, G]):
+    """Graph similarity using the VF2 algorithm via rustworkx."""
+
     id_order: bool = False
     induced: bool = False
     call_limit: int | None = None
@@ -115,6 +119,7 @@ class vf2_rustworkx[K, N, E, G](VF2Base[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> list[frozendict[K, K]]:
+        """Finds subgraph isomorphism node mappings using rustworkx."""
         if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
             larger_graph, larger_graph_lookup = to_rustworkx_with_lookup(y)
             smaller_graph, smaller_graph_lookup = to_rustworkx_with_lookup(x)
@@ -178,11 +183,14 @@ class vf2_rustworkx[K, N, E, G](VF2Base[K, N, E, G]):
 
 @dataclass(slots=True)
 class vf2_networkx[K, N, E, G](VF2Base[K, N, E, G]):
+    """Graph similarity using the VF2 algorithm via NetworkX."""
+
     def node_mappings(
         self,
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> list[frozendict[K, K]]:
+        """Finds subgraph isomorphism node mappings using NetworkX."""
         if len(y.nodes) + len(y.edges) > len(x.nodes) + len(x.edges):
             larger_graph = to_networkx(y)
             smaller_graph = to_networkx(x)

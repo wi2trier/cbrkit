@@ -33,12 +33,16 @@ type GraphElementType = Literal["node", "edge"]
 
 
 class SerializedEdge[K, E](BaseModel):
+    """Serialized representation of a graph edge."""
+
     source: K
     target: K
     value: E
 
 
 class SerializedGraph[K, N, E, G](BaseModel):
+    """Serialized representation of a directed graph."""
+
     nodes: Mapping[K, N]
     edges: Mapping[K, SerializedEdge[K, E]]
     value: G
@@ -46,9 +50,12 @@ class SerializedGraph[K, N, E, G](BaseModel):
 
 @dataclass(slots=True, frozen=True)
 class Node[K, N](StructuredValue[N]):
+    """A node in a graph with a key and typed value."""
+
     key: K
 
     def dump(self, converter: ConversionFunc[N, N] = identity) -> N:
+        """Serialize the node value using an optional converter."""
         return converter(self.value)
 
     @classmethod
@@ -58,6 +65,7 @@ class Node[K, N](StructuredValue[N]):
         obj: N,
         converter: ConversionFunc[N, N] = identity,
     ) -> Self:
+        """Deserialize a node from a key and raw value."""
         return cls(
             converter(obj),
             key,
@@ -66,11 +74,14 @@ class Node[K, N](StructuredValue[N]):
 
 @dataclass(slots=True, frozen=True)
 class Edge[K, N, E](StructuredValue[E]):
+    """A directed edge connecting two nodes in a graph."""
+
     key: K
     source: Node[K, N]
     target: Node[K, N]
 
     def dump(self, converter: ConversionFunc[E, E] = identity) -> SerializedEdge[K, E]:
+        """Serialize the edge to a SerializedEdge using an optional converter."""
         return SerializedEdge(
             source=self.source.key,
             target=self.target.key,
@@ -85,6 +96,7 @@ class Edge[K, N, E](StructuredValue[E]):
         nodes: Mapping[K, Node[K, N]],
         converter: ConversionFunc[E, E] = identity,
     ) -> Self:
+        """Deserialize an edge from a SerializedEdge and a node mapping."""
         return cls(
             converter(obj.value),
             key,
@@ -95,6 +107,8 @@ class Edge[K, N, E](StructuredValue[E]):
 
 @dataclass(slots=True, frozen=True)
 class Graph[K, N, E, G](StructuredValue[G]):
+    """A directed graph with typed nodes, edges, and a graph-level value."""
+
     nodes: frozendict[K, Node[K, N]]
     edges: frozendict[K, Edge[K, N, E]]
 
@@ -104,6 +118,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         edge_converter: ConversionFunc[E, E] = identity,
         graph_converter: ConversionFunc[G, G] = identity,
     ) -> SerializedGraph[K, N, E, G]:
+        """Serialize the graph to a SerializedGraph using optional converters."""
         return SerializedGraph(
             nodes={key: node.dump(node_converter) for key, node in self.nodes.items()},
             edges={key: edge.dump(edge_converter) for key, edge in self.edges.items()},
@@ -118,6 +133,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         edge_converter: ConversionFunc[E, E] = identity,
         graph_converter: ConversionFunc[G, G] = identity,
     ) -> Self:
+        """Deserialize a graph from a SerializedGraph using optional converters."""
         nodes = frozendict(
             (key, Node.load(key, value, node_converter))
             for key, value in g.nodes.items()
@@ -135,6 +151,7 @@ class Graph[K, N, E, G](StructuredValue[G]):
         edges: Iterable[Edge[K, N, E]],
         value: G,
     ) -> Self:
+        """Construct a graph from iterables of nodes and edges."""
         node_map = frozendict((node.key, node) for node in nodes)
         edge_map = frozendict((edge.key, edge) for edge in edges)
 
@@ -147,6 +164,7 @@ def to_dict[K, N, E, G](
     edge_converter: ConversionFunc[E, E] = identity,
     graph_converter: ConversionFunc[G, G] = identity,
 ) -> Mapping[str, Any]:
+    """Convert a graph to a plain dictionary representation."""
     return g.dump(node_converter, edge_converter, graph_converter).model_dump()
 
 
@@ -156,6 +174,7 @@ def from_dict(
     edge_converter: ConversionFunc[Any, Any] = identity,
     graph_converter: ConversionFunc[Any, Any] = identity,
 ) -> Graph[Any, Any, Any, Any]:
+    """Construct a graph from a plain dictionary representation."""
     return Graph.load(
         SerializedGraph.model_validate(g),
         node_converter,
@@ -265,6 +284,7 @@ with optional_dependencies():
     def to_rustworkx_with_lookup[K, N, E](
         g: Graph[K, N, E, Any],
     ) -> tuple[rustworkx.PyDiGraph[N, E], dict[int, K]]:
+        """Convert a graph to a rustworkx digraph and return a node ID lookup."""
         ng = rustworkx.PyDiGraph(attrs=g.value)
         new_ids = ng.add_nodes_from(node.value for node in g.nodes.values())
         id_map = {
@@ -283,9 +303,11 @@ with optional_dependencies():
         return ng, {new_id: old_id for old_id, new_id in id_map.items()}
 
     def to_rustworkx[N, E](g: Graph[Any, N, E, Any]) -> rustworkx.PyDiGraph[N, E]:
+        """Convert a graph to a rustworkx digraph."""
         return to_rustworkx_with_lookup(g)[0]
 
     def from_rustworkx[N, E](g: rustworkx.PyDiGraph[N, E]) -> Graph[int, N, E, Any]:
+        """Construct a graph from a rustworkx digraph."""
         nodes = frozendict(
             (idx, Node(key=idx, value=g.get_node_data(idx))) for idx in g.node_indices()
         )
@@ -306,12 +328,16 @@ with optional_dependencies():
 
 
 class NetworkxNode[K, N](TypedDict):
+    """Typed dictionary representing a node in a networkx graph."""
+
     key: ReadOnly[K]
     value: ReadOnly[N]
     obj: ReadOnly[Node[K, N]]
 
 
 class NetworkxEdge[K, N, E](TypedDict):
+    """Typed dictionary representing an edge in a networkx graph."""
+
     key: ReadOnly[K]
     value: ReadOnly[E]
     obj: ReadOnly[Edge[K, N, E]]
@@ -321,6 +347,7 @@ with optional_dependencies():
     import networkx as nx
 
     def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> "nx.DiGraph[Any]":
+        """Convert a graph to a networkx DiGraph."""
         ng = nx.DiGraph()
         ng.graph = g.value
 
@@ -354,6 +381,7 @@ with optional_dependencies():
         return ng
 
     def from_networkx(g: "nx.DiGraph[Any]") -> Graph[Any, Any, Any, Any]:
+        """Construct a graph from a networkx DiGraph."""
         nodes = frozendict(
             (idx, Node(key=idx, value=data)) for idx, data in g.nodes(data=True)
         )
@@ -389,6 +417,7 @@ with optional_dependencies():
         edge_attr: Mapping[str, str] | None = None,
         graph_attr: Mapping[str, str] | None = None,
     ) -> AGraph:
+        """Convert a graph to a pygraphviz AGraph for visualization."""
         gv = AGraph(
             name=name,
             strict=strict,

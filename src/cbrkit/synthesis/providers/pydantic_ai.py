@@ -21,6 +21,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class pydantic_ai[T, R](AsyncProvider[PydanticAiPrompt, AgentRunResult[R]]):
+        """Provider that runs pydantic-ai agents."""
+
         agents: MaybeSequence[Agent[T, R]]
         deps: T
 

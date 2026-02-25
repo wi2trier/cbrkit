@@ -335,6 +335,7 @@ with optional_dependencies():
                 queries: Sequence[str],
                 casebase: Casebase[K, str],
             ) -> Sequence[dict[K, float]]:
+                """Dispatch queries to the BM25 retriever with the indexed casebase."""
                 return self.__call_queries__(queries, casebase, indexed)
 
             sim_maps = dispatch_batches(resolved, call_queries)

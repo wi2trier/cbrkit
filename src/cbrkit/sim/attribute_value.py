@@ -20,6 +20,8 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class AttributeValueSim[S: Float](StructuredValue[float]):
+    """Result of an attribute-value similarity computation with per-attribute scores."""
+
     attributes: Mapping[str, S]
 
 

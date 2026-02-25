@@ -45,6 +45,7 @@ def apply_batches[Q, C, V, S: Float](
     batch: Mapping[Q, tuple[Mapping[C, V], V]],
     reusers: MaybeFactories[ReuserFunc[C, V, S]],
 ) -> Result[Q, C, V, S]:
+    """Apply reuser functions to a batch of query-casebase pairs."""
     reuser_factories = produce_sequence(reusers)
     steps: list[ResultStep[Q, C, V, S]] = []
     current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batch

@@ -22,10 +22,13 @@ with optional_dependencies():
     type AnthropicPrompt = str | Sequence[BetaMessageParam]
 
     def if_given[T](value: T | None | Omit) -> T | Omit:
+        """Return the value if not None, otherwise return the Anthropic omit sentinel."""
         return value if value is not None else omit
 
     @dataclass(slots=True)
     class anthropic[R: str | BaseModel](BaseProvider[AnthropicPrompt, R]):
+        """Provider that calls Anthropic's messages API."""
+
         model: ModelParam
         max_tokens: int
         messages: Sequence[BetaMessageParam] = field(default_factory=tuple)

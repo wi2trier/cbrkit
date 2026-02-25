@@ -17,6 +17,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class instructor[R: BaseModel](BaseProvider[InstructorPrompt, R]):
+        """Provider that uses the instructor library for structured outputs."""
+
         client: AsyncInstructor = field(repr=False)
         messages: Sequence[ChatCompletionMessageParam] = field(default_factory=tuple)
         strict: bool = True

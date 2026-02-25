@@ -23,10 +23,13 @@ with optional_dependencies():
     type OpenAiPrompt = str | Sequence[ChatCompletionMessageParam]
 
     def if_given[T](value: T | None | Omit) -> T | Omit:
+        """Return the value if not None, otherwise return the OpenAI omit sentinel."""
         return value if value is not None else omit
 
     @dataclass(slots=True)
     class openai_completions[R: BaseModel | str](BaseProvider[OpenAiPrompt, R]):
+        """Provider that calls OpenAI's chat completions API."""
+
         model: str | ChatModel
         messages: Sequence[ChatCompletionMessageParam] = field(default_factory=tuple)
         tool_choice: type[BaseModel] | str | None = None

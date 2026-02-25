@@ -23,6 +23,7 @@ app = typer.Typer(pretty_exceptions_enable=False)
 
 @app.callback()
 def app_callback():
+    """Initialize the CBRKit CLI application."""
     pass
 
 
@@ -36,6 +37,7 @@ def retrieve(
     print_similarities: bool = False,
     output_path: Path | None = None,
 ) -> None:
+    """Retrieve similar cases from a casebase for the given queries."""
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
@@ -71,6 +73,7 @@ def reuse(
     search_path: Annotated[list[Path], typer.Option(default_factory=list)],
     output_path: Path | None = None,
 ) -> None:
+    """Reuse retrieved cases by adapting them for the given queries."""
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
@@ -95,6 +98,7 @@ def cycle(
     retainer: str | None = None,
     output_path: Path | None = None,
 ) -> None:
+    """Run a full CBR cycle with retrieval, reuse, revision, and retention."""
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
@@ -131,6 +135,7 @@ def synthesis(
     retainer: str | None = None,
     output_path: Path | None = None,
 ) -> None:
+    """Run a CBR cycle followed by synthesis to produce a generated response."""
     sys.path.extend(str(x) for x in search_path)
     casebase = cbrkit.loaders.path(casebase_path)
     queries = cbrkit.loaders.path(queries_path)
@@ -174,6 +179,7 @@ def serve(
     reload: bool = False,
     root_path: str = "",
 ) -> None:
+    """Start the CBRKit API server with the specified components."""
     import uvicorn
 
     from cbrkit.api import app
@@ -204,6 +210,7 @@ def uvicorn(
     reload: bool = False,
     root_path: str = "",
 ) -> None:
+    """Start a custom ASGI application using the uvicorn server."""
     import uvicorn
 
     sys.path.extend(str(x) for x in search_path)
@@ -219,6 +226,7 @@ def uvicorn(
 
 @app.command()
 def openapi(file: Path | None = None):
+    """Generate the OpenAPI schema and print or write it to a file."""
     from cbrkit.api import app
 
     schema = orjson.dumps(

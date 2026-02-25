@@ -34,6 +34,7 @@ class brute_force[K, N, E, G](
         y_nodes: Sequence[K],
         x_nodes: Sequence[K],
     ) -> GraphSim[K] | None:
+        """Evaluates a single node mapping candidate and returns its similarity."""
         node_mapping = frozendict(zip(y_nodes, x_nodes, strict=True))
 
         # if one node can't be matched to another, skip this permutation

@@ -42,7 +42,7 @@ class linear(SimFunc[Number, float]):
         max: Maximum bound of the distance (i.e., the point where the similarity is 0.0)
         min: Minimum bound of the distance (i.e., the point where the similarity is 1.0)
 
-    ![linear](../../../assets/numeric/linear.png)
+    ![linear](/assets/numeric/linear.png)
 
     Examples:
         >>> sim = linear(100)
@@ -72,7 +72,7 @@ class threshold(SimFunc[Number, float]):
     Args:
         value: If the absolute difference between the two values is less than or equal to this value, the similarity is 1.0, otherwise it is 0.0
 
-    ![threshold](../../../assets/numeric/threshold.png)
+    ![threshold](/assets/numeric/threshold.png)
 
     Examples:
         >>> sim = threshold(10)
@@ -96,7 +96,7 @@ class exponential(SimFunc[Number, float]):
     Args:
         alpha: Controls the growth of the exponential function for the similarity. The larger alpha is, the faster the similarity decreases.
 
-    ![exponential](../../../assets/numeric/exponential.png)
+    ![exponential](/assets/numeric/exponential.png)
 
     Examples:
         >>> sim = exponential(0.1)
@@ -119,7 +119,7 @@ class sigmoid(SimFunc[Number, float]):
         alpha: Specifies the steepness of the similarity decrease. The smaller alpha, the steeper is the decrease.
         theta: Specifies the point at which the similarity value is 0.5.
 
-    ![sigmoid](../../../assets/numeric/sigmoid.png)
+    ![sigmoid](/assets/numeric/sigmoid.png)
 
     Examples:
         >>> sim = sigmoid(1, 10)

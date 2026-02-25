@@ -42,6 +42,7 @@ ReadableType = str | bytes | TextIO | BinaryIO
 
 
 def read(data: ReadableType) -> str:
+    """Read string, bytes, or file-like input and return it as a string."""
     if isinstance(data, str):
         return data
 

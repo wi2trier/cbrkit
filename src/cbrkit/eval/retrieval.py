@@ -13,6 +13,7 @@ def retrieval_step[Q, C, S: Float](
     metrics: Sequence[str] = DEFAULT_METRICS,
     metric_funcs: dict[str, EvalMetricFunc] | None = None,
 ) -> dict[str, float]:
+    """Evaluate a single retrieval step against relevance judgments."""
     return compute(
         qrels,
         {query: entry.similarities for query, entry in step.queries.items()},
@@ -27,6 +28,7 @@ def retrieval[Q, C, S: Float](
     metrics: Sequence[str] = DEFAULT_METRICS,
     metric_funcs: dict[str, EvalMetricFunc] | None = None,
 ) -> list[dict[str, float]]:
+    """Evaluate all retrieval steps against relevance judgments."""
     return [
         retrieval_step(
             qrels,
@@ -45,6 +47,7 @@ def retrieval_step_to_qrels[Q, C, S: Float](
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
+    """Convert a retrieval step's similarities to integer relevance judgments."""
     unpacked_sims = {
         query: {case: unpack_float(value) for case, value in entry.similarities.items()}
         for query, entry in result.queries.items()
@@ -65,6 +68,7 @@ def retrieval_to_qrels[Q, C, S: Float](
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> list[QueryCaseMatrix[Q, C, int]]:
+    """Convert all retrieval steps' similarities to integer relevance judgments."""
     return [
         retrieval_step_to_qrels(
             step,

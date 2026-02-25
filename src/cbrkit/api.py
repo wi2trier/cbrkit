@@ -15,6 +15,8 @@ type CasebaseSpec = dict[str, Any] | UploadFile | Path
 
 
 class Settings(BaseSettings):
+    """Environment-based configuration for the CBRKit API."""
+
     model_config = SettingsConfigDict(env_prefix="cbrkit_")
     retriever: str = ""
     reuser: str = ""
@@ -28,6 +30,7 @@ app = FastAPI()
 
 
 def load_callables(value: str) -> dict[str, Any]:
+    """Load callable objects from a comma-separated string of module paths."""
     if value == "":
         return {}
 
@@ -56,6 +59,7 @@ loaded_synthesizers: dict[
 
 
 def parse_dataset(obj: CasebaseSpec) -> Mapping[str, Any]:
+    """Parse a casebase specification into a string-keyed mapping."""
     if isinstance(obj, dict):
         return cast(dict[str, Any], obj)
 
@@ -78,6 +82,7 @@ def parse_callables[T](
     keys: list[str] | str | None,
     loaded: dict[str, T],
 ) -> list[T]:
+    """Select loaded callables by name, defaulting to all available."""
     if not keys:
         keys = list(loaded.keys())
     elif isinstance(keys, str):
@@ -87,6 +92,8 @@ def parse_callables[T](
 
 
 class RetrieveRequest(BaseModel):
+    """Request payload for the retrieval endpoint."""
+
     casebase: CasebaseSpec
     queries: CasebaseSpec
     retrievers: Annotated[list[str] | str, Field(default_factory=list)]
@@ -96,6 +103,7 @@ class RetrieveRequest(BaseModel):
 def retrieve(
     request: RetrieveRequest,
 ) -> cbrkit.retrieval.Result[str, str, Any, cbrkit.typing.Float]:
+    """Handle a retrieval request and return ranked results."""
     return cbrkit.retrieval.apply_queries(
         parse_dataset(request.casebase),
         parse_dataset(request.queries),
@@ -104,6 +112,8 @@ def retrieve(
 
 
 class ReuseRequest(BaseModel):
+    """Request payload for the reuse endpoint."""
+
     casebase: CasebaseSpec
     queries: CasebaseSpec
     reusers: Annotated[list[str] | str, Field(default_factory=list)]
@@ -113,6 +123,7 @@ class ReuseRequest(BaseModel):
 def reuse(
     request: ReuseRequest,
 ) -> cbrkit.reuse.Result[str, str, Any, cbrkit.typing.Float]:
+    """Handle a reuse request and return adapted results."""
     return cbrkit.reuse.apply_queries(
         parse_dataset(request.casebase),
         parse_dataset(request.queries),
@@ -121,6 +132,8 @@ def reuse(
 
 
 class CycleRequest(BaseModel):
+    """Request payload for the full CBR cycle endpoint."""
+
     casebase: CasebaseSpec
     queries: CasebaseSpec
     retrievers: Annotated[list[str] | str, Field(default_factory=list)]
@@ -133,6 +146,7 @@ class CycleRequest(BaseModel):
 def cycle(
     request: CycleRequest,
 ) -> cbrkit.cycle.Result[str, str, Any, cbrkit.typing.Float]:
+    """Handle a full CBR cycle request and return the combined result."""
     return cbrkit.cycle.apply_queries(
         parse_dataset(request.casebase),
         parse_dataset(request.queries),
@@ -144,6 +158,8 @@ def cycle(
 
 
 class SynthesizeRequest(BaseModel):
+    """Request payload for the synthesis endpoint."""
+
     casebase: CasebaseSpec
     queries: CasebaseSpec
     synthesizer: str
@@ -157,6 +173,7 @@ class SynthesizeRequest(BaseModel):
 def synthesize(
     request: SynthesizeRequest,
 ) -> cbrkit.synthesis.Result[str, Any]:
+    """Handle a synthesis request by running a CBR cycle and synthesizing the result."""
     cycle_result = cbrkit.cycle.apply_queries(
         parse_dataset(request.casebase),
         parse_dataset(request.queries),
@@ -173,6 +190,7 @@ def synthesize(
 
 
 def openapi_generator():
+    """Generate and cache the OpenAPI schema for the CBRKit API."""
     if not app.openapi_schema:
         app.openapi_schema = get_openapi(
             title="CBRKit",

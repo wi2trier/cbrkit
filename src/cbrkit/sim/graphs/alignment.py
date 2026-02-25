@@ -305,6 +305,7 @@ with optional_dependencies():
             )
 
         def local_node_sim(self, q_node: Node[K, N], c_node: Node[K, N]) -> float:
+            """Computes weighted local node similarity using optional dataflow scores."""
             base = unpack_float(self.unbatched_node_sim_func(q_node, c_node))
 
             if self.use_procake_formula:

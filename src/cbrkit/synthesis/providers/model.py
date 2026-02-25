@@ -12,21 +12,28 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class Usage:
+    """Token usage statistics for a provider response."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
+        """Return the sum of prompt and completion tokens."""
         return self.prompt_tokens + self.completion_tokens
 
 
 @dataclass(slots=True, frozen=True)
 class Response[T](StructuredValue[T]):
+    """Provider response wrapping a value with usage statistics."""
+
     usage: Usage = field(default_factory=Usage)
 
 
 @dataclass(slots=True, kw_only=True)
 class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
+    """Base class for async batch-processing providers."""
+
     def __call__(self, batches: Sequence[P]) -> Sequence[R]:
         return run_coroutine(self.__call_batches__(batches))
 
@@ -51,6 +58,8 @@ class AsyncProvider[P, R](BatchConversionFunc[P, R], ABC):
 
 @dataclass(slots=True, kw_only=True)
 class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
+    """Base provider with model configuration, retry logic, and error handling."""
+
     model: str
     response_type: type[R]
     default_response: R | None = None

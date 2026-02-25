@@ -22,6 +22,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class CohereDocumentsPrompt:
+        """Cohere prompt with messages and document context."""
+
         messages: Sequence[ChatMessageV2]
         documents: Sequence[V2ChatRequestDocumentsItem]
 
@@ -29,6 +31,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class cohere[R: str | BaseModel](BaseProvider[CoherePrompt, R]):
+        """Provider that calls Cohere's chat API."""
+
         messages: Sequence[ChatMessageV2] = field(default_factory=tuple)
         documents: Sequence[V2ChatRequestDocumentsItem] = field(default_factory=tuple)
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)

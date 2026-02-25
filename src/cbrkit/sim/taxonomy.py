@@ -31,6 +31,8 @@ __all__ = [
 
 
 class SerializedTaxonomyNode(BaseModel):
+    """Serialized representation of a taxonomy node for loading from files."""
+
     name: str
     weight: float = 1.0
     children: list["SerializedTaxonomyNode | str"] = Field(default_factory=list)
@@ -41,6 +43,8 @@ SerializedTaxonomyNode.model_rebuild()
 
 @dataclass(slots=True)
 class TaxonomyNode:
+    """Internal node in a parsed taxonomy tree."""
+
     name: str
     weight: float
     depth: int
@@ -49,6 +53,7 @@ class TaxonomyNode:
 
     @property
     def level(self) -> int:
+        """Return the 1-based level of this node in the taxonomy."""
         return self.depth + 1
 
 
@@ -91,14 +96,17 @@ class Taxonomy:
 
     @property
     def root(self) -> TaxonomyNode:
+        """Return the root node of the taxonomy."""
         return self.nodes[self.root_name]
 
     @property
     def max_depth(self) -> int:
+        """Return the maximum depth across all nodes in the taxonomy."""
         return max(node.depth for node in self.nodes.values())
 
     @property
     def max_level(self) -> int:
+        """Return the maximum level across all nodes in the taxonomy."""
         return max(node.level for node in self.nodes.values())
 
     def parse(
@@ -107,6 +115,7 @@ class Taxonomy:
         parent: TaxonomyNode | None = None,
         depth: int = 0,
     ) -> TaxonomyNode:
+        """Parse a serialized taxonomy node and register it in the taxonomy."""
         if isinstance(data, str):
             data = SerializedTaxonomyNode(name=data)
 
@@ -126,6 +135,7 @@ class Taxonomy:
         return node
 
     def lca(self, node1: TaxonomyNode, node2: TaxonomyNode) -> TaxonomyNode:
+        """Find the lowest common ancestor of two taxonomy nodes."""
         while node1 != node2:
             if node1.parent is None or node2.parent is None:
                 return self.root
@@ -142,6 +152,8 @@ TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
 
 
 class TaxonomySimFunc(Protocol):
+    """Computes similarity between two nodes in a taxonomy."""
+
     def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float: ...
 
 
@@ -177,9 +189,9 @@ class weights(TaxonomySimFunc):
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
 
-    ![user weights](../../../../assets/taxonomy/user-weights.png)
+    ![user weights](/assets/taxonomy/user-weights.png)
 
-    ![user weights](../../../../assets/taxonomy/auto-weights.png)
+    ![auto weights](/assets/taxonomy/auto-weights.png)
 
     Examples:
         >>> sim = build("./data/cars-taxonomy.yaml", weights("auto", "optimistic"))
@@ -225,7 +237,7 @@ class levels(TaxonomySimFunc):
         strategy: The strategy to use in case one of the node is the lowest common ancestor (lca).
             One of "optimistic", "pessimistic", or "average".
 
-    ![node levels](../../../../assets/taxonomy/node-levels.png)
+    ![node levels](/assets/taxonomy/node-levels.png)
 
     Examples:
         >>> sim = build("./data/cars-taxonomy.yaml", levels("optimistic"))
@@ -263,7 +275,7 @@ class paths(TaxonomySimFunc):
         weight_up: The weight to use for the steps up.
         weight_down: The weight to use for the steps down.
 
-    ![path steps](../../../../assets/taxonomy/path.png)
+    ![path steps](/assets/taxonomy/path.png)
 
     Examples:
         >>> sim = build("./data/cars-taxonomy.yaml", paths())

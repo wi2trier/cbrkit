@@ -23,6 +23,8 @@ from ..typing import (
 
 @dataclass(slots=True, frozen=True)
 class chunks[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
+    """Splits casebases into overlapping chunks for synthesis."""
+
     synthesis_func: SynthesizerFunc[R2, K, V, S]
     conversion_func: AnyConversionFunc[Sequence[R2], R1]
     size: int
@@ -68,6 +70,8 @@ class chunks[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class pooling[P, R1, R2](BatchConversionFunc[Sequence[Value[R2]], R1]):
+    """Aggregates partial synthesis results into a final result."""
+
     generation_func: AnyConversionFunc[P, R1]
     prompt_func: AnyConversionFunc[Sequence[Value[R2]], P]
 
@@ -81,6 +85,8 @@ class pooling[P, R1, R2](BatchConversionFunc[Sequence[Value[R2]], R1]):
 
 @dataclass(slots=True, frozen=True)
 class transpose[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
+    """Transforms synthesis output from one type to another."""
+
     synthesis_func: SynthesizerFunc[R2, K, V, S]
     conversion_func: ConversionFunc[R2, R1]
 
@@ -92,6 +98,8 @@ class transpose[R1, R2, K, V, S: Float](SynthesizerFunc[R1, K, V, S]):
 
 @dataclass(slots=True, frozen=True)
 class build[P, R, K, V, S: Float](SynthesizerFunc[R, K, V, S]):
+    """Builds a synthesizer from a prompt function and a generation function."""
+
     generation_func: MaybeFactory[AnyConversionFunc[P, R]]
     prompt_func: SynthesizerPromptFunc[P, K, V, S]
 

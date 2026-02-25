@@ -19,6 +19,8 @@ type LapEdgeHandling = Literal["ignore", "worstcase", "greedy", "optimal"]
 # https://jack.valmadre.net/notes/2020/12/08/non-perfect-linear-assignment/
 @dataclass
 class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
+    """Base class for building LAP cost matrices with configurable edge handling."""
+
     edge_handling: LapEdgeHandling = "greedy"
     # 1.0 gives an upper bound, 0.5 gives a lower bound
     # approximation is better with a lower bound
@@ -26,6 +28,7 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     print_matrix: bool = False
 
     def connected_edges(self, g: Graph[K, N, E, G], n: K) -> set[K]:
+        """Returns the keys of all edges incident to the given node."""
         return {
             e.key for e in g.edges.values() if n == e.source.key or n == e.target.key
         }
@@ -126,6 +129,7 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         node_pair_sims: PairSim[K],
         edge_pair_sims: PairSim[K],
     ) -> NumpyArray:
+        """Builds a normalized cost matrix for the linear assignment problem."""
         rows = len(y.nodes)
         cols = len(x.nodes)
         dim = rows + cols
@@ -221,6 +225,8 @@ class lap[K, N, E, G](
     BaseGraphSimFunc[K, N, E, G],
     SimFunc[Graph[K, N, E, G], GraphSim[K]],
 ):
+    """Graph similarity using the Linear Assignment Problem (LAP)."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],

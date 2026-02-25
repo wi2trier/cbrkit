@@ -91,11 +91,15 @@ def feasible_subgraph_pair_sims[K, N, E, G](
 
 @dataclass(slots=True, frozen=True, order=True)
 class PriorityState[K]:
+    """A search state with a priority value for the A* priority queue."""
+
     priority: float
     state: SearchState[K] = field(compare=False)
 
 
 class HeuristicFunc[K, N, E, G](Protocol):
+    """Estimates the future similarity of unmapped graph elements."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -108,6 +112,8 @@ class HeuristicFunc[K, N, E, G](Protocol):
 
 
 class SelectionFunc[K, N, E, G](Protocol):
+    """Selects the next graph element to map during search."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -121,6 +127,8 @@ class SelectionFunc[K, N, E, G](Protocol):
 
 @dataclass(slots=True, frozen=True)
 class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
+    """Heuristic based on the fraction of unmapped elements."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -138,6 +146,8 @@ class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
+    """Heuristic based on the best pairwise similarity of unmapped elements."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -165,6 +175,8 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
+    """Heuristic based on feasible pairwise similarities of open elements."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -201,6 +213,8 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
+    """Heuristic based on LAP-solved subgraph similarity of open elements."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -256,6 +270,8 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
+    """Selects the next element in natural order, nodes before edges."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -264,7 +280,6 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> None | tuple[K, GraphElementType]:
-        """Select the next node or edge to be mapped"""
 
         if s.open_y_nodes:
             return next_elem(s.open_y_nodes), "node"
@@ -277,6 +292,8 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
+    """Selects edges with both endpoints mapped first, then nodes."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -285,7 +302,6 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> None | tuple[K, GraphElementType]:
-        """Select the next node or edge to be mapped"""
 
         edge_candidates = {
             key
@@ -305,6 +321,8 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
+    """Selects the element with the highest heuristic score and fewest options."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -313,7 +331,6 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> None | tuple[K, GraphElementType]:
-        """Select the next node or edge to be mapped"""
 
         mapping_options: dict[tuple[K, GraphElementType], int] = {}
         heuristic_scores: dict[tuple[K, GraphElementType], float] = {}
@@ -389,6 +406,8 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
 
 @dataclass(slots=True)
 class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
+    """Selects elements using LAP-based cost analysis of the remaining subgraph."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -397,7 +416,6 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> None | tuple[K, GraphElementType]:
-        """Select the next node or edge to be mapped"""
 
         edge_candidates = {
             key
@@ -551,6 +569,7 @@ class build[K, N, E, G](
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
+        """Computes the A* priority combining past similarity and heuristic estimate."""
         past_sim = unpack_float(
             self.similarity(
                 x,

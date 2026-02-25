@@ -136,6 +136,7 @@ def optional_dependencies(
     error_handling: Literal["ignore", "warn", "raise"] = "ignore",
     extras_name: str | None = None,
 ) -> Generator[None, Any, None]:
+    """Context manager that catches ImportError for optional dependencies."""
     try:
         yield None
     except (ImportError, ModuleNotFoundError) as e:
@@ -155,6 +156,7 @@ def optional_dependencies(
 
 
 def get_name(obj: Any) -> str:
+    """Return a human-readable name for the given object."""
     if obj is None:
         return ""
 
@@ -168,6 +170,7 @@ def get_name(obj: Any) -> str:
 
 
 def get_optional_name(obj: Any | None) -> str | None:
+    """Return a human-readable name for the given object, or None if the object is None."""
     if obj is None:
         return None
 
@@ -175,6 +178,7 @@ def get_optional_name(obj: Any | None) -> str | None:
 
 
 def get_metadata(obj: Any) -> JsonEntry:
+    """Recursively extract metadata from an object as a JSON-serializable structure."""
     if isinstance(obj, WrappedObject):
         return get_metadata(obj.__wrapped__)
 
@@ -266,6 +270,7 @@ def chunkify_overlap[V](
     overlap: int,
     direction: Literal["left", "right", "both"] = "both",
 ) -> Iterator[Sequence[V]]:
+    """Yield fixed-size chunks with overlapping elements from adjacent chunks."""
     chunks = list(chunkify(val, size))
 
     for i, chunk in enumerate(chunks):
@@ -286,6 +291,7 @@ def chain_map_chunks[U, V](
     batches: Sequence[Sequence[U]],
     func: AnyConversionFunc[U, V],
 ) -> Sequence[Sequence[V]]:
+    """Apply a conversion function to flattened chunks and reshape back into batches."""
     batched_func = batchify_conversion(func)
     batch2chunk_indexes: list[list[int]] = []
     flat_batches: list[U] = []
@@ -355,15 +361,18 @@ def log_batch(
     i: int,
     total: int,
 ):
+    """Log the progress of batch processing."""
     if logger is not None and total > 1:
         logger.log(BATCH_LOGGING_LEVEL, f"Processing batch {i}/{total}")
 
 
 def total_params(func: Callable[..., Any]) -> int:
+    """Return the total number of parameters in a callable's signature."""
     return len(inspect.signature(func).parameters)
 
 
 def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
+    """Wrap a single value or sequence into a list."""
     if isinstance(obj, str):
         return cast(list[T], [obj])
 
@@ -374,10 +383,12 @@ def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
 
 
 def is_factory[T](obj: MaybeFactory[T]) -> TypeIs[Factory[T]]:
+    """Check whether the given object is a zero-argument factory callable."""
     return callable(obj) and total_params(obj) == 0
 
 
 def produce_factory[T](obj: MaybeFactory[T]) -> T:
+    """Resolve a factory by calling it, or return the value as-is."""
     if is_factory(obj):
         return obj()
 
@@ -385,6 +396,7 @@ def produce_factory[T](obj: MaybeFactory[T]) -> T:
 
 
 def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
+    """Resolve one or more factories into a list of values."""
     if isinstance(obj, Sequence):
         return cast(list[T], [produce_factory(item) for item in obj])
 
@@ -393,6 +405,8 @@ def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
 
 @dataclass(slots=True, frozen=True)
 class wrap_factory[**P, T]:
+    """Wraps a factory or callable, resolving the factory on each call."""
+
     func: MaybeFactory[Callable[P, T]]
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
@@ -405,6 +419,8 @@ class wrap_factory[**P, T]:
 class batchify_positional[T](
     WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], BatchPositionalFunc[T]
 ):
+    """Normalizes a positional function to batch mode."""
+
     __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
     logger: logging.Logger | None
@@ -442,6 +458,8 @@ class batchify_positional[T](
 class unbatchify_positional[T](
     WrappedObject[MaybeFactory[AnyPositionalFunc[T]]], PositionalFunc[T]
 ):
+    """Normalizes a batch positional function to single-item mode."""
+
     __wrapped__: MaybeFactory[AnyPositionalFunc[T]]
     parameters: int
 
@@ -470,6 +488,8 @@ class unbatchify_positional[T](
 class batchify_named[T](
     WrappedObject[MaybeFactory[AnyNamedFunc[T]]], BatchNamedFunc[T]
 ):
+    """Normalizes a named function to batch mode."""
+
     __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int
     logger: logging.Logger | None
@@ -505,6 +525,8 @@ class batchify_named[T](
 
 @dataclass(slots=True)
 class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFunc[T]):
+    """Normalizes a batch named function to single-item mode."""
+
     __wrapped__: MaybeFactory[AnyNamedFunc[T]]
     parameters: int = field(init=False)
 
@@ -532,22 +554,26 @@ class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFun
 def batchify_sim[V, S: Float](
     func: MaybeFactory[AnySimFunc[V, S]],
 ) -> BatchSimFunc[V, S]:
+    """Normalize a similarity function to batch mode."""
     return batchify_positional(func)
 
 
 def unbatchify_sim[V, S: Float](func: MaybeFactory[AnySimFunc[V, S]]) -> SimFunc[V, S]:
+    """Normalize a batch similarity function to single-item mode."""
     return unbatchify_positional(func)
 
 
 def batchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> BatchConversionFunc[P, R]:
+    """Normalize a conversion function to batch mode."""
     return batchify_positional(func)
 
 
 def unbatchify_conversion[P, R](
     func: MaybeFactory[AnyConversionFunc[P, R]],
 ) -> ConversionFunc[P, R]:
+    """Normalize a batch conversion function to single-item mode."""
     return unbatchify_positional(func)
 
 
@@ -581,6 +607,8 @@ def unbatchify_adaptation[V](
 
 @dataclass(slots=True)
 class reverse_positional[T](WrappedObject[PositionalFunc[T]], PositionalFunc[T]):
+    """Reverses the order of positional arguments before calling the wrapped function."""
+
     __wrapped__: PositionalFunc[T]
 
     @override
@@ -592,6 +620,8 @@ class reverse_positional[T](WrappedObject[PositionalFunc[T]], PositionalFunc[T])
 class reverse_batch_positional[T](
     WrappedObject[BatchPositionalFunc[T]], BatchPositionalFunc[T]
 ):
+    """Reverses arguments in each batch entry before calling the wrapped function."""
+
     __wrapped__: BatchPositionalFunc[T]
 
     @override
@@ -600,10 +630,12 @@ class reverse_batch_positional[T](
 
 
 def get_value[T](arg: StructuredValue[T]) -> T:
+    """Extract the inner value from a StructuredValue."""
     return arg.value
 
 
 def unpack_value[T](arg: T | StructuredValue[T]) -> T:
+    """Unwrap a StructuredValue to its inner value, or return the argument unchanged."""
     if isinstance(arg, StructuredValue):
         return arg.value
 
@@ -611,6 +643,7 @@ def unpack_value[T](arg: T | StructuredValue[T]) -> T:
 
 
 def unpack_values[T](args: Iterable[T | StructuredValue[T]]) -> list[T]:
+    """Unwrap each element in an iterable using unpack_value."""
     return [unpack_value(arg) for arg in args]
 
 
@@ -619,12 +652,14 @@ unpack_floats: Callable[[Iterable[Float]], list[float]] = unpack_values
 
 
 def sim_map2ranking[K, S: Float](similarities: SimMap[K, S]) -> list[K]:
+    """Sort similarity map keys by descending similarity score."""
     return sorted(
         similarities, key=lambda i: unpack_float(similarities[i]), reverse=True
     )
 
 
 def sim_seq2ranking[S: Float](similarities: SimSeq[S]) -> list[int]:
+    """Sort similarity sequence indices by descending similarity score."""
     return sorted(
         range(len(similarities)),
         key=lambda i: unpack_float(similarities[i]),
@@ -633,6 +668,7 @@ def sim_seq2ranking[S: Float](similarities: SimSeq[S]) -> list[int]:
 
 
 def getitem_or_getattr(obj: Any, key: Any) -> Any:
+    """Retrieve a value by key using item access or attribute access as fallback."""
     if hasattr(obj, "__getitem__"):
         return obj[key]
 
@@ -640,6 +676,7 @@ def getitem_or_getattr(obj: Any, key: Any) -> Any:
 
 
 def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:
+    """Set a value by key using item assignment or attribute assignment as fallback."""
     if hasattr(obj, "__setitem__"):
         obj[key] = value
     else:
@@ -647,6 +684,7 @@ def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:
 
 
 def round_nearest(value: float) -> int:
+    """Round a float to the nearest integer, rounding up on a tie."""
     x = math.floor(value)
 
     if (value - x) < 0.50:
@@ -656,6 +694,7 @@ def round_nearest(value: float) -> int:
 
 
 def round(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
+    """Round a float to an integer using the specified rounding mode."""
     if mode == "floor":
         return math.floor(value)
     elif mode == "ceil":
@@ -722,12 +761,14 @@ def load_object(import_name: str) -> Any:
 
 
 def load_callable(import_name: str) -> Callable[..., Any]:
+    """Import a callable from a dotted or colon-separated import path."""
     return load_object(import_name)
 
 
 def load_callables(
     import_names: MaybeSequence[str],
 ) -> list[Callable[..., Any]]:
+    """Import one or more callables from dotted or colon-separated import paths."""
     functions: list[Callable[..., Any]] = []
     names = [import_names] if isinstance(import_names, str) else list(import_names)
 
@@ -746,6 +787,7 @@ def load_callables(
 def load_callables_map(
     import_names: MaybeSequence[str],
 ) -> dict[str, Callable[..., Any]]:
+    """Import callables into a dict keyed by their import paths."""
     functions: dict[str, Callable[..., Any]] = {}
     names = [import_names] if isinstance(import_names, str) else list(import_names)
 
@@ -762,10 +804,12 @@ def load_callables_map(
 
 
 def identity[T](x: T) -> T:
+    """Return the argument unchanged."""
     return x
 
 
 def get_logger(obj: Any) -> logging.Logger:
+    """Return a logger named after the given object's module and qualified name."""
     if isinstance(obj, str):
         return logging.getLogger(obj)
 
@@ -784,6 +828,7 @@ def get_logger(obj: Any) -> logging.Logger:
 
 
 def mp_count(pool_or_processes: Pool | int | bool) -> int:
+    """Return the number of worker processes for the given pool or process specification."""
     if isinstance(pool_or_processes, bool):
         return os.cpu_count() or 1
     elif isinstance(pool_or_processes, int):
@@ -795,6 +840,7 @@ def mp_count(pool_or_processes: Pool | int | bool) -> int:
 
 
 def mp_pool(pool_or_processes: Pool | int | bool) -> Pool:
+    """Return an existing Pool or create a new one from the given specification."""
     if isinstance(pool_or_processes, bool):
         return Pool()
     elif isinstance(pool_or_processes, int):
@@ -806,6 +852,7 @@ def mp_pool(pool_or_processes: Pool | int | bool) -> Pool:
 
 
 def use_mp(pool_or_processes: Pool | int | bool) -> bool:
+    """Determine whether multiprocessing should be used for the given specification."""
     if isinstance(pool_or_processes, bool):
         return pool_or_processes
     elif isinstance(pool_or_processes, int):
@@ -818,6 +865,8 @@ def use_mp(pool_or_processes: Pool | int | bool) -> bool:
 
 @dataclass(slots=True, frozen=True)
 class mp_logging_wrapper[U, V]:
+    """Wraps a function with batch progress logging for multiprocessing."""
+
     func: Callable[[U], V]
     logger: logging.Logger | None
 
@@ -834,6 +883,8 @@ class mp_logging_wrapper[U, V]:
 
 @dataclass(slots=True, frozen=True)
 class mp_logging_starwrapper[*Us, V]:
+    """Wraps a multi-argument function with batch progress logging for multiprocessing."""
+
     func: Callable[[*Us], V]
     logger: logging.Logger | None
 
@@ -854,6 +905,7 @@ def mp_map[U, V](
     pool_or_processes: Pool | int | bool,
     logger: logging.Logger | None,
 ) -> list[V]:
+    """Apply a function to each batch, optionally using multiprocessing."""
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
@@ -877,6 +929,7 @@ def mp_starmap[*Us, V](
     pool_or_processes: Pool | int | bool,
     logger: logging.Logger | None,
 ) -> list[V]:
+    """Apply a multi-argument function to each batch, optionally using multiprocessing."""
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
@@ -895,6 +948,7 @@ def mp_starmap[*Us, V](
 
 
 def get_hash(file: Path | bytes | BytesIO) -> str:
+    """Compute a SHA-256 hex digest for a file path, bytes, or BytesIO object."""
     if isinstance(file, Path):
         data = file.read_bytes()
     elif isinstance(file, BytesIO):
@@ -908,6 +962,7 @@ def get_hash(file: Path | bytes | BytesIO) -> str:
 def callable2model(
     func: Callable[..., Any], with_default: bool = True
 ) -> type[BaseModel]:
+    """Convert a callable's signature into a Pydantic BaseModel class."""
     sig = inspect.signature(func)
     fields: dict[str, Any] = {}
 

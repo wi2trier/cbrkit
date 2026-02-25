@@ -21,6 +21,8 @@ type PairSim[K] = Mapping[tuple[K, K], float]
 
 @dataclass(slots=True, frozen=True)
 class GraphSim[K](StructuredValue[float]):
+    """Result of a graph similarity computation with node and edge mappings."""
+
     node_mapping: frozendict[K, K]
     edge_mapping: frozendict[K, K]
     node_similarities: frozendict[K, float]
@@ -28,15 +30,20 @@ class GraphSim[K](StructuredValue[float]):
 
 
 class ElementMatcher[T](Protocol):
+    """Determines whether two graph elements can be legally mapped."""
+
     def __call__(self, x: T, y: T, /) -> bool: ...
 
 
 def default_element_matcher(x: Any, y: Any) -> bool:
+    """Returns True for any pair, allowing all elements to be matched."""
     return True
 
 
 @dataclass(slots=True, frozen=True)
 class SemanticEdgeSim[K, N, E]:
+    """Computes edge similarity using weighted source and target node similarities."""
+
     source_weight: float = 1.0
     target_weight: float = 1.0
     edge_sim_func: AnySimFunc[E, Float] | None = None
@@ -92,6 +99,8 @@ def _induced_edge_mapping[K, N, E, G](
 
 @dataclass(slots=True, kw_only=True)
 class BaseGraphEditFunc[K, N, E, G]:
+    """Base class providing graph edit cost parameters."""
+
     node_del_cost: float = 1.0
     node_ins_cost: float = 0.0
     edge_del_cost: float = 1.0
@@ -102,6 +111,7 @@ class BaseGraphEditFunc[K, N, E, G]:
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> float:
+        """Computes the upper bound on edit cost assuming all elements are deleted or inserted."""
         return (
             len(y.nodes) * self.node_del_cost
             + len(x.nodes) * self.node_ins_cost
@@ -112,6 +122,8 @@ class BaseGraphEditFunc[K, N, E, G]:
 
 @dataclass(slots=True)
 class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
+    """Base class for graph similarity functions with node and edge matching."""
+
     node_sim_func: AnySimFunc[N, Float]
     edge_sim_func: SemanticEdgeSim[K, N, E] = default_edge_sim
     node_matcher: ElementMatcher[N] = default_element_matcher
@@ -127,6 +139,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
         node_mapping: Mapping[K, K],
     ) -> frozendict[K, K]:
+        """Derives an edge mapping induced by the given node mapping."""
         return _induced_edge_mapping(x, y, node_mapping, self.edge_matcher)
 
     def node_pairs(
@@ -134,6 +147,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
     ) -> list[tuple[K, K]]:
+        """Returns all legal node pairs between the two graphs."""
         return [
             (y_key, x_key)
             for x_key, y_key in itertools.product(x.nodes.keys(), y.nodes.keys())
@@ -146,6 +160,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
         node_pairs: Collection[tuple[K, K]],
     ) -> list[tuple[K, K]]:
+        """Returns all legal edge pairs consistent with the given node pairs."""
         return [
             (y_key, x_key)
             for x_key, y_key in itertools.product(x.edges.keys(), y.edges.keys())
@@ -160,6 +175,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         y: Graph[K, N, E, G],
         pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
+        """Computes pairwise similarities for all legal node pairs."""
         if pairs is None:
             pairs = self.node_pairs(x, y)
 
@@ -180,6 +196,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         node_pair_sims: PairSim[K],
         pairs: Sequence[tuple[K, K]] | None = None,
     ) -> PairSim[K]:
+        """Computes pairwise similarities for all legal edge pairs."""
         if pairs is None:
             pairs = self.edge_pairs(x, y, node_pair_sims.keys())
 
@@ -210,6 +227,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         node_pairs: Sequence[tuple[K, K]] | None = None,
         edge_pairs: Sequence[tuple[K, K]] | None = None,
     ) -> tuple[PairSim[K], PairSim[K]]:
+        """Computes both node and edge pairwise similarities."""
         node_pair_sims = self.node_pair_similarities(x, y, node_pairs)
         edge_pair_sims = self.edge_pair_similarities(x, y, node_pair_sims, edge_pairs)
         return node_pair_sims, edge_pair_sims
@@ -248,6 +266,7 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     def invert_similarity(
         self, x: Graph[K, N, E, G], y: Graph[K, N, E, G], sim: GraphSim[K]
     ) -> GraphSim[K]:
+        """Recomputes similarity with the node and edge mappings inverted."""
         node_mapping = frozendict((v, k) for k, v in sim.node_mapping.items())
         edge_mapping = frozendict((v, k) for k, v in sim.edge_mapping.items())
 
@@ -267,6 +286,8 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
 
 @dataclass(slots=True, frozen=True)
 class SearchState[K]:
+    """Current state of a graph search with node and edge mappings."""
+
     # mappings are from y/query to x/case
     node_mapping: frozendict[K, K]
     edge_mapping: frozendict[K, K]
@@ -319,6 +340,8 @@ def next_elem[K](
 
 
 class SearchStateInit[K, N, E, G](Protocol):
+    """Initializes the search state for graph similarity computation."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -331,6 +354,8 @@ class SearchStateInit[K, N, E, G](Protocol):
 
 @dataclass(slots=True, frozen=True)
 class init_empty[K, N, E, G](SearchStateInit[K, N, E, G]):
+    """Initializes search with an empty mapping."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -350,6 +375,8 @@ class init_empty[K, N, E, G](SearchStateInit[K, N, E, G]):
 
 @dataclass(slots=True, init=False)
 class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
+    """Initializes search by pre-mapping uniquely matchable nodes."""
+
     def __call__(
         self,
         x: Graph[K, N, E, G],
@@ -388,6 +415,8 @@ class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
 
 @dataclass(slots=True)
 class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
+    """Graph similarity function using search-based node and edge mapping."""
+
     init_func: (
         SearchStateInit[K, N, E, G] | AnySimFunc[Graph[K, N, E, G], GraphSim[K]]
     ) = field(default_factory=init_unique_matches)
@@ -395,6 +424,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
     def init_search_state(
         self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]
     ) -> SearchState[K]:
+        """Initializes the search state using the configured init function."""
         init_func_params = total_params(self.init_func)
         sim: GraphSim[K]
 
@@ -428,6 +458,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         )
 
     def finished(self, state: SearchState[K]) -> bool:
+        """Returns True when all query nodes and edges have been processed."""
         # the following condition could save a few iterations, but needs to be tested
         # return (not state.open_y_nodes and not state.open_y_edges) or (
         #     not state.open_x_nodes and not state.open_x_edges
@@ -442,6 +473,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         x_key: K,
         y_key: K,
     ) -> bool:
+        """Checks whether mapping a query node to a case node is legal."""
         return (
             self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
             and y_key in state.open_y_nodes
@@ -456,6 +488,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         x_key: K,
         y_key: K,
     ) -> bool:
+        """Checks whether mapping a query edge to a case edge is legal."""
         x_value = x.edges[x_key]
         y_value = y.edges[y_key]
 
@@ -475,6 +508,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
+        """Generates successor states by mapping a query node to all legal case nodes."""
         next_states: list[SearchState[K]] = [
             SearchState(
                 state.node_mapping.set(y_key, x_key),
@@ -509,6 +543,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
+        """Generates successor states by mapping a query edge to all legal case edges."""
         next_states: list[SearchState[K]] = [
             SearchState(
                 state.node_mapping,

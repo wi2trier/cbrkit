@@ -13,6 +13,7 @@ def apply_result[R, Q, C, V, S: Float](
     result: _PhaseResult[Q, C, V, S] | _PhaseResultStep[Q, C, V, S],
     synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
+    """Synthesize a response from a CBR phase result using the given synthesizer."""
     return apply_batches(
         {
             key: (entry.casebase, entry.query, entry.similarities)
@@ -26,6 +27,7 @@ def apply_batches[R, Q, C, V, S: Float](
     batches: Mapping[Q, tuple[Mapping[C, V], V | None, Mapping[C, S] | None]],
     synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
+    """Apply a synthesizer function to a batch of casebase-query-similarity tuples."""
     synthesis_func = produce_factory(synthesizer)
     logger.info(f"Processing {len(batches)} batches")
     start_time = default_timer()

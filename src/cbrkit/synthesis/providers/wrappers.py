@@ -16,6 +16,8 @@ from ...typing import (
 
 @dataclass(slots=True, frozen=True)
 class conversation[P, R](ConversionFunc[Sequence[P], R]):
+    """Iteratively generates responses until the conversion function returns None."""
+
     generation_func: AnyConversionFunc[Sequence[P], R]
     conversion_func: ConversionFunc[R, Sequence[P] | None]
 
@@ -31,6 +33,8 @@ class conversation[P, R](ConversionFunc[Sequence[P], R]):
 
 @dataclass(slots=True, frozen=True)
 class pipe[P, R](BatchConversionFunc[P, R]):
+    """Chains multiple generation functions, converting output back to input between steps."""
+
     generation_funcs: MaybeSequence[AnyConversionFunc[P, R]]
     conversion_func: ConversionFunc[R, P]
 

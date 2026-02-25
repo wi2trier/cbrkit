@@ -83,6 +83,7 @@ class regex(AdaptationFunc[str], HasMetadata):
     @property
     @override
     def metadata(self) -> JsonDict:
+        """Return metadata describing the regex configuration."""
         return self._metadata
 
     @override

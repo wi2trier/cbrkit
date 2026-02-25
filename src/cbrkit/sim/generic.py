@@ -48,6 +48,7 @@ class static_table[V](SimFunc[V | Any, float], HasMetadata):
     @property
     @override
     def metadata(self) -> JsonDict:
+        """Return metadata describing the static table configuration."""
         return {
             "symmetric": self.symmetric,
             "default": get_metadata(self.default),

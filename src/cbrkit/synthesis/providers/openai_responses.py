@@ -26,6 +26,7 @@ with optional_dependencies():
     type OpenAiResponsesPrompt = str | ResponseInputParam
 
     def if_given[T](value: T | None | Omit) -> T | Omit:
+        """Return the value if not None, otherwise return the OpenAI omit sentinel."""
         return value if value is not None else omit
 
     @dataclass(slots=True)

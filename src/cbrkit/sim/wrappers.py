@@ -58,6 +58,7 @@ class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
 def transpose_value[V, S: Float](
     func: AnySimFunc[V, S],
 ) -> BatchSimFunc[StructuredValue[V], S]:
+    """Create a transposed similarity function that extracts values before comparing."""
     return transpose(func, get_value)
 
 
@@ -223,6 +224,7 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
     @property
     @override
     def metadata(self) -> JsonDict:
+        """Return metadata describing the dynamic table configuration."""
         return {
             "symmetric": self.symmetric,
             "default": get_metadata(self.default),
@@ -314,6 +316,7 @@ def type_table[U, V, S: Float](
     entries: Mapping[type[V], AnySimFunc[..., S]],
     default: AnySimFunc[U, S] | S | None = None,
 ) -> BatchSimFunc[U | V, S]:
+    """Create a dynamic table that dispatches similarity functions by value type."""
     return dynamic_table(
         entries=cast(Mapping[type, AnySimFunc[..., S]], entries),
         key_getter=type,
@@ -324,6 +327,8 @@ def type_table[U, V, S: Float](
 
 @dataclass(slots=True, frozen=True)
 class attribute_table_key_getter[K]:
+    """Extracts a key from an object using a getter function and attribute name."""
+
     func: Callable[[Any, str], K]
     attribute: str
 
@@ -337,6 +342,7 @@ def attribute_table[K, U, S: Float](
     default: AnySimFunc[U, S] | S | None = None,
     value_getter: Callable[[Any, str], K] = getitem_or_getattr,
 ) -> BatchSimFunc[Any, S]:
+    """Create a dynamic table that dispatches similarity functions by attribute value."""
     key_getter = attribute_table_key_getter(value_getter, attribute)
 
     return dynamic_table(

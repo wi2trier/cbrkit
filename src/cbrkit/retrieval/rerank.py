@@ -148,6 +148,7 @@ with optional_dependencies():
         @property
         @override
         def metadata(self) -> JsonDict:
+            """Return metadata describing the sentence transformer configuration."""
             return {
                 "model": self.model if isinstance(self.model, str) else "custom",
                 "query_chunk_size": self.query_chunk_size,

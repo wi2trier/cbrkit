@@ -25,10 +25,14 @@ with optional_dependencies():
 
     # the output is any in the base class, so we override it here
     class TypedRunResult[R](RunResult):
+        """RunResult subclass with a typed final_output field."""
+
         final_output: R
 
     @dataclass(slots=True)
     class openai_agents[T, R](AsyncProvider[OpenaiAgentsPrompt, TypedRunResult[R]]):
+        """Provider that runs OpenAI Agents SDK agents."""
+
         agents: MaybeSequence[Agent[T]]
         context: T | None = None
         max_turns: int = DEFAULT_MAX_TURNS

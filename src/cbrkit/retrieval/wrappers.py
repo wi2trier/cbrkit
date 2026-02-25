@@ -146,6 +146,7 @@ class transpose[K, V1, V2, S: Float](RetrieverFunc[K, V1, S]):
 def transpose_value[K, V, S: Float](
     retriever_func: RetrieverFunc[K, V, S],
 ) -> RetrieverFunc[K, StructuredValue[V], S]:
+    """Wrap a retriever to extract values from structured value inputs before retrieval."""
     return transpose(retriever_func, get_value)
 
 

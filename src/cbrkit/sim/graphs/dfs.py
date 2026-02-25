@@ -35,6 +35,8 @@ with optional_dependencies():
     class dfs[K, N, E, G](
         BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
     ):
+        """Graph similarity using depth-first search over node and edge mappings."""
+
         max_iterations: int = 0
         upper_bound: float | None = None
         strictly_decreasing: bool = True
@@ -59,6 +61,7 @@ with optional_dependencies():
             node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
             def node_subst_cost(y: NetworkxNode[K, N], x: NetworkxNode[K, N]) -> float:
+                """Returns the substitution cost for a node pair as one minus similarity."""
                 if sim := node_pair_sims.get((y["key"], x["key"])):
                     return 1.0 - sim
 
@@ -67,6 +70,7 @@ with optional_dependencies():
             def edge_subst_cost(
                 y: NetworkxEdge[K, N, E], x: NetworkxEdge[K, N, E]
             ) -> float:
+                """Returns the substitution cost for an edge pair as one minus similarity."""
                 if sim := edge_pair_sims.get((y["key"], x["key"])):
                     return 1.0 - sim
 

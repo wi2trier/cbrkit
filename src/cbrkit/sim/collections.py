@@ -392,6 +392,8 @@ class mapping[V](SimFunc[Sequence[V], float]):
 
 @dataclass
 class Weight:
+    """A weighted interval with bounds for sequence mapping similarity."""
+
     weight: float
     lower_bound: float
     upper_bound: float
@@ -427,6 +429,7 @@ class sequence_mapping[V, S: Float](
 
     @property
     def metadata(self) -> JsonDict:
+        """Return metadata describing the sequence mapping configuration."""
         return {
             "element_similarity": get_metadata(self.element_similarity),
             "exact": self.exact,
@@ -438,6 +441,7 @@ class sequence_mapping[V, S: Float](
     def compute_contains_exact(
         self, query: Sequence[V], case: Sequence[V]
     ) -> SequenceSim[V, S]:
+        """Compute element-wise similarity for sequences of equal length."""
         if len(query) != len(case):
             return SequenceSim(value=0.0, similarities=None, mapping=None)
 

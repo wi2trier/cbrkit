@@ -25,6 +25,7 @@ __all__ = [
 
 
 def default_conversion_func(obj: Any) -> Any:
+    """Convert an object to a serializable form using Pydantic or duck typing."""
     if isinstance(obj, BaseModel):
         return obj.model_dump(
             exclude_unset=True,

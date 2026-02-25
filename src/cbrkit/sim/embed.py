@@ -63,6 +63,8 @@ logger = get_logger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class cosine(SimFunc[NumpyArray, float]):
+    """Cosine similarity for dense vectors, normalized to [0, 1]."""
+
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if u.any() and v.any():
@@ -85,6 +87,8 @@ class cosine(SimFunc[NumpyArray, float]):
 
 @dataclass(slots=True, frozen=True)
 class dot(SimFunc[NumpyArray, float]):
+    """Dot product similarity for dense vectors, normalized to [0, 1]."""
+
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if u.any() and v.any():
@@ -97,6 +101,8 @@ class dot(SimFunc[NumpyArray, float]):
 
 @dataclass(slots=True, frozen=True)
 class angular(SimFunc[NumpyArray, float]):
+    """Angular similarity for dense vectors."""
+
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if u.any() and v.any():
@@ -114,6 +120,8 @@ class angular(SimFunc[NumpyArray, float]):
 
 @dataclass(slots=True, frozen=True)
 class euclidean(SimFunc[NumpyArray, float]):
+    """Euclidean distance-based similarity for dense vectors."""
+
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         return 1 / (1 + np.linalg.norm(u - v).__float__())
@@ -121,6 +129,8 @@ class euclidean(SimFunc[NumpyArray, float]):
 
 @dataclass(slots=True, frozen=True)
 class manhattan(SimFunc[NumpyArray, float]):
+    """Manhattan distance-based similarity for dense vectors."""
+
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         return 1 / (1 + np.sum(np.abs(u - v)).__float__())
@@ -245,6 +255,8 @@ class cache(
     BatchConversionFunc[str, NumpyArray],
     IndexableFunc[Collection[str]],
 ):
+    """Embedding cache with optional SQLite persistence."""
+
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
     table: str | None
@@ -284,6 +296,7 @@ class cache(
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a context-managed SQLite connection to the cache database."""
         if self.path is None:
             raise ValueError("Path must be set to use the cache")
 
@@ -423,6 +436,7 @@ with optional_dependencies():
     from spacy.language import Language
 
     def load_spacy(name: str | None, cache_dir: Path = CACHE_DIR) -> Language:
+        """Load a spaCy model by name, downloading it if necessary."""
         import tarfile
         import urllib.request
 
@@ -430,6 +444,8 @@ with optional_dependencies():
 
         @dataclass(slots=True)
         class ProgressHook(AbstractContextManager[Any]):
+            """Progress reporting hook for URL downloads."""
+
             description: str
             progress: Progress = field(default_factory=Progress, init=False)
             task: TaskID | None = field(default=None, init=False)
@@ -459,6 +475,7 @@ with optional_dependencies():
         def tarfile_members(
             tf: tarfile.TarFile, prefix: str
         ) -> Iterator[tarfile.TarInfo]:
+            """Yield tar members with the given prefix stripped from their paths."""
             prefix_len = len(prefix)
 
             for member in tf.getmembers():
@@ -514,6 +531,7 @@ with optional_dependencies():
         @property
         @override
         def metadata(self) -> JsonDict:
+            """Return metadata describing the spaCy model."""
             return {
                 "model": self.model.meta
                 if isinstance(self.model, Language)
@@ -534,6 +552,8 @@ with optional_dependencies():
 
     @dataclass(slots=True, frozen=True)
     class pydantic_ai(BatchConversionFunc[str, NumpyArray]):
+        """Embeddings using pydantic-ai's Embedder interface."""
+
         embedder: Embedder = field(repr=False)
         input_type: EmbedInputType
 
@@ -599,6 +619,7 @@ with optional_dependencies():
         @property
         @override
         def metadata(self) -> JsonDict:
+            """Return metadata describing the sentence-transformers model."""
             return self._metadata
 
         @override
@@ -668,6 +689,7 @@ with optional_dependencies():
         @property
         @override
         def metadata(self) -> JsonDict:
+            """Return metadata describing the sparse encoder model."""
             return self._metadata
 
         @override
@@ -758,12 +780,14 @@ with optional_dependencies():
         @property
         @override
         def index(self) -> Collection[str]:
+            """Return the indexed corpus or an empty list if not indexed."""
             if self._corpus is None:
                 return []
             return self._corpus
 
         @override
         def create_index(self, data: Collection[str]) -> None:
+            """Build a new BM25 index from the given corpus."""
             self._corpus = list(data)
             if self._corpus:
                 self._retriever = self._build_retriever(self._corpus)
@@ -772,6 +796,7 @@ with optional_dependencies():
 
         @override
         def update_index(self, data: Collection[str]) -> None:
+            """Add new documents to the existing BM25 index."""
             if self._corpus is None:
                 self.create_index(data)
                 return
@@ -780,6 +805,7 @@ with optional_dependencies():
 
         @override
         def delete_index(self, data: Collection[str]) -> None:
+            """Remove the specified documents from the BM25 index."""
             if self._corpus is None:
                 return
             remove_set = set(data)
@@ -865,6 +891,7 @@ with optional_dependencies():
             return [np.array(x.embedding) for x in res.data]
 
         def encode(self, text: str) -> list[int]:
+            """Tokenize text using tiktoken and optionally truncate to context size."""
             value = tiktoken.encoding_for_model(self.model).encode(text)
 
             if self.truncate == "start":

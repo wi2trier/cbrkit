@@ -15,6 +15,8 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class ollama[R: str | BaseModel](BaseProvider[OllamaPrompt, R]):
+        """Provider that calls Ollama's chat API."""
+
         client: AsyncClient = field(default_factory=AsyncClient, repr=False)
         messages: Sequence[Message] = field(default_factory=tuple)
         options: Options | None = None
