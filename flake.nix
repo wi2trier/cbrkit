@@ -56,15 +56,6 @@
           config,
           ...
         }:
-        let
-          inherit
-            (pkgs.callPackage ./default.nix {
-              inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
-            })
-            pythonSet
-            mkApplication
-            ;
-        in
         {
           _module.args.pkgs = import nixpkgs {
             inherit system;
@@ -80,8 +71,8 @@
           overlayAttrs = {
             inherit (config.packages) cbrkit;
           };
-          checks = pythonSet.cbrkit.tests // {
-            inherit (pythonSet.cbrkit) docs;
+          checks = config.packages.cbrkit.tests // {
+            inherit (config.packages.cbrkit) docs;
           };
           treefmt = {
             projectRootFile = "flake.nix";
@@ -92,17 +83,10 @@
             };
           };
           packages = {
-            inherit (pythonSet.cbrkit) docs;
+            inherit (config.packages.cbrkit) docs;
             default = config.packages.cbrkit;
-            cbrkit = mkApplication {
-              venv =
-                (pythonSet.mkVirtualEnv "cbrkit-env" {
-                  cbrkit = [ "all" ];
-                }).overrideAttrs
-                  (oldAttrs: {
-                    venvIgnoreCollisions = [ "${pkgs.python3.sitePackages}/griffe/*" ];
-                  });
-              package = pythonSet.cbrkit;
+            cbrkit = pkgs.callPackage ./default.nix {
+              inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
             };
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "cbrkit";

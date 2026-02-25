@@ -78,17 +78,12 @@ let
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
               cacert
-              (
-                (final.mkVirtualEnv "cbrkit-test-env" {
-                  cbrkit = [
-                    "all"
-                    "test"
-                  ];
-                }).overrideAttrs
-                (oldAttrs: {
-                  venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
-                })
-              )
+              (mkVenv "cbrkit-test-env" {
+                cbrkit = [
+                  "all"
+                  "test"
+                ];
+              })
             ];
             dontConfigure = true;
             buildPhase = ''
@@ -109,17 +104,12 @@ let
             inherit (final.cbrkit) src;
             nativeBuildInputs = [
               cacert
-              (
-                (final.mkVirtualEnv "cbrkit-docs-env" {
-                  cbrkit = [
-                    "all"
-                    "docs"
-                  ];
-                }).overrideAttrs
-                (oldAttrs: {
-                  venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
-                })
-              )
+              (mkVenv "cbrkit-docs-env" {
+                cbrkit = [
+                  "all"
+                  "docs"
+                ];
+              })
             ];
             dontConfigure = true;
             buildPhase = ''
@@ -154,10 +144,6 @@ let
   baseSet = callPackage pyproject-nix.build.packages {
     python = python3;
   };
-in
-{
-  inherit workspace;
-  inherit (callPackage pyproject-nix.build.util { }) mkApplication;
   pythonSet = baseSet.overrideScope (
     lib.composeManyExtensions [
       pyproject-build-systems.overlays.wheel
@@ -167,4 +153,14 @@ in
       packageOverlay
     ]
   );
+  mkVenv =
+    name: deps:
+    (pythonSet.mkVirtualEnv name deps).overrideAttrs (_: {
+      venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
+    });
+  inherit (callPackage pyproject-nix.build.util { }) mkApplication;
+in
+mkApplication {
+  venv = mkVenv "cbrkit-env" { cbrkit = [ "all" ]; };
+  package = pythonSet.cbrkit;
 }
