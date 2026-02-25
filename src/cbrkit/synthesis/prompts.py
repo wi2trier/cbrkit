@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -104,10 +104,10 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
     ) -> str:
         result = ""
 
-        if isinstance(self.instructions, Callable):
-            result += self.instructions(casebase, query, similarities)
-        elif isinstance(self.instructions, str):
+        if isinstance(self.instructions, str):
             result += self.instructions
+        elif self.instructions is not None:
+            result += self.instructions(casebase, query, similarities)
 
         if query is not None:
             result += f"""
@@ -176,10 +176,10 @@ class pooling[V](ConversionFunc[Sequence[V], str]):
     ) -> str:
         result = ""
 
-        if isinstance(self.instructions, Callable):
-            result += self.instructions(values)
-        elif isinstance(self.instructions, str):
+        if isinstance(self.instructions, str):
             result += self.instructions
+        elif self.instructions is not None:
+            result += self.instructions(values)
 
         result += """
 ## Partial Results

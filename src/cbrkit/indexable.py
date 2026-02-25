@@ -441,7 +441,8 @@ with optional_dependencies():
             result = self._collection.fetch(key)
             if key not in result:
                 raise KeyError(key)
-            return result[key].field(self._value_field) or ""
+            value = result[key].field(self._value_field)
+            return cast(str, value) if value else ""
 
         def __iter__(self) -> Iterator[K]:
             return iter(self._keys)

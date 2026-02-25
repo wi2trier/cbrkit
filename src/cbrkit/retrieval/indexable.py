@@ -892,10 +892,11 @@ with optional_dependencies():
 
             for doc in docs:
                 key = cast(K, doc.id)
-                cb[key] = (
+                cb[key] = cast(
+                    str,
                     doc.field(self.storage.value_field)
                     if doc.has_field(self.storage.value_field)
-                    else ""
+                    else "",
                 )
                 if doc.score is not None:
                     sm[key] = score_transform(doc.score)
@@ -1034,7 +1035,7 @@ with optional_dependencies():
                     topk=n,
                     filter=self.filter,
                     output_fields=[self.storage.value_field],
-                    reranker=zv.RrfReRanker(k=self.rrf_k),
+                    reranker=zv.RrfReRanker(rank_constant=self.rrf_k),
                 )
 
                 if not docs:

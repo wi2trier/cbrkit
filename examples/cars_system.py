@@ -1,12 +1,12 @@
 # uv run cbrkit uvicorn --search-path ./examples cars_system:api_app
 
 from collections.abc import Mapping
-from typing import Annotated, Literal
+from typing import Literal
 
 import polars as pl
 from fastapi import FastAPI
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field, NonNegativeInt
+from pydantic import BaseModel, NonNegativeInt
 
 import cbrkit
 
@@ -29,14 +29,9 @@ class RetrieverConfig(BaseModel):
     limit: NonNegativeInt = 5
 
 
-type RetrieveRequestConfig = Annotated[
-    RetrieverConfig, Field(default_factory=RetrieverConfig)
-]
-
-
 class RetrieveRequest(BaseModel):
     query: CarModel
-    config: RetrieveRequestConfig
+    config: RetrieverConfig | None
 
 
 type RetrieveResponse = cbrkit.retrieval.QueryResultStep[
@@ -45,8 +40,11 @@ type RetrieveResponse = cbrkit.retrieval.QueryResultStep[
 
 
 def retriever_factory(
-    config: RetrieverConfig,
+    config: RetrieverConfig | None,
 ) -> cbrkit.typing.RetrieverFunc[int, CarModel, cbrkit.sim.AttributeValueSim[float]]:
+    if not config:
+        config = RetrieverConfig()
+
     return cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
             cbrkit.sim.attribute_value(
@@ -75,7 +73,7 @@ mcp = FastMCP("cbrkit")
 @mcp.tool("retrieve")
 def mcp_retrieve(
     query: CarModel,
-    config: RetrieveRequestConfig,
+    config: RetrieverConfig | None = None,
 ) -> RetrieveResponse:
     return system.retrieve(query, config=config)
 

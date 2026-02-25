@@ -26,6 +26,9 @@ class FakeIndexableRetriever(
             return {}
         return self._indexed_casebase
 
+    def has_index(self) -> bool:
+        return self._indexed_casebase is not None
+
     def create_index(self, data: Mapping[int, str]) -> None:
         self._indexed_casebase = dict(data)
 

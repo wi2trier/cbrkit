@@ -126,6 +126,9 @@ class FakeIndexableFunc(
             return {}
         return self._data
 
+    def has_index(self) -> bool:
+        return self._data is not None
+
     def create_index(self, data: Mapping[int, str]) -> None:
         self._data = dict(data)
 

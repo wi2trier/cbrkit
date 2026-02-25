@@ -363,11 +363,11 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         # if multiple selections have the same score, select the one with the lowest number of possible mappings
         if len(best_selections) > 1:
-            min_mapping_options = min(mapping_options[key] for key in best_selections)  # type: ignore[arg-type]
+            min_mapping_options = min(mapping_options[key] for key in best_selections)
             best_selections = {
                 key
                 for key in best_selections
-                if mapping_options[key] == min_mapping_options  # type: ignore[arg-type]
+                if mapping_options[key] == min_mapping_options
             }
 
         # select the one with the lowest key
@@ -384,7 +384,7 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
             elif edge.target.key in s.open_y_nodes:
                 return edge.target.key, "node"
 
-        return selection_key, selection_type  # type: ignore[return-value]
+        return selection_key, selection_type
 
 
 @dataclass(slots=True)

@@ -26,7 +26,7 @@ Example:
         print(result.casebase)      # filtered casebase with retrieved cases
 """
 
-from . import graph
+from . import graph, result
 from .result import CycleResult, QueryResultStep, Result, ResultStep
 
 __all__ = [

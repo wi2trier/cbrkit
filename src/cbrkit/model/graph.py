@@ -320,7 +320,7 @@ class NetworkxEdge[K, N, E](TypedDict):
 with optional_dependencies():
     import networkx as nx
 
-    def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> nx.DiGraph:
+    def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> "nx.DiGraph[Any]":
         ng = nx.DiGraph()
         ng.graph = g.value
 
@@ -353,7 +353,7 @@ with optional_dependencies():
 
         return ng
 
-    def from_networkx(g: nx.DiGraph) -> Graph[Any, Any, Any, Any]:
+    def from_networkx(g: "nx.DiGraph[Any]") -> Graph[Any, Any, Any, Any]:
         nodes = frozendict(
             (idx, Node(key=idx, value=data)) for idx, data in g.nodes(data=True)
         )
