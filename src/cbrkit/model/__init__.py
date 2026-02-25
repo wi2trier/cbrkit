@@ -18,12 +18,21 @@ Graph Module:
     ``from_dict``), and conversions to NetworkX, RustWorkX, and Graphviz.
 
 Example:
-    Accessing results after retrieval::
-
-        result = cbrkit.retrieval.apply_query(casebase, query, retriever)
-        print(result.ranking)       # case keys sorted by similarity
-        print(result.similarities)  # {key: score, ...}
-        print(result.casebase)      # filtered casebase with retrieved cases
+    >>> step = ResultStep(
+    ...     queries={"q": QueryResultStep(
+    ...         similarities={"c1": 0.9, "c2": 0.5},
+    ...         casebase={"c1": "case1", "c2": "case2"},
+    ...         query="my query",
+    ...         duration=0.0,
+    ...     )},
+    ...     metadata={},
+    ...     duration=0.0,
+    ... )
+    >>> result = Result(steps=[step], duration=0.0)
+    >>> result.ranking
+    ('c1', 'c2')
+    >>> result.casebase
+    {'c1': 'case1', 'c2': 'case2'}
 """
 
 from . import graph, result

@@ -30,17 +30,13 @@ Top-Level Functions:
     similarity dispatching.
 
 Example:
-    Define an attribute-value similarity measure::
-
-        import cbrkit
-
-        sim_func = cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "color": cbrkit.sim.generic.equality(),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        )
+    >>> sim_func = attribute_value(
+    ...     attributes={
+    ...         "price": numbers.linear(max=100000),
+    ...         "color": generic.equality(),
+    ...     },
+    ...     aggregator=aggregator(pooling="mean"),
+    ... )
 """
 
 from . import collections, embed, generic, graphs, numbers, pooling, strings, taxonomy

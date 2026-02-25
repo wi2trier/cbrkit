@@ -20,15 +20,11 @@ Applying Revisers:
 Multiple revisers can be composed by passing them as a list or tuple.
 
 Example:
-    Build and apply a reviser::
-
-        import cbrkit
-
-        reviser = cbrkit.revise.build(
-            assess_func=cbrkit.sim.attribute_value(...),
-            repair_func=cbrkit.adapt.attribute_value(...),
-        )
-        result = cbrkit.revise.apply_result(reuse_result, reviser)
+    >>> from cbrkit.sim.generic import equality
+    >>> reviser = build(assess_func=equality())
+    >>> result = apply_query({0: "a", 1: "b"}, "a", reviser)
+    >>> len(result.casebase)
+    2
 """
 
 from ..model import QueryResultStep, Result, ResultStep

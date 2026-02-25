@@ -32,13 +32,9 @@ def test_revise_assess_only():
         assert 0.0 <= unpack_float(score) <= 1.0
 
 
-def test_revise_with_repair():
+def test_revise_with_repair(small_casebase, simple_query, sim_func_simple):
     """Test revision with both repair and assessment."""
-    casebase = {
-        0: {"price": 12000, "year": 2008},
-        1: {"price": 9000, "year": 2012},
-    }
-    query = {"price": 10000, "year": 2010}
+    casebase = dict(small_casebase)
 
     def repair_func(case: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
         # Simple repair: average price between case and query
@@ -48,17 +44,11 @@ def test_revise_with_repair():
         }
 
     reviser = cbrkit.revise.build(
-        assess_func=cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ),
+        assess_func=sim_func_simple,
         repair_func=repair_func,
     )
 
-    result = cbrkit.revise.apply_query(casebase, query, reviser)
+    result = cbrkit.revise.apply_query(casebase, simple_query, reviser)
 
     assert len(result.casebase) == 2
     # Repaired prices should be averages
@@ -84,40 +74,19 @@ def test_revise_pair():
     assert result.similarity is not None
 
 
-def test_revise_result():
+def test_revise_result(medium_casebase, simple_query, sim_func_simple):
     """Test applying revision to a retrieval result."""
-    casebase = {
-        0: {"price": 12000, "year": 2008},
-        1: {"price": 9000, "year": 2012},
-        2: {"price": 11000, "year": 2010},
-    }
-    query = {"price": 10000, "year": 2010}
+    casebase = dict(medium_casebase)
 
     retriever = cbrkit.retrieval.dropout(
-        cbrkit.retrieval.build(
-            cbrkit.sim.attribute_value(
-                attributes={
-                    "price": cbrkit.sim.numbers.linear(max=100000),
-                    "year": cbrkit.sim.numbers.linear(max=50),
-                },
-                aggregator=cbrkit.sim.aggregator(pooling="mean"),
-            )
-        ),
+        cbrkit.retrieval.build(sim_func_simple),
         limit=2,
     )
 
-    retrieval_result = cbrkit.retrieval.apply_query(casebase, query, retriever)
+    retrieval_result = cbrkit.retrieval.apply_query(casebase, simple_query, retriever)
     assert len(retrieval_result.casebase) == 2
 
-    reviser = cbrkit.revise.build(
-        assess_func=cbrkit.sim.attribute_value(
-            attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-            },
-            aggregator=cbrkit.sim.aggregator(pooling="mean"),
-        ),
-    )
+    reviser = cbrkit.revise.build(assess_func=sim_func_simple)
 
     revise_result = cbrkit.revise.apply_result(retrieval_result, reviser)
 

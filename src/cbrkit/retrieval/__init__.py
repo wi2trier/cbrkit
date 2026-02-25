@@ -38,17 +38,11 @@ Re-ranking:
     ``sentence_transformers``: Cross-encoder re-ranking (requires ``transformers`` extra).
 
 Example:
-    Build and apply a retriever::
-
-        import cbrkit
-
-        retriever = cbrkit.retrieval.build(
-            cbrkit.sim.attribute_value(
-                attributes={"price": cbrkit.sim.numbers.linear(max=100000)},
-                aggregator=cbrkit.sim.aggregator(pooling="mean"),
-            )
-        )
-        result = cbrkit.retrieval.apply_query(casebase, query, retriever)
+    >>> from cbrkit.sim.generic import equality
+    >>> retriever = build(equality())
+    >>> result = apply_query({"a": "hello", "b": "world"}, "hello", retriever)
+    >>> result.ranking[0]
+    'a'
 """
 
 from ..helpers import optional_dependencies

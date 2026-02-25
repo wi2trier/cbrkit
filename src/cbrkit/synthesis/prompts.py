@@ -89,7 +89,9 @@ class default[V](SynthesizerPromptFunc[str, Any, V, Float]):
 
     Examples:
         >>> prompt = default("Give me a summary of the found cars.")
-        >>> prompt(casebase, query, similarities) # doctest: +SKIP
+        >>> result = prompt({"c1": "car A", "c2": "car B"}, "my query", {"c1": 0.9, "c2": 0.5})
+        >>> "my query" in result
+        True
     """
 
     instructions: str | SynthesizerPromptFunc[str, Any, V, Float] | None = None
@@ -162,7 +164,9 @@ class pooling[V](ConversionFunc[Sequence[V], str]):
 
     Examples:
         >>> prompt = pooling("Please find the best match from the following partial results.")
-        >>> prompt([partial1, partial2, partial3]) # doctest: +SKIP
+        >>> result = prompt(["result A", "result B", "result C"])
+        >>> "result A" in result
+        True
     """
 
     instructions: str | ConversionFunc[Sequence[V], str] | None = None

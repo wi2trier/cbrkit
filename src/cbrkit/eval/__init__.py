@@ -27,15 +27,11 @@ See ``cbrkit.typing.EvalMetricFunc`` for the expected signature.
 For the full list of ``ranx`` metrics, see: https://amenra.github.io/ranx/metrics/
 
 Example:
-    Evaluate retrieval results::
-
-        import cbrkit
-
-        results = cbrkit.eval.compute(
-            qrels={"q1": {"c1": 2, "c2": 1}},
-            run={"q1": {"c1": 0.9, "c2": 0.5}},
-            metrics=["precision@5", "recall@10"],
-        )
+    >>> results = compute(
+    ...     qrels={"q1": {"c1": 2, "c2": 1}},
+    ...     run={"q1": {"c1": 0.9, "c2": 0.5}},
+    ...     metrics=["precision@5", "recall@10"],
+    ... )
 """
 
 from .common import (

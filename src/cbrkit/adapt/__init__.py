@@ -20,18 +20,12 @@ Top-Level Functions:
     Supports nesting for object-oriented data structures.
 
 Example:
-    Build an attribute-value adapter::
-
-        import cbrkit
-
-        adapter = cbrkit.adapt.attribute_value(
-            attributes={
-                "price": cbrkit.adapt.numbers.aggregate(pooling="mean"),
-                "color": cbrkit.adapt.strings.regex(
-                    "CASE_PATTERN", "QUERY_PATTERN", "REPLACEMENT"
-                ),
-            }
-        )
+    >>> adapter = attribute_value(
+    ...     attributes={
+    ...         "price": numbers.aggregate(pooling="mean"),
+    ...         "color": strings.regex("CASE_PATTERN", "QUERY_PATTERN", "REPLACEMENT"),
+    ...     }
+    ... )
 """
 
 from . import generic, numbers, strings

@@ -26,18 +26,18 @@ Types:
     ``KeyFunc``: Protocol for functions that generate new casebase keys.
 
 Example:
-    Build and apply a retainer::
-
-        import cbrkit
-
-        retainer = cbrkit.retain.build(
-            assess_func=cbrkit.sim.generic.equality(),
-            storage_func=cbrkit.retain.static(
-                key_func=lambda keys: max(keys, default=-1) + 1,
-                casebase=casebase,
-            ),
-        )
-        result = cbrkit.retain.apply_result(revise_result, retainer)
+    >>> from cbrkit.sim.generic import equality
+    >>> casebase = {0: "a", 1: "b"}
+    >>> retainer = build(
+    ...     assess_func=equality(),
+    ...     storage_func=static(
+    ...         key_func=lambda keys: max(keys, default=-1) + 1,
+    ...         casebase=casebase,
+    ...     ),
+    ... )
+    >>> result = apply_query(casebase, "a", retainer)
+    >>> len(result.casebase)
+    4
 """
 
 from ..model import QueryResultStep, Result, ResultStep

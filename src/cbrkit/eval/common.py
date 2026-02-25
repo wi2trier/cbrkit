@@ -58,6 +58,24 @@ def compute_score_metrics[Q, C, S: Float, T](
 
 
 def parse_metric(spec: str) -> tuple[str, int, int]:
+    """Parse a metric specification string into its components.
+
+    Args:
+        spec: Metric string, optionally with ``@k`` and ``-lN`` suffixes.
+
+    Returns:
+        A tuple of (metric_name, k, relevance_level).
+
+    Examples:
+        >>> parse_metric("precision")
+        ('precision', 0, 1)
+        >>> parse_metric("precision@5")
+        ('precision', 5, 1)
+        >>> parse_metric("ndcg-l2")
+        ('ndcg', 0, 2)
+        >>> parse_metric("recall@10-l3")
+        ('recall', 10, 3)
+    """
     rel_lvl = 1
     k = 0
 
@@ -417,6 +435,26 @@ def generate_metric(
     k: int | None = None,
     relevance_level: int | None = None,
 ) -> str:
+    """Generate a metric specification string from components.
+
+    Args:
+        metric: The base metric name.
+        k: Optional cutoff value.
+        relevance_level: Optional relevance level.
+
+    Returns:
+        A formatted metric string.
+
+    Examples:
+        >>> generate_metric("precision")
+        'precision'
+        >>> generate_metric("precision", k=5)
+        'precision@5'
+        >>> generate_metric("ndcg", relevance_level=2)
+        'ndcg-l2'
+        >>> generate_metric("recall", k=10, relevance_level=3)
+        'recall@10-l3'
+    """
     if k is None and relevance_level is None:
         return metric
     elif k is None:
@@ -432,6 +470,20 @@ def generate_metrics(
     ks: Iterable[int | None] | int | None = None,
     relevance_levels: Iterable[int | None] | int | None = None,
 ) -> list[str]:
+    """Generate metric specification strings for multiple cutoff points.
+
+    Args:
+        metrics: Base metric names.
+        ks: Cutoff values (single or iterable).
+        relevance_levels: Relevance levels (single or iterable).
+
+    Returns:
+        A list of formatted metric strings.
+
+    Examples:
+        >>> generate_metrics(["precision", "recall"], ks=5)
+        ['precision@5', 'recall@5']
+    """
     if not isinstance(ks, Iterable):
         ks = [ks]
 

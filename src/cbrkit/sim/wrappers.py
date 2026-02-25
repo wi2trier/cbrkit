@@ -71,6 +71,12 @@ class combine[V, S: Float](BatchSimFunc[V, float]):
 
     Returns:
         A similarity function that combines the results from multiple similarity functions.
+
+    Examples:
+        >>> from cbrkit.sim.generic import equality, static
+        >>> sim = combine([equality(), static(0.5)])
+        >>> sim([("a", "a"), ("a", "b")])
+        [0.75, 0.25]
     """
 
     sim_funcs: InitVar[Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]]
@@ -125,6 +131,27 @@ class combine[V, S: Float](BatchSimFunc[V, float]):
 
 @dataclass(slots=True)
 class cache[V, U, S: Float](BatchSimFunc[V, S]):
+    """Caches similarity results to avoid redundant computations.
+
+    Args:
+        similarity_func: The similarity function to cache.
+        conversion_func: Optional function to convert values to cache keys.
+
+    Examples:
+        >>> from cbrkit.sim.generic import equality
+        >>> sim = cache(equality())
+        >>> len(sim.store)
+        0
+        >>> sim([("a", "a"), ("b", "b")])
+        [1.0, 1.0]
+        >>> len(sim.store)
+        2
+        >>> sim([("a", "a")])
+        [1.0]
+        >>> len(sim.store)
+        2
+    """
+
     similarity_func: BatchSimFunc[V, S]
     conversion_func: ConversionFunc[V, U] | None
     store: MutableMapping[tuple[U, U], S] = field(repr=False)

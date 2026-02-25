@@ -34,13 +34,8 @@ Types:
     ``SearchState`` / ``SearchStateInit``: Search state types.
 
 Example:
-    Compute graph similarity using A* search::
-
-        import cbrkit
-
-        graph_sim = cbrkit.sim.graphs.astar.build(
-            node_sim_func=cbrkit.sim.generic.equality(),
-        )
+    >>> from cbrkit.sim.generic import equality
+    >>> graph_sim = astar.build(node_sim_func=equality())
 """
 
 from ...helpers import optional_dependencies

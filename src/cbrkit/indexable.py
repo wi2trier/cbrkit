@@ -7,20 +7,15 @@ maintenance.  Retriever wrappers in :mod:`cbrkit.retrieval` consume
 these storage instances to perform search queries.
 
 Example:
-    Create a shared LanceDB storage and attach multiple retrievers::
-
-        import cbrkit
-
-        storage = cbrkit.indexable.lancedb(
-            uri="./db",
-            table="cases",
-            index_type="hybrid",
-            conversion_func=embed_func,
-        )
-        storage.create_index(casebase)
-
-        dense_retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="dense")
-        sparse_retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="sparse")
+    >>> import tempfile
+    >>> storage = lancedb(
+    ...     uri=tempfile.mkdtemp(),
+    ...     table="cases",
+    ...     index_type="sparse",
+    ... )
+    >>> storage.create_index({0: "hello world", 1: "foo bar"})
+    >>> storage.has_index()
+    True
 """
 
 from collections.abc import Callable, Collection, Iterator, Mapping

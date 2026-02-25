@@ -364,11 +364,15 @@ class persist[K, V, S: Float](
 
         File-based persistence (auto-saved on every mutation):
 
+        >>> import tempfile, os
+        >>> path = os.path.join(tempfile.mkdtemp(), "casebase.json")
         >>> retriever = persist(
         ...     retriever_func=build(equality()),
-        ...     path="casebase.json",
-        ... )  # doctest: +SKIP
-        >>> retriever.update_index({0: "a", 1: "b"})  # doctest: +SKIP
+        ...     path=path,
+        ... )
+        >>> retriever.update_index({0: "a", 1: "b"})
+        >>> retriever.has_index()
+        True
     """
 
     retriever_func: RetrieverFunc[K, V, S]

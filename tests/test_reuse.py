@@ -11,14 +11,7 @@ def adapt_int(case: int, query: int) -> int:
     return case + query
 
 
-def test_reuse_simple():
-    query = {
-        "price": 10000,
-        "year": 2010,
-        "manufacturer": "audi",
-        "make": "a4",
-        "miles": 100000,
-    }
+def test_reuse_simple(car_query):
     case = {
         "price": 12000,
         "year": 2008,
@@ -50,7 +43,7 @@ def test_reuse_simple():
         ),
     )
 
-    result = cbrkit.reuse.apply_pair(case, query, reuse_func)
+    result = cbrkit.reuse.apply_pair(case, car_query, reuse_func)
 
     assert result.case == {
         "price": 2000,
@@ -73,14 +66,7 @@ def custom_adapt(case: dict[str, Any], query: dict[str, Any]) -> dict[str, Any]:
     return adapted
 
 
-def test_reuse_custom():
-    query = {
-        "price": 10000,
-        "year": 2010,
-        "manufacturer": "audi",
-        "make": "a4",
-        "miles": 100000,
-    }
+def test_reuse_custom(car_query):
     case = {
         "price": 12000,
         "year": 2008,
@@ -101,7 +87,7 @@ def test_reuse_custom():
         ),
     )
 
-    result = cbrkit.reuse.apply_pair(case, query, reuse_func)
+    result = cbrkit.reuse.apply_pair(case, car_query, reuse_func)
 
     assert result.case == {
         "price": 2000,
@@ -112,7 +98,7 @@ def test_reuse_custom():
     }
 
 
-def test_reuse_nested():
+def test_reuse_nested(cars_yaml_casebase):
     query = {
         "miles": 100000,
         "model": {
@@ -120,7 +106,7 @@ def test_reuse_nested():
             "make": "a4",
         },
     }
-    full_casebase: Mapping[int, Any] = cbrkit.loaders.path("data/cars-1k.yaml")
+    full_casebase: Mapping[int, Any] = cars_yaml_casebase
     casebase = {key: full_casebase[key] for key in list(full_casebase.keys())[:10]}
 
     reuse_func = cbrkit.reuse.build(

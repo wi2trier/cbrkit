@@ -25,14 +25,10 @@ Submodules:
     Cohere, Google, Ollama, and more).
 
 Example:
-    Build and apply a synthesizer::
-
-        import cbrkit
-
-        provider = cbrkit.synthesis.providers.openai(model="gpt-4o", response_type=str)
-        prompt = cbrkit.synthesis.prompts.default(instructions="Summarize the cases.")
-        synthesizer = cbrkit.synthesis.build(provider, prompt)
-        response = cbrkit.synthesis.apply_result(retrieval_result, synthesizer).response
+    >>> provider = providers.openai(model="gpt-4o", response_type=str)  # doctest: +SKIP
+    >>> prompt = prompts.default(instructions="Summarize the cases.")  # doctest: +SKIP
+    >>> synthesizer = build(provider, prompt)  # doctest: +SKIP
+    >>> response = apply_result(retrieval_result, synthesizer).response  # doctest: +SKIP
 """
 
 from . import prompts, providers

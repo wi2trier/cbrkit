@@ -332,9 +332,16 @@ class sqlite(Mapping[int, dict[str, Any]]):
         params: Optional parameters to pass to the SQL query (sequence for ? placeholders, dict for :name placeholders).
 
     Examples:
-        >>> cb = sqlite("data.db", "SELECT * FROM cases")  # doctest: +SKIP
-        >>> cb = sqlite("data.db", "SELECT * FROM cases WHERE id > ?", [10])  # doctest: +SKIP
-        >>> cb = sqlite("data.db", "SELECT * FROM cases WHERE id > :min_id", {"min_id": 10})  # doctest: +SKIP
+        >>> import tempfile, sqlite3, os
+        >>> db_path = os.path.join(tempfile.mkdtemp(), "test.db")
+        >>> conn = sqlite3.connect(db_path)
+        >>> _ = conn.execute("CREATE TABLE cases (id INTEGER, name TEXT)")
+        >>> _ = conn.execute("INSERT INTO cases VALUES (1, 'a'), (2, 'b')")
+        >>> conn.commit()
+        >>> conn.close()
+        >>> cb = sqlite(db_path, "SELECT * FROM cases")
+        >>> len(cb)
+        2
     """
 
     path: FilePath
@@ -376,8 +383,17 @@ with optional_dependencies():
             params: Optional parameters to pass to the SQL query.
 
         Examples:
-            >>> cb = sqlalchemy("sqlite:///data.db", "SELECT * FROM cases")  # doctest: +SKIP
-            >>> cb = sqlalchemy("sqlite:///data.db", "SELECT * FROM cases WHERE id > :min_id", {"min_id": 10})  # doctest: +SKIP
+            >>> import tempfile, os
+            >>> db_path = os.path.join(tempfile.mkdtemp(), "test.db")
+            >>> import sqlite3
+            >>> conn = sqlite3.connect(db_path)
+            >>> _ = conn.execute("CREATE TABLE cases (id INTEGER, name TEXT)")
+            >>> _ = conn.execute("INSERT INTO cases VALUES (1, 'a'), (2, 'b')")
+            >>> conn.commit()
+            >>> conn.close()
+            >>> cb = sqlalchemy(f"sqlite:///{db_path}", "SELECT * FROM cases")
+            >>> len(cb)
+            2
         """
 
         url: str | sa.URL

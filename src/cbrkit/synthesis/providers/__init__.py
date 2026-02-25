@@ -28,15 +28,11 @@ Base Classes:
     ``Usage``: Token usage tracking.
 
 Example:
-    Initialize and use a provider::
-
-        import cbrkit
-
-        provider = cbrkit.synthesis.providers.openai(
-            model="gpt-4o",
-            response_type=str,
-            temperature=0.7,
-        )
+    >>> provider = openai(  # doctest: +SKIP
+    ...     model="gpt-4o",
+    ...     response_type=str,
+    ...     temperature=0.7,
+    ... )
 """
 
 from ...helpers import optional_dependencies

@@ -19,15 +19,14 @@ Multiple reusers can be composed by passing them as a list or tuple,
 producing a multi-step pipeline with ``final_step`` and ``steps`` attributes.
 
 Example:
-    Build and apply a reuser::
-
-        import cbrkit
-
-        reuser = cbrkit.reuse.build(
-            adaptation_func=cbrkit.adapt.attribute_value(...),
-            similarity_func=cbrkit.sim.attribute_value(...),
-        )
-        result = cbrkit.reuse.apply_result(retrieval_result, reuser)
+    >>> from cbrkit.sim.generic import equality
+    >>> reuser = build(
+    ...     adaptation_func=lambda case, query: query,
+    ...     similarity_func=equality(),
+    ... )
+    >>> result = apply_pair("hello", "hello", reuser)
+    >>> result.casebase
+    {'default': 'hello'}
 """
 
 from ..model import QueryResultStep, Result, ResultStep

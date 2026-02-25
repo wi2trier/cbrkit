@@ -1,70 +1,18 @@
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import polars as pl
 import pytest
 
 import cbrkit
-from cbrkit.retrieval.indexable import resolve_casebases
 
-
-def _custom_numeric_sim(x: float, y: float) -> float:
-    return 1 - abs(x - y) / 100000
-
-
-class FakeIndexableRetriever(
-    cbrkit.typing.RetrieverFunc[int, str, float],
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
-):
-    def __init__(self) -> None:
-        self._indexed_casebase: dict[int, str] | None = None
-
-    @property
-    def index(self) -> Mapping[int, str]:
-        if self._indexed_casebase is None:
-            return {}
-        return self._indexed_casebase
-
-    def has_index(self) -> bool:
-        return self._indexed_casebase is not None
-
-    def create_index(self, data: Mapping[int, str]) -> None:
-        self._indexed_casebase = dict(data)
-
-    def update_index(self, data: Mapping[int, str]) -> None:
-        if self._indexed_casebase is None:
-            self.create_index(data)
-            return
-
-        self._indexed_casebase.update(data)
-
-    def delete_index(self, data: Collection[int]) -> None:
-        if self._indexed_casebase is None:
-            return
-
-        for key in data:
-            self._indexed_casebase.pop(key, None)
-
-    def __call__(
-        self,
-        batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
-    ) -> Sequence[
-        tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]
-    ]:
-        return [
-            (dict(casebase), {key: 1.0 for key in casebase})
-            for casebase, _query in resolve_casebases(batches, self._indexed_casebase)
-        ]
+from .conftest import FakeIndexableRetriever, _custom_numeric_sim
 
 
 @pytest.mark.skip(reason="this test is slow on macOS")
-def test_retrieve_multiprocessing():
+def test_retrieve_multiprocessing(cars_csv_casebase):
     query_name = 42
-    casebase_file = "data/cars-1k.csv"
-
-    df = pl.read_csv(casebase_file)
-    casebase = cbrkit.loaders.polars(df)
+    casebase = cars_csv_casebase
     retriever = cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
             cbrkit.sim.attribute_value(
@@ -93,12 +41,9 @@ def test_retrieve_multiprocessing():
     assert len(result.ranking) == 999
 
 
-def test_retrieve_dataframe():
+def test_retrieve_dataframe(cars_csv_casebase):
     query_name = 42
-    casebase_file = "data/cars-1k.csv"
-
-    df = pl.read_csv(casebase_file)
-    casebase = cbrkit.loaders.polars(df)
+    casebase = cars_csv_casebase
     query = casebase[query_name]
     retriever = cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
@@ -132,19 +77,8 @@ def test_retrieve_dataframe():
     assert result.ranking[0] == query_name
 
 
-def test_retrieve_dataframe_custom_query():
-    casebase_file = "data/cars-1k.csv"
-
-    df = pl.read_csv(casebase_file)
-    casebase = cbrkit.loaders.polars(df)
-
-    query = {
-        "price": 10000,
-        "year": 2010,
-        "manufacturer": "audi",
-        "make": "a4",
-        "miles": 100000,
-    }
+def test_retrieve_dataframe_custom_query(cars_csv_casebase, car_query):
+    casebase = cars_csv_casebase
 
     retriever = cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
@@ -166,7 +100,7 @@ def test_retrieve_dataframe_custom_query():
     )
     result = cbrkit.retrieval.apply_query(
         casebase,
-        query,
+        car_query,
         retriever,
     )
 
@@ -175,11 +109,9 @@ def test_retrieve_dataframe_custom_query():
     assert len(result.casebase) == 5
 
 
-def test_retrieve_nested():
+def test_retrieve_nested(cars_yaml_casebase):
     query_name = 42
-    casebase_file = "data/cars-1k.yaml"
-
-    casebase: Mapping[int, Any] = cbrkit.loaders.path(casebase_file)
+    casebase: Mapping[int, Any] = cars_yaml_casebase
     query = casebase[query_name]
     retriever = cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
