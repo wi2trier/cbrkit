@@ -1,8 +1,43 @@
-"""
-CBRkit contains retain phase functions for deciding whether to store
-solved cases back into the casebase.
-The retain phase uses storage functions (from ``cbrkit.retain.storage``)
-to integrate cases into the casebase.
+"""Retain phase for deciding whether to store solved cases back into the casebase.
+
+The retain phase evaluates solved cases and integrates them into the casebase
+using storage functions.
+Cases are assessed with a similarity function and stored via a storage backend.
+
+Building Retainers:
+    ``build``: Creates a retainer from an assessment function (``assess_func``)
+    and a storage function (``storage_func``).
+    ``dropout``: Wraps a retainer to filter cases below a ``min_similarity`` threshold.
+
+Storage Functions:
+    ``static``: Generates keys from a fixed reference casebase to avoid key collisions.
+    Takes a ``key_func`` that computes the next key from existing keys.
+    ``indexable``: Keeps an ``IndexableFunc``'s index in sync with the casebase
+    when new cases are retained.
+
+Applying Retainers:
+    ``apply_result``: Applies the retainer to a revise result.
+    ``apply_query``: Applies the retainer to a single query against a casebase.
+    ``apply_queries``: Applies the retainer to multiple queries.
+    ``apply_batches``: Applies the retainer to batches of (casebase, query) pairs.
+    ``apply_pair``: Applies the retainer to a single (case, query) pair.
+
+Types:
+    ``KeyFunc``: Protocol for functions that generate new casebase keys.
+
+Example:
+    Build and apply a retainer::
+
+        import cbrkit
+
+        retainer = cbrkit.retain.build(
+            assess_func=cbrkit.sim.generic.equality(),
+            storage_func=cbrkit.retain.static(
+                key_func=lambda keys: max(keys, default=-1) + 1,
+                casebase=casebase,
+            ),
+        )
+        result = cbrkit.retain.apply_result(revise_result, retainer)
 """
 
 from ..model import QueryResultStep, Result, ResultStep

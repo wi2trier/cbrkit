@@ -89,7 +89,7 @@ class csv(ConversionFunc[Any, str]):
 
 @dataclass(slots=True, frozen=True)
 class yaml(ConversionFunc[Any, str]):
-    """Writes an object to a csv file."""
+    """Converts an object to a YAML string."""
 
     conversion_func: ConversionFunc[Any, Any] = default_conversion_func
 
@@ -159,7 +159,7 @@ def file(
     data: Any,
     dumper: Dumper | None = None,
 ) -> None:
-    """Writes arbitrary data to a json file.
+    """Writes data to a file, inferring the format from the file extension.
 
     Args:
         data: Data to write to the file.

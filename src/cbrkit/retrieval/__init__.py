@@ -1,3 +1,56 @@
+"""Case retrieval with similarity-based, sparse, and embedding-based methods.
+
+This module provides functions for building and applying retrieval pipelines.
+Retrievers compute similarity scores between a query and cases in a casebase,
+then return ranked results.
+Multiple retrievers can be composed sequentially (MAC/FAC pattern) or combined
+in parallel with score aggregation.
+
+Building Retrievers:
+    ``build``: Creates a retriever from a similarity function.
+    Supports multiprocessing for large casebases.
+    ``dropout``: Wraps a retriever with filtering by ``min_similarity`` and/or ``limit``.
+
+Applying Retrievers:
+    ``apply_query``: Runs retrieval for a single query against a casebase.
+    ``apply_queries``: Runs retrieval for multiple queries.
+    ``apply_batches``: Runs retrieval for batches of (casebase, query) pairs.
+    ``apply_query_indexed`` / ``apply_queries_indexed``: Convenience functions
+    for indexed retrieval without passing a casebase.
+
+Wrappers:
+    ``combine``: Merges results from multiple retrievers using an aggregator.
+    ``distribute``: Splits the casebase into chunks for distributed retrieval.
+    ``persist``: Caches retrieval results to disk.
+    ``transpose`` / ``transpose_value``: Transforms cases/queries before retrieval.
+    ``chunk``: Splits cases into chunks for retrieval (requires ``chunking`` extra).
+
+Indexable Retrieval:
+    ``embed``: Embedding-based retrieval using vector similarity.
+    ``bm25``: BM25 sparse text retrieval (requires ``bm25`` extra).
+    ``chromadb``: ChromaDB vector store retrieval (requires ``chromadb`` extra).
+    ``lancedb``: LanceDB vector store retrieval (requires ``lancedb`` extra).
+    ``zvec``: Zvec vector store retrieval (requires ``zvec`` extra).
+
+Re-ranking:
+    ``cohere``: Cohere re-ranking model (requires ``cohere`` extra).
+    ``voyageai``: Voyage AI re-ranking model (requires ``voyageai`` extra).
+    ``sentence_transformers``: Cross-encoder re-ranking (requires ``transformers`` extra).
+
+Example:
+    Build and apply a retriever::
+
+        import cbrkit
+
+        retriever = cbrkit.retrieval.build(
+            cbrkit.sim.attribute_value(
+                attributes={"price": cbrkit.sim.numbers.linear(max=100000)},
+                aggregator=cbrkit.sim.aggregator(pooling="mean"),
+            )
+        )
+        result = cbrkit.retrieval.apply_query(casebase, query, retriever)
+"""
+
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import (

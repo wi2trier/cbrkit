@@ -1,10 +1,37 @@
-"""
-CBRkit contains a selection of adaptation functions for different data types.
-Besides functions for standard data types like
-numbers (`cbrkit.adapt.numbers`),
-strings (`cbrkit.adapt.strings`),
-and generic data (`cbrkit.adapt.generic`),
-there is also a function for attribute-value data.
+"""Adaptation functions for modifying retrieved cases to better suit a query.
+
+This module contains built-in adaptation functions for common data types.
+Adaptation functions are used in the reuse phase (``cbrkit.reuse``) to transform
+retrieved cases before scoring.
+All adaptation functions follow one of three signatures:
+
+- Pair: ``adapted = f(case, query)``
+- Map: ``adapted_casebase = f(casebase, query)``
+- Reduce: ``key, adapted = f(casebase, query)``
+
+Submodules:
+    ``cbrkit.adapt.numbers``: Numeric adaptation (e.g., ``aggregate`` with pooling).
+    ``cbrkit.adapt.strings``: String adaptation (e.g., ``regex`` replacement).
+    ``cbrkit.adapt.generic``: Generic adaptation functions.
+
+Top-Level Functions:
+    ``attribute_value``: Applies per-attribute adaptation functions to
+    attribute-value based cases, analogous to ``cbrkit.sim.attribute_value``.
+    Supports nesting for object-oriented data structures.
+
+Example:
+    Build an attribute-value adapter::
+
+        import cbrkit
+
+        adapter = cbrkit.adapt.attribute_value(
+            attributes={
+                "price": cbrkit.adapt.numbers.aggregate(pooling="mean"),
+                "color": cbrkit.adapt.strings.regex(
+                    "CASE_PATTERN", "QUERY_PATTERN", "REPLACEMENT"
+                ),
+            }
+        )
 """
 
 from . import generic, numbers, strings

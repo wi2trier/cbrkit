@@ -36,26 +36,30 @@ To get started, we provide a [demo project](https://github.com/wi2trier/cbrkit-d
 Further examples can be found in our [tests](./tests/test_retrieve.py) and [documentation](https://wi2trier.github.io/cbrkit/).
 The following modules are part of CBRkit:
 
-- `cbrkit.loaders` and `cbrkit.dumpers`: Functions for loading and exporting cases and queries.
-- `cbrkit.sim`: Similarity functions for common data types and some utility functions such as `cache`, `combine`, `transpose`, etc.
-  - `cbrkit.sim.strings`: String similarity measures (Levenshtein, Jaro, semantic, etc.).
+- `cbrkit.loaders`: Functions for loading cases and queries from various file formats and data sources.
+- `cbrkit.dumpers`: Functions for exporting data to JSON, YAML, CSV, TOML, and Markdown.
+- `cbrkit.sim`: Similarity measures for common data types with utility functions such as `cache`, `combine`, `transpose`, etc.
+  - `cbrkit.sim.strings`: String similarity measures (Levenshtein, Jaro, spaCy, etc.).
   - `cbrkit.sim.numbers`: Numeric similarity measures (linear, exponential, threshold).
-  - `cbrkit.sim.collections`: Similarity measures for collections and sequences (Jaccard, DTW, Smith-Waterman).
+  - `cbrkit.sim.collections`: Similarity measures for collections and sequences (Jaccard, etc.).
   - `cbrkit.sim.embed`: Embedding-based similarity functions with caching support.
-  - `cbrkit.sim.graphs`: Graph similarity algorithms including GED, A*, VF2, and more.
-  - `cbrkit.sim.taxonomy`: Taxonomy-based similarity functions.
+  - `cbrkit.sim.graphs`: Graph similarity algorithms including A\*, VF2, greedy, LAP, and more.
+  - `cbrkit.sim.taxonomy`: Taxonomy-based similarity functions (Wu-Palmer, etc.).
   - `cbrkit.sim.generic`: Generic similarity functions (equality, tables, static).
   - `cbrkit.sim.attribute_value`: Similarity for attribute-value based data.
   - `cbrkit.sim.pooling`: Functions for aggregating multiple similarity values.
   - `cbrkit.sim.aggregator`: Combines multiple local measures into global scores.
-- `cbrkit.retrieval`: Functions for defining and applying retrieval pipelines, includes BM25 retrieval, rerankers, etc.
-- `cbrkit.adapt`: Adaptation generator functions for adapting cases based on a query.
-- `cbrkit.reuse`: Functions for defining and applying reuse pipelines.
+- `cbrkit.adapt`: Adaptation functions for adapting cases based on a query.
+- `cbrkit.retrieval`: Retrieval pipelines with BM25, embedding-based retrieval, re-ranking (Cohere, Voyage AI, Sentence Transformers), and more.
+- `cbrkit.reuse`: Reuse pipelines that apply adaptation and score the results.
+- `cbrkit.revise`: Revision pipelines for assessing and optionally repairing solutions.
+- `cbrkit.retain`: Retention pipelines for storing solved cases back into the casebase.
+- `cbrkit.cycle`: Full CBR cycle orchestration across all four phases.
+- `cbrkit.system`: High-level `System` class for composing all CBR phases into a single object.
+- `cbrkit.synthesis`: LLM-based synthesis for generating insights from cases (RAG), with providers for OpenAI, Anthropic, Cohere, Google, Ollama, and more.
 - `cbrkit.eval`: Evaluation metrics for retrieval results including precision, recall, and custom metrics.
-- `cbrkit.model`: Data models for graphs and results.
-- `cbrkit.cycle`: CBR cycle implementation.
+- `cbrkit.model`: Data models for results and graph structures.
 - `cbrkit.typing`: Generic type definitions for defining custom functions.
-- `cbrkit.synthesis`: Functions for working on a casebase with LLMs to create new insights, e.g., in a RAG context.
 
 ## Installation
 
@@ -74,14 +78,12 @@ pip install cbrkit[EXTRA_NAME,...]
 where `EXTRA_NAME` is one of the following:
 
 - `all`: All optional dependencies
-- `api`: REST API Server
-- `cli`: Command Line Interface (CLI)
-- `eval`: Evaluation tools for common metrics like `precision` and `recall`
-- `graphs`: Graph libraries like `networkx` and `rustworkx`
-- `llm`: Large Language Models (LLM) APIs like Ollama and OpenAI
-- `nlp`: Standalone NLP tools `levenshtein`, `nltk`, `openai`, and `spacy`
-- `timeseries`: Time series similarity measures like `dtw` and `smith_waterman`
-- `transformers`: Advanced NLP tools based on `pytorch` and `transformers`
+- **LLM providers:** `anthropic`, `cohere`, `google`, `ollama`, `openai`, `openai-agents`, `pydantic-ai`, `instructor`, `voyageai`
+- **NLP / text processing:** `bm25`, `chunking`, `levenshtein`, `nltk`, `spacy`
+- **ML / embeddings:** `transformers` (includes `pytorch` and `sentence-transformers`)
+- **Graphs:** `graphs` (`networkx` and `rustworkx`), `graphviz`
+- **Data backends:** `chromadb`, `lancedb`, `pandas`, `sql` (SQLAlchemy), `zvec`
+- **Tools:** `cli` (CLI), `api` (REST API server), `eval` (evaluation metrics), `timeseries` (DTW, Smith-Waterman)
 
 Alternatively, you can also clone this git repository and install CBRKit and its dependencies via uv: `uv sync --all-extras`
 
@@ -95,7 +97,8 @@ We provide predefined functions for the following formats:
 - toml
 - xml
 - yaml
-- py (object inside of a python file).
+- txt (plain text)
+- py (object inside of a python file)
 
 Loading one of those formats can be done via the `file` function:
 
@@ -104,8 +107,18 @@ import cbrkit
 casebase = cbrkit.loaders.file("path/to/cases.[json,toml,yaml,xml,csv]")
 ```
 
-Additionally, CBRkit also integrates with `polars` and `pandas` for loading data frames.
-The following example shows how to load cases and queries from a CSV file using `polars`:
+You can also load all files from a directory or use the unified `path` function:
+
+```python
+# Load all files matching a glob pattern from a directory
+casebase = cbrkit.loaders.directory("path/to/cases/", pattern="*.json")
+
+# Unified path function: auto-detects whether path is a file or directory
+casebase = cbrkit.loaders.path("path/to/cases.json")  # single file
+casebase = cbrkit.loaders.path("path/to/cases/")      # directory
+```
+
+Additionally, CBRkit integrates with `polars` and `pandas` for loading data frames:
 
 ```python
 import polars as pl
@@ -113,6 +126,25 @@ import cbrkit
 
 df = pl.read_csv("path/to/cases.csv")
 casebase = cbrkit.loaders.polars(df)
+```
+
+For database access, CBRkit provides `sqlite` and `sqlalchemy` loaders (the latter requires the `sql` extra):
+
+```python
+casebase = cbrkit.loaders.sqlite("path/to/database.db", "SELECT * FROM cases")
+```
+
+**Tip:** You can validate a loaded casebase against a Pydantic model using `cbrkit.loaders.validate()`:
+
+```python
+from pydantic import BaseModel
+
+class Car(BaseModel):
+    price: int
+    year: int
+    model: str
+
+casebase = cbrkit.loaders.validate(casebase, Car)
 ```
 
 ## Defining Queries
@@ -137,6 +169,29 @@ In case your query collection only contains a single entry, you can use the `sin
 
 ```python
 query = cbrkit.helpers.singleton(queries)
+```
+
+## Exporting Data
+
+CBRkit provides functions for exporting data through the `cbrkit.dumpers` module.
+Supported formats include JSON, YAML, CSV, TOML, and Markdown.
+
+```python
+import cbrkit
+
+# Export to a file (format is inferred from the extension)
+cbrkit.dumpers.file("output.json", data)
+cbrkit.dumpers.file("output.yaml", data)
+
+# Export to a directory (one file per entry)
+cbrkit.dumpers.directory("output/", data)
+
+# Or use the unified path function
+cbrkit.dumpers.path("output.json", data)  # writes a single file
+cbrkit.dumpers.path("output/", data)      # writes a directory
+
+# Format data as a Markdown code block
+md = cbrkit.dumpers.markdown()(data)
 ```
 
 ## Similarity Measures and Aggregation
@@ -229,6 +284,21 @@ cached_sim = cbrkit.sim.embed.build(
 )
 ```
 
+#### Collection and Sequence Similarity
+
+CBRkit provides similarity measures for collections and sequences in `cbrkit.sim.collections`:
+
+```python
+# Jaccard similarity for sets (requires the `nltk` extra)
+jaccard_sim = cbrkit.sim.collections.jaccard()
+
+# Optimal sequence mapping using A* search
+seq_sim = cbrkit.sim.collections.mapping(cbrkit.sim.generic.equality())
+```
+
+Dynamic Time Warping and Smith-Waterman alignment are available with the `timeseries` extra.
+See the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim/collections.html) for the full list.
+
 #### Taxonomy-Based Similarity
 
 ```python
@@ -269,20 +339,15 @@ CBRkit provides extensive support for graph similarity through various algorithm
 
 ```python
 # Using Graph Edit Distance (GED) with A* search
-graph_sim = cbrkit.sim.graphs.astar(
-    node_sim=cbrkit.sim.generic.equality(),
+graph_sim = cbrkit.sim.graphs.astar.build(
+    node_sim_func=cbrkit.sim.generic.equality(),
     node_matcher=lambda n1, n2: n1 == n2,
-    edge_matcher=lambda e1, e2: e1 == e2
+    edge_matcher=lambda e1, e2: e1 == e2,
 )
 ```
 
-Available graph algorithms include:
-- `astar`: A* search for optimal graph edit distance
-- `vf2`: VF2 algorithm for (sub)graph isomorphism
-- `lap`: Linear assignment problem solver
-- `greedy`: Fast greedy matching
-- `brute_force`: Exhaustive search for small graphs
-- `dfs`: Depth-first search based matching
+Available graph algorithms include `astar`, `vf2`, `greedy`, `lap`, `brute_force`, `dfs`, `dtw`, and `smith_waterman`.
+See the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim/graphs.html) for a full list of algorithms and their parameters.
 
 ### Global Similarity and Aggregation
 
@@ -549,19 +614,87 @@ result = cbrkit.retain.apply_result(revise_result, retainer)
 
 The result contains `similarities` with fitness scores and `casebase` with the updated cases.
 
+## Full CBR Cycle
+
+The `cbrkit.cycle` module orchestrates all four phases (retrieval, reuse, revise, retain) in a single call.
+This is useful when you want to run the complete CBR cycle without manually chaining the phases.
+
+```python
+result = cbrkit.cycle.apply_query(
+    casebase,
+    query,
+    retrievers=retriever,
+    reusers=reuser,
+    revisers=reviser,
+    retainers=retainer,
+)
+# Access results from each phase
+retrieval_result = result.retrieval
+reuse_result = result.reuse
+revise_result = result.revise
+retain_result = result.retain
+```
+
+For multiple queries, use `cbrkit.cycle.apply_queries` or `cbrkit.cycle.apply_batches`.
+
+## System
+
+The `cbrkit.system.System` class provides a high-level interface for composing all CBR phases into a single reusable object.
+It is especially useful for integrating CBRkit into applications where the casebase and phase functions are configured once and reused across multiple queries.
+
+```python
+system = cbrkit.system.System(
+    casebase=casebase,
+    retriever_factory=lambda config: retriever,
+    reuser_factory=lambda config: reuser,
+)
+
+# Run individual phases
+retrieval_result = system.retrieve(query)
+reuse_result = system.reuse(query)
+
+# Run the full cycle
+cycle_result = system.cycle(query)
+```
+
+The `System` class supports optional configuration parameters for each phase factory, allowing you to customize the behavior per query.
+
 ## Advanced Retrieval
 
 ### BM25 Retrieval
 
-CBRkit includes a BM25 retriever for text-based retrieval:
+CBRkit includes a BM25 retriever for sparse text-based retrieval (requires the `bm25` extra).
+The BM25 retriever delegates text tokenization to a `cbrkit.sim.embed.bm25` embedding function:
 
 ```python
-retriever = cbrkit.retrieval.bm25(
-    key="text_field",  # Field to search in
-    limit=10
+bm25_func = cbrkit.sim.embed.bm25(language="en")
+retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.bm25(conversion_func=bm25_func),
+    limit=10,
 )
 result = cbrkit.retrieval.apply_query(casebase, query, retriever)
 ```
+
+### Embedding-Based Retrieval
+
+CBRkit supports embedding-based retrieval through vector similarity search.
+The `embed` retriever uses an embedding function with caching and a vector scorer:
+
+```python
+embed_func = cbrkit.sim.embed.cache(
+    func=cbrkit.sim.embed.sentence_transformers(model="all-MiniLM-L6-v2"),
+    path="embeddings.sqlite3",
+    table="strf/minilm",
+)
+retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.embed(conversion_func=embed_func),
+    limit=10,
+)
+result = cbrkit.retrieval.apply_query(casebase, query, retriever)
+```
+
+For persistent storage backends, CBRkit also supports `lancedb`, `chromadb`, and `zvec` retrievers (each requires its respective extra).
+These backends manage index persistence and support hybrid search modes.
 
 ### Combining Multiple Retrievers
 
@@ -572,21 +705,39 @@ retriever1 = cbrkit.retrieval.build(...)
 retriever2 = cbrkit.retrieval.bm25(...)
 
 combined = cbrkit.retrieval.combine(
-    retrievers=[retriever1, retriever2],
-    aggregator=cbrkit.sim.aggregator(pooling="mean")
+    retriever_funcs=[retriever1, retriever2],
+    aggregator=cbrkit.sim.aggregator(pooling="mean"),
 )
 result = cbrkit.retrieval.apply_query(casebase, query, combined)
 ```
 
 ### Distributed Processing
 
-For large-scale retrieval, use the `distribute` wrapper:
+For large-scale retrieval, use the `distribute` wrapper to process each batch in parallel:
 
 ```python
 retriever = cbrkit.retrieval.distribute(
     cbrkit.retrieval.build(...),
-    batch_size=1000
+    multiprocessing=True,  # or an integer for a specific number of processes
 )
+```
+
+### Re-ranking
+
+CBRkit supports re-ranking retrieved results using external models.
+Re-rankers take the initial retrieval results and reorder them based on a more expensive model.
+The following re-rankers are available (each requires its respective extra):
+
+- `cbrkit.retrieval.cohere`: Cohere re-ranking (extra: `cohere`)
+- `cbrkit.retrieval.voyageai`: Voyage AI re-ranking (extra: `voyageai`)
+- `cbrkit.retrieval.sentence_transformers`: Sentence Transformers cross-encoder re-ranking (extra: `transformers`)
+
+```python
+reranker = cbrkit.retrieval.cohere(model="rerank-v3.5")
+
+# Use as a second-stage retriever in a sequential pipeline
+retriever = cbrkit.retrieval.build(cbrkit.sim.attribute_value(...))
+result = cbrkit.retrieval.apply_query(casebase, query, (retriever, reranker))
 ```
 
 ### Indexed Retrieval
@@ -599,8 +750,9 @@ To use indexed retrieval, first create a retriever and call its `index()` method
 ```python
 from frozendict import frozendict
 
-retriever = cbrkit.retrieval.bm25(language="en", limit=10)
-retriever.index(frozendict(casebase))
+bm25_func = cbrkit.sim.embed.bm25(language="en")
+retriever = cbrkit.retrieval.bm25(conversion_func=bm25_func)
+retriever.create_index(frozendict(casebase))
 ```
 
 Then pass an empty casebase (`{}`) to signal that the retriever should use its pre-indexed data:
@@ -672,20 +824,26 @@ All of them can be computed at different cutoff points by appending `@k`, e.g., 
 We also offer a function to automatically generate a list of metrics for different cutoff points:
 
 ```python
-metrics = cbrkit.eval.metrics_at_k(["precision", "recall", "f1"], [1, 5, 10])
+metrics = cbrkit.eval.generate_metrics(["precision", "recall", "f1"], ks=[1, 5, 10])
 ```
 
 ## Synthesis
 
 In the context of CBRkit, synthesis refers to creating new insights from the cases which were retrieved in a previous retrieval step, for example in a RAG context. CBRkit builds a synthesizer using the function `cbrkit.synthesis.build` with a `provider` and a `prompt`. A synthesizer maps a `Result` (obtained in the retrieval step) to an LLM output (can be a string or structurized). An example can be found in [examples/cars_rag.py](https://github.com/wi2trier/cbrkit/blob/main/examples/cars_rag.py).
 
-The following **providers** are currently supported if a valid API key is stored the respective environment variable:
+The following **providers** are available in `cbrkit.synthesis.providers` (each requires its respective extra):
 
-- Anthropic (`ANTHROPIC_API_KEY`)
-- Cohere (`CO_API_KEY`)
-- Google (`GOOGLE_API_KEY`)
-- Ollama
-- OpenAI (`OPENAI_API_KEY`)
+- `openai` / `openai_completions`: OpenAI Completions API (`OPENAI_API_KEY`)
+- `openai_responses`: OpenAI Responses API (`OPENAI_API_KEY`)
+- `openai_agents`: OpenAI Agents framework (`OPENAI_API_KEY`)
+- `anthropic`: Anthropic Claude API (`ANTHROPIC_API_KEY`)
+- `cohere`: Cohere API (`CO_API_KEY`)
+- `google`: Google Generative AI (`GOOGLE_API_KEY`)
+- `ollama`: Ollama (local, no API key needed)
+- `pydantic_ai`: Pydantic AI framework
+- `instructor`: Instructor for structured output
+
+Providers can be chained using `cbrkit.synthesis.providers.pipe()` and managed as conversations using `cbrkit.synthesis.providers.conversation()`.
 
 The respective provider class in `cbrkit.synthesis.providers` has to be initialized with the model name and a response type (either `str` or a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/) for structured output). Further model options like `temperature`, `seed`, `max_tokens`, etc. can also be specified here.
 
@@ -716,16 +874,15 @@ CBRKit's `transpose` prompt allows to transpose cases and queries before they ar
 
 ```python
 from cbrkit.typing import JsonEntry
-from cbrkit.dumpers import json_markdown
 
 def encoder(value) -> dict:
     ...
 baseprompt = cbrkit.synthesis.prompts.default(instructions, encoder=encoder)
 # transform the entries, e.g., by shortening, leaving out irrelevant attributes, etc.
-# In this case, the value of every field is trunctated to 100 characters
+# In this case, the value of every field is truncated to 100 characters
 def shorten(entry: dict) -> JsonEntry:
-    entry = {k: str(v)[:100] for k,v in entry.items()}
-    return json_markdown(entry)
+    entry = {k: str(v)[:100] for k, v in entry.items()}
+    return cbrkit.dumpers.markdown()(entry)
 
 prompt = cbrkit.synthesis.prompts.transpose(baseprompt, shorten)
 synthesizer = cbrkit.synthesis.build(provider, prompt)
@@ -762,6 +919,58 @@ response = get_result(batches)
 ```
 
 The complete version of this example can be found under `examples/cars_rag_large.py`.
+
+## Tips and Common Patterns
+
+### Parameter Naming Conventions
+
+CBRkit inspects function signatures to determine their behavior:
+
+- **Similarity functions** must use `x` (case) and `y` (query) as parameter names.
+- **Adaptation functions** must use `case` and `query` for pair functions, or `casebase` and `query` for map/reduce functions.
+- **Batch functions** accept a list of tuples instead of individual pairs: `f([(x1, y1), (x2, y2), ...])`.
+
+### Filtering with `dropout`
+
+The `dropout` wrapper is the standard way to add limits and thresholds to any retriever or retainer.
+It supports `limit` (maximum number of results), `min_similarity`, and `max_similarity`:
+
+```python
+retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.build(sim_func),
+    limit=10,
+    min_similarity=0.3,
+)
+```
+
+### Composing Multiple Phase Functions
+
+All CBR phases support sequential composition by passing a tuple of phase functions.
+Each step receives the output casebase of the previous step, enabling patterns like MAC/FAC:
+
+```python
+result = cbrkit.retrieval.apply_query(casebase, query, (cheap_retriever, expensive_retriever))
+```
+
+### Using `frozendict` for Immutable Casebases
+
+Several components (e.g., indexed retrieval, retain phase) benefit from immutable casebases.
+Use `frozendict` to prevent accidental mutations:
+
+```python
+from frozendict import frozendict
+casebase = frozendict(cbrkit.loaders.file("cases.json"))
+```
+
+### Multiprocessing Support
+
+The `cbrkit.retrieval.build` function supports multiprocessing for large casebases:
+
+```python
+retriever = cbrkit.retrieval.build(sim_func, multiprocessing=True)
+# or with a specific number of processes:
+retriever = cbrkit.retrieval.build(sim_func, multiprocessing=4)
+```
 
 ## Logging
 
