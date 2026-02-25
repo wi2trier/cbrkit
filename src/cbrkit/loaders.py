@@ -409,6 +409,7 @@ with optional_dependencies():
                 result = conn.execute(stmt, self.params)
                 rows = result.mappings().all()
 
+            engine.dispose()
             self._data = {idx: dict(row) for idx, row in enumerate(rows)}
 
         def __getitem__(self, key: int) -> dict[str, Any]:
