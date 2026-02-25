@@ -38,38 +38,6 @@ jobs:
         with:
           name: uv-build
           path: ./dist
-  deploy-docker:
-    runs-on: ubuntu-latest
-    needs: release
-    if: ${{ needs.release.outputs.released == 'true' }}
-    permissions:
-      contents: read
-      packages: write
-    environment:
-      name: release
-      url: https://ghcr.io/wi2trier/cbrkit
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.release.outputs.git-head }}
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      # docker build aborts due to missing space
-      - uses: wimpysworld/nothing-but-nix@v10
-      - uses: DeterminateSystems/nix-installer-action@v21
-        with:
-          extra-conf: |
-            accept-flake-config = true
-            extra-platforms = aarch64-linux
-      - uses: cachix/cachix-action@v16
-        with:
-          name: wi2trier
-          authToken: ${{ secrets.CACHIX_TOKEN }}
-      - run: nix run .#docker-manifest --impure
-        env:
-          VERSION: ${{ needs.release.outputs.version }}
-          GH_TOKEN: ${{ github.token }}
   deploy-pypi:
     runs-on: ubuntu-latest
     needs: release
