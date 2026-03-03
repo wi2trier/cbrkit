@@ -241,8 +241,8 @@ class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
 
     def __init__(
         self,
-        entries: Mapping[tuple[K, K], AnySimFunc[..., S]]
-        | Mapping[K, AnySimFunc[..., S]],
+        entries: Mapping[tuple[K, K], AnySimFunc[Any, S]]
+        | Mapping[K, AnySimFunc[Any, S]],
         key_getter: Callable[[Any], K],
         default: AnySimFunc[U, S] | S | None = None,
         symmetric: bool = True,
@@ -313,12 +313,12 @@ table = dynamic_table
 
 
 def type_table[U, V, S: Float](
-    entries: Mapping[type[V], AnySimFunc[..., S]],
+    entries: Mapping[type[V], AnySimFunc[Any, S]],
     default: AnySimFunc[U, S] | S | None = None,
 ) -> BatchSimFunc[U | V, S]:
     """Create a dynamic table that dispatches similarity functions by value type."""
     return dynamic_table(
-        entries=cast(Mapping[type, AnySimFunc[..., S]], entries),
+        entries=cast(Mapping[type, AnySimFunc[Any, S]], entries),
         key_getter=type,
         default=default,
         symmetric=False,
@@ -337,7 +337,7 @@ class attribute_table_key_getter[K]:
 
 
 def attribute_table[K, U, S: Float](
-    entries: Mapping[K, AnySimFunc[..., S]],
+    entries: Mapping[K, AnySimFunc[Any, S]],
     attribute: str,
     default: AnySimFunc[U, S] | S | None = None,
     value_getter: Callable[[Any, str], K] = getitem_or_getattr,

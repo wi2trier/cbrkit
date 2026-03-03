@@ -794,7 +794,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     import numpy as np
-    import zvec as zv
+    import zvec as zv  # pyright: ignore[reportMissingImports]  # type: ignore[unresolved-import]
 
     from ..indexable import zvec as zvec_storage
 

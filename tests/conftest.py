@@ -148,7 +148,7 @@ def simple_query() -> dict[str, int]:
 
 
 @pytest.fixture(scope="session")
-def sim_func_simple() -> cbrkit.typing.AnySimFunc:
+def sim_func_simple() -> cbrkit.typing.AnySimFunc[Any, Any]:
     """Simple similarity function for price+year attributes."""
     return cbrkit.sim.attribute_value(
         attributes={
