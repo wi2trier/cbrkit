@@ -10,6 +10,8 @@
   onetbb,
   cacert,
   graphviz,
+  libstemmer,
+  zlib,
 }:
 let
   pdocRepo = fetchFromGitHub {
@@ -62,6 +64,26 @@ let
       };
       numba = old: {
         buildInputs = (old.buildInputs or [ ]) ++ [ onetbb ];
+      };
+      zlib-state = old: {
+        nativeBuildInputs =
+          (old.nativeBuildInputs or [ ])
+          ++ (final.resolveBuildSystem {
+            setuptools = [ ];
+          });
+        buildInputs = (old.buildInputs or [ ]) ++ [ zlib ];
+      };
+      pystemmer = old: {
+        nativeBuildInputs =
+          (old.nativeBuildInputs or [ ])
+          ++ (final.resolveBuildSystem {
+            setuptools = [ ];
+            cython = [ ];
+          });
+        # https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/development/python-modules/pystemmer/default.nix
+        PYSTEMMER_SYSTEM_LIBSTEMMER = "${lib.getDev libstemmer}/include";
+        NIX_CFLAGS_COMPILE = [ "-I${lib.getDev libstemmer}/include" ];
+        NIX_CFLAGS_LINK = [ "-L${libstemmer}/lib" ];
       };
       cbrkit = old: {
         meta = (old.meta or { }) // {
