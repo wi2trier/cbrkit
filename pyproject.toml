@@ -4,6 +4,7 @@ version = "1.2.0"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI"
 authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 readme = "README.md"
+license = "MIT"
 keywords = [
     "cbr",
     "case-based reasoning",
@@ -21,7 +22,6 @@ classifiers = [
     "Framework :: Pytest",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.13",
