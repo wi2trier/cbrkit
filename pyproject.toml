@@ -80,7 +80,7 @@ sql = ["sqlalchemy>=2,<3"]
 zvec = ["zvec>=0.2,<1"]
 
 # Tools
-cli = ["rich>=13,<15", "typer>=0.9,<1"]
+cli = ["rich>=15,<16", "typer>=0.9,<1"]
 eval = ["ranx>=0.3,<1"]
 timeseries = ["minineedle>=3,<4"]
 
