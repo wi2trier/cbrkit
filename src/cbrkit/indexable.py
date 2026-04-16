@@ -339,6 +339,26 @@ with optional_dependencies():
 
             return ids, values, metadatas
 
+        def _batched_write(
+            self,
+            op: Literal["add", "upsert"],
+            ids: list[str],
+            documents: list[str],
+            metadatas: list[cdb.Metadata] | None,
+        ) -> None:
+            """Dispatch `add`/`upsert` in chunks sized by the client limit."""
+            assert self._collection is not None
+            batch_size = self._client.get_max_batch_size()
+            fn = self._collection.add if op == "add" else self._collection.upsert
+
+            for start in range(0, len(ids), batch_size):
+                stop = start + batch_size
+                fn(
+                    ids=ids[start:stop],
+                    documents=documents[start:stop],
+                    metadatas=metadatas[start:stop] if metadatas is not None else None,
+                )
+
         @property
         @override
         def index(self) -> Casebase[K, str]:
@@ -367,11 +387,12 @@ with optional_dependencies():
                     embedding_function=self.embedding_func,
                 )
 
+                self._collection = collection
+
                 if data:
                     ids, documents, metadatas = self._prepare_documents(data)
-                    collection.add(ids=ids, documents=documents, metadatas=metadatas)
+                    self._batched_write("add", ids, documents, metadatas)
 
-                self._collection = collection
                 return
 
             existing = self.index
@@ -400,7 +421,7 @@ with optional_dependencies():
                 return
 
             ids, documents, metadatas = self._prepare_documents(data)
-            self._collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+            self._batched_write("upsert", ids, documents, metadatas)
 
         @override
         def delete_index(self, data: Collection[K]) -> None:
