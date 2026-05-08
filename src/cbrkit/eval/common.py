@@ -487,9 +487,7 @@ def generate_metrics(
         >>> generate_metrics(["precision", "recall"], ks=5)
         ['precision@5', 'recall@5']
     """
-    ks_list: list[int | None] = (
-        [ks] if ks is None or isinstance(ks, int) else list(ks)
-    )
+    ks_list: list[int | None] = [ks] if ks is None or isinstance(ks, int) else list(ks)
     relevance_levels_list: list[int | None] = (
         [relevance_levels]
         if relevance_levels is None or isinstance(relevance_levels, int)

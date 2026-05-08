@@ -226,9 +226,7 @@ class embed[K, S: Float](
             )
 
         if delete:
-            texts.extend(
-                self._casebase[key] for key in delete if key in self._casebase
-            )
+            texts.extend(self._casebase[key] for key in delete if key in self._casebase)
 
         return texts
 
