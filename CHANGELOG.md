@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.0](https://github.com/wi2trier/cbrkit/compare/v1.2.0...v1.3.0) (2026-05-08)
+
+### Features
+
+* improve api of indexable functions ([459ca3c](https://github.com/wi2trier/cbrkit/commit/459ca3cba180c2b9fcb9f3fef998a9aaef154e55))
+
+### Bug Fixes
+
+* **chromadb:** respect batch size for write operations ([3afcf82](https://github.com/wi2trier/cbrkit/commit/3afcf82cbd89a824ca616207ea11d4672c4428da))
+
 ## [1.2.0](https://github.com/wi2trier/cbrkit/compare/v1.1.0...v1.2.0) (2026-02-25)
 
 ### Features
