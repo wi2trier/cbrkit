@@ -49,7 +49,7 @@ dependencies = [
 [project.optional-dependencies]
 # LLM providers
 anthropic = ["anthropic>=0.40,<1"]
-cohere = ["cohere>=5,<6"]
+cohere = ["cohere>=6,<7"]
 google = ["google-genai>=1,<2"]
 instructor = ["instructor>=1,<2"]
 ollama = ["ollama>=0.3,<1"]
@@ -80,7 +80,7 @@ sql = ["sqlalchemy>=2,<3"]
 zvec = ["zvec>=0.2,<1"]
 
 # Tools
-cli = ["rich>=13,<15", "typer>=0.9,<1"]
+cli = ["rich>=14,<16", "typer>=0.20,<1"]
 eval = ["ranx>=0.3,<1"]
 timeseries = ["minineedle>=3,<4"]
 
