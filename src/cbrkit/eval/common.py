@@ -487,15 +487,20 @@ def generate_metrics(
         >>> generate_metrics(["precision", "recall"], ks=5)
         ['precision@5', 'recall@5']
     """
-    if not isinstance(ks, Iterable):
-        ks = [ks]
-
-    if not isinstance(relevance_levels, Iterable):
-        relevance_levels = [relevance_levels]
+    ks_list: list[int | None] = (
+        [ks] if ks is None or isinstance(ks, int) else list(ks)
+    )
+    relevance_levels_list: list[int | None] = (
+        [relevance_levels]
+        if relevance_levels is None or isinstance(relevance_levels, int)
+        else list(relevance_levels)
+    )
 
     return [
-        generate_metric(*args)
-        for args in itertools.product(metrics, ks, relevance_levels)
+        generate_metric(metric, k, relevance_level)
+        for metric, k, relevance_level in itertools.product(
+            metrics, ks_list, relevance_levels_list
+        )
     ]
 
 

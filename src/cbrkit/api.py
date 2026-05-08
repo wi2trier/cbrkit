@@ -189,7 +189,7 @@ def synthesize(
     )
 
 
-def openapi_generator():
+def openapi_generator() -> dict[str, Any]:
     """Generate and cache the OpenAPI schema for the CBRKit API."""
     if not app.openapi_schema:
         app.openapi_schema = get_openapi(
@@ -203,4 +203,4 @@ def openapi_generator():
     return app.openapi_schema
 
 
-app.openapi = openapi_generator  # type: ignore[assignment]
+app.openapi = openapi_generator  # type: ignore[assignment]  # ty: ignore[invalid-assignment]

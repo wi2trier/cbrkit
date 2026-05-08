@@ -244,7 +244,7 @@ def singleton[T](x: Mapping[Any, T] | Collection[T]) -> T:
     if isinstance(x, Mapping):
         return cast(T, next(iter(x.values())))
     elif isinstance(x, Collection):
-        return cast(T, next(iter(x)))
+        return next(iter(x))
 
     raise TypeError(f"Expected a Mapping or Collection, but got {type(x)}")
 
@@ -390,7 +390,7 @@ def is_factory[T](obj: MaybeFactory[T]) -> TypeIs[Factory[T]]:
 def produce_factory[T](obj: MaybeFactory[T]) -> T:
     """Resolve a factory by calling it, or return the value as-is."""
     if is_factory(obj):
-        return obj()
+        return cast(T, obj())
 
     return cast(T, obj)
 

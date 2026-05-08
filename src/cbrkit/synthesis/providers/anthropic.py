@@ -65,7 +65,7 @@ with optional_dependencies():
                 model=self.model,
                 messages=messages,
                 max_tokens=self.max_tokens,
-                output_format=self.response_type  # type: ignore[arg-type]
+                output_format=self.response_type  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
                 if issubclass(self.response_type, BaseModel)
                 else omit,
             )

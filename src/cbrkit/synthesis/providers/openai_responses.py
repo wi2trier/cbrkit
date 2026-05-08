@@ -126,7 +126,7 @@ with optional_dependencies():
                     top_logprobs=if_given(self.top_logprobs),
                     top_p=if_given(self.top_p),
                     text=text_param,
-                    text_format=text_format,  # type: ignore[arg-type]
+                    text_format=text_format,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
                     extra_headers=self.extra_headers,
                     extra_query=self.extra_query,
                     extra_body=self.extra_body,

@@ -161,7 +161,7 @@ class embed[K, S: Float](
     def __init__(
         self,
         conversion_func: cache,
-        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,  # type: ignore[assignment]
+        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,  # type: ignore[assignment]  # ty: ignore[invalid-parameter-default]
         query_conversion_func: cache | None = None,
     ):
         self.conversion_func = conversion_func

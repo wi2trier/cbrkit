@@ -220,7 +220,7 @@ class build[V, E, S: Float](BatchSimFunc[V, S]):
     def __init__(
         self,
         conversion_func: AnyConversionFunc[V, E],
-        sim_func: AnySimFunc[E, S] = default_score_func,  # type: ignore[assignment]
+        sim_func: AnySimFunc[E, S] = default_score_func,  # type: ignore[assignment]  # ty: ignore[invalid-parameter-default]
         query_conversion_func: AnyConversionFunc[V, E] | None = None,
     ):
         self.conversion_func = batchify_conversion(conversion_func)
@@ -773,7 +773,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     import bm25s
-    import Stemmer  # type: ignore[import-untyped]
+    import Stemmer  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]
     from bm25s.tokenization import Tokenized
 
     @dataclass(slots=True)

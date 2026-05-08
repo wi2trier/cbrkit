@@ -108,7 +108,9 @@ with optional_dependencies():
                         "The completion is empty, has multiple outputs, or is not text"
                     )
 
-                return Response(self.response_type.model_validate_json(content[0].text))
+                return Response(
+                    cast(R, self.response_type.model_validate_json(content[0].text))
+                )
 
             aggregated_content = "".join(
                 block.text for block in content if block.type == "text"

@@ -31,7 +31,7 @@ class Response(BaseModel):
 
 
 synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.pydantic_ai(  # type: ignore[arg-type]
+    cbrkit.synthesis.providers.pydantic_ai(  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
         Agent(
             OpenAIChatModel("gpt-5.1-codex"),
             output_type=str,
@@ -49,7 +49,7 @@ retrieval = cbrkit.retrieval.apply_query(
     casebase[0],
     retriever,
 )
-response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
+response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response  # ty: ignore[invalid-argument-type]
 
 print(response)
 

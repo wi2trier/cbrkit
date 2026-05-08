@@ -74,11 +74,13 @@ class aggregator[K](AggregatorFunc[K, Float]):
         elif isinstance(similarities, Sequence) and isinstance(
             self.pooling_weights, Sequence
         ):
+            sim_seq = cast(SimSeq[Float], similarities)
+            weight_seq = cast(SimSeq[float], self.pooling_weights)
             sims = [
                 unpack_float(s) * w
-                for s, w in zip(similarities, self.pooling_weights, strict=True)
+                for s, w in zip(sim_seq, weight_seq, strict=True)
             ]
-            pooling_factor = len(similarities) / sum(self.pooling_weights)
+            pooling_factor = len(sim_seq) / sum(weight_seq)
         elif isinstance(similarities, Sequence) and self.pooling_weights is None:
             sim_seq = cast(SimSeq[Float], similarities)
             sims = [unpack_float(s) for s in sim_seq]
