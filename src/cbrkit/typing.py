@@ -115,16 +115,24 @@ class IndexableFunc[T, K = T](Protocol):
         """Return whether an index has been created."""
         ...
 
-    def create_index(self, data: T, /) -> None:
-        """Create or replace the index from the given data."""
+    def put_index(self, data: T, /) -> None:
+        """Replace the full index with the given data."""
         ...
 
-    def update_index(self, data: T, /) -> None:
-        """Add or update entries in the index."""
+    def upsert_index(self, data: T, /) -> None:
+        """Insert or replace entries in the index."""
         ...
 
     def delete_index(self, keys: K, /) -> None:
         """Remove entries from the index by key."""
+        ...
+
+    def patch_index(
+        self,
+        upsert: T | None = None,
+        delete: K | None = None,
+    ) -> None:
+        """Apply insertions, replacements, and deletions as one logical mutation."""
         ...
 
 

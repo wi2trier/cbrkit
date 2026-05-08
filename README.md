@@ -745,17 +745,17 @@ result = cbrkit.retrieval.apply_query(casebase, query, (retriever, reranker))
 
 ### Indexed Retrieval
 
-Some retrievers like `bm25`, `embed`, and `lancedb` support **indexed retrieval**, where the casebase is pre-indexed once and then queried without passing the full casebase each time.
+Retrievers like `bm25`, `embed`, `lancedb`, `chromadb`, and `zvec` support **indexed retrieval**, where the casebase is pre-indexed once and then queried without passing the full casebase each time.
 This is useful for large casebases or when using external search backends.
 
-To use indexed retrieval, first create a retriever and call its `index()` method:
+To use indexed retrieval, first create a retriever and call its `put_index()` method:
 
 ```python
 from frozendict import frozendict
 
 bm25_func = cbrkit.sim.embed.bm25(language="en")
 retriever = cbrkit.retrieval.bm25(conversion_func=bm25_func)
-retriever.create_index(frozendict(casebase))
+retriever.put_index(frozendict(casebase))
 ```
 
 Then pass an empty casebase (`{}`) to signal that the retriever should use its pre-indexed data:
@@ -772,7 +772,7 @@ result = cbrkit.retrieval.apply_query_indexed(query, retriever)
 result = cbrkit.retrieval.apply_queries_indexed(queries, retriever)
 ```
 
-If a retriever receives an empty casebase but has not been indexed yet, a `ValueError` is raised with a message to call `index()` first.
+If a retriever receives an empty casebase but has not been indexed yet, a `ValueError` is raised with a message to call `put_index()` first.
 
 The `System` class also supports indexed retrieval by defaulting the casebase to an empty dict.
 This allows creating a system where all retrievers are pre-indexed and no casebase needs to be provided at query time.

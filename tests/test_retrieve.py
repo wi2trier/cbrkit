@@ -154,25 +154,20 @@ def test_retrieve_nested(cars_yaml_casebase):
 def test_retrieve_indexed_lifecycle() -> None:
     retriever = FakeIndexableRetriever()
 
-    # query before any index raises
-    with pytest.raises(ValueError, match="Call create_index\\(\\) first"):
+    with pytest.raises(ValueError, match="Call put_index\\(\\) first"):
         cbrkit.retrieval.apply_query({}, "a", retriever)
 
-    # update on empty index delegates to create
-    retriever.update_index({1: "a", 2: "b"})
+    retriever.upsert_index({1: "a", 2: "b"})
     result = cbrkit.retrieval.apply_query({}, "a", retriever)
     assert len(result.casebase) == 2
 
-    # also works via apply_query_indexed
     result = cbrkit.retrieval.apply_query_indexed("a", retriever)
     assert len(result.casebase) == 2
 
-    # update
-    retriever.update_index({3: "c"})
+    retriever.upsert_index({3: "c"})
     result = cbrkit.retrieval.apply_query({}, "a", retriever)
     assert len(result.casebase) == 3
 
-    # delete
     retriever.delete_index([2])
     result = cbrkit.retrieval.apply_query({}, "a", retriever)
     assert len(result.casebase) == 2
@@ -181,10 +176,10 @@ def test_retrieve_indexed_lifecycle() -> None:
 
 def test_retrieve_indexed_combine() -> None:
     r1 = FakeIndexableRetriever()
-    r1.create_index({1: "a", 2: "b"})
+    r1.put_index({1: "a", 2: "b"})
 
     r2 = FakeIndexableRetriever()
-    r2.create_index({1: "a", 2: "b"})
+    r2.put_index({1: "a", 2: "b"})
 
     for retriever in [
         cbrkit.retrieval.combine([r1, r2]),
@@ -207,7 +202,7 @@ def test_retrieve_persist() -> None:
     assert len(result.casebase) == 3
     assert result.similarities[0] == 1.0
 
-    retriever.update_index({3: "d"})
+    retriever.upsert_index({3: "d"})
     retriever.delete_index([1, 2])
     result = cbrkit.retrieval.apply_query({}, "a", retriever)
     assert len(result.casebase) == 2
@@ -222,7 +217,7 @@ def test_retrieve_persist_file(tmp_path: Path) -> None:
         retriever_func=cbrkit.retrieval.build(cbrkit.sim.generic.equality()),
         path=json_path,
     )
-    retriever.update_index({"a": "x", "b": "y"})
+    retriever.upsert_index({"a": "x", "b": "y"})
     assert json_path.exists()
 
     # new instance loads persisted data

@@ -10,10 +10,10 @@ Example:
     >>> import tempfile  # doctest: +SKIP
     >>> storage = lancedb(  # doctest: +SKIP
     ...     uri=tempfile.mkdtemp(),
-    ...     table="cases",
+    ...     table_name="cases",
     ...     index_type="sparse",
     ... )
-    >>> storage.create_index({0: "hello world", 1: "foo bar"})  # doctest: +SKIP
+    >>> storage.put_index({0: "hello world", 1: "foo bar"})  # doctest: +SKIP
     >>> storage.has_index()  # doctest: +SKIP
     True
 """
@@ -64,6 +64,46 @@ def _compute_index_diff[K](
     return stale_keys, changed_or_new
 
 
+def _normalize_patch_keys[K](
+    upsert: Collection[K] | None,
+    delete: Collection[K] | None,
+) -> tuple[set[K], set[K]] | None:
+    """Validate `patch_index` arguments and split into key sets.
+
+    Mappings count as collections of their keys, so this helper works
+    for both keyed (`Casebase[K, str]`) and bare (`Collection[str]`)
+    patch arguments.
+
+    Returns `None` when both inputs are empty (the patch is a no-op).
+    Raises `ValueError` if the same key appears in both *upsert* and
+    *delete*.
+    """
+    if not upsert and not delete:
+        return None
+
+    upsert_keys = set(upsert) if upsert else set()
+    delete_keys = set(delete) if delete else set()
+    overlap = upsert_keys & delete_keys
+
+    if overlap:
+        raise ValueError(f"Cannot upsert and delete the same entries: {overlap!r}")
+
+    return upsert_keys, delete_keys
+
+
+def _sql_literal(value: int | str) -> str:
+    """Return a SQL literal for supported index keys."""
+    if isinstance(value, str):
+        return "'" + value.replace("'", "''") + "'"
+
+    return str(value)
+
+
+def _sql_in_clause[K: int | str](column: str, keys: Collection[K]) -> str:
+    """Build a SQL `IN (...)` predicate for supported index keys."""
+    return f"{column} IN ({', '.join(_sql_literal(k) for k in keys)})"
+
+
 with optional_dependencies():
     import lancedb as ldb
     import numpy as np
@@ -78,7 +118,7 @@ with optional_dependencies():
 
         Args:
             uri: Path to the LanceDB database directory.
-            table: Table name within the database.
+            table_name: Table name within the database.
             index_type: Determines what data is stored and which
                 indices are created.  `"dense"` stores embeddings,
                 `"sparse"` builds an FTS index, `"hybrid"` does
@@ -94,7 +134,7 @@ with optional_dependencies():
         """
 
         uri: str
-        table: str
+        table_name: str
         index_type: Literal["dense", "sparse", "hybrid"] = "dense"
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         key_column: str = "key"
@@ -112,8 +152,8 @@ with optional_dependencies():
 
             self._db = ldb.connect(self.uri)
 
-            if self.table in self._db.list_tables().tables:
-                self._table = self._db.open_table(self.table)
+            if self.table_name in self._db.list_tables().tables:
+                self._table = self._db.open_table(self.table_name)
 
         @override
         def has_index(self) -> bool:
@@ -174,71 +214,160 @@ with optional_dependencies():
             return dict(zip(keys, values, strict=True))
 
         @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Ensure the LanceDB table exists and sync it with *data*.
-
-            On first call the table is created from scratch.  On subsequent
-            calls existing rows are diffed against *data* and only stale
-            or changed entries are deleted/re-added via
-            :meth:`delete_index` and :meth:`update_index`.
-            """
+        def put_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
+            """Replace the LanceDB table contents with *data*."""
             if self._table is None:
+                if not data:
+                    return
+
                 rows = self._build_rows(data)
-                table = self._db.create_table(self.table, rows, mode="overwrite")
-                self._setup_indices(table)
-                self._table = table
+                self._table = self._db.create_table(
+                    self.table_name,
+                    rows,
+                    mode="overwrite",
+                )
+                self._setup_indices(self._table)
                 return
 
-            existing = self.index
-            stale_keys, changed_or_new = _compute_index_diff(existing, data)
-
-            if not stale_keys and not changed_or_new:
+            if not data:
+                self._table.delete("true")
                 return
 
-            # LanceDB has no upsert – delete changed keys before re-adding.
-            keys_to_delete = stale_keys | (
-                set(changed_or_new.keys()) & set(existing.keys())
+            rows = self._build_rows(data)
+            (
+                self._table.merge_insert(self.key_column)
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .when_not_matched_by_source_delete()
+                .execute(rows)
             )
-            if keys_to_delete:
-                self.delete_index(keys_to_delete)
-
-            if changed_or_new:
-                self.update_index(changed_or_new)
 
         @override
-        def update_index(self, data: Casebase[K, str]) -> None:
-            """Append rows to the LanceDB table.
+        def upsert_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
+            """Insert or replace rows in the LanceDB table.
 
-            If no table exists yet, delegates to :meth:`create_index`.
+            If no table exists yet, delegates to :meth:`put_index`.
             """
             if self._table is None:
-                self.create_index(data)
+                self.put_index(data)
                 return
 
             if not data:
                 return
 
             rows = self._build_rows(data)
-            self._table.add(rows)
-            self._setup_indices(self._table)
+            (
+                self._table.merge_insert(self.key_column)
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .execute(rows)
+            )
 
         @override
-        def delete_index(self, data: Collection[K]) -> None:
+        def delete_index(
+            self,
+            data: Collection[K],
+        ) -> None:
             """Delete rows from the LanceDB table by key."""
             if self._table is None or not data:
                 return
 
-            key_list = list(data)
-            sample = key_list[0]
-            col = self.key_column
+            self._table.delete(_sql_in_clause(self.key_column, data))
 
-            if isinstance(sample, str):
-                predicate = f"{col} IN (" + ", ".join(f"'{k}'" for k in key_list) + ")"
-            else:
-                predicate = f"{col} IN (" + ", ".join(str(k) for k in key_list) + ")"
+        @override
+        def patch_index(
+            self,
+            upsert: Casebase[K, str] | None = None,
+            delete: Collection[K] | None = None,
+        ) -> None:
+            """Apply inserts, replacements, and deletes as one LanceDB mutation."""
+            normalized = _normalize_patch_keys(upsert, delete)
 
-            self._table.delete(predicate)
-            self._setup_indices(self._table)
+            if normalized is None:
+                return
+
+            _, delete_keys = normalized
+
+            if self._table is None:
+                if upsert:
+                    self.put_index(upsert)
+                return
+
+            if not upsert:
+                self.delete_index(delete_keys)
+                return
+
+            rows = self._build_rows(upsert)
+            operation = (
+                self._table.merge_insert(self.key_column)
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+            )
+
+            if delete_keys:
+                operation = operation.when_not_matched_by_source_delete(
+                    _sql_in_clause(self.key_column, delete_keys)
+                )
+
+            operation.execute(rows)
+
+        def keys_where(self, where: str | None = None) -> list[K]:
+            """Return keys matching a native LanceDB predicate."""
+            if self._table is None:
+                return []
+
+            query = self._table.search().select([self.key_column])
+
+            if where is not None:
+                query = query.where(where)
+
+            table = query.to_arrow()
+            return cast(list[K], table.column(self.key_column).to_pylist())
+
+        def delete_where(
+            self,
+            where: str,
+        ) -> list[K]:
+            """Delete rows matching a native LanceDB predicate and return their keys."""
+            if self._table is None:
+                return []
+
+            keys = self.keys_where(where)
+
+            if not keys:
+                return []
+
+            self._table.delete(where)
+            return keys
+
+        def replace_where(self, where: str, data: Casebase[K, str]) -> list[K]:
+            """Replace rows matching a native LanceDB predicate with *data*."""
+            if self._table is None:
+                self.put_index(data)
+                return []
+
+            keys = self.keys_where(where)
+
+            if not data:
+                if keys:
+                    self._table.delete(where)
+                return keys
+
+            rows = self._build_rows(data)
+            (
+                self._table.merge_insert(self.key_column)
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .when_not_matched_by_source_delete(where)
+                .execute(rows)
+            )
+            return keys
 
 
 with optional_dependencies():
@@ -255,7 +384,7 @@ with optional_dependencies():
 
         Args:
             path: Directory for PersistentClient storage.
-            collection: Collection name.
+            collection_name: Collection name.
             index_type: Determines what embeddings and indices are
                 configured.  `"dense"` uses the embedding function,
                 `"sparse"` uses the sparse embedding function,
@@ -272,7 +401,7 @@ with optional_dependencies():
         """
 
         path: str
-        collection: str
+        collection_name: str
         index_type: Literal["dense", "sparse", "hybrid"] = "dense"
         embedding_func: cdb.EmbeddingFunction[Any] | None = None
         sparse_embedding_func: cdb.SparseEmbeddingFunction[Any] | None = None
@@ -298,7 +427,7 @@ with optional_dependencies():
 
             try:
                 self._collection = self._client.get_collection(
-                    self.collection,
+                    self.collection_name,
                     embedding_function=self.embedding_func,
                 )
             except Exception:
@@ -372,17 +501,19 @@ with optional_dependencies():
             return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
 
         @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Ensure the ChromaDB collection exists and sync it with *data*.
+        def put_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
+            """Replace the ChromaDB collection contents with *data*.
 
             On first call the collection is created from scratch.  On
-            subsequent calls existing documents are diffed against *data*
-            and only stale or changed entries are deleted/upserted via
-            :meth:`delete_index` and :meth:`update_index`.
+            subsequent calls only stale or changed entries are
+            deleted/upserted, so unchanged entries skip re-embedding.
             """
             if self._collection is None:
                 collection = self._client.create_collection(
-                    name=self.collection,
+                    name=self.collection_name,
                     schema=self._build_schema(),
                     embedding_function=self.embedding_func,
                 )
@@ -401,20 +532,22 @@ with optional_dependencies():
             if not stale_keys and not changed_or_new:
                 return
 
-            if stale_keys:
-                self.delete_index(stale_keys)
-
-            if changed_or_new:
-                self.update_index(changed_or_new)
+            self.patch_index(
+                upsert=changed_or_new or None,
+                delete=stale_keys or None,
+            )
 
         @override
-        def update_index(self, data: Casebase[K, str]) -> None:
+        def upsert_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
             """Upsert documents into the ChromaDB collection.
 
-            If no collection exists yet, delegates to :meth:`create_index`.
+            If no collection exists yet, delegates to :meth:`put_index`.
             """
             if self._collection is None:
-                self.create_index(data)
+                self.put_index(data)
                 return
 
             if not data:
@@ -424,7 +557,10 @@ with optional_dependencies():
             self._batched_write("upsert", ids, documents, metadatas)
 
         @override
-        def delete_index(self, data: Collection[K]) -> None:
+        def delete_index(
+            self,
+            data: Collection[K],
+        ) -> None:
             """Remove documents by ID from the ChromaDB collection."""
             if self._collection is None or not data:
                 return
@@ -433,6 +569,32 @@ with optional_dependencies():
 
             if ids:
                 self._collection.delete(ids=ids)
+
+        @override
+        def patch_index(
+            self,
+            upsert: Casebase[K, str] | None = None,
+            delete: Collection[K] | None = None,
+        ) -> None:
+            """Apply inserts, replacements, and deletes to the ChromaDB collection."""
+            normalized = _normalize_patch_keys(upsert, delete)
+
+            if normalized is None:
+                return
+
+            _, delete_keys = normalized
+
+            if self._collection is None:
+                if upsert:
+                    self.put_index(upsert)
+                return
+
+            if delete_keys:
+                self._collection.delete(ids=[str(k) for k in delete_keys])
+
+            if upsert:
+                ids, documents, metadatas = self._prepare_documents(upsert)
+                self._batched_write("upsert", ids, documents, metadatas)
 
 
 with optional_dependencies():
@@ -479,7 +641,7 @@ with optional_dependencies():
 
         Args:
             path: Directory path for the zvec collection.
-            collection: Collection name used in the schema.
+            collection_name: Collection name used in the schema.
             index_type: Determines what vectors are stored and which
                 indices are created.  `"dense"` stores dense
                 embeddings, `"sparse"` stores sparse embeddings,
@@ -500,7 +662,7 @@ with optional_dependencies():
         """
 
         path: str
-        collection: str
+        collection_name: str
         index_type: Literal["dense", "sparse", "hybrid"] = "dense"
         conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
         sparse_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
@@ -607,7 +769,9 @@ with optional_dependencies():
                 for fname, fval in sample_meta.items():
                     fields.append(zv.FieldSchema(fname, self._infer_field_type(fval)))
 
-            return zv.CollectionSchema(self.collection, fields=fields, vectors=vectors)
+            return zv.CollectionSchema(
+                self.collection_name, fields=fields, vectors=vectors
+            )
 
         def _build_docs(self, casebase: Casebase[K, str]) -> list[zv.Doc]:
             """Build zvec Doc objects from a casebase."""
@@ -665,13 +829,15 @@ with optional_dependencies():
             )
 
         @override
-        def create_index(self, data: Casebase[K, str]) -> None:
-            """Ensure the zvec collection exists and sync it with *data*.
+        def put_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
+            """Replace the zvec collection contents with *data*.
 
             On first call the collection is created from scratch.  On
-            subsequent calls existing documents are diffed against *data*
-            and only stale or changed entries are deleted/upserted via
-            :meth:`delete_index` and :meth:`update_index`.
+            subsequent calls only stale or changed entries are
+            deleted/upserted, so unchanged entries skip re-embedding.
             """
             if self._collection is None or self._keys is None:
                 if self._collection is not None:
@@ -697,23 +863,22 @@ with optional_dependencies():
             if not stale_keys and not changed_or_new:
                 return
 
-            if stale_keys:
-                self.delete_index(stale_keys)
-
-            if changed_or_new:
-                self.update_index(changed_or_new)
-
-            self._keys = set(data.keys())
+            self.patch_index(
+                upsert=changed_or_new or None,
+                delete=stale_keys or None,
+            )
 
         @override
-        def update_index(self, data: Casebase[K, str]) -> None:
+        def upsert_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
             """Upsert documents into the zvec collection.
 
-            If no collection or key set exists yet, delegates to
-            :meth:`create_index`.
+            If no collection exists yet, delegates to :meth:`put_index`.
             """
-            if self._collection is None or self._keys is None:
-                self.create_index(data)
+            if self._collection is None:
+                self.put_index(data)
                 return
 
             if not data:
@@ -721,12 +886,17 @@ with optional_dependencies():
 
             docs = self._build_docs(data)
             self._collection.upsert(docs)
-            self._keys.update(data.keys())
+
+            if self._keys is not None:
+                self._keys.update(data.keys())
 
         @override
-        def delete_index(self, data: Collection[K]) -> None:
+        def delete_index(
+            self,
+            data: Collection[K],
+        ) -> None:
             """Remove documents by ID from the zvec collection."""
-            if self._collection is None or self._keys is None or not data:
+            if self._collection is None or not data:
                 return
 
             ids = [str(k) for k in data]
@@ -736,3 +906,23 @@ with optional_dependencies():
 
             if self._keys is not None:
                 self._keys -= set(data)
+
+        @override
+        def patch_index(
+            self,
+            upsert: Casebase[K, str] | None = None,
+            delete: Collection[K] | None = None,
+        ) -> None:
+            """Apply inserts, replacements, and deletes to the zvec collection."""
+            normalized = _normalize_patch_keys(upsert, delete)
+
+            if normalized is None:
+                return
+
+            _, delete_keys = normalized
+
+            if delete_keys:
+                self.delete_index(delete_keys)
+
+            if upsert:
+                self.upsert_index(upsert)

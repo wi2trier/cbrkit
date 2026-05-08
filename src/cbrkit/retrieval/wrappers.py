@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Literal, cast, override
 
 from ..dumpers import path as _dump_path
-from ..loaders import path as _load_path
 from ..helpers import (
     get_logger,
     get_value,
@@ -14,6 +13,8 @@ from ..helpers import (
     sim_map2ranking,
     unpack_float,
 )
+from ..indexable import _normalize_patch_keys
+from ..loaders import path as _load_path
 from ..sim.aggregator import default_aggregator
 from ..typing import (
     AggregatorFunc,
@@ -380,7 +381,7 @@ class persist[K, V, S: Float](
         ...     retriever_func=build(equality()),
         ...     path=path,
         ... )
-        >>> retriever.update_index({0: "a", 1: "b"})
+        >>> retriever.upsert_index({0: "a", 1: "b"})
         >>> retriever.has_index()
         True
     """
@@ -420,22 +421,53 @@ class persist[K, V, S: Float](
         return self._casebase
 
     @override
-    def create_index(self, data: Casebase[K, V]) -> None:
+    def put_index(
+        self,
+        data: Casebase[K, V],
+    ) -> None:
         """Replace the reference casebase."""
         self._casebase = dict(data)
         self._dump()
 
     @override
-    def update_index(self, data: Casebase[K, V]) -> None:
+    def upsert_index(
+        self,
+        data: Casebase[K, V],
+    ) -> None:
         """Merge entries into the reference casebase."""
         self._casebase.update(data)
         self._dump()
 
     @override
-    def delete_index(self, data: Collection[K]) -> None:
+    def delete_index(
+        self,
+        data: Collection[K],
+    ) -> None:
         """Remove entries from the reference casebase."""
         for key in data:
             self._casebase.pop(key, None)
+        self._dump()
+
+    @override
+    def patch_index(
+        self,
+        upsert: Casebase[K, V] | None = None,
+        delete: Collection[K] | None = None,
+    ) -> None:
+        """Apply inserts, replacements, and deletes to the reference casebase."""
+        normalized = _normalize_patch_keys(upsert, delete)
+
+        if normalized is None:
+            return
+
+        _, delete_keys = normalized
+
+        for key in delete_keys:
+            self._casebase.pop(key, None)
+
+        if upsert:
+            self._casebase.update(upsert)
+
         self._dump()
 
     @override

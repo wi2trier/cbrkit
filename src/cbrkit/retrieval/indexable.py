@@ -10,7 +10,7 @@ from ..helpers import (
     normalize,
     optional_dependencies,
 )
-from ..indexable import _compute_index_diff
+from ..indexable import _compute_index_diff, _normalize_patch_keys
 from ..sim.embed import cache, default_score_func
 from ..typing import (
     AnySimFunc,
@@ -41,7 +41,7 @@ def resolve_casebases[K, V](
         if any(len(casebase) == 0 for casebase, _ in batches):
             raise ValueError(
                 "Indexed retrieval was requested with an empty casebase, but no index is available. "
-                "Call create_index() first."
+                "Call put_index() first."
             )
 
         return list(batches)
@@ -104,6 +104,40 @@ def _brute_force_dense_search[K](
     return results
 
 
+class _StorageIndexMixin[K, S: IndexableFunc[Casebase[Any, str], Collection[Any]]]:
+    """Delegate index maintenance to a `storage` attribute.
+
+    Subclasses must declare a `storage` field of the bound type *S*.
+    """
+
+    __slots__ = ()
+
+    storage: S  # pyright: ignore[reportUninitializedInstanceVariable]
+
+    @property
+    def index(self) -> Casebase[K, str]:
+        return cast(Casebase[K, str], self.storage.index)
+
+    def has_index(self) -> bool:
+        return self.storage.has_index()
+
+    def put_index(self, data: Casebase[K, str]) -> None:
+        self.storage.put_index(data)
+
+    def upsert_index(self, data: Casebase[K, str]) -> None:
+        self.storage.upsert_index(data)
+
+    def delete_index(self, data: Collection[K]) -> None:
+        self.storage.delete_index(data)
+
+    def patch_index(
+        self,
+        upsert: Casebase[K, str] | None = None,
+        delete: Collection[K] | None = None,
+    ) -> None:
+        self.storage.patch_index(upsert=upsert, delete=delete)
+
+
 @dataclass(slots=True, init=False)
 class embed[K, S: Float](
     RetrieverFunc[K, str, S],
@@ -149,17 +183,19 @@ class embed[K, S: Float](
         return self._casebase
 
     @override
-    def create_index(self, data: Casebase[K, str]) -> None:
-        """Ensure the embedding index exists and sync it with *data*.
+    def put_index(
+        self,
+        data: Casebase[K, str],
+    ) -> None:
+        """Replace the embedding index contents with *data*.
 
         On first call the casebase and embedding cache are built from
-        scratch.  On subsequent calls the existing casebase is diffed
-        against *data* and only stale or changed entries are
-        deleted/added via :meth:`delete_index` and :meth:`update_index`.
+        scratch.  On subsequent calls only stale or changed entries
+        are removed/added, so unchanged texts skip re-embedding.
         """
         if self._casebase is None:
             self._casebase = dict(data)
-            self.conversion_func.create_index(data.values())
+            self.conversion_func.put_index(data.values())
             return
 
         existing = self._casebase
@@ -168,41 +204,106 @@ class embed[K, S: Float](
         if not stale_keys and not changed_or_new:
             return
 
-        if stale_keys:
-            self.delete_index(stale_keys)
+        self.patch_index(
+            upsert=changed_or_new or None,
+            delete=stale_keys or None,
+        )
 
-        if changed_or_new:
-            self.update_index(changed_or_new)
+    def _obsolete_texts(
+        self,
+        upsert: Casebase[K, str] | None = None,
+        delete: Collection[K] | None = None,
+    ) -> list[str]:
+        """Cached texts that become unreferenced after applying *upsert*/*delete*."""
+        assert self._casebase is not None
+        texts: list[str] = []
+
+        if upsert:
+            texts.extend(
+                self._casebase[key]
+                for key, new_value in upsert.items()
+                if key in self._casebase and self._casebase[key] != new_value
+            )
+
+        if delete:
+            texts.extend(
+                self._casebase[key] for key in delete if key in self._casebase
+            )
+
+        return texts
 
     @override
-    def update_index(self, data: Casebase[K, str]) -> None:
-        """Add new entries to the embedding index.
+    def upsert_index(
+        self,
+        data: Casebase[K, str],
+    ) -> None:
+        """Insert or replace entries in the embedding index.
 
-        If no index exists yet, delegates to :meth:`create_index`.
+        If no index exists yet, delegates to :meth:`put_index`.
         """
         if self._casebase is None:
-            self.create_index(data)
+            self.put_index(data)
             return
 
         if not data:
             return
 
-        self.conversion_func.update_index(data.values())
+        old_texts = self._obsolete_texts(upsert=data)
+
+        if old_texts:
+            self.conversion_func.delete_index(old_texts)
+
+        self.conversion_func.upsert_index(data.values())
         self._casebase.update(data)
 
     @override
-    def delete_index(self, data: Collection[K]) -> None:
+    def delete_index(
+        self,
+        data: Collection[K],
+    ) -> None:
         """Remove entries by key from the embedding index."""
         if self._casebase is None or not data:
             return
 
-        texts_to_delete = [self._casebase[key] for key in data if key in self._casebase]
+        texts_to_delete = self._obsolete_texts(delete=data)
 
         if texts_to_delete:
             self.conversion_func.delete_index(texts_to_delete)
 
         for key in data:
             self._casebase.pop(key, None)
+
+    @override
+    def patch_index(
+        self,
+        upsert: Casebase[K, str] | None = None,
+        delete: Collection[K] | None = None,
+    ) -> None:
+        """Apply inserts, replacements, and deletes to the embedding index."""
+        normalized = _normalize_patch_keys(upsert, delete)
+
+        if normalized is None:
+            return
+
+        _, delete_keys = normalized
+
+        if self._casebase is None:
+            if upsert:
+                self.put_index(upsert)
+            return
+
+        texts_to_delete = self._obsolete_texts(upsert=upsert, delete=delete_keys)
+
+        self.conversion_func.patch_index(
+            upsert=upsert.values() if upsert else None,
+            delete=texts_to_delete or None,
+        )
+
+        for key in delete_keys:
+            self._casebase.pop(key, None)
+
+        if upsert:
+            self._casebase.update(upsert)
 
     @override
     def __call__(
@@ -297,31 +398,63 @@ with optional_dependencies():
             return dict(zip(self._keys, corpus, strict=True))
 
         @override
-        def create_index(self, data: Casebase[K, str]) -> None:
+        def put_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
             """Rebuild BM25 index."""
             self._keys = list(data.keys())
-            self.conversion_func.create_index(data.values())
+            self.conversion_func.put_index(data.values())
 
         @override
-        def update_index(self, data: Casebase[K, str]) -> None:
+        def upsert_index(
+            self,
+            data: Casebase[K, str],
+        ) -> None:
             """Merge new data with existing casebase and rebuild index."""
             if self._keys is None:
-                self.create_index(data)
+                self.put_index(data)
                 return
 
             merged = dict(self.index)
             merged.update(data)
-            self.create_index(merged)
+            self.put_index(merged)
 
         @override
-        def delete_index(self, data: Collection[K]) -> None:
+        def delete_index(
+            self,
+            data: Collection[K],
+        ) -> None:
             """Remove keys from the casebase and rebuild index."""
             if self._keys is None:
                 return
 
             remove = set(data)
             remaining = {k: v for k, v in self.index.items() if k not in remove}
-            self.create_index(remaining)
+            self.put_index(remaining)
+
+        @override
+        def patch_index(
+            self,
+            upsert: Casebase[K, str] | None = None,
+            delete: Collection[K] | None = None,
+        ) -> None:
+            """Apply inserts, replacements, and deletes to the BM25 index."""
+            normalized = _normalize_patch_keys(upsert, delete)
+
+            if normalized is None:
+                return
+
+            _, delete_keys = normalized
+            merged = dict(self.index)
+
+            for key in delete_keys:
+                merged.pop(key, None)
+
+            if upsert:
+                merged.update(upsert)
+
+            self.put_index(merged)
 
         @override
         def __call__(
@@ -415,7 +548,9 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class lancedb[K: int | str](
+        _StorageIndexMixin[K, lancedb_storage[K]],
         RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
     ):
         """Retriever wrapper for a LanceDB storage backend.
 
@@ -464,7 +599,7 @@ with optional_dependencies():
                 if not self.storage.has_index():
                     raise ValueError(
                         "Indexed retrieval was requested with an empty casebase, "
-                        "but no index is available. Call create_index() first."
+                        "but no index is available. Call put_index() first."
                     )
 
                 return self._search_db(queries)
@@ -507,7 +642,7 @@ with optional_dependencies():
             if self.search_type != "dense":
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
-                    "Call create_index() first."
+                    "Call put_index() first."
                 )
 
             assert self.storage.conversion_func is not None
@@ -537,7 +672,8 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self.storage._table is not None
+            table = self.storage._table
+            assert table is not None
             assert self.storage.conversion_func is not None
 
             embed_func = self.query_conversion_func or self.storage.conversion_func
@@ -547,7 +683,7 @@ with optional_dependencies():
             results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
             for qvec in query_vecs:
-                q = self.storage._table.search(
+                q = table.search(
                     np.asarray(qvec).tolist(),
                     vector_column_name=self.storage.vector_column,
                 ).limit(n)
@@ -565,13 +701,14 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self.storage._table is not None
+            table = self.storage._table
+            assert table is not None
 
             n = self._search_limit()
             results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
             for query in queries:
-                q = self.storage._table.search(query, query_type="fts").limit(n)
+                q = table.search(query, query_type="fts").limit(n)
 
                 if self.where is not None:
                     q = q.where(self.where)
@@ -590,7 +727,8 @@ with optional_dependencies():
             self,
             queries: Sequence[str],
         ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-            assert self.storage._table is not None
+            table = self.storage._table
+            assert table is not None
             assert self.storage.conversion_func is not None
 
             embed_func = self.query_conversion_func or self.storage.conversion_func
@@ -601,7 +739,7 @@ with optional_dependencies():
 
             for query, qvec in zip(queries, query_vecs, strict=True):
                 q = (
-                    self.storage._table.search(query_type="hybrid")
+                    table.search(query_type="hybrid")
                     .vector(np.asarray(qvec).tolist())
                     .text(query)
                     .limit(n)
@@ -629,7 +767,9 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class chromadb[K: str](
+        _StorageIndexMixin[K, chromadb_storage[K]],
         RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
     ):
         """Retriever wrapper for a ChromaDB storage backend.
 
@@ -678,14 +818,13 @@ with optional_dependencies():
                 if not self.storage.has_index():
                     raise ValueError(
                         "Indexed retrieval was requested with an empty casebase, "
-                        "but no index is available. Call create_index() first."
+                        "but no index is available. Call put_index() first."
                     )
 
                 return self._search_db(queries)
 
             raise NotImplementedError(
-                "chromadb does not support brute-force search. "
-                "Call create_index() first."
+                "chromadb does not support brute-force search. Call put_index() first."
             )
 
         # -- search helpers ----------------------------------------------------
@@ -800,7 +939,9 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class zvec[K: str](
+        _StorageIndexMixin[K, zvec_storage[K]],
         RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
     ):
         """Retriever wrapper for a zvec storage backend.
 
@@ -861,7 +1002,7 @@ with optional_dependencies():
                 if not self.storage.has_index():
                     raise ValueError(
                         "Indexed retrieval was requested with an empty casebase, "
-                        "but no index is available. Call create_index() first."
+                        "but no index is available. Call put_index() first."
                     )
 
                 return self._search_db(queries)
@@ -913,7 +1054,7 @@ with optional_dependencies():
             if self.search_type != "dense":
                 raise NotImplementedError(
                     f"Brute-force search is not supported for search_type={self.search_type!r}. "
-                    "Call create_index() first."
+                    "Call put_index() first."
                 )
 
             assert self.storage.conversion_func is not None

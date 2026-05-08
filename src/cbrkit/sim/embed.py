@@ -19,6 +19,7 @@ from ..helpers import (
     optional_dependencies,
     run_coroutine,
 )
+from ..indexable import _normalize_patch_keys
 from ..typing import (
     AnyConversionFunc,
     AnySimFunc,
@@ -332,18 +333,20 @@ class cache(
         return self.store.keys()
 
     @override
-    def create_index(self, data: Collection[str]) -> None:
-        """Ensure the embedding cache exists and sync it with *data*.
+    def put_index(
+        self,
+        data: Collection[str],
+    ) -> None:
+        """Replace the embedding cache contents with *data*.
 
         On first call the cache is populated from scratch.  On
-        subsequent calls existing entries are diffed against *data*
-        and only stale or new entries are removed/added via
-        :meth:`delete_index` and :meth:`update_index`.
+        subsequent calls only stale or new entries are removed/added,
+        so unchanged texts skip re-embedding.
         """
         data_set = set(data)
 
         if not data_set:
-            self.delete_index(list(self.store.keys()))
+            self.patch_index(delete=list(self.store.keys()))
             return
 
         stale_keys = set(self.store.keys()) - data_set
@@ -352,14 +355,16 @@ class cache(
         if not stale_keys and not new_keys:
             return
 
-        if stale_keys:
-            self.delete_index(stale_keys)
-
-        if new_keys:
-            self.update_index(new_keys)
+        self.patch_index(
+            upsert=new_keys or None,
+            delete=stale_keys or None,
+        )
 
     @override
-    def update_index(self, data: Collection[str]) -> None:
+    def upsert_index(
+        self,
+        data: Collection[str],
+    ) -> None:
         """Add new embeddings to the cache.
 
         Texts already present in the cache are skipped.
@@ -379,7 +384,10 @@ class cache(
                 con.commit()
 
     @override
-    def delete_index(self, data: Collection[str]) -> None:
+    def delete_index(
+        self,
+        data: Collection[str],
+    ) -> None:
         """Remove specific entries from the cache and SQLite."""
         if not data:
             return
@@ -393,6 +401,45 @@ class cache(
                     f'DELETE FROM "{self.table}" WHERE text = ?',
                     [(text,) for text in data],
                 )
+                con.commit()
+
+    @override
+    def patch_index(
+        self,
+        upsert: Collection[str] | None = None,
+        delete: Collection[str] | None = None,
+    ) -> None:
+        """Apply cache insertions and deletions."""
+        normalized = _normalize_patch_keys(upsert, delete)
+
+        if normalized is None:
+            return
+
+        upsert_keys, delete_keys = normalized
+        new_vecs = self._compute_vecs(upsert_keys)
+
+        for text in delete_keys:
+            self.store.pop(text, None)
+
+        self.store.update(new_vecs)
+
+        if self.path is not None and self.table is not None:
+            with self.connect() as con:
+                if delete_keys:
+                    con.executemany(
+                        f'DELETE FROM "{self.table}" WHERE text = ?',
+                        [(text,) for text in delete_keys],
+                    )
+
+                if new_vecs:
+                    con.executemany(
+                        f'INSERT INTO "{self.table}" (text, vector) VALUES(?, ?)',
+                        [
+                            (text, vector.astype(np.float64).tobytes())
+                            for text, vector in new_vecs.items()
+                        ],
+                    )
+
                 con.commit()
 
     @override
@@ -739,7 +786,7 @@ with optional_dependencies():
 
         Produces sparse vectors where each dimension corresponds to a
         vocabulary token and the value represents the term frequency.
-        Requires fitting on a corpus via `create_index` before use.
+        Requires fitting on a corpus via `put_index` before use.
 
         Args:
             language: Language for stemming and stopwords.
@@ -786,43 +833,90 @@ with optional_dependencies():
             return self._corpus
 
         @override
-        def create_index(self, data: Collection[str]) -> None:
+        def put_index(
+            self,
+            data: Collection[str],
+        ) -> None:
             """Build a new BM25 index from the given corpus."""
             self._corpus = list(data)
+            self._rebuild_index()
+
+        def _rebuild_index(self) -> None:
+            """Rebuild the BM25 model from the current corpus."""
+            if self._corpus is None:
+                self._retriever = None
+                return
+
             if self._corpus:
                 self._retriever = self._build_retriever(self._corpus)
             else:
                 self._retriever = None
 
         @override
-        def update_index(self, data: Collection[str]) -> None:
+        def upsert_index(
+            self,
+            data: Collection[str],
+        ) -> None:
             """Add new documents to the existing BM25 index."""
             if self._corpus is None:
-                self.create_index(data)
+                self.put_index(data)
                 return
-            self._corpus.extend(data)
-            self._retriever = self._build_retriever(self._corpus)
+
+            items = list(data)
+
+            if not items:
+                return
+
+            self._corpus.extend(items)
+            self._rebuild_index()
 
         @override
-        def delete_index(self, data: Collection[str]) -> None:
+        def delete_index(
+            self,
+            data: Collection[str],
+        ) -> None:
             """Remove the specified documents from the BM25 index."""
             if self._corpus is None:
                 return
+
+            if not data:
+                return
+
             remove_set = set(data)
             self._corpus = [t for t in self._corpus if t not in remove_set]
-            if self._corpus:
-                self._retriever = self._build_retriever(self._corpus)
-            else:
-                self._retriever = None
+            self._rebuild_index()
+
+        @override
+        def patch_index(
+            self,
+            upsert: Collection[str] | None = None,
+            delete: Collection[str] | None = None,
+        ) -> None:
+            """Apply corpus insertions and deletions."""
+            normalized = _normalize_patch_keys(upsert, delete)
+
+            if normalized is None:
+                return
+
+            _, delete_set = normalized
+            upsert_items = list(upsert) if upsert else []
+
+            if self._corpus is None:
+                self.put_index(upsert_items)
+                return
+
+            if delete_set:
+                self._corpus = [t for t in self._corpus if t not in delete_set]
+
+            self._corpus.extend(upsert_items)
+            self._rebuild_index()
 
         @override
         def __call__(self, texts: Sequence[str]) -> Sequence[SparseVector]:
             if not texts:
                 return []
             if self._retriever is None:
-                raise ValueError(
-                    "BM25 model must be fitted first. Call create_index()."
-                )
+                raise ValueError("BM25 model must be fitted first. Call put_index().")
 
             tokenized = cast(
                 Tokenized,

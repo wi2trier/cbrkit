@@ -61,7 +61,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
     """Storage function that keeps an IndexableFunc's index in sync.
 
     Loads the full index once, generates new keys via `key_func`,
-    and persists only the new entries via `update_index`.
+    and persists only the new entries via `upsert_index`.
     Returns the local dict directly, avoiding a second index scan.
 
     Note:
@@ -83,13 +83,18 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
         ...         return self._data
         ...     def has_index(self):
         ...         return bool(self._data)
-        ...     def create_index(self, data):
+        ...     def put_index(self, data):
         ...         self._data = dict(data)
-        ...     def update_index(self, data):
+        ...     def upsert_index(self, data):
         ...         self._data.update(data)
         ...     def delete_index(self, data):
         ...         for k in data:
         ...             self._data.pop(k, None)
+        ...     def patch_index(self, upsert=None, delete=None):
+        ...         if delete:
+        ...             self.delete_index(delete)
+        ...         if upsert:
+        ...             self.upsert_index(upsert)
         >>> store = Store()
         >>> func = indexable(
         ...     key_func=lambda keys: max(keys, default=-1) + 1,
@@ -103,7 +108,7 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
 
         Pre-populated index routes storage through the full collection:
 
-        >>> store.create_index({0: "a", 1: "b", 2: "c"})
+        >>> store.put_index({0: "a", 1: "b", 2: "c"})
         >>> result = func({1: "b"}, "d")
         >>> result == {0: "a", 1: "b", 2: "c", 3: "b"}
         True
@@ -130,6 +135,6 @@ class indexable[K, V](MapAdaptationFunc[K, V]):
             new_entries[new_key] = value
 
         if new_entries:
-            self.indexable_func.update_index(new_entries)
+            self.indexable_func.upsert_index(new_entries)
 
         return existing

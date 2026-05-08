@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 import cbrkit
+from cbrkit.indexable import _normalize_patch_keys
 from cbrkit.retrieval.indexable import resolve_casebases
 
 
@@ -31,20 +32,50 @@ class FakeIndexable(
     def has_index(self) -> bool:
         return self._data is not None
 
-    def create_index(self, data: Mapping[int, str]) -> None:
+    def put_index(
+        self,
+        data: Mapping[int, str],
+    ) -> None:
         self._data = dict(data)
 
-    def update_index(self, data: Mapping[int, str]) -> None:
+    def upsert_index(
+        self,
+        data: Mapping[int, str],
+    ) -> None:
         if self._data is None:
-            self.create_index(data)
+            self.put_index(data)
             return
         self._data.update(data)
 
-    def delete_index(self, data: Collection[int]) -> None:
+    def delete_index(
+        self,
+        data: Collection[int],
+    ) -> None:
         if self._data is None:
             return
         for key in data:
             self._data.pop(key, None)
+
+    def patch_index(
+        self,
+        upsert: Mapping[int, str] | None = None,
+        delete: Collection[int] | None = None,
+    ) -> None:
+        normalized = _normalize_patch_keys(upsert, delete)
+
+        if normalized is None:
+            return
+
+        _, delete_keys = normalized
+
+        if self._data is None:
+            self._data = {}
+
+        for key in delete_keys:
+            self._data.pop(key, None)
+
+        if upsert:
+            self._data.update(upsert)
 
 
 class FakeIndexableRetriever(
@@ -65,22 +96,52 @@ class FakeIndexableRetriever(
     def has_index(self) -> bool:
         return self._indexed_casebase is not None
 
-    def create_index(self, data: Mapping[int, str]) -> None:
+    def put_index(
+        self,
+        data: Mapping[int, str],
+    ) -> None:
         self._indexed_casebase = dict(data)
 
-    def update_index(self, data: Mapping[int, str]) -> None:
+    def upsert_index(
+        self,
+        data: Mapping[int, str],
+    ) -> None:
         if self._indexed_casebase is None:
-            self.create_index(data)
+            self.put_index(data)
             return
 
         self._indexed_casebase.update(data)
 
-    def delete_index(self, data: Collection[int]) -> None:
+    def delete_index(
+        self,
+        data: Collection[int],
+    ) -> None:
         if self._indexed_casebase is None:
             return
 
         for key in data:
             self._indexed_casebase.pop(key, None)
+
+    def patch_index(
+        self,
+        upsert: Mapping[int, str] | None = None,
+        delete: Collection[int] | None = None,
+    ) -> None:
+        normalized = _normalize_patch_keys(upsert, delete)
+
+        if normalized is None:
+            return
+
+        _, delete_keys = normalized
+
+        if self._indexed_casebase is None:
+            self._indexed_casebase = {}
+
+        for key in delete_keys:
+            self._indexed_casebase.pop(key, None)
+
+        if upsert:
+            self._indexed_casebase.update(upsert)
 
     def __call__(
         self,

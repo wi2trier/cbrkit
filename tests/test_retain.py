@@ -119,7 +119,7 @@ def test_retain_indexable_storage():
 def test_retain_indexable_prepopulated():
     """Test indexable with pre-populated index stores into full collection."""
     fake = FakeIndexable()
-    fake.create_index({0: "a", 1: "b", 2: "c"})
+    fake.put_index({0: "a", 1: "b", 2: "c"})
 
     retainer = cbrkit.retain.build(
         assess_func=cbrkit.sim.generic.equality(),
