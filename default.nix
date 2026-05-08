@@ -33,26 +33,6 @@ let
         autoPatchelfIgnoreMissingDeps = true;
       })
     );
-  buildSystemOverlay =
-    final: prev:
-    lib.mapAttrs
-      (
-        name: value:
-        prev.${name}.overrideAttrs (old: {
-          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ (final.resolveBuildSystem value);
-        })
-      )
-      {
-        pygraphviz = {
-          setuptools = [ ];
-        };
-        cbor = {
-          setuptools = [ ];
-        };
-        warc3-wet-clueweb09 = {
-          setuptools = [ ];
-        };
-      };
   packageOverlay =
     final: prev:
     lib.mapAttrs (name: value: prev.${name}.overrideAttrs value) {
@@ -66,20 +46,9 @@ let
         buildInputs = (old.buildInputs or [ ]) ++ [ onetbb ];
       };
       zlib-state = old: {
-        nativeBuildInputs =
-          (old.nativeBuildInputs or [ ])
-          ++ (final.resolveBuildSystem {
-            setuptools = [ ];
-          });
         buildInputs = (old.buildInputs or [ ]) ++ [ zlib ];
       };
       pystemmer = old: {
-        nativeBuildInputs =
-          (old.nativeBuildInputs or [ ])
-          ++ (final.resolveBuildSystem {
-            setuptools = [ ];
-            cython = [ ];
-          });
         # https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/development/python-modules/pystemmer/default.nix
         PYSTEMMER_SYSTEM_LIBSTEMMER = "${lib.getDev libstemmer}/include";
         NIX_CFLAGS_COMPILE = [ "-I${lib.getDev libstemmer}/include" ];
@@ -170,7 +139,6 @@ let
       pyproject-build-systems.overlays.wheel
       projectOverlay
       cudaOverlay
-      buildSystemOverlay
       packageOverlay
     ]
   );

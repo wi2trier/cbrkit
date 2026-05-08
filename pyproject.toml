@@ -6,44 +6,44 @@ authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 readme = "README.md"
 license = "MIT"
 keywords = [
-    "cbr",
-    "case-based reasoning",
-    "api",
-    "similarity",
-    "nlp",
-    "retrieval",
-    "cli",
-    "tool",
-    "library",
+  "cbr",
+  "case-based reasoning",
+  "api",
+  "similarity",
+  "nlp",
+  "retrieval",
+  "cli",
+  "tool",
+  "library",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Framework :: Pytest",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "Natural Language :: English",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Information Analysis",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Utilities",
-    "Typing :: Typed",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Framework :: Pytest",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Utilities",
+  "Typing :: Typed",
 ]
 requires-python = ">=3.13,<4"
 dependencies = [
-    "frozendict>=2,<3",
-    "numpy>=2,<3",
-    "orjson>=3,<4",
-    "polars>=1,<2",
-    "pydantic>=2,<3",
-    "pyyaml>=6,<7",
-    "rtoml>=0.12,<1",
-    "scipy>=1,<2",
-    "xmltodict>=1,<2",
+  "frozendict>=2,<3",
+  "numpy>=2,<3",
+  "orjson>=3,<4",
+  "polars>=1,<2",
+  "pydantic>=2,<3",
+  "pyyaml>=6,<7",
+  "rtoml>=0.12,<1",
+  "scipy>=1,<2",
+  "xmltodict>=1,<2",
 ]
 
 [project.optional-dependencies]
@@ -86,16 +86,18 @@ timeseries = ["minineedle>=3,<4"]
 
 # Entry points
 api = [
-    "cbrkit[cli]",
-    "fastapi>=0.100,<1",
-    "pydantic-settings>=2,<3",
-    "python-multipart>=0.0.15,<1",
-    "uvicorn[standard]>=0.30,<1",
-    "fastmcp>=3,<4",
+  "cbrkit[cli]",
+  "fastapi>=0.100,<1",
+  "pydantic-settings>=2,<3",
+  "python-multipart>=0.0.15,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "fastmcp>=3,<4",
 ]
 
 # Bundle
-all = ["cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pydantic-ai,spacy,sql,timeseries,transformers,voyageai,zvec]"]
+all = [
+  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pydantic-ai,spacy,sql,timeseries,transformers,voyageai,zvec]",
+]
 
 [project.urls]
 Repository = "https://github.com/wi2trier/cbrkit"
@@ -117,11 +119,23 @@ build-backend = "uv_build"
 
 [tool.pytest]
 testpaths = ["src", "tests"]
-addopts = ["--cov=src/cbrkit", "--cov-report=term-missing", "--doctest-modules", "--import-mode=importlib"]
+addopts = [
+  "--cov=src/cbrkit",
+  "--cov-report=term-missing",
+  "--doctest-modules",
+  "--import-mode=importlib",
+]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL", "ELLIPSIS"]
 
 [tool.uv]
 default-groups = ["dev", "test", "docs"]
+
+[tool.uv.extra-build-dependencies]
+pygraphviz = ["setuptools"]
+cbor = ["setuptools"]
+warc3-wet-clueweb09 = ["setuptools"]
+zlib-state = ["setuptools"]
+pystemmer = ["setuptools", "cython"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
