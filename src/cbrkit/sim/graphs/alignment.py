@@ -36,7 +36,7 @@ class SimilarityData[K]:
 
 
 def _build_node_edge_mappings_and_similarity[K, N, E](
-    alignment: Sequence[tuple[Node[K, N], Node[K, N]]] | None,
+    alignment: Sequence[tuple[Node[K, N] | None, Node[K, N] | None]] | None,
     node_sim_func: BatchSimFunc[Node[K, N], Float],
     edges_x: list[Edge[K, N, E]],
     edges_y: list[Edge[K, N, E]],

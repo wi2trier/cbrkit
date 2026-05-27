@@ -72,7 +72,7 @@ class System[
     ) = None
 
     def _load_casebase(self, spec: CasebaseSpec[K, V]) -> Mapping[K, V]:
-        casebase = produce_factory(self.casebase)
+        casebase = cast(Mapping[K, V], produce_factory(self.casebase))
 
         if spec is None:
             return casebase

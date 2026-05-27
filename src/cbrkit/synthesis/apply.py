@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from timeit import default_timer
+from typing import cast
 
 from ..helpers import get_logger, get_metadata, produce_factory
 from ..model.result import Result as _PhaseResult, ResultStep as _PhaseResultStep
@@ -28,7 +29,7 @@ def apply_batches[R, Q, C, V, S: Float](
     synthesizer: MaybeFactory[SynthesizerFunc[R, C, V, S]],
 ) -> Result[Q, R]:
     """Apply a synthesizer function to a batch of casebase-query-similarity tuples."""
-    synthesis_func = produce_factory(synthesizer)
+    synthesis_func = cast(SynthesizerFunc[R, C, V, S], produce_factory(synthesizer))
     logger.info(f"Processing {len(batches)} batches")
     start_time = default_timer()
     synthesis_results = synthesis_func(list(batches.values()))

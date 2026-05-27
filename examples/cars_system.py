@@ -1,7 +1,7 @@
 # uv run cbrkit uvicorn --search-path ./examples cars_system:api_app
 
 from collections.abc import Mapping
-from typing import Literal
+from typing import Literal, cast
 
 import polars as pl
 from fastapi import FastAPI
@@ -80,7 +80,7 @@ def mcp_retrieve(
 
 @mcp.resource("casebase://{key}")
 def mcp_case(key: int) -> CarModel:
-    return cbrkit.helpers.produce_factory(system.casebase)[key]
+    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[key]
 
 
 mcp_app = mcp.http_app("/")
@@ -101,9 +101,9 @@ def api_retrieve(req: RetrieveRequest) -> RetrieveResponse:
 
 @api_app.get("/casebase")
 def api_casebase() -> Mapping[int, CarModel]:
-    return cbrkit.helpers.produce_factory(system.casebase)
+    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))
 
 
 @api_app.get("/casebase/{key}")
 def api_case(key: int) -> CarModel:
-    return cbrkit.helpers.produce_factory(system.casebase)[key]
+    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[key]

@@ -59,7 +59,9 @@ class build[K, V, S: Float](ReuserFunc[K, V, S]):
         self,
         batches: Sequence[tuple[Casebase[K, V], V]],
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        adaptation_func = produce_factory(self.adaptation_func)
+        adaptation_func = cast(
+            AnyAdaptationFunc[K, V], produce_factory(self.adaptation_func)
+        )
         adapted_casebases = self._adapt(batches, adaptation_func)
         adapted_batches = [
             (adapted_casebase, query)

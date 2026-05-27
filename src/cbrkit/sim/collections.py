@@ -114,7 +114,7 @@ class SequenceSim[V, S: Float](StructuredValue[float]):
     """
 
     similarities: Sequence[S] | None = field(default=None)
-    mapping: Sequence[tuple[V, V]] | None = field(default=None)
+    mapping: Sequence[tuple[V | None, V | None]] | None = field(default=None)
 
 
 @dataclass(slots=True, init=False)
@@ -181,7 +181,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
     def compute_dtw(
         self, x: np.ndarray, y: np.ndarray, return_alignment: bool
-    ) -> tuple[float, list[tuple[V, V]] | None, list[float] | None]:
+    ) -> tuple[float, list[tuple[V | None, V | None]] | None, list[float] | None]:
         """
         Compute DTW distance and optionally compute the best alignment and local similarities.
 
@@ -223,7 +223,7 @@ class dtw[V](SimFunc[Collection[V] | np.ndarray, SequenceSim[V, float]]):
 
     def backtrack(
         self, dtw_matrix: np.ndarray, x: np.ndarray, y: np.ndarray, n: int, m: int
-    ) -> tuple[list[tuple[V, V]], list[float]]:
+    ) -> tuple[list[tuple[V | None, V | None]], list[float]]:
         """
         Backtrack through the DTW matrix to find the best alignment and local similarities.
 

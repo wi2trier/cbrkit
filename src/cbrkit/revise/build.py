@@ -2,7 +2,7 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.pool import Pool
-from typing import override
+from typing import cast, override
 
 from ..helpers import (
     batchify_adaptation,
@@ -68,7 +68,9 @@ class build[K, V, S: Float](ReviserFunc[K, V, S]):
 
         # Step 1: Optionally repair solutions
         if self.repair_func is not None:
-            repair_func = produce_factory(self.repair_func)
+            repair_func = cast(
+                SimpleAdaptationFunc[V], produce_factory(self.repair_func)
+            )
             repaired_casebases = self._repair(current_batches, repair_func)
             current_batches = [
                 (repaired_casebase, query)

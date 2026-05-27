@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import override
+from typing import cast, override
 
 from ..helpers import batchify_sim, get_logger, produce_factory, unpack_float
 from ..typing import (
@@ -50,7 +50,9 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        storage_func = produce_factory(self.storage_func)
+        storage_func = cast(
+            MapAdaptationFunc[K, V], produce_factory(self.storage_func)
+        )
 
         # Step 1: Store (transformation)
         updated_batches: list[tuple[Casebase[K, V], V]] = []

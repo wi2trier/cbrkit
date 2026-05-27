@@ -387,7 +387,7 @@ def is_factory[T](obj: MaybeFactory[T]) -> TypeIs[Factory[T]]:
     return callable(obj) and total_params(obj) == 0
 
 
-def produce_factory[T](obj: MaybeFactory[T]) -> T:
+def produce_factory[T](obj: T | Factory[T]) -> T:
     """Resolve a factory by calling it, or return the value as-is."""
     if is_factory(obj):
         return cast(T, obj())
@@ -400,7 +400,7 @@ def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
     if isinstance(obj, Sequence):
         return cast(list[T], [produce_factory(item) for item in obj])
 
-    return [produce_factory(obj)]
+    return cast(list[T], [produce_factory(obj)])
 
 
 @dataclass(slots=True, frozen=True)
@@ -410,7 +410,7 @@ class wrap_factory[**P, T]:
     func: MaybeFactory[Callable[P, T]]
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
-        func: Callable[P, T] = produce_factory(self.func)
+        func = cast(Callable[P, T], produce_factory(self.func))
 
         return func(*args, **kwargs)
 
