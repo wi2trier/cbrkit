@@ -116,6 +116,16 @@ with optional_dependencies():
         (vector), sparse (FTS/BM25), and hybrid index types which
         control what data is stored and what indices are built.
 
+        Warning:
+            Persisted vectors are tied to the
+            :paramref:`conversion_func` used when they were written.
+            Reopening a table backed by a different embedding model
+            silently returns wrong results when the new model has the
+            same dimension, and raises on `INSERT` when it does not —
+            :meth:`put_index` only re-embeds entries whose text
+            changed.  Drop the table (or use a fresh `table_name`)
+            when changing models.
+
         Args:
             uri: Path to the LanceDB database directory.
             table_name: Table name within the database.
@@ -382,6 +392,17 @@ with optional_dependencies():
         sparse, and hybrid index types which control what embedding
         functions and schema are configured.
 
+        Warning:
+            Persisted vectors are tied to the
+            :paramref:`embedding_func` /
+            :paramref:`sparse_embedding_func` used when they were
+            written.  Reopening a collection backed by a different
+            embedding model silently returns wrong results when the
+            new model has the same dimension, and raises on `add`
+            when it does not — :meth:`put_index` only re-embeds
+            entries whose text changed.  Drop the collection (or use
+            a fresh `collection_name`) when changing models.
+
         Args:
             path: Directory for PersistentClient storage.
             collection_name: Collection name.
@@ -638,6 +659,17 @@ with optional_dependencies():
         Manages an embedded zvec collection on disk.  Supports dense
         (vector), sparse (sparse vector), and hybrid index types which
         control what data is stored and what indices are built.
+
+        Warning:
+            Persisted vectors are tied to the
+            :paramref:`conversion_func` /
+            :paramref:`sparse_conversion_func` used when they were
+            written.  Reopening a collection backed by a different
+            embedding model silently returns wrong results when the
+            new model has the same dimension, and raises when it does
+            not — :meth:`put_index` only re-embeds entries whose text
+            changed.  Drop the collection (or use a fresh
+            `collection_name`) when changing models.
 
         Args:
             path: Directory path for the zvec collection.

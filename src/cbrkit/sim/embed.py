@@ -256,7 +256,15 @@ class cache(
     BatchConversionFunc[str, NumpyArray],
     IndexableFunc[Collection[str]],
 ):
-    """Embedding cache with optional SQLite persistence."""
+    """Embedding cache with optional SQLite persistence.
+
+    Cached vectors are keyed by text only — the embedding model that
+    produced them is not recorded.  Reusing a `path`/`table` from a
+    previous run while pointing :paramref:`func` at a different model
+    silently returns the old model's vectors for previously-seen
+    texts, mixing them with new-model vectors for new texts.  Delete
+    the SQLite database (or use a fresh `table`) when changing models.
+    """
 
     func: BatchConversionFunc[str, NumpyArray] | None
     path: Path | None
