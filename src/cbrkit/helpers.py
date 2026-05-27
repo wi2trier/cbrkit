@@ -16,7 +16,7 @@ from collections.abc import (
 )
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from importlib import import_module
 from io import BytesIO
 from multiprocessing.pool import Pool
@@ -57,8 +57,10 @@ from .typing import (
 __all__ = [
     "BATCH_LOGGING_LEVEL",
     "batchify_adaptation",
+    "batchify_conversion",
     "batchify_named",
     "batchify_positional",
+    "batchify_sim",
     "callable2model",
     "chain_map_chunks",
     "chunkify",
@@ -75,6 +77,7 @@ __all__ = [
     "setitem_or_setattr",
     "identity",
     "is_factory",
+    "load_callable",
     "load_callables",
     "load_callables_map",
     "load_object",
@@ -91,7 +94,7 @@ __all__ = [
     "produce_sequence",
     "reverse_batch_positional",
     "reverse_positional",
-    "round",
+    "round_int",
     "round_nearest",
     "run_coroutine",
     "scale",
@@ -100,8 +103,10 @@ __all__ = [
     "singleton",
     "total_params",
     "unbatchify_adaptation",
+    "unbatchify_conversion",
     "unbatchify_named",
     "unbatchify_positional",
+    "unbatchify_sim",
     "unpack_float",
     "unpack_floats",
     "unpack_value",
@@ -118,17 +123,13 @@ def run_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
     runs on a fresh loop in a background thread and this call blocks for its
     result. Otherwise the coroutine runs via `asyncio.run`.
     """
-
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
-        loop = None
+        return asyncio.run(coro)
 
-    if loop is not None and loop.is_running():
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            return cast(T, executor.submit(asyncio.run, coro).result())
-
-    return asyncio.run(coro)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return cast(T, executor.submit(asyncio.run, coro).result())
 
 
 @contextmanager
@@ -200,7 +201,7 @@ def get_metadata(obj: Any) -> JsonEntry:
             },
         }
 
-    if isinstance(obj, Callable):
+    if callable(obj):
         return {
             "name": get_optional_name(obj),
             "doc": inspect.getdoc(obj),
@@ -272,19 +273,14 @@ def chunkify_overlap[V](
 ) -> Iterator[Sequence[V]]:
     """Yield fixed-size chunks with overlapping elements from adjacent chunks."""
     chunks = list(chunkify(val, size))
+    take_left = overlap > 0 and direction in ("left", "both")
+    take_right = overlap > 0 and direction in ("right", "both")
 
     for i, chunk in enumerate(chunks):
-        # Get the previous, current, and next chunk based on the overlap
-        prev_chunk = chunks[i - 1] if i > 0 and overlap > 0 else []
-        next_chunk = chunks[i + 1] if i < len(chunks) - 1 and overlap > 0 else []
+        left = chunks[i - 1][-overlap:] if take_left and i > 0 else []
+        right = chunks[i + 1][:overlap] if take_right and i < len(chunks) - 1 else []
 
-        if direction == "left" or direction == "both":
-            prev_chunk = prev_chunk[-overlap:]
-
-        if direction == "right" or direction == "both":
-            next_chunk = next_chunk[:overlap]
-
-        yield [*prev_chunk, *chunk, *next_chunk]
+        yield [*left, *chunk, *right]
 
 
 def chain_map_chunks[U, V](
@@ -347,7 +343,7 @@ def dist2sim(distance: float) -> float:
         distance: The distance to convert
 
     Examples:
-        >>> dist2sim(1.)
+        >>> dist2sim(1.0)
         0.5
     """
     return 1 / (1 + distance)
@@ -369,6 +365,21 @@ def log_batch(
 def total_params(func: Callable[..., Any]) -> int:
     """Return the total number of parameters in a callable's signature."""
     return len(inspect.signature(func).parameters)
+
+
+def _resolve_callable[F: Callable[..., Any]](
+    wrapped: MaybeFactory[F], parameters: int
+) -> tuple[F, int]:
+    """Resolve a possibly-factory callable, returning (callable, parameter count).
+
+    A zero-parameter wrapped value is treated as a factory and invoked to obtain
+    the real callable.
+    """
+    if parameters == 0:
+        func = cast(Factory[F], wrapped)()
+        return func, total_params(func)
+
+    return cast(F, wrapped), parameters
 
 
 def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
@@ -433,25 +444,19 @@ class batchify_positional[T](
 
     @override
     def __call__(self, batches: Sequence[Any]) -> Sequence[T]:
-        if self.parameters == 0:
-            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
-            parameters = total_params(func)
-        else:
-            func = cast(AnyPositionalFunc[T], self.__wrapped__)
-            parameters = self.parameters
+        func, parameters = _resolve_callable(self.__wrapped__, self.parameters)
 
-        if parameters != 1:
-            func = cast(PositionalFunc[T], func)
-            values: list[T] = []
+        if parameters == 1:
+            return cast(BatchPositionalFunc[T], func)(batches)
 
-            for i, batch in enumerate(batches, start=1):
-                log_batch(self.logger, i, len(batches))
-                values.append(func(*batch))
+        positional = cast(PositionalFunc[T], func)
+        values: list[T] = []
 
-            return values
+        for i, batch in enumerate(batches, start=1):
+            log_batch(self.logger, i, len(batches))
+            values.append(positional(*batch))
 
-        func = cast(BatchPositionalFunc[T], func)
-        return func(batches)
+        return values
 
 
 @dataclass(slots=True, init=False)
@@ -469,19 +474,12 @@ class unbatchify_positional[T](
 
     @override
     def __call__(self, *args: Any, **kwargs: Any) -> T:
-        if self.parameters == 0:
-            func = cast(Factory[AnyPositionalFunc[T]], self.__wrapped__)()
-            parameters = total_params(func)
-        else:
-            func = cast(AnyPositionalFunc[T], self.__wrapped__)
-            parameters = self.parameters
+        func, parameters = _resolve_callable(self.__wrapped__, self.parameters)
 
         if parameters == 1:
-            func = cast(BatchPositionalFunc[T], func)
-            return func([args])[0]
+            return cast(BatchPositionalFunc[T], func)([args])[0]
 
-        func = cast(PositionalFunc[T], func)
-        return func(*args)
+        return cast(PositionalFunc[T], func)(*args)
 
 
 @dataclass(slots=True, init=False)
@@ -502,33 +500,27 @@ class batchify_named[T](
 
     @override
     def __call__(self, batches: Sequence[Any]) -> Sequence[T]:
-        if self.parameters == 0:
-            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
-            parameters = total_params(func)
-        else:
-            func = cast(AnyNamedFunc[T], self.__wrapped__)
-            parameters = self.parameters
+        func, parameters = _resolve_callable(self.__wrapped__, self.parameters)
 
-        if parameters != 1:
-            func = cast(NamedFunc[T], func)
-            values: list[T] = []
+        if parameters == 1:
+            return cast(BatchNamedFunc[T], func)(batches)
 
-            for i, batch in enumerate(batches, start=1):
-                log_batch(self.logger, i, len(batches))
-                values.append(func(**batch))
+        named = cast(NamedFunc[T], func)
+        values: list[T] = []
 
-            return values
+        for i, batch in enumerate(batches, start=1):
+            log_batch(self.logger, i, len(batches))
+            values.append(named(**batch))
 
-        func = cast(BatchNamedFunc[T], func)
-        return func(batches)
+        return values
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFunc[T]):
     """Normalizes a batch named function to single-item mode."""
 
     __wrapped__: MaybeFactory[AnyNamedFunc[T]]
-    parameters: int = field(init=False)
+    parameters: int
 
     def __init__(self, func: MaybeFactory[AnyNamedFunc[T]]):
         self.__wrapped__ = func
@@ -536,19 +528,12 @@ class unbatchify_named[T](WrappedObject[MaybeFactory[AnyNamedFunc[T]]], NamedFun
 
     @override
     def __call__(self, *args: Any, **kwargs: Any) -> T:
-        if self.parameters == 0:
-            func = cast(Factory[AnyNamedFunc[T]], self.__wrapped__)()
-            parameters = total_params(func)
-        else:
-            func = cast(AnyNamedFunc[T], self.__wrapped__)
-            parameters = self.parameters
+        func, parameters = _resolve_callable(self.__wrapped__, self.parameters)
 
         if parameters == 1:
-            func = cast(BatchNamedFunc[T], func)
-            return func([kwargs])[0]
+            return cast(BatchNamedFunc[T], func)([kwargs])[0]
 
-        func = cast(NamedFunc[T], func)
-        return func(**kwargs)
+        return cast(NamedFunc[T], func)(**kwargs)
 
 
 def batchify_sim[V, S: Float](
@@ -685,38 +670,31 @@ def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:
 
 def round_nearest(value: float) -> int:
     """Round a float to the nearest integer, rounding up on a tie."""
-    x = math.floor(value)
-
-    if (value - x) < 0.50:
-        return x
-
-    return math.ceil(value)
+    return math.floor(value + 0.5)
 
 
-def round(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
+def round_int(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
     """Round a float to an integer using the specified rounding mode."""
-    if mode == "floor":
-        return math.floor(value)
-    elif mode == "ceil":
-        return math.ceil(value)
-    elif mode == "nearest":
-        return round_nearest(value)
-
-    raise ValueError(f"Invalid rounding mode: {mode}")
+    match mode:
+        case "floor":
+            return math.floor(value)
+        case "ceil":
+            return math.ceil(value)
+        case "nearest":
+            return round_nearest(value)
 
 
 def scale(value: float, lower: float, upper: float) -> float:
     """Scale a value from [0, 1] to [lower, upper]."""
-    if lower == 0 and upper == 1:
-        return value
-
     return value * (upper - lower) + lower
 
 
 def normalize(value: float, value_min: float, value_max: float) -> float:
-    """Normalize a value from [value_min, value_max] to [0, 1]."""
+    """Normalize a value from [value_min, value_max] to [0, 1].
+
+    Returns 0 when min and max coincide.
+    """
     if value_max == value_min:
-        # Handle edge case where all values are identical
         return 0.0
 
     return (value - value_min) / (value_max - value_min)
@@ -765,20 +743,23 @@ def load_callable(import_name: str) -> Callable[..., Any]:
     return load_object(import_name)
 
 
+def _iter_names(import_names: MaybeSequence[str]) -> list[str]:
+    return [import_names] if isinstance(import_names, str) else list(import_names)
+
+
 def load_callables(
     import_names: MaybeSequence[str],
 ) -> list[Callable[..., Any]]:
     """Import one or more callables from dotted or colon-separated import paths."""
     functions: list[Callable[..., Any]] = []
-    names = [import_names] if isinstance(import_names, str) else list(import_names)
 
-    for import_name in names:
+    for import_name in _iter_names(import_names):
         obj = load_object(import_name)
 
         if isinstance(obj, Sequence):
-            assert all(isinstance(func, Callable) for func in obj)
+            assert all(callable(func) for func in obj)
             functions.extend(cast(Sequence[Callable[..., Any]], obj))
-        elif isinstance(obj, Callable):
+        elif callable(obj):
             functions.append(obj)
 
     return functions
@@ -789,15 +770,14 @@ def load_callables_map(
 ) -> dict[str, Callable[..., Any]]:
     """Import callables into a dict keyed by their import paths."""
     functions: dict[str, Callable[..., Any]] = {}
-    names = [import_names] if isinstance(import_names, str) else list(import_names)
 
-    for import_name in names:
+    for import_name in _iter_names(import_names):
         obj = load_object(import_name)
 
         if isinstance(obj, Mapping):
-            assert all(isinstance(func, Callable) for func in obj.values())
+            assert all(callable(func) for func in obj.values())
             functions.update(obj)
-        elif isinstance(obj, Callable):
+        elif callable(obj):
             functions[import_name] = obj
 
     return functions
@@ -864,39 +844,37 @@ def use_mp(pool_or_processes: Pool | int | bool) -> bool:
 
 
 @dataclass(slots=True, frozen=True)
-class mp_logging_wrapper[U, V]:
-    """Wraps a function with batch progress logging for multiprocessing."""
+class mp_logging_wrapper[V]:
+    """Wraps a function with batch progress logging for multiprocessing.
 
-    func: Callable[[U], V]
+    When `star` is True, the batch is unpacked as positional arguments.
+    """
+
+    func: Callable[..., V]
     logger: logging.Logger | None
+    star: bool
 
-    def __call__(
-        self,
-        batch: U,
-        i: int,
-        total: int,
-    ) -> V:
+    def __call__(self, batch: Any, i: int, total: int) -> V:
         log_batch(self.logger, i, total)
+
+        if self.star:
+            return self.func(*batch)
 
         return self.func(batch)
 
 
-@dataclass(slots=True, frozen=True)
-class mp_logging_starwrapper[*Us, V]:
-    """Wraps a multi-argument function with batch progress logging for multiprocessing."""
+def _mp_dispatch[V](
+    wrapper: mp_logging_wrapper[V],
+    batches: Sequence[Any],
+    pool_or_processes: Pool | int | bool,
+) -> list[V]:
+    args = ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1))
 
-    func: Callable[[*Us], V]
-    logger: logging.Logger | None
+    if use_mp(pool_or_processes):
+        with mp_pool(pool_or_processes) as p:
+            return p.starmap(wrapper, args)
 
-    def __call__(
-        self,
-        batch: tuple[*Us],
-        i: int,
-        total: int,
-    ) -> V:
-        log_batch(self.logger, i, total)
-
-        return self.func(*batch)
+    return [wrapper(*a) for a in args]
 
 
 def mp_map[U, V](
@@ -909,18 +887,7 @@ def mp_map[U, V](
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
-    wrapper = mp_logging_wrapper(func, logger)
-
-    if use_mp(pool_or_processes):
-        pool = mp_pool(pool_or_processes)
-
-        with pool as p:
-            return p.starmap(
-                wrapper,
-                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
-            )
-
-    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
+    return _mp_dispatch(mp_logging_wrapper(func, logger, star=False), batches, pool_or_processes)
 
 
 def mp_starmap[*Us, V](
@@ -933,18 +900,7 @@ def mp_starmap[*Us, V](
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
-    wrapper = mp_logging_starwrapper(func, logger)
-
-    if use_mp(pool_or_processes):
-        pool = mp_pool(pool_or_processes)
-
-        with pool as p:
-            return p.starmap(
-                wrapper,
-                ((batch, i, len(batches)) for i, batch in enumerate(batches, start=1)),
-            )
-
-    return [wrapper(batch, i, len(batches)) for i, batch in enumerate(batches, start=1)]
+    return _mp_dispatch(mp_logging_wrapper(func, logger, star=True), batches, pool_or_processes)
 
 
 def get_hash(file: Path | bytes | BytesIO) -> str:
@@ -964,10 +920,9 @@ def callable2model(
 ) -> type[BaseModel]:
     """Convert a callable's signature into a Pydantic BaseModel class."""
     sig = inspect.signature(func)
-    fields: dict[str, Any] = {}
+    model_fields: dict[str, Any] = {}
 
     for param in sig.parameters.values():
-        # Skip *args/**kwargs
         if param.kind in (
             inspect.Parameter.VAR_POSITIONAL,
             inspect.Parameter.VAR_KEYWORD,
@@ -982,6 +937,6 @@ def callable2model(
             if param.default is not inspect.Parameter.empty and with_default
             else Field(...)
         )
-        fields[param.name] = (field_type, field_config)
+        model_fields[param.name] = (field_type, field_config)
 
-    return create_model(get_name(func), **fields)
+    return create_model(get_name(func), **model_fields)

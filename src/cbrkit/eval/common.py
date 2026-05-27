@@ -7,7 +7,7 @@ from typing import Literal, cast
 from ..helpers import (
     get_logger,
     normalize_and_scale,
-    round,
+    round_int,
     sim_map2ranking,
     unpack_float,
     unpack_floats,
@@ -531,7 +531,7 @@ def similarities_to_qrels[Q, C](
 
     return {
         query: {
-            case: round(
+            case: round_int(
                 normalize_and_scale(sim, min_sim, max_sim, min_qrel, max_qrel),
                 round_mode,
             )
