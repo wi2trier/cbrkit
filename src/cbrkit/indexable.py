@@ -22,7 +22,7 @@ from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
-from .helpers import get_logger, optional_dependencies
+from .helpers import dist2sim, get_logger, optional_dependencies
 from .typing import (
     BatchConversionFunc,
     Casebase,
@@ -34,6 +34,7 @@ from .typing import (
 __all__ = [
     "chromadb",
     "lancedb",
+    "pgvector",
     "zvec",
 ]
 
@@ -97,6 +98,11 @@ def _sql_literal(value: int | str) -> str:
         return "'" + value.replace("'", "''") + "'"
 
     return str(value)
+
+
+def _sql_identifier(name: str) -> str:
+    """Quote *name* as a double-quoted SQL identifier with embedded `\"` escaped."""
+    return '"' + name.replace('"', '""') + '"'
 
 
 def _sql_in_clause[K: int | str](column: str, keys: Collection[K]) -> str:
@@ -958,3 +964,330 @@ with optional_dependencies():
 
             if upsert:
                 self.upsert_index(upsert)
+
+
+@dataclass(slots=True, frozen=True)
+class _PgMetric:
+    """Per-metric pgvector configuration."""
+
+    opclass: str
+    """HNSW operator class name passed to `CREATE INDEX ... USING hnsw`."""
+    distance_attr: str
+    """`pgvector.sqlalchemy.Vector` method name returning the distance expression."""
+    sim_from_distance: Callable[[float], float]
+    """Convert a raw pgvector distance to a similarity score."""
+
+
+PG_METRICS: dict[Literal["cosine", "ip", "l2"], _PgMetric] = {
+    "cosine": _PgMetric("vector_cosine_ops", "cosine_distance", dist2sim),
+    "ip": _PgMetric("vector_ip_ops", "max_inner_product", lambda d: -d),
+    "l2": _PgMetric("vector_l2_ops", "l2_distance", dist2sim),
+}
+
+
+with optional_dependencies():
+    import numpy as np
+    import sqlalchemy as sa
+    from pgvector.sqlalchemy import Vector
+    from sqlalchemy.dialects.postgresql import TSVECTOR, insert as pg_insert
+
+    @dataclass(slots=True)
+    class pgvector[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
+        """PostgreSQL/pgvector storage backend.
+
+        Manages a single table in a PostgreSQL database, using
+        :mod:`pgvector` for dense vectors and built-in `tsvector`
+        full-text search for the sparse path.  Supports `"dense"`,
+        `"sparse"`, and `"hybrid"` index types.
+
+        The table is created lazily on the first :meth:`put_index` call.
+        The vector dimension is inferred from the first batch of
+        embeddings, and the `vector` extension is created automatically
+        for dense/hybrid indexes if missing.  Pre-existing tables are
+        opened by reflection without any schema validation — mismatched
+        column names or types surface as `INSERT`/`SELECT` errors from
+        PostgreSQL.
+
+        Warning:
+            Persisted vectors are tied to the
+            :paramref:`conversion_func` used when they were written.
+            Reopening a table backed by a different embedding model
+            silently returns wrong results when the new model has the
+            same dimension, and raises on `INSERT` when it does not.
+            Drop the table (or use a fresh `table_name`) when changing
+            models.
+
+        Args:
+            url: SQLAlchemy database URL
+                (e.g. ``postgresql+psycopg://user:pw@host/db`` for
+                psycopg v3, ``postgresql+psycopg2://...`` for
+                psycopg2).  This extra deliberately does not pull in
+                a PostgreSQL DBAPI driver — install one matching the
+                URL scheme separately
+                (``pip install psycopg[binary]`` is the modern choice).
+            table_name: Table name within the database.
+            index_type: Determines what columns and indices are
+                created.  `"dense"` stores embeddings, `"sparse"`
+                stores a `tsvector`, `"hybrid"` does both.
+            conversion_func: Embedding function.  Required for
+                `"dense"` and `"hybrid"` index types.
+            key_type: Column type for case keys (`"int"` or `"str"`).
+                Must match the generic parameter `K`.
+            text_search_config: PostgreSQL FTS configuration name used
+                for `to_tsvector` and `plainto_tsquery`.
+            metric_type: Distance metric used to build the HNSW index
+                on the vector column.
+            key_column: Column name for case keys.
+            value_column: Column name for case text values.
+            vector_column: Column name for dense embeddings.
+            tsv_column: Column name for the `tsvector` FTS index.
+            metadata_func: Optional callable returning extra columns
+                per row from `(key, value)`.  All rows must produce
+                the same keys; column types are inferred from the
+                first row at table creation time.
+        """
+
+        url: str
+        table_name: str
+        index_type: Literal["dense", "sparse", "hybrid"] = "dense"
+        conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+        key_type: Literal["int", "str"] = "str"
+        text_search_config: str = "english"
+        metric_type: Literal["cosine", "ip", "l2"] = "cosine"
+        key_column: str = "key"
+        value_column: str = "value"
+        vector_column: str = "vector"
+        tsv_column: str = "tsv"
+        metadata_func: Callable[[K, str], dict[str, Any]] | None = None
+        _engine: sa.Engine = field(init=False, repr=False)
+        _metadata: sa.MetaData = field(init=False, repr=False)
+        _table: sa.Table | None = field(default=None, init=False, repr=False)
+
+        def __post_init__(self) -> None:
+            if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
+                raise ValueError(
+                    f"conversion_func is required for index_type={self.index_type!r}"
+                )
+
+            self._engine = sa.create_engine(self.url)
+            self._metadata = sa.MetaData()
+
+            with self._engine.connect() as conn:
+                if sa.inspect(conn).has_table(self.table_name):
+                    self._table = sa.Table(
+                        self.table_name, self._metadata, autoload_with=conn
+                    )
+
+        def close(self) -> None:
+            """Dispose of the SQLAlchemy engine and its connection pool."""
+            self._engine.dispose()
+
+        def _cast_key(self, value: Any) -> K:
+            return cast(K, int(value) if self.key_type == "int" else str(value))
+
+        @staticmethod
+        def _infer_sa_type(value: Any) -> sa.types.TypeEngine[Any]:
+            if isinstance(value, bool):
+                return sa.Boolean()
+            if isinstance(value, int):
+                return sa.BigInteger()
+            if isinstance(value, float):
+                return sa.Float()
+            return sa.Text()
+
+        def _build_rows(self, data: Casebase[K, str]) -> list[dict[str, Any]]:
+            """Build row dicts with vectors and metadata from a casebase."""
+            keys = list(data.keys())
+            values = list(data.values())
+
+            rows: list[dict[str, Any]] = [
+                {self.key_column: k, self.value_column: v}
+                for k, v in zip(keys, values, strict=True)
+            ]
+
+            if self.index_type in ("dense", "hybrid"):
+                assert self.conversion_func is not None
+                for row, vec in zip(rows, self.conversion_func(values), strict=True):
+                    row[self.vector_column] = np.asarray(vec).tolist()
+
+            if self.metadata_func is not None:
+                for row, k, v in zip(rows, keys, values, strict=True):
+                    row.update(self.metadata_func(k, v))
+
+            return rows
+
+        def _build_table(self, sample: dict[str, Any]) -> sa.Table:
+            """Build a `sa.Table` definition by inspecting the first row."""
+            key_sa = sa.BigInteger() if self.key_type == "int" else sa.Text()
+            columns: list[sa.Column[Any]] = [
+                sa.Column(self.key_column, key_sa, primary_key=True),
+                sa.Column(self.value_column, sa.Text(), nullable=False),
+            ]
+
+            if self.index_type in ("dense", "hybrid"):
+                columns.append(
+                    sa.Column(
+                        self.vector_column,
+                        Vector(len(sample[self.vector_column])),
+                        nullable=False,
+                    )
+                )
+
+            if self.index_type in ("sparse", "hybrid"):
+                tsv_expr = (
+                    f"to_tsvector({_sql_literal(self.text_search_config)}, "
+                    f"{_sql_identifier(self.value_column)})"
+                )
+                columns.append(
+                    sa.Column(
+                        self.tsv_column,
+                        TSVECTOR(),
+                        sa.Computed(tsv_expr, persisted=True),
+                        nullable=False,
+                    )
+                )
+
+            reserved = {c.name for c in columns}
+            for fname, fval in sample.items():
+                if fname not in reserved:
+                    columns.append(
+                        sa.Column(fname, self._infer_sa_type(fval), nullable=True)
+                    )
+
+            return sa.Table(self.table_name, self._metadata, *columns)
+
+        def _create_indices(self, conn: sa.Connection, table: sa.Table) -> None:
+            if self.index_type in ("dense", "hybrid"):
+                sa.Index(
+                    f"ix_{self.table_name}_{self.vector_column}",
+                    table.c[self.vector_column],
+                    postgresql_using="hnsw",
+                    postgresql_ops={
+                        self.vector_column: PG_METRICS[self.metric_type].opclass
+                    },
+                ).create(conn, checkfirst=True)
+
+            if self.index_type in ("sparse", "hybrid"):
+                sa.Index(
+                    f"ix_{self.table_name}_{self.tsv_column}",
+                    table.c[self.tsv_column],
+                    postgresql_using="gin",
+                ).create(conn, checkfirst=True)
+
+        def _upsert_stmt(self, table: sa.Table, rows: list[dict[str, Any]]) -> Any:
+            """Build an `INSERT ... ON CONFLICT DO UPDATE` statement."""
+            stmt = pg_insert(table).values(rows)
+            update_cols = [c for c in rows[0] if c != self.key_column]
+            return stmt.on_conflict_do_update(
+                index_elements=[table.c[self.key_column]],
+                set_={c: stmt.excluded[c] for c in update_cols},
+            )
+
+        @override
+        def has_index(self) -> bool:
+            return self._table is not None
+
+        def search_limit(self) -> int | None:
+            """Return the total number of rows, or `None` when no table exists."""
+            if self._table is None:
+                return None
+            with self._engine.connect() as conn:
+                return int(
+                    conn.execute(
+                        sa.select(sa.func.count()).select_from(self._table)
+                    ).scalar_one()
+                )
+
+        @property
+        @override
+        def index(self) -> Casebase[K, str]:
+            if self._table is None:
+                return {}
+            kc = self._table.c[self.key_column]
+            vc = self._table.c[self.value_column]
+            with self._engine.connect() as conn:
+                rows = conn.execute(sa.select(kc, vc)).all()
+            return {self._cast_key(k): v for k, v in rows}
+
+        @override
+        def put_index(self, data: Casebase[K, str]) -> None:
+            """Replace the table contents with *data*.
+
+            On first call the table is created from scratch and bulk-
+            loaded before its HNSW/GIN indices are built (faster than
+            building indices first).  On subsequent calls only stale or
+            text-changed entries are re-embedded; metadata is refreshed
+            together with the text.  Empty *data* clears the table.
+            """
+            if self._table is None:
+                if not data:
+                    return
+
+                rows = self._build_rows(data)
+                table = self._build_table(rows[0])
+
+                with self._engine.begin() as conn:
+                    if self.index_type in ("dense", "hybrid"):
+                        conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+                    table.create(conn)
+                    conn.execute(sa.insert(table), rows)
+                    self._create_indices(conn, table)
+
+                self._table = table
+                return
+
+            if not data:
+                with self._engine.begin() as conn:
+                    conn.execute(sa.delete(self._table))
+                return
+
+            stale_keys, changed = _compute_index_diff(self.index, data)
+            self.patch_index(upsert=changed or None, delete=stale_keys or None)
+
+        @override
+        def upsert_index(self, data: Casebase[K, str]) -> None:
+            if self._table is None:
+                self.put_index(data)
+                return
+            if not data:
+                return
+            with self._engine.begin() as conn:
+                conn.execute(self._upsert_stmt(self._table, self._build_rows(data)))
+
+        @override
+        def delete_index(self, data: Collection[K]) -> None:
+            if self._table is None or not data:
+                return
+            with self._engine.begin() as conn:
+                conn.execute(
+                    sa.delete(self._table).where(
+                        self._table.c[self.key_column].in_(list(data))
+                    )
+                )
+
+        @override
+        def patch_index(
+            self,
+            upsert: Casebase[K, str] | None = None,
+            delete: Collection[K] | None = None,
+        ) -> None:
+            normalized = _normalize_patch_keys(upsert, delete)
+            if normalized is None:
+                return
+            _, delete_keys = normalized
+
+            if self._table is None:
+                if upsert:
+                    self.put_index(upsert)
+                return
+
+            rows = self._build_rows(upsert) if upsert else None
+            with self._engine.begin() as conn:
+                if delete_keys:
+                    conn.execute(
+                        sa.delete(self._table).where(
+                            self._table.c[self.key_column].in_(list(delete_keys))
+                        )
+                    )
+                if rows:
+                    conn.execute(self._upsert_stmt(self._table, rows))

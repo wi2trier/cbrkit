@@ -32,6 +32,7 @@ Indexable Retrieval:
 - `bm25`: BM25 sparse text retrieval (requires `bm25` extra).
 - `chromadb`: ChromaDB vector store retrieval (requires `chromadb` extra).
 - `lancedb`: LanceDB vector store retrieval (requires `lancedb` extra).
+- `pgvector`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
 - `zvec`: Zvec vector store retrieval (requires `zvec` extra).
 
 Re-ranking:
@@ -82,6 +83,9 @@ with optional_dependencies():
     from .indexable import lancedb
 
 with optional_dependencies():
+    from .indexable import pgvector
+
+with optional_dependencies():
     from .indexable import zvec
 
 __all__ = [
@@ -108,5 +112,6 @@ __all__ = [
     "embed",
     "lancedb",
     "persist",
+    "pgvector",
     "zvec",
 ]

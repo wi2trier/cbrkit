@@ -1,4 +1,4 @@
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
@@ -144,6 +144,14 @@ class embed[K, S: Float](
     IndexableFunc[Casebase[K, str], Collection[K]],
 ):
     """Embedding-based semantic retriever with indexing support.
+
+    Warning:
+        The :class:`~cbrkit.sim.embed.cache` instance passed as
+        :paramref:`conversion_func` keys vectors by text, not by model
+        identity, so reusing a persistent cache across runs with a
+        different model returns silently stale vectors for unchanged
+        texts.  Drop the cache (or use a fresh `table`) when changing
+        models.
 
     Args:
         conversion_func: Embedding function (from embed module).
@@ -1185,5 +1193,272 @@ with optional_dependencies():
                 # RRF scores are relevance-ordered (higher = better)
                 cb, sm = self._docs_to_result(docs, score_transform=lambda s: s)
                 results.append((cb, sm))
+
+            return results
+
+
+with optional_dependencies():
+    import numpy as np
+    import sqlalchemy as sa
+
+    from ..indexable import PG_METRICS, pgvector as pgvector_storage
+
+    @dataclass(slots=True)
+    class pgvector[K: int | str](
+        _StorageIndexMixin[K, pgvector_storage[K]],
+        RetrieverFunc[K, str, float],
+        IndexableFunc[Casebase[K, str], Collection[K]],
+    ):
+        """Retriever wrapper for a pgvector storage backend.
+
+        Delegates storage to a :class:`~cbrkit.indexable.pgvector` instance
+        and performs search queries against it.  Multiple retriever
+        instances can share the same storage to query with different
+        search types.
+
+        Hybrid search combines dense ANN and PostgreSQL FTS rankings
+        via client-side Reciprocal Rank Fusion (RRF), since PostgreSQL
+        has no built-in RRF operator.
+
+        Args:
+            storage: pgvector storage instance.
+            search_type: Search mode — `"dense"` (ANN), `"sparse"`
+                (FTS via `tsvector`), or `"hybrid"` (dense + sparse
+                combined via RRF).
+            query_conversion_func: Optional separate embedding function
+                for queries.  Falls back to the storage's
+                `conversion_func`.
+            limit: Maximum number of results per query.  `None`
+                (default) returns all rows.
+            where: Optional raw SQL fragment applied as a `WHERE`
+                clause to every search (e.g. ``"source = 'docs'"``).
+                **The string is interpolated verbatim into the query
+                via** :func:`sqlalchemy.text` — it MUST NOT be built
+                from untrusted input or it will enable SQL injection.
+            rrf_k: RRF smoothing parameter for hybrid search.
+            rrf_weights: Weights for `(dense, sparse)` in RRF.
+            hybrid_oversample: Per-leg candidate pool factor for hybrid
+                RRF.  Each sub-query fetches up to `limit * factor`
+                rows before fusion; the final result is truncated to
+                `limit`.  Ignored when `limit` is `None`.
+            normalize_scores: Apply per-query min-max normalization.
+        """
+
+        storage: pgvector_storage[K]
+        search_type: Literal["dense", "sparse", "hybrid"] = "dense"
+        query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+        limit: int | None = None
+        where: str | None = None
+        rrf_k: int = 60
+        rrf_weights: tuple[float, float] = field(default=(0.7, 0.3))
+        hybrid_oversample: int = 4
+        normalize_scores: bool = True
+
+        @override
+        def __call__(
+            self,
+            batches: Sequence[tuple[Casebase[K, str], str]],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if not batches:
+                return []
+
+            return dispatch_batches(batches, self._dispatch)
+
+        def _dispatch(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            if len(casebase) == 0:
+                if not self.storage.has_index():
+                    raise ValueError(
+                        "Indexed retrieval was requested with an empty casebase, "
+                        "but no index is available. Call put_index() first."
+                    )
+
+                return self._search_db(queries)
+
+            return self._search_brute(queries, casebase)
+
+        # -- search helpers ----------------------------------------------------
+
+        def _search_brute(
+            self,
+            queries: Sequence[str],
+            casebase: Casebase[K, str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Brute-force dense vector search for non-indexed casebases."""
+            if self.search_type != "dense":
+                raise NotImplementedError(
+                    f"Brute-force search is not supported for search_type={self.search_type!r}. "
+                    "Call put_index() first."
+                )
+
+            assert self.storage.conversion_func is not None
+            return _brute_force_dense_search(
+                queries,
+                casebase,
+                self.storage.conversion_func,
+                self.query_conversion_func,
+            )
+
+        def _search_db(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Dispatch to the appropriate search method and normalize scores."""
+            match self.search_type:
+                case "dense":
+                    results = self._search_db_dense(queries)
+                case "sparse":
+                    results = self._search_db_sparse(queries)
+                case "hybrid":
+                    results = self._search_db_hybrid(queries)
+
+            return _normalize_results(results, self.normalize_scores)
+
+        def _table_cols(self) -> tuple[sa.Table, sa.Column[Any], sa.Column[Any]]:
+            """Return `(table, key_col, value_col)` for the storage table."""
+            table = self.storage._table
+            assert table is not None
+            return (
+                table,
+                table.c[self.storage.key_column],
+                table.c[self.storage.value_column],
+            )
+
+        def _finalize_stmt(
+            self, stmt: sa.Select[Any], n: int | None
+        ) -> sa.Select[Any]:
+            """Apply the optional `where` filter and `LIMIT n` to *stmt*."""
+            if self.where is not None:
+                stmt = stmt.where(sa.text(self.where))
+            if n is not None:
+                stmt = stmt.limit(n)
+            return stmt
+
+        def _dense_stmt(
+            self,
+            qvec: list[float],
+            n: int | None,
+        ) -> sa.Select[Any]:
+            """Build a dense ANN SELECT statement ordered by ascending distance."""
+            table, kc, vc = self._table_cols()
+            metric = PG_METRICS[self.storage.metric_type]
+            distance = getattr(table.c[self.storage.vector_column], metric.distance_attr)(
+                qvec
+            )
+            return self._finalize_stmt(
+                sa.select(kc, vc, distance.label("distance")).order_by(distance), n
+            )
+
+        def _sparse_stmt(
+            self,
+            query: str,
+            n: int | None,
+        ) -> sa.Select[Any]:
+            """Build a sparse FTS SELECT statement ordered by descending ts_rank."""
+            table, kc, vc = self._table_cols()
+            tsv = table.c[self.storage.tsv_column]
+            tsq = sa.func.plainto_tsquery(self.storage.text_search_config, query)
+            rank = sa.func.ts_rank(tsv, tsq)
+            return self._finalize_stmt(
+                sa.select(kc, vc, rank.label("score"))
+                .where(tsv.op("@@")(tsq))
+                .order_by(rank.desc()),
+                n,
+            )
+
+        def _run_query_loop[I](
+            self,
+            items: Iterable[I],
+            stmt_builder: Callable[[I], sa.Select[Any]],
+            score_fn: Callable[[float], float],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Open one connection and execute *stmt_builder* per item."""
+            cast_key = self.storage._cast_key
+            results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
+
+            with self.storage._engine.connect() as conn:
+                for item in items:
+                    rows = conn.execute(stmt_builder(item)).all()
+                    cb = {cast_key(k): v for k, v, _ in rows}
+                    sm = {cast_key(k): score_fn(float(s)) for k, _, s in rows}
+                    results.append((cb, sm))
+
+            return results
+
+        def _search_db_dense(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            assert self.storage.conversion_func is not None
+            embed_func = self.query_conversion_func or self.storage.conversion_func
+            query_vecs = embed_func(list(queries))
+
+            return self._run_query_loop(
+                query_vecs,
+                lambda qvec: self._dense_stmt(np.asarray(qvec).tolist(), self.limit),
+                PG_METRICS[self.storage.metric_type].sim_from_distance,
+            )
+
+        def _search_db_sparse(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            return self._run_query_loop(
+                queries,
+                lambda q: self._sparse_stmt(q, self.limit),
+                lambda s: s,
+            )
+
+        def _search_db_hybrid(
+            self,
+            queries: Sequence[str],
+        ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+            """Hybrid search: dense + sparse fused client-side via RRF.
+
+            Runs the two per-leg statements separately, fetching up to
+            `limit * hybrid_oversample` candidates each, then combines
+            them in Python as `Σ wᵢ / (rrf_k + rankᵢ)`.
+            """
+            assert self.storage.conversion_func is not None
+            embed_func = self.query_conversion_func or self.storage.conversion_func
+            query_vecs = embed_func(list(queries))
+            w_dense, w_sparse = self.rrf_weights
+            candidate_n = (
+                self.limit * self.hybrid_oversample if self.limit is not None else None
+            )
+            cast_key = self.storage._cast_key
+
+            results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
+
+            with self.storage._engine.connect() as conn:
+                for query, qvec in zip(queries, query_vecs, strict=True):
+                    dense_rows = conn.execute(
+                        self._dense_stmt(np.asarray(qvec).tolist(), candidate_n)
+                    ).all()
+                    sparse_rows = conn.execute(
+                        self._sparse_stmt(query, candidate_n)
+                    ).all()
+
+                    scores: dict[K, float] = {}
+                    values: dict[K, str] = {}
+                    for rank, (k, v, _) in enumerate(dense_rows, start=1):
+                        kc = cast_key(k)
+                        scores[kc] = scores.get(kc, 0.0) + w_dense / (self.rrf_k + rank)
+                        values[kc] = v
+                    for rank, (k, v, _) in enumerate(sparse_rows, start=1):
+                        kc = cast_key(k)
+                        scores[kc] = scores.get(kc, 0.0) + w_sparse / (self.rrf_k + rank)
+                        values.setdefault(kc, v)
+
+                    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+                    if self.limit is not None:
+                        ranked = ranked[: self.limit]
+
+                    cb = {k: values[k] for k, _ in ranked}
+                    sm = dict(ranked)
+                    results.append((cb, sm))
 
             return results
