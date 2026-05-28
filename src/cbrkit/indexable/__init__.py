@@ -38,14 +38,18 @@ with optional_dependencies():
     from .zvec import zvec
 
 with optional_dependencies():
-    from .postgresql import postgresql, postgresql_async, postgresql_table
+    from .postgresql import (
+        IndexableMixin,
+        postgresql,
+        postgresql_async,
+    )
 
 __all__ = [
+    "IndexableMixin",
     "chromadb",
     "lancedb",
     "postgresql",
     "postgresql_async",
-    "postgresql_table",
     "zvec",
     "_compute_index_diff",
     "_normalize_patch_keys",

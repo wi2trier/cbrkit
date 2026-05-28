@@ -12,24 +12,26 @@ Two flavors live here:
 - :class:`postgresql` is a thin sync facade over :class:`postgresql_async`
   satisfying :class:`cbrkit.typing.FilterableIndexableFunc`.  It only
   accepts a connection URL and runs the async methods via
-  :func:`cbrkit.helpers.run_coroutine`.
+  :func:`cbrkit.helpers.run_coroutine`; the wrapped engine uses
+  :class:`sqlalchemy.pool.NullPool` so each call opens and closes its
+  own connection and nothing is shared across event loops.
 
-- :func:`postgresql_table` is a module-level factory that returns a
-  :class:`sqlalchemy.Table` shaped for this backend.  It registers the
-  table on the caller's :class:`sqlalchemy.MetaData` so Alembic
-  autogenerate picks it up.
+- :class:`IndexableMixin` is the public declarative-ORM contract:
+  subclass alongside the host's ``DeclarativeBase`` to inherit cbrkit's
+  required columns with full ``Mapped[X]`` typing.  Internal table
+  construction (for the ``manage_schema=True`` path) reuses the same
+  column-building helpers as the mixin so the two stay in lockstep.
 """
 
 from collections.abc import (
     AsyncIterator,
-    Callable,
     Collection,
     Iterable,
     Mapping,
     Sequence,
 )
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 
 import numpy as np
 import sqlalchemy as sa
@@ -40,6 +42,8 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     create_async_engine,
 )
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column
+from sqlalchemy.pool import NullPool
 
 from ..filter import And, Eq, Filter, In, Like, Not, Or, Raw
 from ..helpers import get_logger, run_coroutine
@@ -55,6 +59,9 @@ from ._common import (
 )
 
 logger = get_logger(__name__)
+
+# PostgreSQL's wire protocol caps bind parameters per statement at 2**16 - 1.
+_PG_PARAM_LIMIT = 65_535
 
 
 def _compile_filter(table: sa.Table, f: Filter) -> sa.ColumnElement[bool]:
@@ -81,11 +88,32 @@ def _compile_filter(table: sa.Table, f: Filter) -> sa.ColumnElement[bool]:
     raise TypeError(f"Unsupported filter node: {type(f).__name__}")
 
 
-def postgresql_table(
+# ─── Shared column-building primitives ────────────────────────────────
+
+
+def _vector_column_type(dim: int) -> Vector:
+    """``pgvector.sqlalchemy.Vector`` of the given dim, validated."""
+    if dim <= 0:
+        raise ValueError(f"vector_dim must be a positive int (got {dim!r})")
+    return Vector(dim)
+
+
+def _tsv_computed(value_column: str, text_search_config: str) -> sa.Computed:
+    """Persisted ``to_tsvector(<config>, <value>)`` for the TSV column."""
+    return sa.Computed(
+        sa.func.to_tsvector(
+            sa.literal(text_search_config),
+            sa.column(value_column),
+        ),
+        persisted=True,
+    )
+
+
+def _build_indexable_table(
     name: str,
     *,
     metadata: sa.MetaData,
-    vector_dim: int,
+    vector_dim: int | None = None,
     index_type: Literal["dense", "sparse", "hybrid"] = "dense",
     key_type: Literal["int", "str"] = "str",
     key_column: str = "key",
@@ -95,34 +123,18 @@ def postgresql_table(
     text_search_config: str = "english",
     metadata_columns: Mapping[str, sa.types.TypeEngine[Any]] | None = None,
 ) -> sa.Table:
-    """Build a :class:`sqlalchemy.Table` shaped for the PostgreSQL backend.
+    """Internal: build a Core :class:`sqlalchemy.Table` for the backend.
 
-    Registers the table on the supplied :paramref:`metadata` so Alembic
-    autogenerate can discover it.  All column names and types are explicit
-    — no runtime inference.
-
-    Args:
-        name: Table name within the database.
-        metadata: Caller's :class:`sqlalchemy.MetaData` (typically
-            ``Base.metadata``).
-        vector_dim: Required when *index_type* is ``"dense"`` or
-            ``"hybrid"`` — must match the embedding model's dimension.
-        index_type: Determines which columns are added.
-        key_type: ``"int"`` for ``BigInteger`` primary key, ``"str"`` for
-            ``Text``.
-        key_column / value_column / vector_column / tsv_column:
-            Override default column names.
-        text_search_config: PostgreSQL FTS configuration name used in
-            the persisted ``tsvector`` generated column expression.
-        metadata_columns: Mapping of column name to SQLAlchemy type for
-            extra application metadata columns (e.g. ``casebase_key``).
-
-    Returns:
-        A :class:`sqlalchemy.Table` instance registered on *metadata*.
+    Used by :class:`postgresql_async` / :class:`postgresql` when the
+    host opts into ``manage_schema=True`` without supplying a table.
+    External callers should subclass :class:`IndexableMixin` instead —
+    it shares the same column-building primitives (see
+    :func:`_vector_column_type`, :func:`_tsv_computed`) so the two
+    paths produce identical schemas.
     """
-    if index_type in ("dense", "hybrid") and vector_dim <= 0:
+    if index_type in ("dense", "hybrid") and vector_dim is None:
         raise ValueError(
-            f"vector_dim must be positive for index_type={index_type!r}"
+            f"vector_dim is required for index_type={index_type!r}"
         )
 
     key_sa: sa.types.TypeEngine[Any] = (
@@ -134,8 +146,9 @@ def postgresql_table(
     ]
 
     if index_type in ("dense", "hybrid"):
+        assert vector_dim is not None
         columns.append(
-            sa.Column(vector_column, Vector(vector_dim), nullable=False)
+            sa.Column(vector_column, _vector_column_type(vector_dim), nullable=False)
         )
 
     if index_type in ("sparse", "hybrid"):
@@ -143,13 +156,7 @@ def postgresql_table(
             sa.Column(
                 tsv_column,
                 TSVECTOR(),
-                sa.Computed(
-                    sa.func.to_tsvector(
-                        sa.literal(text_search_config),
-                        sa.column(value_column),
-                    ),
-                    persisted=True,
-                ),
+                _tsv_computed(value_column, text_search_config),
                 nullable=False,
             )
         )
@@ -159,6 +166,70 @@ def postgresql_table(
             columns.append(sa.Column(col_name, col_type, nullable=True))
 
     return sa.Table(name, metadata, *columns)
+
+
+class IndexableMixin:
+    """Declarative mixin contributing cbrkit's required columns.
+
+    Subclass it alongside the host's declarative base; the resulting
+    class has the standard ``key`` / ``value`` / ``vector`` / ``tsv``
+    columns plus whatever host columns and ``__table_args__`` the
+    subclass declares.  Pass ``MyClass.__table__`` to
+    :class:`postgresql_async` (``manage_schema=False`` is implied
+    because the host owns DDL).
+
+    The shape matches ``index_type="hybrid"`` — both dense and
+    sparse retrieval columns are materialised so a single class
+    serves the most common case.  For dense-only or sparse-only
+    schemas, declare the table by hand and skip the mixin.
+
+    Class vars on the subclass:
+
+    - ``__vector_dim__`` (``int``): dimension of the embedding
+      vector.  Required.
+    - ``__text_search_config__`` (``str``, default ``"english"``):
+      PostgreSQL FTS configuration for the generated ``tsv`` column.
+
+    HNSW (vector) and GIN (tsv) indices are not added automatically —
+    declare them in the subclass's ``__table_args__`` so the host
+    keeps control over operator classes and index names.
+
+    Example::
+
+        class Chunk(IndexableMixin, Base):
+            __tablename__ = "chunks"
+            __vector_dim__ = 384
+            __table_args__ = (
+                Index("ix_chunks_vector", "vector",
+                      postgresql_using="hnsw",
+                      postgresql_ops={"vector": "vector_cosine_ops"}),
+                Index("ix_chunks_tsv", "tsv", postgresql_using="gin"),
+            )
+
+            document_id: Mapped[str] = mapped_column(
+                ForeignKey("documents.id", ondelete="CASCADE")
+            )
+            idx: Mapped[int]
+            # ...
+    """
+
+    __vector_dim__: ClassVar[int]
+    __text_search_config__: ClassVar[str] = "english"
+
+    key: Mapped[str] = mapped_column(primary_key=True)
+    value: Mapped[str] = mapped_column(nullable=False)
+
+    @declared_attr
+    def vector(cls) -> Mapped[Any]:
+        return mapped_column(_vector_column_type(cls.__vector_dim__), nullable=False)
+
+    @declared_attr
+    def tsv(cls) -> Mapped[Any]:
+        return mapped_column(
+            TSVECTOR(),
+            _tsv_computed("value", cls.__text_search_config__),
+            nullable=False,
+        )
 
 
 @dataclass(slots=True)
@@ -191,18 +262,21 @@ class postgresql_async[K: int | str]:
         vector_dim: Required when ``manage_schema=True`` and
             *index_type* ∈ {``"dense"``, ``"hybrid"``}.
         index_type / key_type / column names: As described in
-            :func:`postgresql_table`.
+            :class:`IndexableMixin`.
         metric_type: Distance metric used by the HNSW index (and
             mirrored at search time by the retriever wrapper).
         conversion_func: Embedding function.  Required for
             ``"dense"`` / ``"hybrid"`` index types.
-        metadata_func: Optional callable returning extra column values
-            per row from ``(key, value)``.  Output keys MUST be a
-            subset of the columns declared on the table (either via
-            *table* / *metadata_columns*).
         metadata_columns / metadata_indexes: Schema hints used only
             when cbrkit builds the table itself
             (``manage_schema=True`` without *table*).
+
+    The write methods (:meth:`put_index`, :meth:`upsert_index`,
+    :meth:`patch_index`, :meth:`replace_where`) accept a per-call
+    ``metadata`` keyword argument — a ``{key: extras}`` mapping —
+    for populating extra columns whose values cannot be derived from
+    ``(key, value)`` at storage construction time (for example
+    row-specific foreign keys threaded in by the host application).
     """
 
     url: str | None = None
@@ -221,7 +295,6 @@ class postgresql_async[K: int | str]:
     text_search_config: str = "english"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-    metadata_func: Callable[[K, str], Mapping[str, Any]] | None = None
     metadata_columns: Mapping[str, sa.types.TypeEngine[Any]] | None = None
     metadata_indexes: Sequence[str | tuple[str, ...]] | None = None
     _engine: AsyncEngine = field(init=False, repr=False)
@@ -255,7 +328,7 @@ class postgresql_async[K: int | str]:
         if not self.manage_schema:
             raise ValueError(
                 "manage_schema=False requires an explicit `table` "
-                "argument (use postgresql_table(...) to build it)."
+                "argument (subclass IndexableMixin or build an sa.Table)."
             )
 
         if self.index_type in ("dense", "hybrid") and self.vector_dim is None:
@@ -265,10 +338,10 @@ class postgresql_async[K: int | str]:
             )
 
         meta = self.metadata if self.metadata is not None else sa.MetaData()
-        self._table = postgresql_table(
+        self._table = _build_indexable_table(
             self.table_name,
             metadata=meta,
-            vector_dim=self.vector_dim or 0,
+            vector_dim=self.vector_dim,
             index_type=self.index_type,
             key_type=self.key_type,
             key_column=self.key_column,
@@ -326,7 +399,17 @@ class postgresql_async[K: int | str]:
     def _cast_key(self, value: Any) -> K:
         return cast(K, int(value) if self.key_type == "int" else str(value))
 
-    def _build_rows(self, data: Casebase[K, str]) -> list[dict[str, Any]]:
+    def _build_rows(
+        self,
+        data: Casebase[K, str],
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Materialise insert dicts from *data*.
+
+        ``metadata`` populates extra columns whose values cannot be
+        derived from ``(key, value)`` at storage construction time;
+        indexed per key.
+        """
         keys = list(data.keys())
         values = list(data.values())
 
@@ -340,23 +423,58 @@ class postgresql_async[K: int | str]:
             for row, vec in zip(rows, self.conversion_func(values), strict=True):
                 row[self.vector_column] = np.asarray(vec).tolist()
 
-        if self.metadata_func is not None:
-            for row, k, v in zip(rows, keys, values, strict=True):
-                row.update(self.metadata_func(k, v))
+        if metadata is not None:
+            for row, k in zip(rows, keys, strict=True):
+                row.update(metadata[k])
 
         return rows
 
-    def _upsert_stmt(self, rows: list[dict[str, Any]]) -> Any:
-        stmt = pg_insert(self._table).values(rows)
-        update_cols = [c for c in rows[0] if c != self.key_column]
-        return stmt.on_conflict_do_update(
-            index_elements=[self._table.c[self.key_column]],
-            set_={c: stmt.excluded[c] for c in update_cols},
-        )
+    async def _execute_upsert(
+        self, conn: AsyncConnection, rows: list[dict[str, Any]]
+    ) -> None:
+        """Upsert *rows* in batches sized to stay under Postgres' bind-param cap.
+
+        A multi-row ``INSERT ... VALUES`` consumes one bind parameter per
+        cell, so a single statement can carry at most
+        ``_PG_PARAM_LIMIT // n_cols`` rows before the driver rejects it.
+        """
+        if not rows:
+            return
+        columns = list(rows[0])
+        update_cols = [c for c in columns if c != self.key_column]
+        batch_size = max(1, _PG_PARAM_LIMIT // len(columns))
+
+        for start in range(0, len(rows), batch_size):
+            chunk = rows[start : start + batch_size]
+            stmt = pg_insert(self._table).values(chunk)
+            await conn.execute(
+                stmt.on_conflict_do_update(
+                    index_elements=[self._table.c[self.key_column]],
+                    set_={c: stmt.excluded[c] for c in update_cols},
+                )
+            )
+
+    async def _execute_delete_in(
+        self, conn: AsyncConnection, keys: Iterable[K]
+    ) -> None:
+        """Delete rows by key in batches sized to stay under Postgres' bind-param cap.
+
+        ``IN (...)`` expands to one bind parameter per element, so a huge
+        key set would exceed ``_PG_PARAM_LIMIT`` in a single statement.
+        """
+        keys_list = list(keys)
+        if not keys_list:
+            return
+        kc = self._table.c[self.key_column]
+        for start in range(0, len(keys_list), _PG_PARAM_LIMIT):
+            chunk = keys_list[start : start + _PG_PARAM_LIMIT]
+            await conn.execute(sa.delete(self._table).where(kc.in_(chunk)))
 
     def _has_table(self, sync_conn: sa.Connection) -> bool:
         """Sync check whether the underlying table exists (use with ``run_sync``)."""
-        return sa.inspect(sync_conn).has_table(self._table.name)
+        return sa.inspect(sync_conn).has_table(
+            self._table.name, schema=self._table.schema
+        )
 
     # -- AsyncIndexableFunc interface ----------------------------------------
 
@@ -375,7 +493,13 @@ class postgresql_async[K: int | str]:
             rows = (await conn.execute(sa.select(kc, vc))).all()
         return {self._cast_key(k): v for k, v in rows}
 
-    async def put_index(self, data: Casebase[K, str], /) -> None:
+    async def put_index(
+        self,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> None:
         """Synchronize the table with *data* (in-place, no truncate).
 
         Empty *data* is a no-op only when the table has not been
@@ -402,37 +526,39 @@ class postgresql_async[K: int | str]:
                 return
 
             if stale_keys:
-                await conn.execute(
-                    sa.delete(self._table).where(
-                        self._table.c[self.key_column].in_(list(stale_keys))
-                    )
-                )
+                await self._execute_delete_in(conn, stale_keys)
 
             if changed:
-                await conn.execute(self._upsert_stmt(self._build_rows(changed)))
+                await self._execute_upsert(
+                    conn, self._build_rows(changed, metadata)
+                )
 
-    async def upsert_index(self, data: Casebase[K, str], /) -> None:
+    async def upsert_index(
+        self,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> None:
         if not data:
             return
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
-            await conn.execute(self._upsert_stmt(self._build_rows(data)))
+            await self._execute_upsert(conn, self._build_rows(data, metadata))
 
     async def delete_index(self, keys: Collection[K], /) -> None:
         if not keys:
             return
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
-            await conn.execute(
-                sa.delete(self._table).where(
-                    self._table.c[self.key_column].in_(list(keys))
-                )
-            )
+            await self._execute_delete_in(conn, keys)
 
     async def patch_index(
         self,
         upsert: Casebase[K, str] | None = None,
         delete: Collection[K] | None = None,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         normalized = _normalize_patch_keys(upsert, delete)
         if normalized is None:
@@ -442,13 +568,11 @@ class postgresql_async[K: int | str]:
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
             if delete_keys:
-                await conn.execute(
-                    sa.delete(self._table).where(
-                        self._table.c[self.key_column].in_(list(delete_keys))
-                    )
-                )
+                await self._execute_delete_in(conn, delete_keys)
             if upsert:
-                await conn.execute(self._upsert_stmt(self._build_rows(upsert)))
+                await self._execute_upsert(
+                    conn, self._build_rows(upsert, metadata)
+                )
 
     # -- AsyncFilterableIndexableFunc interface ------------------------------
 
@@ -474,7 +598,12 @@ class postgresql_async[K: int | str]:
         return keys
 
     async def replace_where(
-        self, where: Filter, data: Casebase[K, str], /
+        self,
+        where: Filter,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> Collection[K]:
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
@@ -484,7 +613,7 @@ class postgresql_async[K: int | str]:
                     sa.delete(self._table).where(_compile_filter(self._table, where))
                 )
             if data:
-                await conn.execute(self._upsert_stmt(self._build_rows(data)))
+                await self._execute_upsert(conn, self._build_rows(data, metadata))
         return old_keys
 
     async def _keys_where_conn(
@@ -591,7 +720,10 @@ class postgresql[K: int | str]:
 
     Implements :class:`cbrkit.typing.FilterableIndexableFunc`.  Accepts
     a URL only (no :class:`AsyncEngine`); internally creates and owns
-    its async counterpart.
+    its async counterpart with :class:`sqlalchemy.pool.NullPool`, so
+    each sync call opens a fresh connection (and closes it on exit)
+    and nothing is pooled across the per-call event loops that
+    :func:`run_coroutine` spins up.
     """
 
     url: str
@@ -607,14 +739,15 @@ class postgresql[K: int | str]:
     text_search_config: str = "english"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-    metadata_func: Callable[[K, str], Mapping[str, Any]] | None = None
     metadata_columns: Mapping[str, sa.types.TypeEngine[Any]] | None = None
     metadata_indexes: Sequence[str | tuple[str, ...]] | None = None
+    _engine: AsyncEngine = field(init=False, repr=False)
     _inner: postgresql_async[K] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._engine = create_async_engine(self.url, poolclass=NullPool)
         self._inner = postgresql_async[K](
-            url=self.url,
+            engine=self._engine,
             table_name=self.table_name,
             manage_schema=self.manage_schema,
             vector_dim=self.vector_dim,
@@ -627,7 +760,6 @@ class postgresql[K: int | str]:
             text_search_config=self.text_search_config,
             metric_type=self.metric_type,
             conversion_func=self.conversion_func,
-            metadata_func=self.metadata_func,
             metadata_columns=self.metadata_columns,
             metadata_indexes=self.metadata_indexes,
         )
@@ -639,11 +771,23 @@ class postgresql[K: int | str]:
     def has_index(self) -> bool:
         return run_coroutine(self._inner.has_index())
 
-    def put_index(self, data: Casebase[K, str], /) -> None:
-        run_coroutine(self._inner.put_index(data))
+    def put_index(
+        self,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> None:
+        run_coroutine(self._inner.put_index(data, metadata=metadata))
 
-    def upsert_index(self, data: Casebase[K, str], /) -> None:
-        run_coroutine(self._inner.upsert_index(data))
+    def upsert_index(
+        self,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> None:
+        run_coroutine(self._inner.upsert_index(data, metadata=metadata))
 
     def delete_index(self, keys: Collection[K], /) -> None:
         run_coroutine(self._inner.delete_index(keys))
@@ -652,8 +796,12 @@ class postgresql[K: int | str]:
         self,
         upsert: Casebase[K, str] | None = None,
         delete: Collection[K] | None = None,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
-        run_coroutine(self._inner.patch_index(upsert=upsert, delete=delete))
+        run_coroutine(
+            self._inner.patch_index(upsert=upsert, delete=delete, metadata=metadata)
+        )
 
     def keys_where(self, where: Filter, /) -> Collection[K]:
         return run_coroutine(self._inner.keys_where(where))
@@ -661,14 +809,27 @@ class postgresql[K: int | str]:
     def delete_where(self, where: Filter, /) -> Collection[K]:
         return run_coroutine(self._inner.delete_where(where))
 
-    def replace_where(self, where: Filter, data: Casebase[K, str], /) -> Collection[K]:
-        return run_coroutine(self._inner.replace_where(where, data))
+    def replace_where(
+        self,
+        where: Filter,
+        data: Casebase[K, str],
+        /,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> Collection[K]:
+        return run_coroutine(
+            self._inner.replace_where(where, data, metadata=metadata)
+        )
 
     def reembed_all(self, batch_size: int = 1000) -> int:
         return run_coroutine(self._inner.reembed_all(batch_size))
 
     def close(self) -> None:
-        run_coroutine(self._inner.close())
+        run_coroutine(self._engine.dispose())
 
 
-__all__ = ["postgresql_async", "postgresql", "postgresql_table"]
+__all__ = [
+    "IndexableMixin",
+    "postgresql_async",
+    "postgresql",
+]

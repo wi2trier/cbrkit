@@ -1,6 +1,6 @@
 """LanceDB storage backend."""
 
-from collections.abc import Callable, Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
@@ -44,9 +44,11 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         key_column: Column name for case keys.
         value_column: Column name for case text values.
         vector_column: Column name for dense embedding vectors.
-        metadata_func: Optional callable that produces extra
-            columns for each row.  Called with `(key, value)`
-            and must return a dict mapping column names to values.
+
+    The write methods accept a per-call ``metadata`` keyword argument
+    — a ``{key: extras}`` mapping — when callers need to populate
+    extra columns whose values cannot be derived from ``(key, value)``
+    alone.
     """
 
     uri: str
@@ -56,7 +58,6 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     key_column: str = "key"
     value_column: str = "value"
     vector_column: str = "vector"
-    metadata_func: Callable[[K, str], dict[str, Any]] | None = None
     _db: ldb.DBConnection = field(init=False, repr=False)
     _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
@@ -83,7 +84,11 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
         return self._table.count_rows()
 
-    def _build_rows(self, casebase: Casebase[K, str]) -> list[dict[str, Any]]:
+    def _build_rows(
+        self,
+        casebase: Casebase[K, str],
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
         """Build row dicts for LanceDB from a casebase."""
         keys = list(casebase.keys())
         values = list(casebase.values())
@@ -105,9 +110,9 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
                 for key, value, vec in zip(keys, values, vecs, strict=True)
             ]
 
-        if self.metadata_func is not None:
-            for row, key, value in zip(rows, keys, values, strict=True):
-                row.update(self.metadata_func(key, value))
+        if metadata is not None:
+            for row, key in zip(rows, keys, strict=True):
+                row.update(metadata[key])
 
         return rows
 
@@ -133,13 +138,15 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     def put_index(
         self,
         data: Casebase[K, str],
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         """Replace the LanceDB table contents with *data*."""
         if self._table is None:
             if not data:
                 return
 
-            rows = self._build_rows(data)
+            rows = self._build_rows(data, metadata)
             self._table = self._db.create_table(
                 self.table_name,
                 rows,
@@ -152,7 +159,7 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
             self._table.delete("true")
             return
 
-        rows = self._build_rows(data)
+        rows = self._build_rows(data, metadata)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -165,19 +172,21 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     def upsert_index(
         self,
         data: Casebase[K, str],
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         """Insert or replace rows in the LanceDB table.
 
         If no table exists yet, delegates to :meth:`put_index`.
         """
         if self._table is None:
-            self.put_index(data)
+            self.put_index(data, metadata=metadata)
             return
 
         if not data:
             return
 
-        rows = self._build_rows(data)
+        rows = self._build_rows(data, metadata)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -201,6 +210,8 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         self,
         upsert: Casebase[K, str] | None = None,
         delete: Collection[K] | None = None,
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         """Apply inserts, replacements, and deletes as one LanceDB mutation."""
         normalized = _normalize_patch_keys(upsert, delete)
@@ -212,14 +223,14 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
         if self._table is None:
             if upsert:
-                self.put_index(upsert)
+                self.put_index(upsert, metadata=metadata)
             return
 
         if not upsert:
             self.delete_index(delete_keys)
             return
 
-        rows = self._build_rows(upsert)
+        rows = self._build_rows(upsert, metadata)
         operation = (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -262,10 +273,16 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         self._table.delete(where)
         return keys
 
-    def replace_where(self, where: str, data: Casebase[K, str]) -> list[K]:
+    def replace_where(
+        self,
+        where: str,
+        data: Casebase[K, str],
+        *,
+        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+    ) -> list[K]:
         """Replace rows matching a native LanceDB predicate with *data*."""
         if self._table is None:
-            self.put_index(data)
+            self.put_index(data, metadata=metadata)
             return []
 
         keys = self.keys_where(where)
@@ -275,7 +292,7 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
                 self._table.delete(where)
             return keys
 
-        rows = self._build_rows(data)
+        rows = self._build_rows(data, metadata)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
