@@ -19,14 +19,6 @@ Example:
 """
 
 from ..helpers import optional_dependencies
-from ._common import (
-    PG_METRICS,
-    _PgMetric,
-    _compute_index_diff,
-    _normalize_patch_keys,
-    _sql_in_clause,
-    _sql_literal,
-)
 
 with optional_dependencies():
     from .lancedb import lancedb
@@ -38,23 +30,19 @@ with optional_dependencies():
     from .zvec import zvec
 
 with optional_dependencies():
-    from .postgresql import (
-        IndexableMixin,
-        postgresql,
-        postgresql_async,
-    )
+    from .sqlalchemy import sqlalchemy, sqlalchemy_async
+
+with optional_dependencies():
+    from .pgvector import PGVECTOR, TSVECTOR, pgvector, pgvector_async
 
 __all__ = [
-    "IndexableMixin",
+    "PGVECTOR",
+    "TSVECTOR",
     "chromadb",
     "lancedb",
-    "postgresql",
-    "postgresql_async",
+    "pgvector",
+    "pgvector_async",
+    "sqlalchemy",
+    "sqlalchemy_async",
     "zvec",
-    "_compute_index_diff",
-    "_normalize_patch_keys",
-    "_sql_literal",
-    "_sql_in_clause",
-    "_PgMetric",
-    "PG_METRICS",
 ]

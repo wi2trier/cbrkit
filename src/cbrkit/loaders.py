@@ -376,12 +376,31 @@ with optional_dependencies():
 
     @dataclass(slots=True)
     class sqlalchemy(Mapping[int, dict[str, Any]]):
-        """A wrapper around a SQLAlchemy result to provide a dict-like interface.
+        """Read-only adapter that runs **any SQL query** into a Casebase.
+
+        This is the query-based sibling of the other read loaders (:class:`csv`,
+        :class:`json`, ...): it executes an arbitrary ``SELECT`` — joins, views,
+        aggregates, computed columns — and materializes the result eagerly into a
+        ``Mapping`` keyed by **positional integer** (``0, 1, 2, ...``).  The
+        source needs no primary key and no declared schema.
+
+        For a *persistent, writable* store keyed by a primary-key column (with
+        upserts, deletes, and filtering), use
+        :class:`cbrkit.indexable.sqlalchemy` instead; that backend reads/writes a
+        single managed table, whereas this loader is a one-shot read of any query.
+
+        ``query`` accepts either a raw SQL string (combined with ``params``) or a
+        SQLAlchemy Core construct such as :func:`sqlalchemy.select`, which gives
+        composable, type-checked query building and ergonomic ``WHERE`` clauses.
 
         Args:
-            url: Database connection URL (e.g., "sqlite:///data.db" or "postgresql://user:pass@host/db").
-            query: SQL query string to load data from.
-            params: Optional parameters to pass to the SQL query.
+            url: Database connection URL (e.g., ``"sqlite:///data.db"`` or
+                ``"postgresql://user:pass@host/db"``).
+            query: A raw SQL string or a SQLAlchemy Core
+                :class:`~sqlalchemy.sql.expression.Executable` (e.g. the result of
+                :func:`sqlalchemy.select`).
+            params: Bind parameters for a raw-string ``query`` (ignored when the
+                query is a Core construct that already carries its parameters).
 
         Examples:
             >>> import tempfile, os
@@ -395,19 +414,27 @@ with optional_dependencies():
             >>> cb = sqlalchemy(f"sqlite:///{db_path}", "SELECT * FROM cases")
             >>> len(cb)
             2
+            >>> # Structured, type-checked query construction:
+            >>> meta = sa.MetaData()
+            >>> cases = sa.Table("cases", meta, autoload_with=sa.create_engine(f"sqlite:///{db_path}"))
+            >>> cb = sqlalchemy(f"sqlite:///{db_path}", sa.select(cases).where(cases.c.id == 1))
+            >>> cb[0]["name"]
+            'a'
         """
 
         url: str | sa.URL
-        query: str
+        query: str | sa.Executable
         params: Mapping[str, Any] = field(default_factory=dict)
         _data: dict[int, dict[str, Any]] = field(default_factory=dict, init=False)
 
         def __post_init__(self) -> None:
             engine = sa.create_engine(self.url)
+            stmt: sa.Executable = (
+                sa.text(self.query) if isinstance(self.query, str) else self.query
+            )
 
             with engine.connect() as conn:
-                stmt = sa.text(self.query)
-                result = conn.execute(stmt, self.params)
+                result = conn.execute(stmt, self.params or None)
                 rows = result.mappings().all()
 
             engine.dispose()

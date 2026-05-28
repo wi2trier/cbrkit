@@ -1,6 +1,6 @@
 """LanceDB retriever wrapper."""
 
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, override
 
@@ -11,13 +11,11 @@ from ...indexable import lancedb as lancedb_storage
 from ...typing import (
     BatchConversionFunc,
     Casebase,
-    IndexableFunc,
     NumpyArray,
     RetrieverFunc,
     SimMap,
 )
 from ._common import (
-    _StorageIndexMixin,
     _brute_force_dense_search,
     _normalize_results,
 )
@@ -25,16 +23,17 @@ from ._common import (
 
 @dataclass(slots=True)
 class lancedb[K: int | str](
-    _StorageIndexMixin[K, lancedb_storage[K]],
     RetrieverFunc[K, str, float],
-    IndexableFunc[Casebase[K, str], Collection[K]],
 ):
     """Retriever wrapper for a LanceDB storage backend.
 
     Delegates storage to a :class:`~cbrkit.indexable.lancedb` instance
     and performs search queries against it.  Multiple retriever
     instances can share the same storage to query with different
-    search types.
+    search types.  The retriever is a pure query path: index
+    maintenance lives on the storage that owns the index (call
+    ``storage.put_index(...)`` etc., or pass the storage to
+    :func:`cbrkit.retain.indexable`).
 
     Args:
         storage: LanceDB storage instance.

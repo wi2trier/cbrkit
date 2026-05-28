@@ -1,6 +1,6 @@
 """zvec retriever wrapper."""
 
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
@@ -12,14 +12,12 @@ from ...indexable import zvec as zvec_storage
 from ...typing import (
     BatchConversionFunc,
     Casebase,
-    IndexableFunc,
     NumpyArray,
     RetrieverFunc,
     SimMap,
     SparseVector,
 )
 from ._common import (
-    _StorageIndexMixin,
     _brute_force_dense_search,
     _normalize_results,
 )
@@ -27,16 +25,17 @@ from ._common import (
 
 @dataclass(slots=True)
 class zvec[K: str](
-    _StorageIndexMixin[K, zvec_storage[K]],
     RetrieverFunc[K, str, float],
-    IndexableFunc[Casebase[K, str], Collection[K]],
 ):
     """Retriever wrapper for a zvec storage backend.
 
     Delegates storage to a :class:`~cbrkit.indexable.zvec` instance
     and performs search queries against it.  Multiple retriever
     instances can share the same storage to query with different
-    search types.
+    search types.  The retriever is a pure query path: index
+    maintenance lives on the storage that owns the index (call
+    ``storage.put_index(...)`` etc., or pass the storage to
+    :func:`cbrkit.retain.indexable`).
 
     Uses zvec's built-in `RrfReRanker` for hybrid search.
 

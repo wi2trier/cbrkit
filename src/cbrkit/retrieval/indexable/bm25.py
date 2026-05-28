@@ -8,7 +8,7 @@ import bm25s
 import numpy as np
 
 from ...helpers import dispatch_batches, normalize
-from ...indexable import _normalize_patch_keys
+from ...indexable._common import _normalize_patch_keys
 from ...sim.embed import bm25 as bm25_embed
 from ...typing import Casebase, IndexableFunc, RetrieverFunc, SimMap
 from ._common import resolve_casebases

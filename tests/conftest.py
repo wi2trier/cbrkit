@@ -7,8 +7,8 @@ import polars as pl
 import pytest
 
 import cbrkit
-from cbrkit.indexable import _normalize_patch_keys
-from cbrkit.retrieval.indexable import resolve_casebases
+from cbrkit.indexable._common import _normalize_patch_keys
+from cbrkit.retrieval.indexable._common import resolve_casebases
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:

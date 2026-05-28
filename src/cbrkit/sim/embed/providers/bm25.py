@@ -8,7 +8,7 @@ import bm25s
 import Stemmer  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]
 from bm25s.tokenization import Tokenized
 
-from ....indexable import _normalize_patch_keys
+from ....indexable._common import _normalize_patch_keys
 from ....typing import BatchConversionFunc, IndexableFunc, SparseVector
 
 

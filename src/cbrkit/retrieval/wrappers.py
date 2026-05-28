@@ -13,7 +13,7 @@ from ..helpers import (
     sim_map2ranking,
     unpack_float,
 )
-from ..indexable import _normalize_patch_keys
+from ..indexable._common import _normalize_patch_keys
 from ..loaders import path as _load_path
 from ..sim.aggregator import default_aggregator
 from ..typing import (
@@ -27,7 +27,7 @@ from ..typing import (
     SimMap,
     StructuredValue,
 )
-from .indexable import resolve_casebases
+from .indexable._common import resolve_casebases
 
 logger = get_logger(__name__)
 

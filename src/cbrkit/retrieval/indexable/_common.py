@@ -1,16 +1,13 @@
 """Shared helpers and mixins for indexable retrievers."""
 
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
 
 from ...helpers import batchify_sim
 from ...sim.embed import default_score_func
 from ...typing import (
-    AsyncIndexableFunc,
     BatchConversionFunc,
     Casebase,
-    IndexableFunc,
     NumpyArray,
     SimMap,
 )
@@ -103,72 +100,6 @@ def _brute_force_dense_search[K](
     return results
 
 
-class _StorageIndexMixin[K, S: IndexableFunc[Casebase[Any, str], Collection[Any]]]:
-    """Delegate index maintenance to a `storage` attribute.
-
-    Subclasses must declare a `storage` field of the bound type *S*.
-    """
-
-    __slots__ = ()
-
-    storage: S  # pyright: ignore[reportUninitializedInstanceVariable]
-
-    @property
-    def index(self) -> Casebase[K, str]:
-        return cast(Casebase[K, str], self.storage.index)
-
-    def has_index(self) -> bool:
-        return self.storage.has_index()
-
-    def put_index(self, data: Casebase[K, str]) -> None:
-        self.storage.put_index(data)
-
-    def upsert_index(self, data: Casebase[K, str]) -> None:
-        self.storage.upsert_index(data)
-
-    def delete_index(self, data: Collection[K]) -> None:
-        self.storage.delete_index(data)
-
-    def patch_index(
-        self,
-        upsert: Casebase[K, str] | None = None,
-        delete: Collection[K] | None = None,
-    ) -> None:
-        self.storage.patch_index(upsert=upsert, delete=delete)
-
-
-class _AsyncStorageIndexMixin[
-    K, S: AsyncIndexableFunc[Casebase[Any, str], Collection[Any]]
-]:
-    """Async mirror of :class:`_StorageIndexMixin`."""
-
-    __slots__ = ()
-
-    storage: S  # pyright: ignore[reportUninitializedInstanceVariable]
-
-    async def get_index(self) -> Casebase[K, str]:
-        return cast(Casebase[K, str], await self.storage.get_index())
-
-    async def has_index(self) -> bool:
-        return await self.storage.has_index()
-
-    async def put_index(self, data: Casebase[K, str], /) -> None:
-        await self.storage.put_index(data)
-
-    async def upsert_index(self, data: Casebase[K, str], /) -> None:
-        await self.storage.upsert_index(data)
-
-    async def delete_index(self, keys: Collection[K], /) -> None:
-        await self.storage.delete_index(keys)
-
-    async def patch_index(
-        self,
-        upsert: Casebase[K, str] | None = None,
-        delete: Collection[K] | None = None,
-    ) -> None:
-        await self.storage.patch_index(upsert=upsert, delete=delete)
-
-
 @dataclass(slots=True, kw_only=True)
 class RrfMixin:
     """Reciprocal Rank Fusion parameters shared across hybrid retrievers.
@@ -210,8 +141,6 @@ __all__ = [
     "resolve_casebases",
     "_normalize_results",
     "_brute_force_dense_search",
-    "_StorageIndexMixin",
-    "_AsyncStorageIndexMixin",
     "RrfMixin",
     "reciprocal_rank_fusion",
 ]

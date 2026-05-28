@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import override
 
 from ...helpers import batchify_sim, dispatch_batches
-from ...indexable import _compute_index_diff, _normalize_patch_keys
+from ...indexable._common import _compute_index_diff, _normalize_patch_keys
 from ...sim.embed import cache, default_score_func
 from ...typing import (
     AnySimFunc,

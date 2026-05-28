@@ -1,6 +1,6 @@
 """ChromaDB retriever wrapper."""
 
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal, cast, override
 
@@ -9,23 +9,24 @@ from chromadb.api.types import SearchResult
 
 from ...helpers import dispatch_batches, dist2sim
 from ...indexable import chromadb as chromadb_storage
-from ...typing import Casebase, IndexableFunc, RetrieverFunc, SimMap
-from ._common import RrfMixin, _StorageIndexMixin, _normalize_results
+from ...typing import Casebase, RetrieverFunc, SimMap
+from ._common import RrfMixin, _normalize_results
 
 
 @dataclass(slots=True)
 class chromadb[K: str](
-    _StorageIndexMixin[K, chromadb_storage[K]],
     RrfMixin,
     RetrieverFunc[K, str, float],
-    IndexableFunc[Casebase[K, str], Collection[K]],
 ):
     """Retriever wrapper for a ChromaDB storage backend.
 
     Delegates storage to a :class:`~cbrkit.indexable.chromadb` instance
     and performs search queries against it.  Multiple retriever
     instances can share the same storage to query with different
-    search types.
+    search types.  The retriever is a pure query path: index
+    maintenance lives on the storage that owns the index (call
+    ``storage.put_index(...)`` etc., or pass the storage to
+    :func:`cbrkit.retain.indexable`).
 
     Uses ChromaDB's `Search` API with `Knn` for dense/sparse
     ranking and `Rrf` (Reciprocal Rank Fusion) for hybrid search.

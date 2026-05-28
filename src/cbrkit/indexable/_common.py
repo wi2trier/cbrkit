@@ -8,10 +8,10 @@ from ..helpers import dist2sim
 from ..typing import Casebase
 
 
-def _compute_index_diff[K](
-    existing: Casebase[K, str],
-    data: Casebase[K, str],
-) -> tuple[set[K], Casebase[K, str]]:
+def _compute_index_diff[K, V](
+    existing: Casebase[K, V],
+    data: Casebase[K, V],
+) -> tuple[set[K], Casebase[K, V]]:
     """Compute stale keys and changed/new entries for index updates.
 
     Args:
@@ -26,7 +26,7 @@ def _compute_index_diff[K](
     new_keys = set(data.keys())
     old_keys = set(existing.keys())
     stale_keys = old_keys - new_keys
-    changed_or_new: Casebase[K, str] = {
+    changed_or_new: Casebase[K, V] = {
         k: data[k] for k in new_keys if k not in existing or existing[k] != data[k]
     }
     return stale_keys, changed_or_new

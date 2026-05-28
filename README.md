@@ -128,11 +128,13 @@ df = pl.read_csv("path/to/cases.csv")
 casebase = cbrkit.loaders.polars(df)
 ```
 
-For database access, CBRkit provides `sqlite` and `sqlalchemy` loaders (the latter requires the `sql` extra):
+For ad-hoc SQLite loading, CBRkit ships a stdlib-based loader:
 
 ```python
 casebase = cbrkit.loaders.sqlite("path/to/database.db", "SELECT * FROM cases")
 ```
+
+For richer relational backends (filters, upserts, vector/FTS search via pgvector), see `cbrkit.indexable.sqlalchemy` and `cbrkit.indexable.pgvector`.
 
 **Tip:** You can validate a loaded casebase against a Pydantic model using `cbrkit.loaders.validate()`:
 
@@ -748,7 +750,8 @@ result = cbrkit.retrieval.apply_query(casebase, query, (retriever, reranker))
 Retrievers like `bm25`, `embed`, `lancedb`, `chromadb`, and `zvec` support **indexed retrieval**, where the casebase is pre-indexed once and then queried without passing the full casebase each time.
 This is useful for large casebases or when using external search backends.
 
-To use indexed retrieval, first create a retriever and call its `put_index()` method:
+Index maintenance lives on whichever object owns the index.
+The self-contained `bm25` and `embed` retrievers own their index directly, so you call `put_index()` on the retriever:
 
 ```python
 from frozendict import frozendict
@@ -756,6 +759,15 @@ from frozendict import frozendict
 bm25_func = cbrkit.sim.embed.bm25(language="en")
 retriever = cbrkit.retrieval.bm25(conversion_func=bm25_func)
 retriever.put_index(frozendict(casebase))
+```
+
+The storage-backed `lancedb`, `chromadb`, `zvec`, and `pgvector` retrievers are pure query paths over a separate `cbrkit.indexable` storage that owns the index.
+There you maintain the index on the storage and wrap it with a retriever only for querying:
+
+```python
+storage = cbrkit.indexable.lancedb(uri="./cases", table_name="cases")
+storage.put_index(frozendict(casebase))
+retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="dense")
 ```
 
 Then pass an empty casebase (`{}`) to signal that the retriever should use its pre-indexed data:

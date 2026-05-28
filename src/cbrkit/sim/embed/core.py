@@ -11,7 +11,7 @@ from typing import override
 import numpy as np
 
 from ...helpers import batchify_conversion, batchify_sim
-from ...indexable import _normalize_patch_keys
+from ...indexable._common import _normalize_patch_keys
 from ...typing import (
     AnyConversionFunc,
     AnySimFunc,
