@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from timeit import default_timer
 from typing import cast
 
@@ -9,9 +9,64 @@ from ..helpers import (
     produce_sequence,
 )
 from ..model import QueryResultStep, Result, ResultStep
-from ..typing import Float, InternalFunc, MaybeFactories, RetrieverFunc
+from ..typing import (
+    AsyncRetrieverFunc,
+    Float,
+    InternalFunc,
+    MaybeFactories,
+    RetrieverFunc,
+    SimMap,
+)
 
 logger = get_logger(__name__)
+
+
+def _build_step[Q, C, V, S: Float](
+    retriever_func: object,
+    current_batches: Mapping[Q, tuple[Mapping[C, V], V]],
+    resolved_values: list[tuple[Mapping[C, V], V]],
+    queries_results: Sequence[tuple[Mapping[C, V], SimMap[C, S]]],
+    start_time: float,
+    end_time: float,
+) -> tuple[
+    dict[Q, QueryResultStep[C, V, S]],
+    dict[Q, tuple[Mapping[C, V], V]],
+    ResultStep[Q, C, V, S] | None,
+]:
+    """Assemble per-query step records and the chained next-batch mapping.
+
+    Returns the step record only when the retriever is not internal;
+    ``apply_batches[_async]`` skip step accumulation in that case.
+    """
+    step_queries: dict[Q, QueryResultStep[C, V, S]] = {}
+
+    for (query_key, _), (_, query), (result_casebase, similarities) in zip(
+        current_batches.items(), resolved_values, queries_results, strict=True
+    ):
+        filtered_casebase = {k: result_casebase[k] for k in similarities}
+        step_queries[query_key] = QueryResultStep(
+            similarities=similarities,
+            casebase=filtered_casebase,
+            query=query,
+            duration=0.0,
+        )
+
+    next_batches = {
+        query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
+        for query_key in current_batches
+    }
+
+    step = (
+        None
+        if isinstance(retriever_func, InternalFunc)
+        else ResultStep(
+            queries=step_queries,
+            metadata=get_metadata(retriever_func),
+            duration=end_time - start_time,
+        )
+    )
+
+    return step_queries, next_batches, step
 
 
 def apply_batches[Q, C, V, S: Float](
@@ -44,32 +99,16 @@ def apply_batches[Q, C, V, S: Float](
         queries_results = retriever_func(resolved_values)
         end_time = default_timer()
 
-        step_queries: dict[Q, QueryResultStep[C, V, S]] = {}
-
-        for (query_key, _), (_, query), (result_casebase, similarities) in zip(
-            current_batches.items(), resolved_values, queries_results, strict=True
-        ):
-            filtered_casebase = {k: result_casebase[k] for k in similarities}
-            step_queries[query_key] = QueryResultStep(
-                similarities=similarities,
-                casebase=filtered_casebase,
-                query=query,
-                duration=0.0,
-            )
-
-        current_batches = {
-            query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
-            for query_key in current_batches
-        }
-
-        if not isinstance(retriever_func, InternalFunc):
-            steps.append(
-                ResultStep(
-                    queries=step_queries,
-                    metadata=get_metadata(retriever_func),
-                    duration=end_time - start_time,
-                )
-            )
+        _, current_batches, step = _build_step(
+            retriever_func,
+            current_batches,
+            resolved_values,
+            queries_results,
+            start_time,
+            end_time,
+        )
+        if step is not None:
+            steps.append(step)
 
     logger.info("Finished processing all retrievers")
 
@@ -159,6 +198,96 @@ def apply_query_indexed[K, V, S: Float](
 ) -> Result[str, K, V, S]:
     """Applies a single query using pre-indexed retrievers."""
     return apply_queries_indexed(
+        {"default": query},
+        retrievers,
+    )
+
+
+async def apply_batches_async[Q, C, V, S: Float](
+    batches: Mapping[Q, tuple[Mapping[C, V], V]],
+    retrievers: MaybeFactories[AsyncRetrieverFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
+    """Async sibling of :func:`apply_batches`.
+
+    Identical control flow but awaits each retriever's ``__call__``.
+    """
+    retriever_factories = produce_sequence(retrievers)
+    assert len(retriever_factories) > 0
+    steps: list[ResultStep[Q, C, V, S]] = []
+    current_batches: Mapping[Q, tuple[Mapping[C, V], V]] = batches
+
+    loop_start_time = default_timer()
+
+    for i, retriever_factory in enumerate(retriever_factories, start=1):
+        retriever_func = produce_factory(retriever_factory)
+        logger.info(f"Processing retriever {i}/{len(retriever_factories)}")
+
+        resolved_values = list(current_batches.values())
+
+        start_time = default_timer()
+        queries_results = await retriever_func(resolved_values)
+        end_time = default_timer()
+
+        _, current_batches, step = _build_step(
+            retriever_func,
+            current_batches,
+            resolved_values,
+            queries_results,
+            start_time,
+            end_time,
+        )
+        if step is not None:
+            steps.append(step)
+
+    logger.info("Finished processing all retrievers")
+
+    return Result(steps=steps, duration=default_timer() - loop_start_time)
+
+
+async def apply_queries_async[Q, C, V, S: Float](
+    casebase: Mapping[C, V],
+    queries: Mapping[Q, V],
+    retrievers: MaybeFactories[AsyncRetrieverFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
+    """Async sibling of :func:`apply_queries`."""
+    return await apply_batches_async(
+        {query_key: (casebase, query) for query_key, query in queries.items()},
+        retrievers,
+    )
+
+
+async def apply_query_async[K, V, S: Float](
+    casebase: Mapping[K, V],
+    query: V,
+    retrievers: MaybeFactories[AsyncRetrieverFunc[K, V, S]],
+) -> Result[str, K, V, S]:
+    """Async sibling of :func:`apply_query`."""
+    return await apply_queries_async(
+        casebase,
+        {"default": query},
+        retrievers,
+    )
+
+
+async def apply_queries_indexed_async[Q, C, V, S: Float](
+    queries: Mapping[Q, V],
+    retrievers: MaybeFactories[AsyncRetrieverFunc[C, V, S]],
+) -> Result[Q, C, V, S]:
+    """Async sibling of :func:`apply_queries_indexed`."""
+    empty_casebase = cast(Mapping[C, V], {})
+
+    return await apply_batches_async(
+        {query_key: (empty_casebase, query) for query_key, query in queries.items()},
+        retrievers,
+    )
+
+
+async def apply_query_indexed_async[K, V, S: Float](
+    query: V,
+    retrievers: MaybeFactories[AsyncRetrieverFunc[K, V, S]],
+) -> Result[str, K, V, S]:
+    """Async sibling of :func:`apply_query_indexed`."""
+    return await apply_queries_indexed_async(
         {"default": query},
         retrievers,
     )

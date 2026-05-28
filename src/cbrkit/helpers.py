@@ -97,6 +97,7 @@ __all__ = [
     "round_int",
     "round_nearest",
     "run_coroutine",
+    "run_threaded",
     "scale",
     "sim_map2ranking",
     "sim_seq2ranking",
@@ -130,6 +131,15 @@ def run_coroutine[T](coro: Coroutine[Any, Any, T]) -> T:
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         return cast(T, executor.submit(asyncio.run, coro).result())
+
+
+async def run_threaded[T](fn: Callable[..., T], /, *args: Any, **kwargs: Any) -> T:
+    """Run a blocking sync function in the default thread pool.
+
+    Centralizes the sync-from-async bridge so callers do not have to
+    reach for :func:`asyncio.to_thread` directly.
+    """
+    return await asyncio.to_thread(fn, *args, **kwargs)
 
 
 @contextmanager
@@ -682,6 +692,8 @@ def round_int(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest
             return math.ceil(value)
         case "nearest":
             return round_nearest(value)
+        case _:
+            raise ValueError(f"Invalid rounding mode: {mode!r}")
 
 
 def scale(value: float, lower: float, upper: float) -> float:
@@ -852,7 +864,7 @@ class mp_logging_wrapper[V]:
 
     func: Callable[..., V]
     logger: logging.Logger | None
-    star: bool
+    star: bool = False
 
     def __call__(self, batch: Any, i: int, total: int) -> V:
         log_batch(self.logger, i, total)

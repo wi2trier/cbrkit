@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
+
+from .filter import Filter
 
 __all__ = [
     "AdaptationFunc",
@@ -29,9 +31,13 @@ __all__ = [
     "EvalMetricFunc",
     "Factory",
     "FilePath",
+    "Filter",
     "Float",
     "HasMetadata",
     "IndexableFunc",
+    "FilterableIndexableFunc",
+    "AsyncIndexableFunc",
+    "AsyncFilterableIndexableFunc",
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
@@ -48,6 +54,7 @@ __all__ = [
     "ComplexAdaptationFunc",
     "RetainerFunc",
     "RetrieverFunc",
+    "AsyncRetrieverFunc",
     "ReuserFunc",
     "ReviserFunc",
     "SimFunc",
@@ -133,6 +140,79 @@ class IndexableFunc[T, K = T](Protocol):
         delete: K | None = None,
     ) -> None:
         """Apply insertions, replacements, and deletions as one logical mutation."""
+        ...
+
+
+class FilterableIndexableFunc[T, K = T](IndexableFunc[T, K], Protocol):
+    """:class:`IndexableFunc` extended with WHERE-style mutators.
+
+    Backends implementing this protocol accept a backend-agnostic
+    :class:`cbrkit.filter.Filter` AST for predicate-based
+    key lookup, deletion, and replacement.
+    """
+
+    def keys_where(self, where: Filter, /) -> Collection[Any]:
+        """Return keys matching the given filter predicate."""
+        ...
+
+    def delete_where(self, where: Filter, /) -> Collection[Any]:
+        """Delete rows matching the filter, returning the affected keys."""
+        ...
+
+    def replace_where(self, where: Filter, data: T, /) -> Collection[Any]:
+        """Atomically replace the subset matched by *where* with *data*."""
+        ...
+
+
+class AsyncIndexableFunc[T, K = T](Protocol):
+    """Async mirror of :class:`IndexableFunc`.
+
+    ``get_index`` replaces the sync ``index`` property because Python
+    does not support async properties.
+    """
+
+    async def get_index(self) -> T:
+        """Return the current index data."""
+        ...
+
+    async def has_index(self) -> bool:
+        """Return whether an index has been created."""
+        ...
+
+    async def put_index(self, data: T, /) -> None:
+        """Replace the full index with the given data."""
+        ...
+
+    async def upsert_index(self, data: T, /) -> None:
+        """Insert or replace entries in the index."""
+        ...
+
+    async def delete_index(self, keys: K, /) -> None:
+        """Remove entries from the index by key."""
+        ...
+
+    async def patch_index(
+        self,
+        upsert: T | None = None,
+        delete: K | None = None,
+    ) -> None:
+        """Apply insertions, replacements, and deletions as one logical mutation."""
+        ...
+
+
+class AsyncFilterableIndexableFunc[T, K = T](AsyncIndexableFunc[T, K], Protocol):
+    """:class:`AsyncIndexableFunc` extended with WHERE-style mutators."""
+
+    async def keys_where(self, where: Filter, /) -> Collection[Any]:
+        """Return keys matching the given filter predicate."""
+        ...
+
+    async def delete_where(self, where: Filter, /) -> Collection[Any]:
+        """Delete rows matching the filter, returning the affected keys."""
+        ...
+
+    async def replace_where(self, where: Filter, data: T, /) -> Collection[Any]:
+        """Atomically replace the subset matched by *where* with *data*."""
         ...
 
 
@@ -260,6 +340,16 @@ class RetrieverFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retrieves similar cases from casebases for given queries."""
 
     ...
+
+
+class AsyncRetrieverFunc[K, V, S: Float = float](Protocol):
+    """Async mirror of :class:`RetrieverFunc`."""
+
+    async def __call__(
+        self,
+        batches: Sequence[tuple[Mapping[K, V], V]],
+    ) -> Sequence[tuple[Mapping[K, V], "SimMap[K, S]"]]:
+        ...
 
 
 class AdaptationFunc[V](Protocol):

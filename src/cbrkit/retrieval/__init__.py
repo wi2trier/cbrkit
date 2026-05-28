@@ -32,7 +32,7 @@ Indexable Retrieval:
 - `bm25`: BM25 sparse text retrieval (requires `bm25` extra).
 - `chromadb`: ChromaDB vector store retrieval (requires `chromadb` extra).
 - `lancedb`: LanceDB vector store retrieval (requires `lancedb` extra).
-- `pgvector`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
+- `postgresql` / `postgresql_async`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
 - `zvec`: Zvec vector store retrieval (requires `zvec` extra).
 
 Re-ranking:
@@ -52,10 +52,15 @@ from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import (
     apply_batches,
+    apply_batches_async,
     apply_queries,
+    apply_queries_async,
     apply_queries_indexed,
+    apply_queries_indexed_async,
     apply_query,
+    apply_query_async,
     apply_query_indexed,
+    apply_query_indexed_async,
 )
 from .build import build
 from .indexable import embed
@@ -83,7 +88,7 @@ with optional_dependencies():
     from .indexable import lancedb
 
 with optional_dependencies():
-    from .indexable import pgvector
+    from .indexable import postgresql, postgresql_async
 
 with optional_dependencies():
     from .indexable import zvec
@@ -97,10 +102,15 @@ __all__ = [
     "combine",
     "chunk",
     "apply_batches",
+    "apply_batches_async",
     "apply_queries",
+    "apply_queries_async",
     "apply_queries_indexed",
+    "apply_queries_indexed_async",
     "apply_query",
+    "apply_query_async",
     "apply_query_indexed",
+    "apply_query_indexed_async",
     "Result",
     "ResultStep",
     "QueryResultStep",
@@ -112,6 +122,7 @@ __all__ = [
     "embed",
     "lancedb",
     "persist",
-    "pgvector",
+    "postgresql",
+    "postgresql_async",
     "zvec",
 ]
