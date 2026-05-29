@@ -322,6 +322,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         if self.table is not None:
             self._table = self.table
             self.manage_schema = False
+            self._adopt_primary_key()
             self._table_ready = True
             self._schema_ready = True
             return
@@ -359,17 +360,21 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             )
 
         self._table = await conn.run_sync(_reflect)
-        self._adopt_reflected_key()
+        self._adopt_primary_key()
         self._table_ready = True
 
-    def _adopt_reflected_key(self) -> None:
-        """Infer key column/type from the primary key when not already declared."""
+    def _adopt_primary_key(self) -> None:
+        """Infer key column/type from the primary key when not already declared.
+
+        Applies to both reflected tables and host-supplied tables/models whose
+        primary key is not named like the configured :attr:`key_column`.
+        """
         if self.key_column in self._table.c:
             return
         pk_cols = list(self._table.primary_key.columns)
         if len(pk_cols) != 1:
             raise ValueError(
-                f"Cannot infer key column for reflected table {self.table_name!r}: "
+                f"Cannot infer key column for table {self._table.name!r}: "
                 f"expected a single-column primary key, found {len(pk_cols)}. "
                 "Pass key_column= explicitly."
             )
@@ -486,7 +491,12 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
 
     async def has_index(self) -> bool:
         async with self._engine.connect() as conn:
-            return await conn.run_sync(self._has_table)
+            if not await conn.run_sync(self._has_table):
+                return False
+            # Resolve _table (reflect=True) so callers that follow a positive
+            # has_index() with sa_table access don't hit an unset attribute.
+            await self._ensure_table(conn)
+            return True
 
     async def get_index(self) -> Casebase[K, V]:
         async with self._engine.connect() as conn:
@@ -559,6 +569,8 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
 
     async def keys_where(self, where: Filter, /) -> Collection[K]:
         async with self._engine.connect() as conn:
+            if not await conn.run_sync(self._has_table):
+                return []
             await self._ensure_table(conn)
             return await self._keys_where(conn, where)
 

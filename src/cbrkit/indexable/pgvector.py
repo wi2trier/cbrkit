@@ -158,6 +158,7 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
         if (
             self.manage_schema
             and self.table is None
+            and not self.reflect
             and self.has_dense
             and self.pgvector_dim is None
         ):
