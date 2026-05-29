@@ -176,7 +176,9 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
             assert self.pgvector_dim is not None
             _, col_type = _PG_VECTOR_TYPES[self.vector_type]
             cols.append(
-                sa.Column(self.pgvector_column, col_type(self.pgvector_dim), nullable=False)
+                sa.Column(
+                    self.pgvector_column, col_type(self.pgvector_dim), nullable=False
+                )
             )
         if self.has_sparse:
             assert self.value_column is not None

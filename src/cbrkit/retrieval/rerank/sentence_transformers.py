@@ -54,9 +54,7 @@ class sentence_transformers[K](
 
         sim_maps = dispatch_batches(
             batches,
-            lambda queries, casebase: self.__call_queries__(
-                queries, casebase, model
-            ),
+            lambda queries, casebase: self.__call_queries__(queries, casebase, model),
         )
 
         return [

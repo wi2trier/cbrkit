@@ -354,7 +354,11 @@ class AsyncVectorStorageRetriever[K, St: _AsyncVectorStorage](
 
     def _effective_search_type(self) -> SearchType:
         """Explicit *search_type*, else the storage's ``index_type``."""
-        return self.search_type if self.search_type is not None else self.storage.index_type
+        return (
+            self.search_type
+            if self.search_type is not None
+            else self.storage.index_type
+        )
 
     async def _dispatch(
         self,

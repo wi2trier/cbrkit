@@ -361,8 +361,7 @@ class AsyncRetrieverFunc[K, V, S: Float = float](Protocol):
     async def __call__(
         self,
         batches: Sequence[tuple[Mapping[K, V], V]],
-    ) -> Sequence[tuple[Mapping[K, V], "SimMap[K, S]"]]:
-        ...
+    ) -> Sequence[tuple[Mapping[K, V], "SimMap[K, S]"]]: ...
 
 
 class AdaptationFunc[V](Protocol):

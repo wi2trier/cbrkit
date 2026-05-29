@@ -31,9 +31,7 @@ class sentence_transformers(BatchConversionFunc[str, NumpyArray], HasMetadata):
         model: str | SentenceTransformer,
         batch_size: int = 32,
         show_progress_bar: bool | None = None,
-        precision: Literal[
-            "float32", "int8", "uint8", "binary", "ubinary"
-        ] = "float32",
+        precision: Literal["float32", "int8", "uint8", "binary", "ubinary"] = "float32",
         truncate_dim: int | None = None,
         normalize_embeddings: bool = False,
     ):

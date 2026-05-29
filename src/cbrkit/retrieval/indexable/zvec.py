@@ -61,9 +61,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
         normalize_scores: Apply per-query min-max normalization.
     """
 
-    sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = (
-        None
-    )
+    sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
     filter: str | None = None
 
     # -- search helpers ----------------------------------------------------

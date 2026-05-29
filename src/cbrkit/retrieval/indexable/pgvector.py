@@ -187,9 +187,7 @@ class pgvector_async[K: int | str](
                 ).all()
                 sparse_rows = (
                     await conn.execute(
-                        _build_sparse_stmt(
-                            self.storage, query, self.where, candidate_n
-                        )
+                        _build_sparse_stmt(self.storage, query, self.where, candidate_n)
                     )
                 ).all()
 

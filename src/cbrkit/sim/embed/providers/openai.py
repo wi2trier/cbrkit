@@ -32,9 +32,7 @@ class openai(BatchConversionFunc[str, NumpyArray]):
     def __call__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
         return run_coroutine(self.__call_batches__(batches))
 
-    async def __call_batches__(
-        self, batches: Sequence[str]
-    ) -> Sequence[NumpyArray]:
+    async def __call_batches__(self, batches: Sequence[str]) -> Sequence[NumpyArray]:
         chunk_results = await asyncio.gather(
             *(
                 self.__call_chunk__(chunk)

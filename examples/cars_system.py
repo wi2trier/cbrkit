@@ -80,7 +80,9 @@ def mcp_retrieve(
 
 @mcp.resource("casebase://{key}")
 def mcp_case(key: int) -> CarModel:
-    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[key]
+    return cast(
+        Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase)
+    )[key]
 
 
 mcp_app = mcp.http_app("/")
@@ -106,4 +108,6 @@ def api_casebase() -> Mapping[int, CarModel]:
 
 @api_app.get("/casebase/{key}")
 def api_case(key: int) -> CarModel:
-    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[key]
+    return cast(
+        Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase)
+    )[key]

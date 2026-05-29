@@ -40,9 +40,7 @@ def load_spacy(name: str | None, cache_dir: Path = CACHE_DIR) -> Language:
 
         def __call__(self, block_num: int, block_size: int, total_size: int):
             if self.task is None:
-                self.task = self.progress.add_task(
-                    self.description, total=total_size
-                )
+                self.task = self.progress.add_task(self.description, total=total_size)
 
             downloaded = block_num * block_size
 
@@ -52,9 +50,7 @@ def load_spacy(name: str | None, cache_dir: Path = CACHE_DIR) -> Language:
             if self.progress.finished:
                 self.task = None
 
-    def tarfile_members(
-        tf: tarfile.TarFile, prefix: str
-    ) -> Iterator[tarfile.TarInfo]:
+    def tarfile_members(tf: tarfile.TarFile, prefix: str) -> Iterator[tarfile.TarInfo]:
         """Yield tar members with the given prefix stripped from their paths."""
         prefix_len = len(prefix)
 
@@ -114,9 +110,7 @@ class spacy(BatchConversionFunc[str, NumpyArray], HasMetadata):
     def metadata(self) -> JsonDict:
         """Return metadata describing the spaCy model."""
         return {
-            "model": self.model.meta
-            if isinstance(self.model, Language)
-            else "custom"
+            "model": self.model.meta if isinstance(self.model, Language) else "custom"
         }
 
     @override

@@ -63,6 +63,7 @@ from ..typing import (
 )
 from ._common import RowCodec, _compute_index_diff, _normalize_patch_keys
 
+
 def compile_filter(table: sa.Table, f: Filter) -> sa.ColumnElement[bool]:
     """Compile a backend-agnostic :class:`Filter` to a SQLAlchemy expression."""
     if isinstance(f, Eq):
@@ -705,9 +706,7 @@ class sqlalchemy[K: int | str, V = Mapping[str, Any]](
     def delete_where(self, where: Filter, /) -> Collection[K]:
         return run_coroutine(self._async.delete_where(where))
 
-    def replace_where(
-        self, where: Filter, data: Casebase[K, V], /
-    ) -> Collection[K]:
+    def replace_where(self, where: Filter, data: Casebase[K, V], /) -> Collection[K]:
         return run_coroutine(self._async.replace_where(where, data))
 
     def close(self) -> None:

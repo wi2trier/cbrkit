@@ -210,9 +210,7 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
                 )
             )
 
-        return zv.CollectionSchema(
-            self.collection_name, fields=fields, vectors=vectors
-        )
+        return zv.CollectionSchema(self.collection_name, fields=fields, vectors=vectors)
 
     def _build_docs(self, casebase: Casebase[K, V]) -> list[zv.Doc]:
         """Build zvec Doc objects from a casebase."""
@@ -238,9 +236,7 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
             doc_vectors: dict[str, Any] = {}
 
             if dense_vecs is not None:
-                doc_vectors[self.dense_vector_name] = np.asarray(
-                    dense_vecs[i]
-                ).tolist()
+                doc_vectors[self.dense_vector_name] = np.asarray(dense_vecs[i]).tolist()
 
             if sparse_vecs is not None:
                 doc_vectors[self.sparse_vector_name] = sparse_vecs[i]

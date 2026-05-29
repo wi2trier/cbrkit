@@ -106,7 +106,9 @@ def _build_sparse_stmt(
     assert storage.value_column is not None
     main = storage.sa_table
     fts = storage.fts_table
-    score = sa.func.bm25(sa.literal_column(f'"{storage.fts_table_name}"')).label("score")
+    score = sa.func.bm25(sa.literal_column(f'"{storage.fts_table_name}"')).label(
+        "score"
+    )
     stmt = (
         sa.select(
             main.c[storage.key_column],
@@ -165,7 +167,11 @@ class sqlite_vec_async[K: int | str](
         """
         if self.limit is None:
             return await self._vec_count(conn)
-        return self.limit * self.hybrid_oversample if self.where is not None else self.limit
+        return (
+            self.limit * self.hybrid_oversample
+            if self.where is not None
+            else self.limit
+        )
 
     @override
     async def _search_db_dense(
@@ -224,15 +230,17 @@ class sqlite_vec_async[K: int | str](
                 dense_rows = (
                     await conn.execute(
                         _build_dense_stmt(
-                            self.storage, _serialize(qvec), self.where, candidate_n, None
+                            self.storage,
+                            _serialize(qvec),
+                            self.where,
+                            candidate_n,
+                            None,
                         )
                     )
                 ).all()
                 sparse_rows = (
                     await conn.execute(
-                        _build_sparse_stmt(
-                            self.storage, query, self.where, candidate_n
-                        )
+                        _build_sparse_stmt(self.storage, query, self.where, candidate_n)
                     )
                 ).all()
 

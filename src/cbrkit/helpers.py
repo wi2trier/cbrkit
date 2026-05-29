@@ -727,7 +727,9 @@ def round_nearest(value: float) -> int:
     return math.floor(value + 0.5)
 
 
-def round_int(value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest") -> int:
+def round_int(
+    value: float, mode: Literal["floor", "ceil", "nearest"] = "nearest"
+) -> int:
     """Round a float to an integer using the specified rounding mode."""
     match mode:
         case "floor":
@@ -943,7 +945,9 @@ def mp_map[U, V](
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
-    return _mp_dispatch(mp_logging_wrapper(func, logger, star=False), batches, pool_or_processes)
+    return _mp_dispatch(
+        mp_logging_wrapper(func, logger, star=False), batches, pool_or_processes
+    )
 
 
 def mp_starmap[*Us, V](
@@ -956,7 +960,9 @@ def mp_starmap[*Us, V](
     if logger is None or not logger.isEnabledFor(BATCH_LOGGING_LEVEL):
         logger = None
 
-    return _mp_dispatch(mp_logging_wrapper(func, logger, star=True), batches, pool_or_processes)
+    return _mp_dispatch(
+        mp_logging_wrapper(func, logger, star=True), batches, pool_or_processes
+    )
 
 
 def get_hash(file: Path | bytes | BytesIO) -> str:

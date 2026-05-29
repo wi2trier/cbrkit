@@ -132,11 +132,7 @@ class chromadb[K: str](StorageRetriever[K, chromadb_storage[K, Any]]):
     ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
         assert self.storage._collection is not None
 
-        n = (
-            self.limit
-            if self.limit is not None
-            else self.storage._collection.count()
-        )
+        n = self.limit if self.limit is not None else self.storage._collection.count()
 
         if n == 0:
             return [({}, {}) for _ in queries]

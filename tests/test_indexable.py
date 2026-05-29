@@ -58,7 +58,10 @@ def test_sqlite_vec_dense_sparse_hybrid(tmp_path: Path) -> None:
 
     # hybrid + filter: restrict to fruit-ish rows via a LIKE WHERE clause
     hybrid = cbrkit.retrieval.indexable.sqlite_vec(
-        storage, search_type="hybrid", limit=5, where=Like(column="text", pattern="%fruit%")
+        storage,
+        search_type="hybrid",
+        limit=5,
+        where=Like(column="text", pattern="%fruit%"),
     )
     _, sm = hybrid([({}, "red car")])[0]
     assert set(sm) == {"c"}
@@ -89,17 +92,23 @@ def test_lancedb_patch_and_predicate_helpers(tmp_path: Path) -> None:
         index_type="sparse",
         model=Doc,
     )
-    initial = {k: _doc(k, v) for k, v in {
-        "doc-a::0": "alpha",
-        "doc-a::1": "beta",
-        "quote's::0": "gamma",
-    }.items()}
+    initial = {
+        k: _doc(k, v)
+        for k, v in {
+            "doc-a::0": "alpha",
+            "doc-a::1": "beta",
+            "quote's::0": "gamma",
+        }.items()
+    }
     storage.put_index(initial)
 
-    upsert = {k: _doc(k, v) for k, v in {
-        "doc-a::0": "alpha updated",
-        "doc-b::0": "delta",
-    }.items()}
+    upsert = {
+        k: _doc(k, v)
+        for k, v in {
+            "doc-a::0": "alpha updated",
+            "doc-b::0": "delta",
+        }.items()
+    }
     storage.patch_index(upsert=upsert, delete=["quote's::0"])
 
     assert storage.index == {

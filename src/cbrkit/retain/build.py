@@ -50,9 +50,7 @@ class build[K, V, S: Float](RetainerFunc[K, V, S]):
         batches: Sequence[tuple[Casebase[K, V], V]],
         /,
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        storage_func = cast(
-            MapAdaptationFunc[K, V], produce_factory(self.storage_func)
-        )
+        storage_func = cast(MapAdaptationFunc[K, V], produce_factory(self.storage_func))
 
         # Step 1: Store (transformation)
         updated_batches: list[tuple[Casebase[K, V], V]] = []
