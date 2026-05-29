@@ -65,33 +65,38 @@ def test_lancedb_patch_and_predicate_helpers(tmp_path: Path) -> None:
     """Exercise patch_index, native predicate helpers, and key escaping."""
     pytest.importorskip("lancedb")
 
-    def _source(keys: list[str]) -> dict[str, dict[str, str]]:
-        return {k: {"source": k.split("::", maxsplit=1)[0]} for k in keys}
+    @dataclasses.dataclass
+    class Doc:
+        value: str
+        source: str
 
-    storage = cbrkit.indexable.lancedb[str](
+    def _doc(key: str, value: str) -> Doc:
+        return Doc(value=value, source=key.split("::", maxsplit=1)[0])
+
+    storage = cbrkit.indexable.lancedb[str, Doc](
         uri=str(tmp_path),
         table_name="cases",
         index_type="sparse",
+        model=Doc,
     )
-    initial = {
+    initial = {k: _doc(k, v) for k, v in {
         "doc-a::0": "alpha",
         "doc-a::1": "beta",
         "quote's::0": "gamma",
-    }
-    storage.put_index(initial, metadata=_source(list(initial)))
+    }.items()}
+    storage.put_index(initial)
 
-    upsert = {"doc-a::0": "alpha updated", "doc-b::0": "delta"}
-    storage.patch_index(
-        upsert=upsert,
-        delete=["quote's::0"],
-        metadata=_source(list(upsert)),
-    )
+    upsert = {k: _doc(k, v) for k, v in {
+        "doc-a::0": "alpha updated",
+        "doc-b::0": "delta",
+    }.items()}
+    storage.patch_index(upsert=upsert, delete=["quote's::0"])
 
     assert storage.index == {
-        "doc-a::0": "alpha updated",
-        "doc-a::1": "beta",
-        "doc-b::0": "delta",
+        "doc-a::0": Doc("alpha updated", "doc-a"),
+        "doc-a::1": Doc("beta", "doc-a"),
+        "doc-b::0": Doc("delta", "doc-b"),
     }
     assert set(storage.keys_where("source = 'doc-a'")) == {"doc-a::0", "doc-a::1"}
     assert set(storage.delete_where("source = 'doc-a'")) == {"doc-a::0", "doc-a::1"}
-    assert storage.index == {"doc-b::0": "delta"}
+    assert storage.index == {"doc-b::0": Doc("delta", "doc-b")}

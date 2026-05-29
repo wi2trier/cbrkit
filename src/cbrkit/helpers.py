@@ -6,6 +6,7 @@ import math
 import os
 import warnings
 from collections.abc import (
+    Awaitable,
     Callable,
     Collection,
     Generator,
@@ -66,6 +67,7 @@ __all__ = [
     "chunkify",
     "chunkify_overlap",
     "dispatch_batches",
+    "dispatch_batches_async",
     "dist2sim",
     "get_hash",
     "get_logger",
@@ -344,6 +346,31 @@ def dispatch_batches[K, V, R](
         return call_queries([query for _, query in batches], first_casebase)
 
     return [call_queries([query], casebase)[0] for casebase, query in batches]
+
+
+async def dispatch_batches_async[K, V, R](
+    batches: Sequence[tuple[Mapping[K, V], V]],
+    call_queries: Callable[[Sequence[V], Mapping[K, V]], Awaitable[Sequence[R]]],
+) -> Sequence[R]:
+    """Async mirror of :func:`dispatch_batches`.
+
+    When every batch entry shares the same casebase (by identity, or all
+    empty), forwards all queries in a single ``call_queries`` call so the
+    query-side work (e.g. embedding) batches; otherwise dispatches each
+    batch individually.
+    """
+    if not batches:
+        return []
+
+    first_casebase = batches[0][0]
+
+    if all(
+        casebase is first_casebase or (not casebase and not first_casebase)
+        for casebase, _ in batches
+    ):
+        return await call_queries([query for _, query in batches], first_casebase)
+
+    return [(await call_queries([query], casebase))[0] for casebase, query in batches]
 
 
 def dist2sim(distance: float) -> float:

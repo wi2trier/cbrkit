@@ -26,6 +26,26 @@ from ...typing import (
 from .metrics import default_score_func
 
 
+def embed_pairs[V, E](
+    conversion_func: BatchConversionFunc[V, E],
+    query_conversion_func: BatchConversionFunc[V, E] | None,
+    case_texts: Sequence[V],
+    query_texts: Sequence[V],
+) -> tuple[Sequence[E], Sequence[E]]:
+    """Embed case and query texts, returning their vector sequences.
+
+    When *query_conversion_func* is ``None`` both sides share
+    *conversion_func* and are embedded in a single batched call, then
+    split apart — saving one round-trip over embedding them separately.
+    """
+    if query_conversion_func is not None:
+        return conversion_func(case_texts), query_conversion_func(query_texts)
+
+    all_vecs = conversion_func([*case_texts, *query_texts])
+    split = len(case_texts)
+    return all_vecs[:split], all_vecs[split:]
+
+
 @dataclass(slots=True, init=False)
 class build[V, E, S: Float](BatchSimFunc[V, S]):
     """Embedding-based semantic similarity.
@@ -63,16 +83,9 @@ class build[V, E, S: Float](BatchSimFunc[V, S]):
             return []
 
         case_texts, query_texts = zip(*batches, strict=True)
-
-        if self.query_conversion_func:
-            case_vecs = self.conversion_func(case_texts)
-            query_vecs = self.query_conversion_func(query_texts)
-        else:
-            # Batch all texts together when using the same conversion function
-            all_texts = list(case_texts) + list(query_texts)
-            all_vecs = self.conversion_func(all_texts)
-            case_vecs = all_vecs[: len(case_texts)]
-            query_vecs = all_vecs[len(case_texts) :]
+        case_vecs, query_vecs = embed_pairs(
+            self.conversion_func, self.query_conversion_func, case_texts, query_texts
+        )
 
         return self.sim_func(list(zip(case_vecs, query_vecs, strict=True)))
 
@@ -311,4 +324,4 @@ class concat[V](BatchConversionFunc[V, NumpyArray]):
         return [np.concatenate(vecs, axis=0) for vecs in zip(*nested_vecs)]
 
 
-__all__ = ["build", "cache", "concat"]
+__all__ = ["build", "cache", "concat", "embed_pairs"]

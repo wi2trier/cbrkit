@@ -6,7 +6,7 @@ from typing import override
 
 from ...helpers import batchify_sim, dispatch_batches
 from ...indexable._common import _compute_index_diff, _normalize_patch_keys
-from ...sim.embed import cache, default_score_func
+from ...sim.embed import cache, default_score_func, embed_pairs
 from ...typing import (
     AnySimFunc,
     BatchSimFunc,
@@ -224,18 +224,12 @@ class embed[K, S: Float](
         queries: Sequence[str],
         casebase: Casebase[K, str],
     ) -> Sequence[dict[K, S]]:
-        case_texts = list(casebase.values())
-        query_texts = list(queries)
-
-        if self.query_conversion_func:
-            case_vecs = self.conversion_func(case_texts)
-            query_vecs = self.query_conversion_func(query_texts)
-        else:
-            all_texts = case_texts + query_texts
-            all_vecs = self.conversion_func(all_texts)
-            case_vecs = all_vecs[: len(case_texts)]
-            query_vecs = all_vecs[len(case_texts) :]
-
+        case_vecs, query_vecs = embed_pairs(
+            self.conversion_func,
+            self.query_conversion_func,
+            list(casebase.values()),
+            list(queries),
+        )
         case_keys = list(casebase.keys())
 
         return [

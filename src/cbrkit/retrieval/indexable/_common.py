@@ -1,15 +1,31 @@
 """Shared helpers and mixins for indexable retrievers."""
 
+import asyncio
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Literal, Protocol, cast, override
 
-from ...helpers import batchify_sim
-from ...sim.embed import default_score_func
+from ...helpers import batchify_sim, dispatch_batches, dispatch_batches_async
+from ...sim.embed import default_score_func, embed_pairs
 from ...typing import (
+    AsyncRetrieverFunc,
     BatchConversionFunc,
     Casebase,
     NumpyArray,
+    RetrieverFunc,
     SimMap,
+)
+
+type SearchType = Literal["dense", "sparse", "hybrid"]
+
+_EMPTY_CASEBASE_MSG = (
+    "Indexed retrieval was requested with an empty casebase, "
+    "but no index is available. Call put_index() first."
+)
+_NO_BRUTE_MSG = (
+    "Brute-force search is not supported for search_type={search_type!r}. "
+    "Call put_index() first."
 )
 
 
@@ -78,11 +94,10 @@ def _brute_force_dense_search[K](
 ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
     """Shared brute-force dense vector search for non-indexed casebases."""
     keys = list(casebase.keys())
-    values = list(casebase.values())
 
-    case_vecs = conversion_func(values)
-    embed_func = query_conversion_func or conversion_func
-    query_vecs = embed_func(list(queries))
+    case_vecs, query_vecs = embed_pairs(
+        conversion_func, query_conversion_func, list(casebase.values()), list(queries)
+    )
 
     sim_func = batchify_sim(default_score_func)
 
@@ -106,6 +121,14 @@ class RrfMixin:
 
     Keyword-only so subclass dataclasses can keep positional fields
     without conflicting with the defaults declared here.
+
+    This is the slotted *root* of both storage-retriever base trees
+    (``StorageRetriever`` and ``AsyncVectorStorageRetriever`` extend it),
+    so it stays in a single linear MRO rather than being a slotted sibling
+    — two slotted sibling bases cannot share a C-level instance layout.
+    The parameters only affect backends that fuse rankings via RRF
+    (``rrf_k`` for zvec; ``rrf_k`` + ``rrf_weights`` for chromadb and
+    pgvector) and are inert for backends with a native hybrid reranker.
     """
 
     rrf_k: int = 60
@@ -137,10 +160,241 @@ def reciprocal_rank_fusion[K, V](
     return scores, values
 
 
+class _IndexedStorage(Protocol):
+    """Minimal storage surface the dispatch skeleton relies on."""
+
+    def has_index(self) -> bool: ...
+
+
+class _VectorStorage(_IndexedStorage, Protocol):
+    """Indexed storage that can also embed text for brute-force search."""
+
+    conversion_func: BatchConversionFunc[str, NumpyArray] | None
+
+
+class _AsyncIndexedStorage(Protocol):
+    async def has_index(self) -> bool: ...
+
+
+class _AsyncVectorStorage(_AsyncIndexedStorage, Protocol):
+    conversion_func: BatchConversionFunc[str, NumpyArray] | None
+    index_type: SearchType
+
+
+@dataclass(slots=True)
+class StorageRetriever[K, St: _IndexedStorage](
+    RrfMixin, RetrieverFunc[K, str, float], ABC
+):
+    """Sync dispatch skeleton for storage-backed retrievers.
+
+    Owns the parts every storage retriever shares: empty-casebase routing
+    to the index, the brute-force fallback for non-indexed casebases, and
+    shared-casebase batching via :func:`dispatch_batches`.
+
+    Subclasses must implement:
+
+    * :meth:`_search_db` — query the persisted index for *queries*.
+    * :meth:`_search_brute` — rank an in-memory *casebase* with no index.
+
+    Most vector backends should extend :class:`VectorStorageRetriever`
+    instead, which implements both in terms of three search-type leaves.
+    """
+
+    storage: St
+    limit: int | None = None
+    normalize_scores: bool = True
+
+    @override
+    def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, str], str]],
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        if not batches:
+            return []
+        return dispatch_batches(batches, self._dispatch)
+
+    def _dispatch(
+        self,
+        queries: Sequence[str],
+        casebase: Casebase[K, str],
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        if len(casebase) == 0:
+            if not self.storage.has_index():
+                raise ValueError(_EMPTY_CASEBASE_MSG)
+            return self._search_db(queries)
+        return self._search_brute(queries, casebase)
+
+    @abstractmethod
+    def _search_db(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        """Query the persisted index for *queries*."""
+        ...
+
+    @abstractmethod
+    def _search_brute(
+        self, queries: Sequence[str], casebase: Casebase[K, str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        """Rank an in-memory *casebase* with no index available."""
+        ...
+
+
+@dataclass(slots=True)
+class VectorStorageRetriever[K, St: _VectorStorage](StorageRetriever[K, St], ABC):
+    """Dispatch skeleton for vector backends with dense/sparse/hybrid search.
+
+    Implements :meth:`_search_db` (search-type dispatch + normalization) and
+    :meth:`_search_brute` (dense brute-force over an in-memory casebase) in
+    terms of three leaves subclasses provide:
+
+    * :meth:`_search_db_dense`, :meth:`_search_db_sparse`,
+      :meth:`_search_db_hybrid`.
+
+    Override :meth:`_effective_search_type` when the active search type is
+    resolved dynamically rather than taken verbatim from *search_type*.
+    """
+
+    search_type: SearchType = "dense"
+    query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+
+    def _effective_search_type(self) -> SearchType:
+        """The search type to run (verbatim by default)."""
+        return self.search_type
+
+    def _search_db(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        match self._effective_search_type():
+            case "dense":
+                results = self._search_db_dense(queries)
+            case "sparse":
+                results = self._search_db_sparse(queries)
+            case "hybrid":
+                results = self._search_db_hybrid(queries)
+        return _normalize_results(results, self.normalize_scores)
+
+    def _search_brute(
+        self, queries: Sequence[str], casebase: Casebase[K, str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        search_type = self._effective_search_type()
+        if search_type != "dense":
+            raise NotImplementedError(_NO_BRUTE_MSG.format(search_type=search_type))
+        assert self.storage.conversion_func is not None
+        return _brute_force_dense_search(
+            queries,
+            casebase,
+            self.storage.conversion_func,
+            self.query_conversion_func,
+        )
+
+    @abstractmethod
+    def _search_db_dense(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+    @abstractmethod
+    def _search_db_sparse(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+    @abstractmethod
+    def _search_db_hybrid(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+
+@dataclass(slots=True)
+class AsyncVectorStorageRetriever[K, St: _AsyncVectorStorage](
+    RrfMixin, AsyncRetrieverFunc[K, str, float], ABC
+):
+    """Async mirror of :class:`VectorStorageRetriever`.
+
+    Same skeleton and leaves, but ``async`` throughout and batched via
+    :func:`dispatch_batches_async`.  *search_type* may be ``None`` to defer
+    to the storage's ``index_type`` (see :meth:`_effective_search_type`).
+    """
+
+    storage: St
+    search_type: SearchType | None = None
+    query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+    limit: int | None = None
+    normalize_scores: bool = True
+
+    async def __call__(
+        self,
+        batches: Sequence[tuple[Casebase[K, str], str]],
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        if not batches:
+            return []
+        return list(await dispatch_batches_async(batches, self._dispatch))
+
+    def _effective_search_type(self) -> SearchType:
+        """Explicit *search_type*, else the storage's ``index_type``."""
+        return self.search_type if self.search_type is not None else self.storage.index_type
+
+    async def _dispatch(
+        self,
+        queries: Sequence[str],
+        casebase: Casebase[K, str],
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        if len(casebase) == 0:
+            if not await self.storage.has_index():
+                raise ValueError(_EMPTY_CASEBASE_MSG)
+            return await self._search_db(queries)
+        return await self._search_brute(queries, casebase)
+
+    async def _search_db(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        match self._effective_search_type():
+            case "dense":
+                results = await self._search_db_dense(queries)
+            case "sparse":
+                results = await self._search_db_sparse(queries)
+            case "hybrid":
+                results = await self._search_db_hybrid(queries)
+        return _normalize_results(results, self.normalize_scores)
+
+    async def _search_brute(
+        self, queries: Sequence[str], casebase: Casebase[K, str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
+        search_type = self._effective_search_type()
+        if search_type != "dense":
+            raise NotImplementedError(_NO_BRUTE_MSG.format(search_type=search_type))
+        assert self.storage.conversion_func is not None
+        results = await asyncio.to_thread(
+            _brute_force_dense_search,
+            queries,
+            casebase,
+            self.storage.conversion_func,
+            self.query_conversion_func,
+        )
+        return cast("Sequence[tuple[Casebase[K, str], SimMap[K, float]]]", results)
+
+    @abstractmethod
+    async def _search_db_dense(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+    @abstractmethod
+    async def _search_db_sparse(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+    @abstractmethod
+    async def _search_db_hybrid(
+        self, queries: Sequence[str]
+    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
+
+
 __all__ = [
     "resolve_casebases",
     "_normalize_results",
     "_brute_force_dense_search",
     "RrfMixin",
     "reciprocal_rank_fusion",
+    "SearchType",
+    "StorageRetriever",
+    "VectorStorageRetriever",
+    "AsyncVectorStorageRetriever",
 ]

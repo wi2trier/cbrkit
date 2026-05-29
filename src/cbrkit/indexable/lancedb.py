@@ -1,6 +1,6 @@
 """LanceDB storage backend."""
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
@@ -9,13 +9,13 @@ import numpy as np
 
 from ..helpers import get_logger
 from ..typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray
-from ._common import _normalize_patch_keys, _sql_in_clause
+from ._common import RowCodec, _normalize_patch_keys, _sql_in_clause, make_codec
 
 logger = get_logger(__name__)
 
 
 @dataclass(slots=True)
-class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
+class lancedb[K: int | str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     """LanceDB storage backend.
 
     Manages an embedded LanceDB database on disk.  Supports dense
@@ -42,13 +42,16 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         conversion_func: Embedding function.  Required for
             `"dense"` and `"hybrid"` index types.
         key_column: Column name for case keys.
-        value_column: Column name for case text values.
+        value_column: Column holding the embeddable text.  With the
+            default ``V = str`` the casebase value *is* this column;
+            with a *model* it names the model field to embed.
         vector_column: Column name for dense embedding vectors.
-
-    The write methods accept a per-call ``metadata`` keyword argument
-    — a ``{key: extras}`` mapping — when callers need to populate
-    extra columns whose values cannot be derived from ``(key, value)``
-    alone.
+        model: A dataclass or pydantic :class:`~pydantic.BaseModel`
+            describing rows richer than plain text.  When set, ``V`` is
+            the model type: every field becomes a stored column,
+            ``value_column`` names the embeddable field, and reads
+            reconstruct model instances.  This replaces any side-channel
+            metadata — extra columns ride on the typed value itself.
     """
 
     uri: str
@@ -58,6 +61,7 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     key_column: str = "key"
     value_column: str = "value"
     vector_column: str = "vector"
+    model: type[V] | None = None
     _db: ldb.DBConnection = field(init=False, repr=False)
     _table: ldb.Table | None = field(default=None, init=False, repr=False)
 
@@ -72,6 +76,10 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         if self.table_name in self._db.list_tables().tables:
             self._table = self._db.open_table(self.table_name)
 
+    @property
+    def _codec(self) -> RowCodec[V]:
+        return make_codec(self.model, self.value_column, key_column=self.key_column)
+
     @override
     def has_index(self) -> bool:
         """Return whether a table exists in the database."""
@@ -84,35 +92,20 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
         return self._table.count_rows()
 
-    def _build_rows(
-        self,
-        casebase: Casebase[K, str],
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> list[dict[str, Any]]:
+    def _build_rows(self, casebase: Casebase[K, V]) -> list[dict[str, Any]]:
         """Build row dicts for LanceDB from a casebase."""
+        codec = self._codec
         keys = list(casebase.keys())
-        values = list(casebase.values())
+        rows = [codec.encode(value) for value in casebase.values()]
 
-        if self.index_type == "sparse":
-            rows = [
-                {self.key_column: key, self.value_column: value}
-                for key, value in zip(keys, values, strict=True)
-            ]
-        else:
+        if self.index_type != "sparse":
             assert self.conversion_func is not None
-            vecs = self.conversion_func(values)
-            rows = [
-                {
-                    self.key_column: key,
-                    self.value_column: value,
-                    self.vector_column: np.asarray(vec).tolist(),
-                }
-                for key, value, vec in zip(keys, values, vecs, strict=True)
-            ]
+            texts = [row[self.value_column] for row in rows]
+            for row, vec in zip(rows, self.conversion_func(texts), strict=True):
+                row[self.vector_column] = np.asarray(vec).tolist()
 
-        if metadata is not None:
-            for row, key in zip(rows, keys, strict=True):
-                row.update(metadata[key])
+        for row, key in zip(rows, keys, strict=True):
+            row[self.key_column] = key
 
         return rows
 
@@ -125,28 +118,28 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
     @property
     @override
-    def index(self) -> Casebase[K, str]:
+    def index(self) -> Casebase[K, V]:
         """Return the indexed casebase from the LanceDB table."""
         if self._table is None:
             return {}
+        codec = self._codec
+        needed = codec.columns
         table = self._table.to_arrow()
         keys = table.column(self.key_column).to_pylist()
-        values = table.column(self.value_column).to_pylist()
-        return dict(zip(keys, values, strict=True))
+        payloads = {c: table.column(c).to_pylist() for c in needed}
+        return {
+            key: codec.decode({c: payloads[c][i] for c in needed})
+            for i, key in enumerate(keys)
+        }
 
     @override
-    def put_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> None:
+    def put_index(self, data: Casebase[K, V]) -> None:
         """Replace the LanceDB table contents with *data*."""
         if self._table is None:
             if not data:
                 return
 
-            rows = self._build_rows(data, metadata)
+            rows = self._build_rows(data)
             self._table = self._db.create_table(
                 self.table_name,
                 rows,
@@ -159,7 +152,7 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
             self._table.delete("true")
             return
 
-        rows = self._build_rows(data, metadata)
+        rows = self._build_rows(data)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -169,24 +162,19 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
         )
 
     @override
-    def upsert_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> None:
+    def upsert_index(self, data: Casebase[K, V]) -> None:
         """Insert or replace rows in the LanceDB table.
 
         If no table exists yet, delegates to :meth:`put_index`.
         """
         if self._table is None:
-            self.put_index(data, metadata=metadata)
+            self.put_index(data)
             return
 
         if not data:
             return
 
-        rows = self._build_rows(data, metadata)
+        rows = self._build_rows(data)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -208,10 +196,8 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     @override
     def patch_index(
         self,
-        upsert: Casebase[K, str] | None = None,
+        upsert: Casebase[K, V] | None = None,
         delete: Collection[K] | None = None,
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         """Apply inserts, replacements, and deletes as one LanceDB mutation."""
         normalized = _normalize_patch_keys(upsert, delete)
@@ -223,14 +209,14 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
         if self._table is None:
             if upsert:
-                self.put_index(upsert, metadata=metadata)
+                self.put_index(upsert)
             return
 
         if not upsert:
             self.delete_index(delete_keys)
             return
 
-        rows = self._build_rows(upsert, metadata)
+        rows = self._build_rows(upsert)
         operation = (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()
@@ -276,13 +262,11 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
     def replace_where(
         self,
         where: str,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
+        data: Casebase[K, V],
     ) -> list[K]:
         """Replace rows matching a native LanceDB predicate with *data*."""
         if self._table is None:
-            self.put_index(data, metadata=metadata)
+            self.put_index(data)
             return []
 
         keys = self.keys_where(where)
@@ -292,7 +276,7 @@ class lancedb[K: int | str](IndexableFunc[Casebase[K, str], Collection[K]]):
                 self._table.delete(where)
             return keys
 
-        rows = self._build_rows(data, metadata)
+        rows = self._build_rows(data)
         (
             self._table.merge_insert(self.key_column)
             .when_matched_update_all()

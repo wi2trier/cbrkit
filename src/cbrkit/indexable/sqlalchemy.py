@@ -1,11 +1,13 @@
 """Dialect-agnostic SQLAlchemy storage backend (async-first, with sync facade).
 
-The storage is *tabular*: a user declares a column schema, and rows are
-exchanged with cbrkit as ``Mapping[str, Any]`` by default — or any custom
-type via ``row_factory`` / ``row_dump``.  Backends that need additional
-columns (e.g. pgvector ``Vector`` / ``TSVECTOR``) subclass this module's
-:class:`sqlalchemy_async` and declare them as *system columns* that are
-populated automatically on write and hidden from the row factory on read.
+The storage is *tabular*, and the value type ``V`` follows the schema
+source: pass a SQLAlchemy mapped *model* for typed rows (``V`` = the model,
+host-created table); a host *table* / ``reflect=True`` for ``Mapping``
+rows; or just a *value_column* to let cbrkit build a one-column table with
+``V = str``.  Backends that need additional columns (e.g. pgvector
+``Vector`` / ``TSVECTOR``) subclass this module's :class:`sqlalchemy_async`
+and declare them as *system columns* that are populated automatically on
+write and hidden on read.
 
 Two flavors live here:
 
@@ -36,7 +38,6 @@ with native upsert (e.g. PostgreSQL ``ON CONFLICT``) override
 
 from collections.abc import (
     AsyncIterator,
-    Callable,
     Collection,
     Iterable,
     Mapping,
@@ -60,14 +61,7 @@ from ..typing import (
     Casebase,
     FilterableIndexableFunc,
 )
-from ._common import _compute_index_diff, _normalize_patch_keys
-
-type RowFactory[V] = Callable[[Mapping[str, Any]], V]
-"""Map a SQL row's payload mapping to the user value type ``V``."""
-
-type RowDump[V] = Callable[[V], Mapping[str, Any]]
-"""Map a user value ``V`` back to a payload mapping for writing."""
-
+from ._common import RowCodec, _compute_index_diff, _normalize_patch_keys
 
 def compile_filter(table: sa.Table, f: Filter) -> sa.ColumnElement[bool]:
     """Compile a backend-agnostic :class:`Filter` to a SQLAlchemy expression."""
@@ -123,18 +117,17 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
 ):
     """Dialect-agnostic async tabular SQLAlchemy storage.
 
-    Implements :class:`cbrkit.typing.AsyncFilterableIndexableFunc` against
-    a user-declared column schema.  Rows are exchanged as
-    ``Mapping[str, Any]`` by default; custom value types (Pydantic models,
-    dataclasses, plain strings, ...) are supported via ``row_factory`` /
-    ``row_dump``.
+    Implements :class:`cbrkit.typing.AsyncFilterableIndexableFunc`.  The
+    value type follows the schema source: a SQLAlchemy mapped *model*
+    (typed rows), a host *table* / *reflect* (``Mapping`` rows), or just a
+    *value_column* (``V = str``, cbrkit builds a one-column table).
 
     Exactly one of *url* or *engine* must be supplied.  When the host
-    passes a *table*, cbrkit treats the schema as host-managed
-    (``manage_schema=False`` is implied — the table is used as-is, no DDL
-    is run).  When neither *table* nor *metadata* is passed, cbrkit builds
-    its own :class:`sa.MetaData` and creates the table lazily on the first
-    write call.
+    passes a *table* (or a *model*), cbrkit treats the schema as
+    host-managed (``manage_schema=False`` is implied — the table is used
+    as-is, no DDL is run).  Otherwise cbrkit builds its own
+    :class:`sa.MetaData` and creates the (single-column) table lazily on
+    the first write call.
 
     Args:
         url: SQLAlchemy async URL (e.g.
@@ -143,34 +136,42 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         engine: A pre-built :class:`AsyncEngine`.  Mutually exclusive with
             *url*.
         table: Pre-declared :class:`sa.Table`.  When set, cbrkit does not
-            touch DDL — writes only INSERT/UPDATE/DELETE rows.
+            touch DDL — writes only INSERT/UPDATE/DELETE rows.  Rows are
+            plain ``Mapping[str, Any]`` (``V = Mapping[str, Any]``).
+        model: A SQLAlchemy mapped class (declarative, with ``__table__`` —
+            optionally also a :class:`~sqlalchemy.orm.MappedAsDataclass` or
+            Pydantic/SQLModel).  When set, ``V`` is the model type, cbrkit
+            derives the *table* (``model.__table__``, host-created), and
+            reads/writes rows as model instances.  The round-trip is driven
+            off the resolved payload columns (key + system columns excluded):
+            Pydantic models via ``model_dump`` / ``model_validate``, every
+            other mapped class via ``getattr`` / its constructor.  Mutually
+            exclusive with *table* and *reflect*.
         metadata: :class:`sa.MetaData` to register the table on when cbrkit
             builds it.  Defaults to a fresh ``MetaData``.
-        table_name: Table name (ignored when *table* is given).
+        table_name: Table name (ignored when *table* / *model* is given).
         manage_schema: When ``True`` (default) and *table* is not given,
             create the table + indices on first write.
         reflect: When ``True``, load the column schema from an *existing*
             database table by reflection on first use (implies
-            ``manage_schema=False`` — cbrkit never issues DDL).  ``columns``
-            may then be left empty; the key column and type are inferred from
-            the reflected primary key when ``key_column`` is not present.
-            Mutually exclusive with a host-supplied *table*.
+            ``manage_schema=False`` — cbrkit never issues DDL).  The key
+            column and type are inferred from the reflected primary key when
+            ``key_column`` is not present.  Mutually exclusive with a
+            host-supplied *table*.
         key_column / key_type: Primary key column name and type
             (``"str"`` → ``Text``, ``"int"`` → ``BigInteger``).
-        columns: User payload schema, ``{column_name: sa.types.TypeEngine}``.
-            Read by ``row_factory`` and written by ``row_dump``.  Ignored when
-            *reflect* or *table* resolves the schema instead.
         indexes: B-tree indices to create over payload columns
             (each entry is a column name or a tuple of column names).
-        row_factory: Map a SQL row's payload to the user value type ``V``.
-            Default: ``dict`` (V = ``Mapping[str, Any]``).
-        row_dump: Map a user value ``V`` back to a payload mapping.
-            Default: ``dict``.
+        value_column: Names the single text column for the simplest schema:
+            with no *model* / *table* / *reflect*, cbrkit builds a one-column
+            table and ``V = str`` (the bare string is stored here and read
+            back directly, so the value type matches what the text retrievers
+            return).  Required in that case.
 
     Subclasses extend the schema with backend-specific *system columns*
     via :meth:`_system_columns` (vector, tsv, ...).  Those columns are
-    hidden from ``row_factory`` (via :meth:`_system_column_names`) and
-    populated on write by :meth:`_populate_system_columns`.
+    hidden from reads (via :meth:`_system_column_names`) and populated on
+    write by :meth:`_populate_system_columns`.
     """
 
     _PARAM_LIMIT: ClassVar[int] = 32_766
@@ -184,16 +185,15 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
     url: str | None = None
     engine: AsyncEngine | None = None
     table: sa.Table | None = None
+    model: type[V] | None = None
     metadata: sa.MetaData | None = None
     table_name: str = "cases"
     manage_schema: bool = True
     reflect: bool = False
     key_column: str = "key"
     key_type: Literal["int", "str"] = "str"
-    columns: Mapping[str, sa.types.TypeEngine[Any]] = field(default_factory=dict)
     indexes: Sequence[str | tuple[str, ...]] = ()
-    row_factory: RowFactory[V] = cast(RowFactory[V], dict)
-    row_dump: RowDump[V] = cast(RowDump[V], dict)
+    value_column: str | None = None
     _engine: AsyncEngine = field(init=False, repr=False)
     _owns_engine: bool = field(init=False, default=False, repr=False)
     _table: sa.Table = field(init=False, repr=False)
@@ -202,9 +202,54 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
     _schema_ready: bool = field(init=False, default=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._resolve_model()
         self._validate_init()
         self._init_engine()
         self._init_table()
+
+    def _resolve_model(self) -> None:
+        """Derive the table from a mapped *model* (dataclass or Pydantic).
+
+        Runs before :meth:`_validate_init` so the derived table satisfies
+        the host-managed-schema checks.  Row conversion is then handled by
+        :attr:`_codec`, driven off the resolved table's payload columns.
+        """
+        if self.model is None:
+            return
+        if self.table is not None:
+            raise ValueError("model and table are mutually exclusive")
+        if self.reflect:
+            raise ValueError("model and reflect are mutually exclusive")
+        table = getattr(self.model, "__table__", None)
+        if table is None:
+            raise ValueError(
+                f"model={self.model!r} must be a mapped ORM class with __table__"
+            )
+        self.table = cast(sa.Table, table)
+
+    @property
+    def _builds_own_schema(self) -> bool:
+        """Whether cbrkit creates the table itself (str-mode), vs. host-managed."""
+        return self.model is None and self.table is None and not self.reflect
+
+    @property
+    def _codec(self) -> RowCodec[V]:
+        """Value <-> payload converter, scoped to cbrkit-owned columns.
+
+        cbrkit-built schemas run in *str-mode* (``V = str``): the bare string
+        lives in the single :attr:`value_column` and reads return it directly,
+        mirroring the ``lancedb`` / ``zvec`` / ``chromadb`` default.  A *model*
+        yields typed rows (Pydantic via ``model_dump`` / ``model_validate``,
+        any other class — dataclass, SQLAlchemy mapped — via ``getattr`` /
+        constructor); a host-supplied *table* / *reflect* yields ``Mapping``
+        rows.  ``columns`` is the resolved payload column set (key + system
+        columns excluded), so the round-trip is symmetric.
+        """
+        return RowCodec(
+            model=self.model,
+            columns=tuple(self._payload_column_names()),
+            value_column=self.value_column if self._builds_own_schema else None,
+        )
 
     # -- subclass hooks ------------------------------------------------------
 
@@ -214,13 +259,18 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             raise ValueError("Exactly one of url or engine must be set")
         if self.reflect and self.table is not None:
             raise ValueError("reflect and table are mutually exclusive")
+        if self._builds_own_schema and self.value_column is None:
+            raise ValueError(
+                "value_column is required when cbrkit builds the schema "
+                "(pass a model, table, or reflect=True for richer rows)"
+            )
 
     def _system_columns(self) -> Sequence[sa.Column[Any]]:
         """Column defs for backend-managed columns (vector, tsv, ...). Empty by default."""
         return ()
 
     def _system_column_names(self) -> frozenset[str]:
-        """Names of system columns to hide from ``row_factory`` on read. Empty by default."""
+        """Names of system columns to hide on read. Empty by default."""
         return frozenset()
 
     def _create_system_indexes(self, sync_conn: sa.Connection) -> None:
@@ -287,10 +337,15 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             metadata=meta,
             key_column=self.key_column,
             key_type=self.key_type,
-            columns=self.columns,
+            columns=self._build_columns(),
             extra_columns=self._system_columns(),
         )
         self._table_ready = True
+
+    def _build_columns(self) -> Mapping[str, sa.types.TypeEngine[Any]]:
+        """Payload column spec for a cbrkit-built table (str-mode: one text column)."""
+        assert self.value_column is not None
+        return {self.value_column: sa.Text()}
 
     async def _ensure_table(self, conn: AsyncConnection) -> None:
         """Reflect the table from the database on first use (``reflect=True``)."""
@@ -378,9 +433,10 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         ]
 
     def _build_rows(self, data: Casebase[K, V]) -> list[dict[str, Any]]:
+        codec = self._codec
         rows: list[dict[str, Any]] = []
         for k, v in data.items():
-            payload = dict(self.row_dump(v))
+            payload = codec.encode(v)
             payload[self.key_column] = k
             rows.append(payload)
         self._populate_system_columns(rows)
@@ -403,12 +459,13 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         return sa.inspect(sync_conn).has_table(name, schema=schema)
 
     async def _read_all(self, conn: AsyncConnection) -> dict[K, V]:
+        codec = self._codec
         payload_names = self._payload_column_names()
         kc = self._table.c[self.key_column]
         payload_cols = [self._table.c[n] for n in payload_names]
         rows = (await conn.execute(sa.select(kc, *payload_cols))).all()
         return {
-            self.cast_key(row[0]): self.row_factory(
+            self.cast_key(row[0]): codec.decode(
                 dict(zip(payload_names, row[1:], strict=True))
             )
             for row in rows
@@ -536,6 +593,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         """Yield ``(key, row)`` pages of size *batch_size*."""
         async with self._engine.connect() as conn:
             await self._ensure_table(conn)
+            codec = self._codec
             payload_names = self._payload_column_names()
             kc = self._table.c[self.key_column]
             payload_cols = [self._table.c[n] for n in payload_names]
@@ -555,9 +613,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
                 yield [
                     (
                         self.cast_key(row[0]),
-                        self.row_factory(
-                            dict(zip(payload_names, row[1:], strict=True))
-                        ),
+                        codec.decode(dict(zip(payload_names, row[1:], strict=True))),
                     )
                     for row in rows
                 ]
@@ -596,14 +652,13 @@ class sqlalchemy[K: int | str, V = Mapping[str, Any]](
 
     url: str
     table_name: str = "cases"
+    model: type[V] | None = None
     manage_schema: bool = True
     reflect: bool = False
     key_column: str = "key"
     key_type: Literal["int", "str"] = "str"
-    columns: Mapping[str, sa.types.TypeEngine[Any]] = field(default_factory=dict)
     indexes: Sequence[str | tuple[str, ...]] = ()
-    row_factory: RowFactory[V] = cast(RowFactory[V], dict)
-    row_dump: RowDump[V] = cast(RowDump[V], dict)
+    value_column: str | None = None
     _engine: AsyncEngine = field(init=False, repr=False)
     _async: sqlalchemy_async[K, V] = field(init=False, repr=False)
 
@@ -614,15 +669,14 @@ class sqlalchemy[K: int | str, V = Mapping[str, Any]](
     def _build_async(self) -> sqlalchemy_async[K, V]:
         return sqlalchemy_async[K, V](
             engine=self._engine,
+            model=self.model,
             table_name=self.table_name,
             manage_schema=self.manage_schema,
             reflect=self.reflect,
             key_column=self.key_column,
             key_type=self.key_type,
-            columns=self.columns,
             indexes=self.indexes,
-            row_factory=self.row_factory,
-            row_dump=self.row_dump,
+            value_column=self.value_column,
         )
 
     @property
@@ -669,8 +723,6 @@ class sqlalchemy[K: int | str, V = Mapping[str, Any]](
 
 
 __all__ = [
-    "RowDump",
-    "RowFactory",
     "build_indexable_table",
     "compile_filter",
     "sqlalchemy",

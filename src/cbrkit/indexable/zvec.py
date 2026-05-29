@@ -2,7 +2,7 @@
 
 from collections.abc import Collection, Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 
 import numpy as np
 import zvec as zv  # pyright: ignore[reportMissingImports]  # type: ignore[unresolved-import]
@@ -15,31 +15,38 @@ from ..typing import (
     NumpyArray,
     SparseVector,
 )
-from ._common import _compute_index_diff, _normalize_patch_keys
+from ._common import (
+    RowCodec,
+    _compute_index_diff,
+    _normalize_patch_keys,
+    make_codec,
+)
 
 logger = get_logger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
-class _ZvecCasebaseView[K: str](Mapping[K, str]):
+class _ZvecCasebaseView[K: str, V](Mapping[K, V]):
     """Lazy mapping backed by a zvec collection.
 
     Keys are tracked in-memory; values are fetched on demand
-    via `Collection.fetch()`.
+    via `Collection.fetch()` and reconstructed via the storage codec.
     """
 
     _collection: zv.Collection
-    _value_field: str
+    _codec: RowCodec[V]
+    _payload_fields: tuple[str, ...]
     _keys: frozenset[K]
 
-    def __getitem__(self, key: K) -> str:
+    def __getitem__(self, key: K) -> V:
         if key not in self._keys:
             raise KeyError(key)
         result = self._collection.fetch(key)
         if key not in result:
             raise KeyError(key)
-        value = result[key].field(self._value_field)
-        return cast(str, value) if value else ""
+        doc = result[key]
+        payload = {f: doc.field(f) for f in self._payload_fields if doc.has_field(f)}
+        return self._codec.decode(payload)
 
     def __iter__(self) -> Iterator[K]:
         return iter(self._keys)
@@ -52,7 +59,7 @@ class _ZvecCasebaseView[K: str](Mapping[K, str]):
 
 
 @dataclass(slots=True)
-class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
+class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     """Zvec storage backend.
 
     Manages an embedded zvec collection on disk.  Supports dense
@@ -83,16 +90,18 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             `SparseVector` per document.  Required for
             `"sparse"` and `"hybrid"` index types.
         metric_type: Distance metric for dense vector search.
-        value_field: Field name for storing case text values.
+        value_field: Field holding the embeddable text.  With the default
+            ``V = str`` the casebase value *is* this field; with a *model*
+            it names the model field to embed.
         dense_vector_name: Name for the dense vector field.
         sparse_vector_name: Name for the sparse vector field.
-
-    The write methods accept a per-call ``metadata`` keyword argument
-    — a ``{key: extras}`` mapping — when callers need to attach extra
-    scalar fields that cannot be derived from ``(key, value)`` at
-    storage construction time.  All documents written in one batch
-    must share the same metadata-field names; subsequent batches must
-    also match those names so the schema stays consistent.
+        model: A dataclass or pydantic :class:`~pydantic.BaseModel`
+            describing documents richer than plain text.  When set, ``V`` is
+            the model type: every field becomes a stored scalar field,
+            ``value_field`` names the embeddable field, and reads
+            reconstruct model instances.  This replaces any side-channel
+            metadata — extra fields ride on the typed value itself, so the
+            schema is fixed by the model rather than inferred per batch.
     """
 
     path: str
@@ -104,11 +113,13 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
     value_field: str = "value"
     dense_vector_name: str = "dense"
     sparse_vector_name: str = "sparse"
+    model: type[V] | None = None
     _collection: zv.Collection | None = field(default=None, init=False, repr=False)
     _keys: set[K] | None = field(default=None, init=False, repr=False)
-    _metadata_field_names: frozenset[str] | None = field(
-        default=None, init=False, repr=False
-    )
+
+    @property
+    def _codec(self) -> RowCodec[V]:
+        return make_codec(self.model, self.value_field)
 
     def __post_init__(self) -> None:
         if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
@@ -162,26 +173,26 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             return zv.DataType.DOUBLE
         return zv.DataType.STRING
 
-    def _build_schema(
-        self,
-        data: Casebase[K, str],
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> zv.CollectionSchema:
-        """Build a CollectionSchema, inferring vector dimension from data."""
+    def _build_schema(self, data: Casebase[K, V]) -> zv.CollectionSchema:
+        """Build a CollectionSchema, inferring scalar fields and vector dim."""
         if not data and self.index_type in ("dense", "hybrid"):
             raise ValueError(
                 "Cannot build dense/hybrid schema without data to infer dimension."
             )
 
-        fields: list[zv.FieldSchema] = [
-            zv.FieldSchema(self.value_field, zv.DataType.STRING),
+        sample = self._codec.encode(next(iter(data.values()))) if data else {}
+        fields = [zv.FieldSchema(self.value_field, zv.DataType.STRING)]
+        fields += [
+            zv.FieldSchema(name, self._infer_field_type(value))
+            for name, value in sample.items()
+            if name != self.value_field
         ]
         vectors: list[zv.VectorSchema] = []
 
         if self.index_type in ("dense", "hybrid"):
             assert self.conversion_func is not None
-            sample = self.conversion_func([next(iter(data.values()))])
-            dimension = len(np.asarray(sample[0]))
+            text = sample[self.value_field]
+            dimension = len(np.asarray(self.conversion_func([text])[0]))
             vectors.append(
                 zv.VectorSchema(
                     self.dense_vector_name,
@@ -200,41 +211,32 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
                 )
             )
 
-        if metadata is not None and data:
-            sample_key = next(iter(data.keys()))
-            sample_meta = metadata[sample_key]
-            for fname, fval in sample_meta.items():
-                fields.append(zv.FieldSchema(fname, self._infer_field_type(fval)))
-
         return zv.CollectionSchema(
             self.collection_name, fields=fields, vectors=vectors
         )
 
-    def _build_docs(
-        self,
-        casebase: Casebase[K, str],
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> list[zv.Doc]:
+    def _build_docs(self, casebase: Casebase[K, V]) -> list[zv.Doc]:
         """Build zvec Doc objects from a casebase."""
+        codec = self._codec
         keys = list(casebase.keys())
-        values = list(casebase.values())
+        payloads = [codec.encode(v) for v in casebase.values()]
+        texts = [p[self.value_field] for p in payloads]
 
         dense_vecs = None
         sparse_vecs = None
 
         if self.index_type in ("dense", "hybrid"):
             assert self.conversion_func is not None
-            dense_vecs = self.conversion_func(values)
+            dense_vecs = self.conversion_func(texts)
 
         if self.index_type in ("sparse", "hybrid"):
             assert self.sparse_conversion_func is not None
-            sparse_vecs = self.sparse_conversion_func(values)
+            sparse_vecs = self.sparse_conversion_func(texts)
 
         docs: list[zv.Doc] = []
 
-        for i, (key, value) in enumerate(zip(keys, values, strict=True)):
+        for i, (key, doc_fields) in enumerate(zip(keys, payloads, strict=True)):
             doc_vectors: dict[str, Any] = {}
-            doc_fields: dict[str, Any] = {self.value_field: value}
 
             if dense_vecs is not None:
                 doc_vectors[self.dense_vector_name] = np.asarray(
@@ -244,38 +246,26 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             if sparse_vecs is not None:
                 doc_vectors[self.sparse_vector_name] = sparse_vecs[i]
 
-            if metadata is not None:
-                meta = metadata[key]
-                if self._metadata_field_names is None:
-                    self._metadata_field_names = frozenset(meta.keys())
-                elif set(meta.keys()) != self._metadata_field_names:
-                    raise ValueError(
-                        f"metadata for key={key!r} has fields {set(meta.keys())}, "
-                        f"expected {self._metadata_field_names}"
-                    )
-                doc_fields.update(meta)
-
             docs.append(zv.Doc(id=str(key), vectors=doc_vectors, fields=doc_fields))
 
         return docs
 
     @property
     @override
-    def index(self) -> Casebase[K, str]:
+    def index(self) -> Casebase[K, V]:
         """Return the indexed casebase."""
         if self._keys is None or self._collection is None:
             return {}
+        codec = self._codec
         return _ZvecCasebaseView(
-            self._collection, self.value_field, frozenset(self._keys)
+            self._collection,
+            codec,
+            codec.columns,
+            frozenset(self._keys),
         )
 
     @override
-    def put_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> None:
+    def put_index(self, data: Casebase[K, V]) -> None:
         """Replace the zvec collection contents with *data*.
 
         On first call the collection is created from scratch.  On
@@ -291,9 +281,9 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
                 self._keys = set()
                 return
 
-            schema = self._build_schema(data, metadata)
+            schema = self._build_schema(data)
             collection = zv.create_and_open(self.path, schema)
-            docs = self._build_docs(data, metadata)
+            docs = self._build_docs(data)
             collection.insert(docs)
 
             self._collection = collection
@@ -309,28 +299,22 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
         self.patch_index(
             upsert=changed_or_new or None,
             delete=stale_keys or None,
-            metadata=metadata,
         )
 
     @override
-    def upsert_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
-    ) -> None:
+    def upsert_index(self, data: Casebase[K, V]) -> None:
         """Upsert documents into the zvec collection.
 
         If no collection exists yet, delegates to :meth:`put_index`.
         """
         if self._collection is None:
-            self.put_index(data, metadata=metadata)
+            self.put_index(data)
             return
 
         if not data:
             return
 
-        docs = self._build_docs(data, metadata)
+        docs = self._build_docs(data)
         self._collection.upsert(docs)
 
         if self._keys is not None:
@@ -356,10 +340,8 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
     @override
     def patch_index(
         self,
-        upsert: Casebase[K, str] | None = None,
+        upsert: Casebase[K, V] | None = None,
         delete: Collection[K] | None = None,
-        *,
-        metadata: Mapping[K, Mapping[str, Any]] | None = None,
     ) -> None:
         """Apply inserts, replacements, and deletes to the zvec collection."""
         normalized = _normalize_patch_keys(upsert, delete)
@@ -373,7 +355,7 @@ class zvec[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             self.delete_index(delete_keys)
 
         if upsert:
-            self.upsert_index(upsert, metadata=metadata)
+            self.upsert_index(upsert)
 
 
 __all__ = ["zvec"]

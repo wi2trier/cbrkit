@@ -5,13 +5,12 @@ from dataclasses import dataclass, field
 from typing import cast, override
 
 import bm25s
-import numpy as np
 
-from ...helpers import dispatch_batches, normalize
+from ...helpers import dispatch_batches
 from ...indexable._common import _normalize_patch_keys
 from ...sim.embed import bm25 as bm25_embed
 from ...typing import Casebase, IndexableFunc, RetrieverFunc, SimMap
-from ._common import resolve_casebases
+from ._common import _normalize_results, resolve_casebases
 
 
 @dataclass(slots=True)
@@ -129,10 +128,12 @@ class bm25[K](
 
         sim_maps = dispatch_batches(resolved, call_queries)
 
-        return [
+        results = [
             (casebase, sim_map)
             for (casebase, _), sim_map in zip(resolved, sim_maps, strict=True)
         ]
+
+        return _normalize_results(results, self.normalize_scores)
 
     def __call_queries__(
         self,
@@ -161,30 +162,7 @@ class bm25[K](
             k=len(casebase),
         )
 
-        key_index = {idx: key for idx, key in enumerate(casebase)}
-
-        if self.normalize_scores:
-            normalized_scores: list[list[float]] = []
-
-            for query_scores in scores:
-                query_min = float(np.min(query_scores))
-                query_max = float(np.max(query_scores))
-                normalized_scores.append(
-                    [
-                        normalize(float(score), query_min, query_max)
-                        for score in query_scores
-                    ]
-                )
-
-            return [
-                {
-                    key_index[case_id]: score
-                    for case_id, score in zip(
-                        results[query_id], normalized_scores[query_id], strict=True
-                    )
-                }
-                for query_id in range(len(queries))
-            ]
+        key_index = dict(enumerate(casebase))
 
         return [
             {

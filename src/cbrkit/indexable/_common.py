@@ -1,11 +1,123 @@
 """Shared helpers and SQL utilities for indexable storage backends."""
 
-from collections.abc import Callable, Collection
-from dataclasses import dataclass
-from typing import Literal
+from collections.abc import Callable, Collection, Mapping
+from dataclasses import dataclass, fields, is_dataclass
+from typing import Any, Literal, cast
+
+from pydantic import BaseModel
 
 from ..helpers import dist2sim
-from ..typing import Casebase
+from ..typing import Casebase, DataclassOrModel
+
+
+def model_columns(model: DataclassOrModel) -> tuple[str, ...]:
+    """Return the declared field names of a dataclass or pydantic model."""
+    if is_dataclass(model):
+        return tuple(f.name for f in fields(model))
+    return tuple(cast(type[BaseModel], model).model_fields)
+
+
+def make_codec[V](
+    model: type[V] | None,
+    value_column: str,
+    *,
+    key_column: str | None = None,
+) -> "RowCodec[V]":
+    """Build a :class:`RowCodec` for a storage backend.
+
+    The casebase key is never part of the codec payload — this is the
+    single, uniform policy across backends.  How the key is kept out
+    depends on where the backend stores it:
+
+    * **column-oriented** backends (e.g. ``lancedb``) keep the key in a
+      dedicated *key_column* that shares the column namespace with the
+      model's fields, so it is excluded from the payload here.
+    * **record-oriented** backends (``chromadb``, ``zvec``) store the key
+      as the native record id, a separate namespace, and pass
+      ``key_column=None`` since no model column can collide with it.
+
+    Without a model the value is plain text stored under *value_column*.
+    The resulting ``codec.columns`` is the authoritative list of
+    cbrkit-owned columns, so backends read it directly instead of
+    recomputing it.
+    """
+    if model is None:
+        columns = (value_column,)
+    else:
+        names = model_columns(cast(DataclassOrModel, model))
+        columns = tuple(c for c in names if c != key_column)
+    return RowCodec(model=model, columns=columns, value_column=value_column)
+
+
+@dataclass(slots=True, frozen=True)
+class RowCodec[V]:
+    """Convert a casebase value ``V`` to/from a column-payload mapping.
+
+    The payload mapping holds the *user* columns cbrkit owns for a row;
+    the key column is added/stripped separately by the backend.  Three
+    value shapes are supported, selected at construction:
+
+    * **plain text** — ``model`` is ``None`` and ``value_column`` is set:
+      ``V`` is ``str``; the value is stored as ``{value_column: value}``
+      and read back as the bare string.
+    * **mapping** — ``model`` is ``None`` and ``value_column`` is ``None``:
+      ``V`` is ``Mapping[str, Any]``; the payload is the mapping itself.
+    * **typed model** — ``model`` is a class: Pydantic
+      :class:`~pydantic.BaseModel` values round-trip via
+      ``model_dump`` / ``model_validate``; any other class (dataclass,
+      SQLAlchemy mapped class, ...) is read via ``getattr`` and rebuilt via
+      its constructor, with the payload being ``columns`` projected from the
+      value.
+
+    ``columns`` is the explicit set of cbrkit-owned user columns — driven
+    off the resolved schema, never off dataclass ``init=`` flags — so the
+    dump/load round-trip stays symmetric and independent of how the host
+    declared the model.
+
+    Examples:
+        >>> import dataclasses
+        >>> @dataclasses.dataclass
+        ... class Car:
+        ...     desc: str
+        ...     brand: str
+        >>> codec = RowCodec(model=Car, columns=("desc", "brand"))
+        >>> codec.encode(Car("red sedan", "audi"))
+        {'desc': 'red sedan', 'brand': 'audi'}
+        >>> codec.decode({"desc": "red sedan", "brand": "audi"})
+        Car(desc='red sedan', brand='audi')
+        >>> RowCodec(value_column="value").encode("hello")
+        {'value': 'hello'}
+    """
+
+    model: type[V] | None = None
+    columns: tuple[str, ...] = ()
+    value_column: str | None = None
+
+    def encode(self, value: V) -> dict[str, Any]:
+        """Project a value to its column payload (key column excluded).
+
+        Pydantic models go through ``model_dump``; every other model type
+        (dataclass, SQLAlchemy mapped class, ...) is read attribute-wise via
+        ``getattr`` — the latter covers ORM rows used as plain data carriers.
+        """
+        if self.model is None:
+            if self.value_column is not None:
+                return {self.value_column: value}
+            return dict(cast(Mapping[str, Any], value))
+        if issubclass(self.model, BaseModel):
+            return cast(BaseModel, value).model_dump(include=set(self.columns))
+        return {c: getattr(value, c) for c in self.columns}
+
+    def decode(self, payload: Mapping[str, Any]) -> V:
+        """Rebuild a value from a column payload (extra columns ignored)."""
+        if self.model is None:
+            if self.value_column is not None:
+                return cast(V, payload[self.value_column])
+            return cast(V, dict(payload))
+        data = {c: payload[c] for c in self.columns if c in payload}
+        if issubclass(self.model, BaseModel):
+            return cast(V, cast(type[BaseModel], self.model).model_validate(data))
+        return self.model(**data)
 
 
 def _compute_index_diff[K, V](
@@ -98,4 +210,7 @@ __all__ = [
     "_sql_in_clause",
     "_PgMetric",
     "PG_METRICS",
+    "RowCodec",
+    "make_codec",
+    "model_columns",
 ]

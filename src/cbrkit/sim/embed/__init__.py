@@ -1,7 +1,7 @@
 """Embedding-based similarity: metrics, builder, cache, and providers."""
 
 from ...helpers import optional_dependencies
-from .core import build, cache, concat
+from .core import build, cache, concat, embed_pairs
 from .metrics import (
     angular,
     cosine,
@@ -52,6 +52,7 @@ __all__ = [
     "build",
     "cache",
     "concat",
+    "embed_pairs",
     "spacy",
     "load_spacy",
     "sentence_transformers",

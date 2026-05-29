@@ -2,10 +2,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 import numpy as np
 import numpy.typing as npt
+from pydantic import BaseModel
 
 from .filter import Filter
 
@@ -28,6 +29,8 @@ __all__ = [
     "Casebase",
     "CbrFunc",
     "ConversionFunc",
+    "DataclassInstance",
+    "DataclassOrModel",
     "EvalMetricFunc",
     "Factory",
     "FilePath",
@@ -74,6 +77,16 @@ type JsonEntry = (
 type JsonDict = dict[str, JsonEntry]
 type NumpyArray = npt.NDArray[np.float64]
 type SparseVector = dict[int, float]
+
+
+class DataclassInstance(Protocol):
+    """Structural type for any dataclass class."""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+type DataclassOrModel = type[DataclassInstance] | type[BaseModel]
+"""A dataclass or pydantic model class, e.g. a schema source for field names."""
 
 
 @dataclass(slots=True, frozen=True)

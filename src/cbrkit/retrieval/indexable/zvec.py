@@ -2,31 +2,24 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal, cast, override
+from typing import Any, cast, override
 
 import numpy as np
 import zvec as zv  # pyright: ignore[reportMissingImports]  # type: ignore[unresolved-import]
 
-from ...helpers import dispatch_batches, dist2sim
+from ...helpers import dist2sim
 from ...indexable import zvec as zvec_storage
 from ...typing import (
     BatchConversionFunc,
     Casebase,
-    NumpyArray,
-    RetrieverFunc,
     SimMap,
     SparseVector,
 )
-from ._common import (
-    _brute_force_dense_search,
-    _normalize_results,
-)
+from ._common import VectorStorageRetriever
 
 
 @dataclass(slots=True)
-class zvec[K: str](
-    RetrieverFunc[K, str, float],
-):
+class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
     """Retriever wrapper for a zvec storage backend.
 
     Delegates storage to a :class:`~cbrkit.indexable.zvec` instance
@@ -37,7 +30,16 @@ class zvec[K: str](
     ``storage.put_index(...)`` etc., or pass the storage to
     :func:`cbrkit.retain.indexable`).
 
-    Uses zvec's built-in `RrfReRanker` for hybrid search.
+    The dispatch skeleton (batching, index/brute routing, search-type
+    dispatch, normalization) is inherited from
+    :class:`~cbrkit.retrieval.indexable._common.VectorStorageRetriever`;
+    only the three ``_search_db_*`` leaves are implemented here.  Uses
+    zvec's built-in `RrfReRanker` for hybrid search.
+
+    Note:
+        When a call carries multiple queries they are executed
+        sequentially: zvec's embedded client takes one query at a time,
+        so there is no concurrent fan-out to exploit.
 
     Args:
         storage: Zvec storage instance.
@@ -59,42 +61,10 @@ class zvec[K: str](
         normalize_scores: Apply per-query min-max normalization.
     """
 
-    storage: zvec_storage[K]
-    search_type: Literal["dense", "sparse", "hybrid"] = "dense"
-    query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
     sparse_query_conversion_func: BatchConversionFunc[str, SparseVector] | None = (
         None
     )
-    limit: int | None = None
     filter: str | None = None
-    rrf_k: int = 60
-    normalize_scores: bool = True
-
-    @override
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if not batches:
-            return []
-
-        return dispatch_batches(batches, self._dispatch)
-
-    def _dispatch(
-        self,
-        queries: Sequence[str],
-        casebase: Casebase[K, str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if len(casebase) == 0:
-            if not self.storage.has_index():
-                raise ValueError(
-                    "Indexed retrieval was requested with an empty casebase, "
-                    "but no index is available. Call put_index() first."
-                )
-
-            return self._search_db(queries)
-
-        return self._search_brute(queries, casebase)
 
     # -- search helpers ----------------------------------------------------
 
@@ -132,41 +102,7 @@ class zvec[K: str](
 
         return cb, sm
 
-    def _search_brute(
-        self,
-        queries: Sequence[str],
-        casebase: Casebase[K, str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        """Brute-force dense vector search for non-indexed casebases."""
-        if self.search_type != "dense":
-            raise NotImplementedError(
-                f"Brute-force search is not supported for search_type={self.search_type!r}. "
-                "Call put_index() first."
-            )
-
-        assert self.storage.conversion_func is not None
-        return _brute_force_dense_search(
-            queries,
-            casebase,
-            self.storage.conversion_func,
-            self.query_conversion_func,
-        )
-
-    def _search_db(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        """Dispatch to the appropriate search method and normalize scores."""
-        match self.search_type:
-            case "dense":
-                results = self._search_db_dense(queries)
-            case "sparse":
-                results = self._search_db_sparse(queries)
-            case "hybrid":
-                results = self._search_db_hybrid(queries)
-
-        return _normalize_results(results, self.normalize_scores)
-
+    @override
     def _search_db_dense(
         self,
         queries: Sequence[str],
@@ -195,6 +131,7 @@ class zvec[K: str](
 
         return results
 
+    @override
     def _search_db_sparse(
         self,
         queries: Sequence[str],
@@ -230,6 +167,7 @@ class zvec[K: str](
 
         return results
 
+    @override
     def _search_db_hybrid(
         self,
         queries: Sequence[str],

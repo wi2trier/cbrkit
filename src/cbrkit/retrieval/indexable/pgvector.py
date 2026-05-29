@@ -16,7 +16,7 @@ storage that owns the index (call ``storage.put_index(...)``,
 import asyncio
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, override
 
 import numpy as np
 import sqlalchemy as sa
@@ -30,7 +30,6 @@ from ...indexable import (
 )
 from ...indexable._common import PG_METRICS
 from ...typing import (
-    AsyncRetrieverFunc,
     BatchConversionFunc,
     Casebase,
     NumpyArray,
@@ -38,9 +37,8 @@ from ...typing import (
     SimMap,
 )
 from ._common import (
+    AsyncVectorStorageRetriever,
     RrfMixin,
-    _brute_force_dense_search,
-    _normalize_results,
     reciprocal_rank_fusion,
 )
 
@@ -51,13 +49,13 @@ def _build_dense_stmt(
     where: Filter | None,
     limit: int | None,
 ) -> sa.Select[Any]:
-    assert storage.text_column is not None
+    assert storage.value_column is not None
     table = storage.sa_table
     metric = PG_METRICS[storage.metric_type]
     distance = getattr(table.c[storage.pgvector_column], metric.distance_attr)(qvec)
     stmt = sa.select(
         table.c[storage.key_column],
-        table.c[storage.text_column],
+        table.c[storage.value_column],
         distance.label("distance"),
     ).order_by(distance)
     if where is not None:
@@ -73,7 +71,7 @@ def _build_sparse_stmt(
     where: Filter | None,
     limit: int | None,
 ) -> sa.Select[Any]:
-    assert storage.text_column is not None
+    assert storage.value_column is not None
     table = storage.sa_table
     tsv = table.c[storage.tsvector_column]
     tsq = sa.func.plainto_tsquery(storage.tsvector_config, query)
@@ -81,7 +79,7 @@ def _build_sparse_stmt(
     stmt = (
         sa.select(
             table.c[storage.key_column],
-            table.c[storage.text_column],
+            table.c[storage.value_column],
             rank.label("score"),
         )
         .where(tsv.op("@@")(tsq))
@@ -96,92 +94,42 @@ def _build_sparse_stmt(
 
 @dataclass(slots=True)
 class pgvector_async[K: int | str](
-    AsyncRetrieverFunc[K, str, float],
-    RrfMixin,
+    AsyncVectorStorageRetriever[K, pgvector_async_storage[K, Any]]
 ):
     """Async retriever wrapper for :class:`cbrkit.indexable.pgvector_async`.
 
-    Queries are strings, matched against the storage's ``text_column``
+    Queries are strings, matched against the storage's ``value_column``
     via dense (HNSW), sparse (GIN/FTS), or hybrid (RRF) search.  The
     returned casebase contains the text-column values; for full row
     data, read from the storage separately.
 
+    The dispatch skeleton is inherited from
+    :class:`~cbrkit.retrieval.indexable._common.AsyncVectorStorageRetriever`;
+    only the three ``_search_db_*`` leaves are implemented here.
     *search_type* defaults to ``None`` and resolves to the storage's
-    ``index_type`` at call time — set it explicitly only to query a
-    subset of what was indexed (e.g. ``"dense"`` on a hybrid index).
+    ``index_type`` at call time (via the base's ``_effective_search_type``)
+    — set it explicitly only to query a subset of what was indexed (e.g.
+    ``"dense"`` on a hybrid index).
+
+    Note:
+        When a call carries multiple queries they are executed
+        sequentially on a single connection, not fanned out
+        concurrently.  A single ``AsyncConnection`` cannot multiplex
+        statements, and pgvector is interactive-first (usually one query
+        per call), so the sequential path is the common-case optimum.
+        Concurrent execution would require bounded pooled concurrency (a
+        semaphore sized to the connection pool) to avoid exhausting it;
+        this is deferred until batch throughput is a measured need.  For
+        the same reason, hybrid search awaits its per-query dense and
+        sparse statements in turn rather than gathering them.
     """
 
-    storage: pgvector_async_storage[K, Any]
-    search_type: Literal["dense", "sparse", "hybrid"] | None = None
-    query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-    limit: int | None = None
     where: Filter | None = None
     hybrid_oversample: int = 4
-    normalize_scores: bool = True
-
-    @property
-    def _resolved_search_type(self) -> Literal["dense", "sparse", "hybrid"]:
-        """Effective search type — explicit override or storage's index_type."""
-        return self.search_type if self.search_type is not None else self.storage.index_type
-
-    async def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if not batches:
-            return []
-
-        async def per_batch(
-            casebase: Casebase[K, str], query: str
-        ) -> tuple[Casebase[K, str], SimMap[K, float]]:
-            if len(casebase) == 0:
-                if not await self.storage.has_index():
-                    raise ValueError(
-                        "Indexed retrieval was requested with an empty casebase, "
-                        "but no index is available. Call storage.put_index() first."
-                    )
-                return (await self._search_db([query]))[0]
-            return (await self._search_brute([query], casebase))[0]
-
-        results = await asyncio.gather(*(per_batch(cb, q) for cb, q in batches))
-        return list(results)
 
     # -- internal search helpers --------------------------------------------
 
-    async def _search_brute(
-        self,
-        queries: Sequence[str],
-        casebase: Casebase[K, str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        search_type = self._resolved_search_type
-        if search_type != "dense":
-            raise NotImplementedError(
-                f"Brute-force search is not supported for search_type="
-                f"{search_type!r}. Call storage.put_index() first."
-            )
-        assert self.storage.conversion_func is not None
-        results = await asyncio.to_thread(
-            _brute_force_dense_search,
-            queries,
-            casebase,
-            self.storage.conversion_func,
-            self.query_conversion_func,
-        )
-        return cast("Sequence[tuple[Casebase[K, str], SimMap[K, float]]]", results)
-
-    async def _search_db(
-        self,
-        queries: Sequence[str],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        match self._resolved_search_type:
-            case "dense":
-                results = await self._search_db_dense(queries)
-            case "sparse":
-                results = await self._search_db_sparse(queries)
-            case "hybrid":
-                results = await self._search_db_hybrid(queries)
-        return _normalize_results(results, self.normalize_scores)
-
+    @override
     async def _search_db_dense(
         self,
         queries: Sequence[str],
@@ -201,6 +149,7 @@ class pgvector_async[K: int | str](
 
         return results
 
+    @override
     async def _search_db_sparse(
         self,
         queries: Sequence[str],
@@ -214,6 +163,7 @@ class pgvector_async[K: int | str](
 
         return results
 
+    @override
     async def _search_db_hybrid(
         self,
         queries: Sequence[str],
@@ -290,7 +240,10 @@ class pgvector[K: int | str](
 ):
     """Sync facade over :class:`pgvector_async` retriever.
 
-    Wraps a sync :class:`cbrkit.indexable.pgvector` storage.
+    Wraps a sync :class:`cbrkit.indexable.pgvector` storage.  Runs the
+    async implementation via :func:`cbrkit.helpers.run_coroutine`, so the
+    same sequential-query behavior documented on :class:`pgvector_async`
+    applies here.
     """
 
     storage: pgvector_storage[K, Any]

@@ -2,22 +2,19 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal, cast, override
+from typing import Any, cast, override
 
 import chromadb as cdb
 from chromadb.api.types import SearchResult
 
-from ...helpers import dispatch_batches, dist2sim
+from ...helpers import dist2sim
 from ...indexable import chromadb as chromadb_storage
-from ...typing import Casebase, RetrieverFunc, SimMap
-from ._common import RrfMixin, _normalize_results
+from ...typing import Casebase, SimMap
+from ._common import SearchType, StorageRetriever, _normalize_results
 
 
 @dataclass(slots=True)
-class chromadb[K: str](
-    RrfMixin,
-    RetrieverFunc[K, str, float],
-):
+class chromadb[K: str](StorageRetriever[K, chromadb_storage[K, Any]]):
     """Retriever wrapper for a ChromaDB storage backend.
 
     Delegates storage to a :class:`~cbrkit.indexable.chromadb` instance
@@ -28,8 +25,12 @@ class chromadb[K: str](
     ``storage.put_index(...)`` etc., or pass the storage to
     :func:`cbrkit.retain.indexable`).
 
-    Uses ChromaDB's `Search` API with `Knn` for dense/sparse
-    ranking and `Rrf` (Reciprocal Rank Fusion) for hybrid search.
+    Extends :class:`~cbrkit.retrieval.indexable._common.StorageRetriever`
+    for the batching/index-routing skeleton; ChromaDB issues one batched
+    ``search`` for all queries (rather than the per-type leaves of
+    :class:`VectorStorageRetriever`), so it implements :meth:`_search_db`
+    directly and has no brute-force path.  Uses ChromaDB's `Search` API
+    with `Knn` for dense/sparse ranking and `Rrf` for hybrid search.
 
     Args:
         storage: ChromaDB storage instance.
@@ -42,35 +43,14 @@ class chromadb[K: str](
     :class:`RrfMixin`.
     """
 
-    storage: chromadb_storage[K]
-    search_type: Literal["dense", "sparse", "hybrid"] = "dense"
-    limit: int | None = None
-    normalize_scores: bool = True
+    search_type: SearchType = "dense"
 
     @override
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if not batches:
-            return []
-
-        return dispatch_batches(batches, self._dispatch)
-
-    def _dispatch(
+    def _search_brute(
         self,
         queries: Sequence[str],
         casebase: Casebase[K, str],
     ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]:
-        if len(casebase) == 0:
-            if not self.storage.has_index():
-                raise ValueError(
-                    "Indexed retrieval was requested with an empty casebase, "
-                    "but no index is available. Call put_index() first."
-                )
-
-            return self._search_db(queries)
-
         raise NotImplementedError(
             "chromadb does not support brute-force search. Call put_index() first."
         )
@@ -145,6 +125,7 @@ class chromadb[K: str](
             case _:
                 raise ValueError(f"Unknown search_type: {self.search_type!r}")
 
+    @override
     def _search_db(
         self,
         queries: Sequence[str],

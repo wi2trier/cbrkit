@@ -1,6 +1,6 @@
 """ChromaDB storage backend."""
 
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast, override
 
@@ -9,13 +9,18 @@ from chromadb.api import ClientAPI
 
 from ..helpers import get_logger
 from ..typing import Casebase, IndexableFunc
-from ._common import _compute_index_diff, _normalize_patch_keys
+from ._common import (
+    RowCodec,
+    _compute_index_diff,
+    _normalize_patch_keys,
+    make_codec,
+)
 
 logger = get_logger(__name__)
 
 
 @dataclass(slots=True)
-class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
+class chromadb[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     """ChromaDB storage backend.
 
     Manages a persistent ChromaDB collection.  Supports dense,
@@ -47,11 +52,15 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             Required for `"sparse"` and `"hybrid"`.
         sparse_key: Key name for the sparse vector index in the
             ChromaDB schema.
-
-    The write methods accept a per-call ``metadata`` keyword argument
-    — a ``{key: extras}`` mapping — when callers need to attach extra
-    metadata that cannot be derived from ``(key, value)`` at storage
-    construction time.
+        value_field: Field holding the embeddable text (stored as the Chroma
+            *document*).  With the default ``V = str`` the casebase value *is*
+            the document; with a *model* it names the model field to embed.
+        model: A dataclass or pydantic :class:`~pydantic.BaseModel`
+            describing entries richer than plain text.  When set, ``V`` is the
+            model type: ``value_field`` becomes the document and every other
+            field becomes Chroma metadata, with reads reconstructing model
+            instances.  This replaces any side-channel metadata — extra
+            fields ride on the typed value itself.
     """
 
     path: str
@@ -60,8 +69,14 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
     embedding_func: cdb.EmbeddingFunction[Any] | None = None
     sparse_embedding_func: cdb.SparseEmbeddingFunction[Any] | None = None
     sparse_key: str = "sparse_embedding"
+    value_field: str = "value"
+    model: type[V] | None = None
     _client: ClientAPI = field(init=False, repr=False)
     _collection: cdb.Collection | None = field(default=None, init=False, repr=False)
+
+    @property
+    def _codec(self) -> RowCodec[V]:
+        return make_codec(self.model, self.value_field)
 
     def __post_init__(self) -> None:
         if self.index_type in ("dense", "hybrid") and self.embedding_func is None:
@@ -111,18 +126,23 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
     def _prepare_documents(
         self,
-        data: Casebase[K, str],
-        metadata: Mapping[K, cdb.Metadata] | None = None,
+        data: Casebase[K, V],
     ) -> tuple[list[str], list[str], list[cdb.Metadata] | None]:
         """Prepare IDs, documents, and metadatas from a casebase."""
+        codec = self._codec
         ids = [str(k) for k in data.keys()]
-        values = list(data.values())
-        metadatas: list[cdb.Metadata] | None = None
+        documents: list[str] = []
+        metadatas: list[cdb.Metadata] = []
+        has_extras = False
 
-        if metadata is not None:
-            metadatas = [metadata[k] for k in data.keys()]
+        for value in data.values():
+            payload = codec.encode(value)
+            documents.append(payload[self.value_field])
+            extra = {k: v for k, v in payload.items() if k != self.value_field}
+            metadatas.append(cast(cdb.Metadata, extra))
+            has_extras = has_extras or bool(extra)
 
-        return ids, values, metadatas
+        return ids, documents, (metadatas if has_extras else None)
 
     def _batched_write(
         self,
@@ -146,23 +166,23 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
     @property
     @override
-    def index(self) -> Casebase[K, str]:
+    def index(self) -> Casebase[K, V]:
         """Return the indexed casebase from the ChromaDB collection."""
         if self._collection is None:
             return {}
 
+        codec = self._codec
         result = self._collection.get()
         ids = result["ids"]
         docs = result["documents"] or []
-        return {cast(K, id_): doc for id_, doc in zip(ids, docs, strict=True)}
+        metas = result["metadatas"] or [None] * len(ids)
+        return {
+            cast(K, id_): codec.decode({self.value_field: doc, **(meta or {})})
+            for id_, doc, meta in zip(ids, docs, metas, strict=True)
+        }
 
     @override
-    def put_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, cdb.Metadata] | None = None,
-    ) -> None:
+    def put_index(self, data: Casebase[K, V]) -> None:
         """Replace the ChromaDB collection contents with *data*.
 
         On first call the collection is created from scratch.  On
@@ -179,9 +199,7 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
             self._collection = collection
 
             if data:
-                ids, documents, metadatas = self._prepare_documents(
-                    data, metadata
-                )
+                ids, documents, metadatas = self._prepare_documents(data)
                 self._batched_write("add", ids, documents, metadatas)
 
             return
@@ -195,28 +213,22 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
         self.patch_index(
             upsert=changed_or_new or None,
             delete=stale_keys or None,
-            metadata=metadata,
         )
 
     @override
-    def upsert_index(
-        self,
-        data: Casebase[K, str],
-        *,
-        metadata: Mapping[K, cdb.Metadata] | None = None,
-    ) -> None:
+    def upsert_index(self, data: Casebase[K, V]) -> None:
         """Upsert documents into the ChromaDB collection.
 
         If no collection exists yet, delegates to :meth:`put_index`.
         """
         if self._collection is None:
-            self.put_index(data, metadata=metadata)
+            self.put_index(data)
             return
 
         if not data:
             return
 
-        ids, documents, metadatas = self._prepare_documents(data, metadata)
+        ids, documents, metadatas = self._prepare_documents(data)
         self._batched_write("upsert", ids, documents, metadatas)
 
     @override
@@ -236,10 +248,8 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
     @override
     def patch_index(
         self,
-        upsert: Casebase[K, str] | None = None,
+        upsert: Casebase[K, V] | None = None,
         delete: Collection[K] | None = None,
-        *,
-        metadata: Mapping[K, cdb.Metadata] | None = None,
     ) -> None:
         """Apply inserts, replacements, and deletes to the ChromaDB collection."""
         normalized = _normalize_patch_keys(upsert, delete)
@@ -251,16 +261,14 @@ class chromadb[K: str](IndexableFunc[Casebase[K, str], Collection[K]]):
 
         if self._collection is None:
             if upsert:
-                self.put_index(upsert, metadata=metadata)
+                self.put_index(upsert)
             return
 
         if delete_keys:
             self._collection.delete(ids=[str(k) for k in delete_keys])
 
         if upsert:
-            ids, documents, metadatas = self._prepare_documents(
-                upsert, metadata
-            )
+            ids, documents, metadatas = self._prepare_documents(upsert)
             self._batched_write("upsert", ids, documents, metadatas)
 
 

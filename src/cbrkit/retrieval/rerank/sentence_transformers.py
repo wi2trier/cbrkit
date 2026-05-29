@@ -89,7 +89,7 @@ class sentence_transformers[K](
             score_function=util.dot_score,
         )
 
-        key_index = {idx: key for idx, key in enumerate(casebase)}
+        key_index = dict(enumerate(casebase))
 
         return [
             {

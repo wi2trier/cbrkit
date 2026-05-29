@@ -581,8 +581,7 @@ The result contains `similarities` with quality assessment scores for each case.
 ## Retain
 
 The retain phase decides whether and how to integrate new cases into the casebase.
-The `cbrkit.retain` module provides utility functions for this purpose.
-You build a retain pipeline by specifying an assessment function and a storage function:
+Build a retain pipeline from an assessment function and a storage function:
 
 ```python
 retainer = cbrkit.retain.build(
@@ -594,27 +593,9 @@ retainer = cbrkit.retain.build(
 )
 ```
 
-CBRkit provides several built-in storage functions:
-
-- `static`: Generates keys from a fixed reference casebase to avoid collisions.
-- `indexable`: Keeps an `IndexableFunc`'s index in sync with the casebase.
-
-You can filter retained cases based on their assessment scores using the `dropout` wrapper:
-
-```python
-retainer = cbrkit.retain.dropout(
-    retainer_func=cbrkit.retain.build(...),
-    min_similarity=0.5,
-)
-```
-
-The retainer can be applied to a revise result:
-
-```python
-result = cbrkit.retain.apply_result(revise_result, retainer)
-```
-
-The result contains `similarities` with fitness scores and `casebase` with the updated cases.
+The built-in storage functions are `static` (generates collision-free keys from a reference casebase) and `indexable` (keeps an `IndexableFunc`'s index in sync with the casebase).
+Wrap a retainer with `dropout` to filter by assessment score (e.g. `min_similarity=0.5`), then apply it to a revise result via `cbrkit.retain.apply_result(revise_result, retainer)`.
+The result exposes `similarities` (fitness scores) and `casebase` (updated cases).
 
 ## Full CBR Cycle
 
@@ -747,22 +728,19 @@ result = cbrkit.retrieval.apply_query(casebase, query, (retriever, reranker))
 
 ### Indexed Retrieval
 
-Retrievers like `bm25`, `embed`, `lancedb`, `chromadb`, and `zvec` support **indexed retrieval**, where the casebase is pre-indexed once and then queried without passing the full casebase each time.
-This is useful for large casebases or when using external search backends.
-
+Indexed retrieval pre-indexes the casebase once and then queries it without passing the full casebase each time, which helps for large casebases or external search backends.
 Index maintenance lives on whichever object owns the index.
-The self-contained `bm25` and `embed` retrievers own their index directly, so you call `put_index()` on the retriever:
+
+The self-contained `bm25` and `embed` retrievers own their index, so you call `put_index()` on the retriever:
 
 ```python
 from frozendict import frozendict
 
-bm25_func = cbrkit.sim.embed.bm25(language="en")
-retriever = cbrkit.retrieval.bm25(conversion_func=bm25_func)
+retriever = cbrkit.retrieval.bm25(conversion_func=cbrkit.sim.embed.bm25(language="en"))
 retriever.put_index(frozendict(casebase))
 ```
 
-The storage-backed `lancedb`, `chromadb`, `zvec`, and `pgvector` retrievers are pure query paths over a separate `cbrkit.indexable` storage that owns the index.
-There you maintain the index on the storage and wrap it with a retriever only for querying:
+The storage-backed `lancedb`, `chromadb`, `zvec`, and `pgvector` retrievers are pure query paths over a separate `cbrkit.indexable` storage that owns the index, so you index on the storage and wrap it for querying:
 
 ```python
 storage = cbrkit.indexable.lancedb(uri="./cases", table_name="cases")
@@ -770,24 +748,41 @@ storage.put_index(frozendict(casebase))
 retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="dense")
 ```
 
-Then pass an empty casebase (`{}`) to signal that the retriever should use its pre-indexed data:
-
-```python
-result = cbrkit.retrieval.apply_query({}, query, retriever)
-```
-
-As a convenience, CBRkit provides `apply_query_indexed` and `apply_queries_indexed` which handle the empty casebase automatically:
+Query a pre-indexed retriever with `apply_query_indexed` / `apply_queries_indexed` (or pass an empty casebase `{}` to `apply_query`); querying an un-indexed retriever raises `ValueError`:
 
 ```python
 result = cbrkit.retrieval.apply_query_indexed(query, retriever)
-# or for multiple queries:
-result = cbrkit.retrieval.apply_queries_indexed(queries, retriever)
 ```
 
-If a retriever receives an empty casebase but has not been indexed yet, a `ValueError` is raised with a message to call `put_index()` first.
+The `System` class also defaults its casebase to `{}`, so a system of pre-indexed retrievers needs no casebase at query time.
 
-The `System` class also supports indexed retrieval by defaulting the casebase to an empty dict.
-This allows creating a system where all retrievers are pre-indexed and no casebase needs to be provided at query time.
+#### Typed Values and the Retain Caveat
+
+Each backend has one text-field knob — `value_column` (`value_field` for `zvec`/`chromadb`) — naming the embeddable text, and the value type `V` follows the schema source:
+
+- **Plain text** (`V = str`, the default) — the bare string is stored under the text knob and read back as a string.
+- **Typed model** (`V = YourModel`) — pass a `model`: a dataclass or Pydantic model for `lancedb`/`zvec`/`chromadb` (fields become columns), or a SQLAlchemy mapped class for `sqlalchemy`/`pgvector` (its `__table__` defines the schema). Reads reconstruct model instances.
+- **Mapping** (`V = Mapping[str, Any]`) — `sqlalchemy`/`pgvector` only, via a host-supplied `table` or `reflect=True`.
+
+```python
+# plain strings — cbrkit builds the table
+store = cbrkit.indexable.pgvector[str, str](
+    url=..., value_column="body", pgvector_dim=384, conversion_func=embed,
+)
+
+# typed rows — a SQLAlchemy mapped class defines the schema
+class Car(Base):
+    __tablename__ = "cars"
+    key: Mapped[str] = mapped_column(primary_key=True)
+    desc: Mapped[str] = mapped_column()
+    _pgvec: Mapped[Any] = mapped_column(cbrkit.indexable.PGVECTOR(384), nullable=False)
+
+store = cbrkit.indexable.pgvector[str, Car](url=..., model=Car, value_column="desc", ...)
+```
+
+**Retain caveat:** the storage-backed retrievers search by the text column and always return `Casebase[K, str]`, projecting richer values down to their text.
+A retrieve → retain round-trip via `cbrkit.retrieval.indexable.*` + `cbrkit.retain.indexable` therefore lines up cleanly only when `V = str`.
+For model or mapping stores, either use the backend as a typed store (read `storage.index` as `Casebase[K, V]` and retrieve with a value-based retriever like `cbrkit.retrieval.build(...)`), or re-hydrate full rows by key from `storage.index` after text retrieval.
 
 ## Evaluation
 
