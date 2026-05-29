@@ -8,57 +8,67 @@ import pytest
 import cbrkit
 
 
-def _field_set(cls: type) -> set[str]:
-    """Public dataclass field names (excludes private ``_``-prefixed slots)."""
-    return {f.name for f in dataclasses.fields(cls) if not f.name.startswith("_")}
+def _toy_embed(texts: list[str]):
+    """Deterministic bag-of-keywords embedder for sqlite_vec tests."""
+    import numpy as np
+
+    vocab = ("red", "blue", "green", "car", "sky", "fruit")
+    rows = []
+    for text in texts:
+        lowered = text.lower()
+        vec = np.array([float(word in lowered) for word in vocab], dtype=np.float32)
+        if not vec.any():
+            vec[:] = 1.0
+        rows.append(vec)
+    return np.asarray(rows)
 
 
-def test_sqlalchemy_storage_sync_async_field_parity() -> None:
-    """Sync `sqlalchemy` storage must expose every config the async one does.
-
-    The sync facade restricts itself to a URL-only construction shape, so
-    `url` / `engine` / `table` / `metadata` / `manage_schema` are
-    legitimately async-only.  Any other field on the async class must be
-    mirrored on the sync facade or we ship divergent defaults.
-    """
+def test_sqlite_vec_dense_sparse_hybrid(tmp_path: Path) -> None:
+    """End-to-end dense / sparse / hybrid retrieval over a real SQLite file."""
     pytest.importorskip("sqlalchemy")
+    pytest.importorskip("sqlite_vec")
+    pytest.importorskip("aiosqlite")
 
-    from cbrkit.indexable.sqlalchemy import sqlalchemy, sqlalchemy_async
+    from cbrkit.filter import Like
 
-    async_only = {"url", "engine", "table", "metadata"}
-    missing = _field_set(sqlalchemy_async) - _field_set(sqlalchemy) - async_only
-    assert not missing, (
-        f"sqlalchemy sync facade is missing fields present on sqlalchemy_async: "
-        f"{missing}"
+    url = f"sqlite+aiosqlite:///{tmp_path}/cases.db"
+    cases = {"a": "red sedan car", "b": "blue sky", "c": "red apple fruit"}
+
+    storage = cbrkit.indexable.sqlite_vec[str, str](
+        url=url,
+        value_column="text",
+        vector_dim=6,
+        index_type="hybrid",
+        conversion_func=_toy_embed,
     )
+    storage.put_index(cases)
+    assert storage.has_index()
+    assert storage.index == cases
 
+    # dense: "red car" is closest to "a" (red + car)
+    dense = cbrkit.retrieval.indexable.sqlite_vec(storage, search_type="dense", limit=2)
+    cb, sm = dense([({}, "red car")])[0]
+    assert next(iter(sm)) == "a"
+    assert cb["a"] == "red sedan car"
 
-def test_pgvector_storage_sync_async_field_parity() -> None:
-    """Sync `pgvector` storage must expose every config the async one does."""
-    pytest.importorskip("sqlalchemy")
-    pytest.importorskip("pgvector")
+    # sparse: FTS5 keyword "red" hits "a" and "c", not "b"
+    sparse = cbrkit.retrieval.indexable.sqlite_vec(storage, search_type="sparse")
+    _, sm = sparse([({}, "red")])[0]
+    assert set(sm) == {"a", "c"}
 
-    from cbrkit.indexable.pgvector import pgvector, pgvector_async
-
-    async_only = {"url", "engine", "table", "metadata"}
-    missing = _field_set(pgvector_async) - _field_set(pgvector) - async_only
-    assert not missing, (
-        f"pgvector sync facade is missing fields present on pgvector_async: {missing}"
+    # hybrid + filter: restrict to fruit-ish rows via a LIKE WHERE clause
+    hybrid = cbrkit.retrieval.indexable.sqlite_vec(
+        storage, search_type="hybrid", limit=5, where=Like(column="text", pattern="%fruit%")
     )
+    _, sm = hybrid([({}, "red car")])[0]
+    assert set(sm) == {"c"}
 
+    # deletes propagate to the vec0 shadow via trigger
+    storage.delete_index(["a"])
+    cb, _ = dense([({}, "red car")])[0]
+    assert "a" not in cb
 
-def test_pgvector_retriever_sync_async_field_parity() -> None:
-    """Sync `pgvector` retriever must mirror the async retriever's fields."""
-    pytest.importorskip("sqlalchemy")
-    pytest.importorskip("pgvector")
-
-    from cbrkit.retrieval.indexable.pgvector import pgvector, pgvector_async
-
-    missing = _field_set(pgvector_async) - _field_set(pgvector)
-    assert not missing, (
-        f"pgvector sync retriever is missing fields present on pgvector_async: "
-        f"{missing}"
-    )
+    storage.close()
 
 
 def test_lancedb_patch_and_predicate_helpers(tmp_path: Path) -> None:

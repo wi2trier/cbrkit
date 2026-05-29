@@ -18,6 +18,9 @@ with optional_dependencies():
 with optional_dependencies():
     from .pgvector import pgvector, pgvector_async
 
+with optional_dependencies():
+    from .sqlite_vec import sqlite_vec, sqlite_vec_async
+
 __all__ = [
     "embed",
     "bm25",
@@ -26,4 +29,6 @@ __all__ = [
     "zvec",
     "pgvector",
     "pgvector_async",
+    "sqlite_vec",
+    "sqlite_vec_async",
 ]

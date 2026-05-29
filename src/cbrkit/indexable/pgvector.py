@@ -54,17 +54,26 @@ from typing import Any, ClassVar, Literal, cast
 
 import numpy as np
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector as PGVECTOR
+from pgvector.sqlalchemy import HALFVEC, Vector as PGVECTOR
 from sqlalchemy.dialects.postgresql import TSVECTOR, insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from ..helpers import run_coroutine
+from ..helpers import forward_fields, run_coroutine
 from ..typing import (
     BatchConversionFunc,
     NumpyArray,
 )
 from ._common import PG_METRICS
 from .sqlalchemy import sqlalchemy, sqlalchemy_async
+
+# vector_type -> (HNSW opclass prefix, SQLAlchemy column type).  Both
+# float32 (`vector`) and half-precision (`halfvec`, ~2x smaller) share the
+# same distance comparator methods, so only the column type and opclass
+# prefix differ.
+_PG_VECTOR_TYPES: dict[Literal["float32", "halfvec"], tuple[str, Any]] = {
+    "float32": ("vector", PGVECTOR),
+    "halfvec": ("halfvec", HALFVEC),
+}
 
 
 def _tsvector_computed_clause(source: str, config: str) -> sa.Computed:
@@ -97,6 +106,11 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
             convention to signal "owned by cbrkit").
         pgvector_dim: Embedding dimension.  Required for ``manage_schema=
             True`` and *index_type* ∈ {``"dense"``, ``"hybrid"``}.
+        vector_type: Stored element type — ``"float32"`` (``vector``, exact)
+            or ``"halfvec"`` (half precision, ~2x smaller with negligible
+            recall loss).  Both share the same distance metrics; for a
+            host-supplied *model*, declare the column with the matching
+            re-exported type (:class:`PGVECTOR` / :class:`HALFVEC`).
         index_type: ``"dense"`` (HNSW only), ``"sparse"`` (GIN only), or
             ``"hybrid"`` (both).
         tsvector_config: PostgreSQL FTS configuration for the
@@ -112,6 +126,7 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
     pgvector_column: str = "_pgvec"
     tsvector_column: str = "_tsvec"
     pgvector_dim: int | None = None
+    vector_type: Literal["float32", "halfvec"] = "float32"
     index_type: Literal["dense", "sparse", "hybrid"] = "dense"
     tsvector_config: str = "english"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
@@ -159,8 +174,9 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
         cols: list[sa.Column[Any]] = []
         if self.has_dense:
             assert self.pgvector_dim is not None
+            _, col_type = _PG_VECTOR_TYPES[self.vector_type]
             cols.append(
-                sa.Column(self.pgvector_column, PGVECTOR(self.pgvector_dim), nullable=False)
+                sa.Column(self.pgvector_column, col_type(self.pgvector_dim), nullable=False)
             )
         if self.has_sparse:
             assert self.value_column is not None
@@ -188,13 +204,13 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
 
     def _create_system_indexes(self, sync_conn: sa.Connection) -> None:
         if self.has_dense:
+            prefix, _ = _PG_VECTOR_TYPES[self.vector_type]
+            opclass = f"{prefix}_{PG_METRICS[self.metric_type].ops_suffix}_ops"
             sa.Index(
                 f"ix_{self._table.name}_{self.pgvector_column}",
                 self._table.c[self.pgvector_column],
                 postgresql_using="hnsw",
-                postgresql_ops={
-                    self.pgvector_column: PG_METRICS[self.metric_type].opclass
-                },
+                postgresql_ops={self.pgvector_column: opclass},
             ).create(sync_conn, checkfirst=True)
 
         if self.has_sparse:
@@ -297,6 +313,7 @@ class pgvector[K: int | str, V = Mapping[str, Any]](sqlalchemy[K, V]):
     pgvector_column: str = "_pgvec"
     tsvector_column: str = "_tsvec"
     pgvector_dim: int | None = None
+    vector_type: Literal["float32", "halfvec"] = "float32"
     index_type: Literal["dense", "sparse", "hybrid"] = "dense"
     tsvector_config: str = "english"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
@@ -304,22 +321,7 @@ class pgvector[K: int | str, V = Mapping[str, Any]](sqlalchemy[K, V]):
 
     def _build_async(self) -> pgvector_async[K, V]:
         return pgvector_async[K, V](
-            engine=self._engine,
-            model=self.model,
-            table_name=self.table_name,
-            manage_schema=self.manage_schema,
-            reflect=self.reflect,
-            key_column=self.key_column,
-            key_type=self.key_type,
-            indexes=self.indexes,
-            value_column=self.value_column,
-            pgvector_column=self.pgvector_column,
-            tsvector_column=self.tsvector_column,
-            pgvector_dim=self.pgvector_dim,
-            index_type=self.index_type,
-            tsvector_config=self.tsvector_config,
-            metric_type=self.metric_type,
-            conversion_func=self.conversion_func,
+            engine=self._engine, **forward_fields(self, exclude={"url"})
         )
 
     @property
@@ -332,6 +334,7 @@ class pgvector[K: int | str, V = Mapping[str, Any]](sqlalchemy[K, V]):
 
 
 __all__ = [
+    "HALFVEC",
     "PGVECTOR",
     "TSVECTOR",
     "pgvector",

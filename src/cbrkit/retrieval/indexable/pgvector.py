@@ -14,16 +14,15 @@ storage that owns the index (call ``storage.put_index(...)``,
 """
 
 import asyncio
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, override
 
 import numpy as np
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncConnection
 
 from ...filter import Filter
-from ...helpers import run_coroutine
+from ...helpers import forward_fields, run_coroutine
 from ...indexable import (
     pgvector as pgvector_storage,
     pgvector_async as pgvector_async_storage,
@@ -37,8 +36,8 @@ from ...typing import (
     SimMap,
 )
 from ._common import (
-    AsyncVectorStorageRetriever,
     RrfMixin,
+    SqlAlchemyVectorRetriever,
     reciprocal_rank_fusion,
 )
 
@@ -94,7 +93,7 @@ def _build_sparse_stmt(
 
 @dataclass(slots=True)
 class pgvector_async[K: int | str](
-    AsyncVectorStorageRetriever[K, pgvector_async_storage[K, Any]]
+    SqlAlchemyVectorRetriever[K, pgvector_async_storage[K, Any]]
 ):
     """Async retriever wrapper for :class:`cbrkit.indexable.pgvector_async`.
 
@@ -123,9 +122,6 @@ class pgvector_async[K: int | str](
         the same reason, hybrid search awaits its per-query dense and
         sparse statements in turn rather than gathering them.
     """
-
-    where: Filter | None = None
-    hybrid_oversample: int = 4
 
     # -- internal search helpers --------------------------------------------
 
@@ -206,31 +202,9 @@ class pgvector_async[K: int | str](
                     self.rrf_k,
                 )
 
-                ranked = sorted(scores.items(), key=lambda kv: -kv[1])
-                if self.limit is not None:
-                    ranked = ranked[: self.limit]
-
-                results.append(
-                    ({k: values[k] for k, _ in ranked}, dict(ranked))
-                )
+                results.append(self._finalize_rrf(scores, values))
 
         return results
-
-    async def _collect_rows(
-        self,
-        conn: AsyncConnection,
-        stmt: sa.Select[Any],
-        score_fn: Callable[[float], float],
-    ) -> tuple[Casebase[K, str], SimMap[K, float]]:
-        cast_key = self.storage.cast_key
-        rows: Iterable[Any] = (await conn.execute(stmt)).all()
-        cb: dict[K, str] = {}
-        sm: dict[K, float] = {}
-        for k, v, s in rows:
-            kk = cast_key(k)
-            cb[kk] = v
-            sm[kk] = score_fn(float(s))
-        return cb, sm
 
 
 @dataclass(slots=True)
@@ -263,14 +237,7 @@ class pgvector[K: int | str](
         """
         return pgvector_async[K](
             storage=self.storage.async_storage,
-            search_type=self.search_type,
-            query_conversion_func=self.query_conversion_func,
-            limit=self.limit,
-            where=self.where,
-            hybrid_oversample=self.hybrid_oversample,
-            normalize_scores=self.normalize_scores,
-            rrf_k=self.rrf_k,
-            rrf_weights=self.rrf_weights,
+            **forward_fields(self, exclude={"storage"}),
         )
 
     def __call__(

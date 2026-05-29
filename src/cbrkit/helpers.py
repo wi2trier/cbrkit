@@ -69,6 +69,7 @@ __all__ = [
     "dispatch_batches",
     "dispatch_batches_async",
     "dist2sim",
+    "forward_fields",
     "get_hash",
     "get_logger",
     "get_metadata",
@@ -142,6 +143,22 @@ async def run_threaded[T](fn: Callable[..., T], /, *args: Any, **kwargs: Any) ->
     reach for :func:`asyncio.to_thread` directly.
     """
     return await asyncio.to_thread(fn, *args, **kwargs)
+
+
+def forward_fields(obj: object, *, exclude: Collection[str] = ()) -> dict[str, Any]:
+    """Public init-field values of a dataclass instance, minus *exclude*.
+
+    Lets a sync facade forward its configuration to the async implementation
+    without re-listing every field by hand: any field shared by both classes
+    is carried over automatically, and *exclude* names the few that the
+    facade supplies differently (e.g. ``url`` replaced by a built engine).
+    Private ``_``-prefixed and ``init=False`` fields are always skipped.
+    """
+    return {
+        f.name: getattr(obj, f.name)
+        for f in fields(cast("Any", obj))
+        if f.init and not f.name.startswith("_") and f.name not in exclude
+    }
 
 
 @contextmanager

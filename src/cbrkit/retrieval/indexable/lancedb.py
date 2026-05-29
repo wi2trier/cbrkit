@@ -52,18 +52,6 @@ class lancedb[K: int | str](VectorStorageRetriever[K, lancedb_storage[K, Any]]):
 
     # -- search helpers ----------------------------------------------------
 
-    def _search_limit(self) -> int | None:
-        """Return the effective search limit."""
-        n = self.storage.search_limit()
-
-        if n is None:
-            return self.limit
-
-        if self.limit is not None:
-            return min(self.limit, n)
-
-        return n
-
     def _hits_to_result(
         self,
         hits: list[dict[str, Any]],
@@ -88,7 +76,7 @@ class lancedb[K: int | str](VectorStorageRetriever[K, lancedb_storage[K, Any]]):
 
         embed_func = self.query_conversion_func or self.storage.conversion_func
         query_vecs = embed_func(list(queries))
-        n = self._search_limit()
+        n = self._clamp_search_limit()
 
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
@@ -115,7 +103,7 @@ class lancedb[K: int | str](VectorStorageRetriever[K, lancedb_storage[K, Any]]):
         table = self.storage._table
         assert table is not None
 
-        n = self._search_limit()
+        n = self._clamp_search_limit()
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
         for query in queries:
@@ -145,7 +133,7 @@ class lancedb[K: int | str](VectorStorageRetriever[K, lancedb_storage[K, Any]]):
 
         embed_func = self.query_conversion_func or self.storage.conversion_func
         query_vecs = embed_func(list(queries))
-        n = self._search_limit()
+        n = self._clamp_search_limit()
 
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 

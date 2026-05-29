@@ -73,12 +73,11 @@ class chromadb[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     model: type[V] | None = None
     _client: ClientAPI = field(init=False, repr=False)
     _collection: cdb.Collection | None = field(default=None, init=False, repr=False)
-
-    @property
-    def _codec(self) -> RowCodec[V]:
-        return make_codec(self.model, self.value_field)
+    _codec: RowCodec[V] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._codec = make_codec(self.model, self.value_field)
+
         if self.index_type in ("dense", "hybrid") and self.embedding_func is None:
             raise ValueError(
                 f"embedding_func is required for index_type={self.index_type!r}"
@@ -240,10 +239,7 @@ class chromadb[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         if self._collection is None or not data:
             return
 
-        ids = [str(k) for k in data]
-
-        if ids:
-            self._collection.delete(ids=ids)
+        self._collection.delete(ids=[str(k) for k in data])
 
     @override
     def patch_index(

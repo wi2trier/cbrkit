@@ -68,18 +68,6 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
 
     # -- search helpers ----------------------------------------------------
 
-    def _search_limit(self) -> int:
-        """Return the effective search limit."""
-        n = self.storage.search_limit()
-
-        if n is None:
-            return self.limit or 10
-
-        if self.limit is not None:
-            return min(self.limit, n)
-
-        return n
-
     def _docs_to_result(
         self,
         docs: list[zv.Doc],
@@ -112,7 +100,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
 
         embed_func = self.query_conversion_func or self.storage.conversion_func
         query_vecs = embed_func(list(queries))
-        n = self._search_limit()
+        n = self._clamp_search_limit() or 10
 
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
@@ -143,7 +131,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
             self.sparse_query_conversion_func or self.storage.sparse_conversion_func
         )
         query_vecs = sparse_func(list(queries))
-        n = self._search_limit()
+        n = self._clamp_search_limit() or 10
 
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 
@@ -183,7 +171,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
 
         query_vecs = embed_func(list(queries))
         sparse_query_vecs = sparse_func(list(queries))
-        n = self._search_limit()
+        n = self._clamp_search_limit() or 10
 
         results: list[tuple[Casebase[K, str], SimMap[K, float]]] = []
 

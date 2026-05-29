@@ -116,12 +116,11 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     model: type[V] | None = None
     _collection: zv.Collection | None = field(default=None, init=False, repr=False)
     _keys: set[K] | None = field(default=None, init=False, repr=False)
-
-    @property
-    def _codec(self) -> RowCodec[V]:
-        return make_codec(self.model, self.value_field)
+    _codec: RowCodec[V] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._codec = make_codec(self.model, self.value_field)
+
         if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
             raise ValueError(
                 f"conversion_func is required for index_type={self.index_type!r}"
@@ -329,10 +328,7 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         if self._collection is None or not data:
             return
 
-        ids = [str(k) for k in data]
-
-        if ids:
-            self._collection.delete(ids)
+        self._collection.delete([str(k) for k in data])
 
         if self._keys is not None:
             self._keys -= set(data)

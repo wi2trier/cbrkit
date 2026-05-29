@@ -188,18 +188,60 @@ def _sql_in_clause[K: int | str](column: str, keys: Collection[K]) -> str:
 class _PgMetric:
     """Per-metric pgvector configuration."""
 
-    opclass: str
-    """HNSW operator class name passed to `CREATE INDEX ... USING hnsw`."""
+    ops_suffix: str
+    """Operator-class suffix; the full HNSW opclass is
+    `f"{type_prefix}_{ops_suffix}_ops"` (e.g. `vector_cosine_ops`,
+    `halfvec_cosine_ops`)."""
     distance_attr: str
-    """`pgvector.sqlalchemy.Vector` method name returning the distance expression."""
+    """`pgvector.sqlalchemy` comparator method returning the distance expression."""
     sim_from_distance: Callable[[float], float]
     """Convert a raw pgvector distance to a similarity score."""
 
 
 PG_METRICS: dict[Literal["cosine", "ip", "l2"], _PgMetric] = {
-    "cosine": _PgMetric("vector_cosine_ops", "cosine_distance", dist2sim),
-    "ip": _PgMetric("vector_ip_ops", "max_inner_product", lambda d: -d),
-    "l2": _PgMetric("vector_l2_ops", "l2_distance", dist2sim),
+    "cosine": _PgMetric("cosine", "cosine_distance", dist2sim),
+    "ip": _PgMetric("ip", "max_inner_product", lambda d: -d),
+    "l2": _PgMetric("l2", "l2_distance", dist2sim),
+}
+
+
+@dataclass(slots=True, frozen=True)
+class _SqliteVecMetric:
+    """Per-metric `vec0` configuration."""
+
+    distance_metric: str
+    """`distance_metric=` keyword used in the `vec0` table definition."""
+    sim_from_distance: Callable[[float], float]
+    """Convert a `vec0` `distance` value to a similarity score."""
+
+
+SQLITE_VEC_METRICS: dict[Literal["cosine", "l2", "l1"], _SqliteVecMetric] = {
+    "cosine": _SqliteVecMetric("cosine", dist2sim),
+    "l2": _SqliteVecMetric("l2", dist2sim),
+    "l1": _SqliteVecMetric("l1", dist2sim),
+}
+
+
+@dataclass(slots=True, frozen=True)
+class _SqliteVecType:
+    """Per-element-type `vec0` configuration.
+
+    `value_template` wraps a bound float32-BLOB placeholder into the SQL
+    expression `vec0` expects for the declared column type — used verbatim
+    for both inserts and the KNN `MATCH` query, so storage and query stay in
+    lock-step.  Embeddings are always serialized as float32; the extension
+    performs any quantization at the SQL layer.
+    """
+
+    column_type: str
+    """`vec0` element type, combined with `[dim]` (e.g. `float` -> `float[384]`)."""
+    value_template: str
+    """SQL template wrapping a placeholder (`{0}`), e.g. `vec_f32({0})`."""
+
+
+SQLITE_VEC_TYPES: dict[Literal["float32", "int8"], _SqliteVecType] = {
+    "float32": _SqliteVecType("float", "vec_f32({0})"),
+    "int8": _SqliteVecType("int8", "vec_quantize_int8(vec_f32({0}), 'unit')"),
 }
 
 
@@ -209,7 +251,11 @@ __all__ = [
     "_sql_literal",
     "_sql_in_clause",
     "_PgMetric",
+    "_SqliteVecMetric",
+    "_SqliteVecType",
     "PG_METRICS",
+    "SQLITE_VEC_METRICS",
+    "SQLITE_VEC_TYPES",
     "RowCodec",
     "make_codec",
     "model_columns",

@@ -2,10 +2,11 @@
 
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol, cast, override
+from typing import Any, Literal, Protocol, cast, override
 
+from ...filter import Filter
 from ...helpers import batchify_sim, dispatch_batches, dispatch_batches_async
 from ...sim.embed import default_score_func, embed_pairs
 from ...typing import (
@@ -171,6 +172,8 @@ class _VectorStorage(_IndexedStorage, Protocol):
 
     conversion_func: BatchConversionFunc[str, NumpyArray] | None
 
+    def search_limit(self) -> int | None: ...
+
 
 class _AsyncIndexedStorage(Protocol):
     async def has_index(self) -> bool: ...
@@ -179,6 +182,12 @@ class _AsyncIndexedStorage(Protocol):
 class _AsyncVectorStorage(_AsyncIndexedStorage, Protocol):
     conversion_func: BatchConversionFunc[str, NumpyArray] | None
     index_type: SearchType
+
+
+class _AsyncSqlVectorStorage(_AsyncVectorStorage, Protocol):
+    """Async vector storage whose DB keys are cast back to casebase keys."""
+
+    def cast_key(self, value: Any) -> Any: ...
 
 
 @dataclass(slots=True)
@@ -256,6 +265,21 @@ class VectorStorageRetriever[K, St: _VectorStorage](StorageRetriever[K, St], ABC
 
     search_type: SearchType = "dense"
     query_conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
+
+    def _clamp_search_limit(self) -> int | None:
+        """Resolve the effective query limit, clamped to the storage cap.
+
+        Returns the smaller of the configured ``limit`` and the storage's
+        ``search_limit()``, or ``None`` when neither bounds the query.
+        Backends that require a finite ``k`` (e.g. ``zvec``) apply their own
+        default to the result.
+        """
+        n = self.storage.search_limit()
+        if n is None:
+            return self.limit
+        if self.limit is not None:
+            return min(self.limit, n)
+        return n
 
     def _effective_search_type(self) -> SearchType:
         """The search type to run (verbatim by default)."""
@@ -387,6 +411,49 @@ class AsyncVectorStorageRetriever[K, St: _AsyncVectorStorage](
     ) -> Sequence[tuple[Casebase[K, str], SimMap[K, float]]]: ...
 
 
+@dataclass(slots=True)
+class SqlAlchemyVectorRetriever[K, St: _AsyncSqlVectorStorage](
+    AsyncVectorStorageRetriever[K, St], ABC
+):
+    """Async vector retriever over a SQLAlchemy-backed storage.
+
+    Adds the filter and hybrid-oversample knobs plus the row-collection and
+    RRF-finalization helpers that the ``pgvector`` and ``sqlite_vec`` backends
+    use identically — only the three ``_search_db_*`` leaves differ between
+    them.
+    """
+
+    where: Filter | None = None
+    hybrid_oversample: int = 4
+
+    async def _collect_rows(
+        self,
+        conn: Any,
+        stmt: Any,
+        score_fn: Callable[[float], float],
+    ) -> tuple[Casebase[K, str], SimMap[K, float]]:
+        """Run *stmt* and fold its ``(key, value, score)`` rows into a result pair."""
+        cast_key = self.storage.cast_key
+        cb: dict[K, str] = {}
+        sm: dict[K, float] = {}
+        for k, v, s in (await conn.execute(stmt)).all():
+            kk = cast_key(k)
+            cb[kk] = v
+            sm[kk] = score_fn(float(s))
+        return cb, sm
+
+    def _finalize_rrf(
+        self,
+        scores: Mapping[K, float],
+        values: Mapping[K, str],
+    ) -> tuple[Casebase[K, str], SimMap[K, float]]:
+        """Sort RRF *scores* descending, trim to ``limit``, project *values*."""
+        ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+        if self.limit is not None:
+            ranked = ranked[: self.limit]
+        return {k: values[k] for k, _ in ranked}, dict(ranked)
+
+
 __all__ = [
     "resolve_casebases",
     "_normalize_results",
@@ -397,4 +464,5 @@ __all__ = [
     "StorageRetriever",
     "VectorStorageRetriever",
     "AsyncVectorStorageRetriever",
+    "SqlAlchemyVectorRetriever",
 ]

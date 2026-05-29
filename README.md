@@ -134,7 +134,7 @@ For ad-hoc SQLite loading, CBRkit ships a stdlib-based loader:
 casebase = cbrkit.loaders.sqlite("path/to/database.db", "SELECT * FROM cases")
 ```
 
-For richer relational backends (filters, upserts, vector/FTS search via pgvector), see `cbrkit.indexable.sqlalchemy` and `cbrkit.indexable.pgvector`.
+For richer relational backends (filters, upserts, vector/FTS search via pgvector on PostgreSQL or sqlite-vec on SQLite), see `cbrkit.indexable.sqlalchemy`, `cbrkit.indexable.pgvector`, and `cbrkit.indexable.sqlite_vec`.
 
 **Tip:** You can validate a loaded casebase against a Pydantic model using `cbrkit.loaders.validate()`:
 
@@ -740,7 +740,7 @@ retriever = cbrkit.retrieval.bm25(conversion_func=cbrkit.sim.embed.bm25(language
 retriever.put_index(frozendict(casebase))
 ```
 
-The storage-backed `lancedb`, `chromadb`, `zvec`, and `pgvector` retrievers are pure query paths over a separate `cbrkit.indexable` storage that owns the index, so you index on the storage and wrap it for querying:
+The storage-backed `lancedb`, `chromadb`, `zvec`, `pgvector`, and `sqlite_vec` retrievers are pure query paths over a separate `cbrkit.indexable` storage that owns the index, so you index on the storage and wrap it for querying:
 
 ```python
 storage = cbrkit.indexable.lancedb(uri="./cases", table_name="cases")
@@ -761,8 +761,8 @@ The `System` class also defaults its casebase to `{}`, so a system of pre-indexe
 Each backend has one text-field knob — `value_column` (`value_field` for `zvec`/`chromadb`) — naming the embeddable text, and the value type `V` follows the schema source:
 
 - **Plain text** (`V = str`, the default) — the bare string is stored under the text knob and read back as a string.
-- **Typed model** (`V = YourModel`) — pass a `model`: a dataclass or Pydantic model for `lancedb`/`zvec`/`chromadb` (fields become columns), or a SQLAlchemy mapped class for `sqlalchemy`/`pgvector` (its `__table__` defines the schema). Reads reconstruct model instances.
-- **Mapping** (`V = Mapping[str, Any]`) — `sqlalchemy`/`pgvector` only, via a host-supplied `table` or `reflect=True`.
+- **Typed model** (`V = YourModel`) — pass a `model`: a dataclass or Pydantic model for `lancedb`/`zvec`/`chromadb` (fields become columns), or a SQLAlchemy mapped class for `sqlalchemy`/`pgvector`/`sqlite_vec` (its `__table__` defines the schema). Reads reconstruct model instances.
+- **Mapping** (`V = Mapping[str, Any]`) — `sqlalchemy`/`pgvector`/`sqlite_vec` only, via a host-supplied `table` or `reflect=True`.
 
 ```python
 # plain strings — cbrkit builds the table
@@ -778,6 +778,19 @@ class Car(Base):
     _pgvec: Mapped[Any] = mapped_column(cbrkit.indexable.PGVECTOR(384), nullable=False)
 
 store = cbrkit.indexable.pgvector[str, Car](url=..., model=Car, value_column="desc", ...)
+```
+
+Pass `vector_type="halfvec"` for half-precision storage (~2x smaller, negligible recall loss); for a typed model, declare the column with the re-exported `cbrkit.indexable.HALFVEC` instead of `PGVECTOR`.
+
+For a self-contained, file-based store, `sqlite_vec` offers the same dense/sparse/hybrid API on SQLite via the [`sqlite-vec`](https://github.com/asg017/sqlite-vec) extension (loaded automatically). Dense KNN uses a `vec0` virtual table (so the backend inherits future `vec0` capabilities such as approximate search, and supports quantized `vector_type="int8"` storage today), sparse search uses built-in FTS5, and `Filter` `WHERE` clauses compose by joining matches back to the main table:
+
+```python
+store = cbrkit.indexable.sqlite_vec[str, str](
+    url="sqlite+aiosqlite:///cases.db",
+    value_column="body", vector_dim=384, index_type="hybrid", conversion_func=embed,
+)
+store.put_index(frozendict(casebase))
+retriever = cbrkit.retrieval.indexable.sqlite_vec(storage=store, search_type="hybrid")
 ```
 
 **Retain caveat:** the storage-backed retrievers search by the text column and always return `Casebase[K, str]`, projecting richer values down to their text.

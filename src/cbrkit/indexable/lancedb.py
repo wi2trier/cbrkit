@@ -64,6 +64,7 @@ class lancedb[K: int | str, V = str](IndexableFunc[Casebase[K, V], Collection[K]
     model: type[V] | None = None
     _db: ldb.DBConnection = field(init=False, repr=False)
     _table: ldb.Table | None = field(default=None, init=False, repr=False)
+    _codec: RowCodec[V] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.index_type in ("dense", "hybrid") and self.conversion_func is None:
@@ -71,14 +72,13 @@ class lancedb[K: int | str, V = str](IndexableFunc[Casebase[K, V], Collection[K]
                 f"conversion_func is required for index_type={self.index_type!r}"
             )
 
+        self._codec = make_codec(
+            self.model, self.value_column, key_column=self.key_column
+        )
         self._db = ldb.connect(self.uri)
 
         if self.table_name in self._db.list_tables().tables:
             self._table = self._db.open_table(self.table_name)
-
-    @property
-    def _codec(self) -> RowCodec[V]:
-        return make_codec(self.model, self.value_column, key_column=self.key_column)
 
     @override
     def has_index(self) -> bool:

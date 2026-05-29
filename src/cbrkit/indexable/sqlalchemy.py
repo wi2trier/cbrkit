@@ -55,7 +55,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from ..filter import And, Eq, Filter, In, Like, Not, Or, Raw
-from ..helpers import run_coroutine
+from ..helpers import forward_fields, run_coroutine
 from ..typing import (
     AsyncFilterableIndexableFunc,
     Casebase,
@@ -668,15 +668,7 @@ class sqlalchemy[K: int | str, V = Mapping[str, Any]](
 
     def _build_async(self) -> sqlalchemy_async[K, V]:
         return sqlalchemy_async[K, V](
-            engine=self._engine,
-            model=self.model,
-            table_name=self.table_name,
-            manage_schema=self.manage_schema,
-            reflect=self.reflect,
-            key_column=self.key_column,
-            key_type=self.key_type,
-            indexes=self.indexes,
-            value_column=self.value_column,
+            engine=self._engine, **forward_fields(self, exclude={"url"})
         )
 
     @property

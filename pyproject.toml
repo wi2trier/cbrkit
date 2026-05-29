@@ -77,7 +77,8 @@ chromadb = ["chromadb>=1,<2"]
 lancedb = ["lancedb>=0.20,<1"]
 pandas = ["pandas>=2,<4"]
 pgvector = ["pgvector>=0.4,<1", "cbrkit[sql]"]
-sql = ["sqlalchemy>=2,<3"]
+sql = ["sqlalchemy[asyncio]>=2,<3"]
+sqlite-vec = ["sqlite-vec>=0.1,<1", "aiosqlite>=0.20,<1", "cbrkit[sql]"]
 zvec = ["zvec>=0.2,<1"]
 
 # Tools
@@ -97,7 +98,7 @@ api = [
 
 # Bundle
 all = [
-  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,timeseries,transformers,voyageai,zvec]",
+  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,timeseries,transformers,voyageai,zvec]",
 ]
 
 [project.urls]
