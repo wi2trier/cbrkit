@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.0](https://github.com/wi2trier/cbrkit/compare/v1.3.0...v1.4.0) (2026-05-29)
+
+### Features
+
+* add async retrieval support and restructure some submodules ([8c137be](https://github.com/wi2trier/cbrkit/commit/8c137be2707151404828e345b1f06a52cc7f7ec2))
+* **indexable:** add backend-agnostic sqlalchemy variant ([559a72f](https://github.com/wi2trier/cbrkit/commit/559a72fbec4ac672ed7f75f19a28d260cc2eedb5))
+* **indexable:** add first-class support for typed models instead of metadata and columns ([a104545](https://github.com/wi2trier/cbrkit/commit/a1045450c497507ca9c1eb1e0d38eaf4b9ab7d97))
+* **indexable:** add pgvector ([b4f41b9](https://github.com/wi2trier/cbrkit/commit/b4f41b973c5b5a0b5214192e0d7ca099f05536df))
+* **indexable:** add sqlite-vec backend and optimize pgvector backend ([22825de](https://github.com/wi2trier/cbrkit/commit/22825deb66e755e4f37046b1a7c684a7629fa39b))
+
+### Bug Fixes
+
+* **indexable:** add postgres mixin, move metadata to methods ([87f1957](https://github.com/wi2trier/cbrkit/commit/87f195761abc61c46a41422fb5e06692876274fd))
+* **indexable:** small improvements ([6ee5479](https://github.com/wi2trier/cbrkit/commit/6ee54799c0f8b443f16b50f52cf473675a24c836))
+
 ## [1.3.0](https://github.com/wi2trier/cbrkit/compare/v1.2.0...v1.3.0) (2026-05-08)
 
 ### Features
