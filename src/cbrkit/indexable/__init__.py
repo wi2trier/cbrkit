@@ -33,7 +33,14 @@ with optional_dependencies():
     from .sqlalchemy import sqlalchemy, sqlalchemy_async
 
 with optional_dependencies():
-    from .pgvector import HALFVEC, PGVECTOR, TSVECTOR, pgvector, pgvector_async
+    from .pgvector import (
+        HALFVEC,
+        PGVECTOR,
+        TSVECTOR,
+        pgvector,
+        pgvector_async,
+        tsvector_computed,
+    )
 
 with optional_dependencies():
     from .sqlite_vec import sqlite_vec, sqlite_vec_async
@@ -50,5 +57,6 @@ __all__ = [
     "sqlalchemy_async",
     "sqlite_vec",
     "sqlite_vec_async",
+    "tsvector_computed",
     "zvec",
 ]

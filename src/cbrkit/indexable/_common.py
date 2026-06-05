@@ -1,7 +1,8 @@
 """Shared helpers and SQL utilities for indexable storage backends."""
 
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass
+from functools import reduce
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel
@@ -203,6 +204,39 @@ PG_METRICS: dict[Literal["cosine", "ip", "l2"], _PgMetric] = {
     "ip": _PgMetric("ip", "max_inner_product", lambda d: -d),
     "l2": _PgMetric("l2", "l2_distance", dist2sim),
 }
+
+
+def normalize_fts_configs(config: str | Sequence[str]) -> tuple[str, ...]:
+    """Normalize a PostgreSQL FTS configuration argument to a tuple.
+
+    A single string is the common case (one text-search configuration).
+    A sequence enables true multi-language indexing: the stored
+    ``tsvector`` and the query ``tsquery`` become the union of one
+    ``to_tsvector`` / ``plainto_tsquery`` per configuration, so a corpus
+    mixing e.g. German and English is stemmed correctly for both.
+
+    The default ``"simple"`` configuration is language-agnostic (no
+    stemming, no stop-words), the safe choice when the language is
+    unknown or mixed; the dense embedding channel carries the semantic
+    load.
+    """
+    if isinstance(config, str):
+        return (config,)
+    configs = tuple(config)
+    if not configs:
+        raise ValueError("tsvector_config sequence must be non-empty")
+    return configs
+
+
+def fts_combine(terms: Iterable[Any]) -> Any:
+    """Fold per-config FTS expressions with the PostgreSQL ``||`` operator.
+
+    ``||`` concatenates ``tsvector`` operands and ORs ``tsquery`` operands,
+    so this combines one ``to_tsvector`` / ``plainto_tsquery`` per configured
+    language into a single multilingual expression.  *terms* must be
+    non-empty (guaranteed by :func:`normalize_fts_configs`).
+    """
+    return reduce(lambda acc, term: acc.op("||")(term), terms)
 
 
 @dataclass(slots=True, frozen=True)

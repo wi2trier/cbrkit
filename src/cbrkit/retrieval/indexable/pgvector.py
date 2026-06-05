@@ -27,7 +27,7 @@ from ...indexable import (
     pgvector as pgvector_storage,
     pgvector_async as pgvector_async_storage,
 )
-from ...indexable._common import PG_METRICS
+from ...indexable._common import PG_METRICS, fts_combine, normalize_fts_configs
 from ...typing import (
     BatchConversionFunc,
     Casebase,
@@ -73,7 +73,10 @@ def _build_sparse_stmt(
     assert storage.value_column is not None
     table = storage.sa_table
     tsv = table.c[storage.tsvector_column]
-    tsq = sa.func.plainto_tsquery(storage.tsvector_config, query)
+    tsq = fts_combine(
+        sa.func.plainto_tsquery(cfg, query)
+        for cfg in normalize_fts_configs(storage.tsvector_config)
+    )
     rank = sa.func.ts_rank(tsv, tsq)
     stmt = (
         sa.select(

@@ -24,8 +24,7 @@ For typed rows, pass a SQLAlchemy mapped *model* (host-created) — compose
 :class:`PGVECTOR` and :class:`TSVECTOR` (re-exported here for convenience)
 directly in it and point ``value_column`` at the embeddable column::
 
-    from cbrkit.indexable import PGVECTOR, TSVECTOR
-    import sqlalchemy as sa
+    from cbrkit.indexable import PGVECTOR, TSVECTOR, tsvector_computed
     from sqlalchemy.orm import Mapped, mapped_column
 
     class Chunk(Base):
@@ -34,15 +33,13 @@ directly in it and point ``value_column`` at the embeddable column::
         body: Mapped[str]
         _pgvec: Mapped[Any] = mapped_column(PGVECTOR(384), nullable=False)
         _tsvec: Mapped[Any] = mapped_column(
-            TSVECTOR(),
-            sa.Computed(
-                sa.func.to_tsvector(sa.literal("english"), sa.column("body")),
-                persisted=True,
-            ),
-            nullable=False,
+            TSVECTOR(), tsvector_computed("body"), nullable=False
         )
 
     storage = pgvector_async(url=..., model=Chunk, value_column="body", ...)
+
+Pass the same ``tsvector_config`` to both :func:`tsvector_computed` and the
+storage so the generated column and the query side agree.
 """
 
 from collections.abc import (
@@ -63,7 +60,7 @@ from ..typing import (
     BatchConversionFunc,
     NumpyArray,
 )
-from ._common import PG_METRICS
+from ._common import PG_METRICS, fts_combine, normalize_fts_configs
 from .sqlalchemy import sqlalchemy, sqlalchemy_async
 
 # vector_type -> (HNSW opclass prefix, SQLAlchemy column type).  Both
@@ -76,12 +73,29 @@ _PG_VECTOR_TYPES: dict[Literal["float32", "halfvec"], tuple[str, Any]] = {
 }
 
 
-def _tsvector_computed_clause(source: str, config: str) -> sa.Computed:
-    """Persisted ``to_tsvector(<config>, <source>)`` clause."""
-    return sa.Computed(
-        sa.func.to_tsvector(sa.literal(config), sa.column(source)),
-        persisted=True,
+def tsvector_computed(
+    source: str, config: str | Sequence[str] = "simple"
+) -> sa.Computed:
+    """Persisted ``to_tsvector`` clause over *source*, for host model columns.
+
+    Use this in a host-declared mapped model's ``TSVECTOR`` column and pass
+    the *same* ``config`` to the storage's ``tsvector_config`` so the
+    generated column and the query ``tsquery`` stay in lockstep — declaring
+    the clause by hand in two places that must agree is the usual source of
+    silently broken sparse search.
+
+    A single ``config`` builds ``to_tsvector(config, source)``.  A sequence
+    builds the union ``to_tsvector(c1, source) || to_tsvector(c2, source)
+    || ...`` for true multi-language indexing (e.g. ``("german",
+    "english")``), matching the OR-combined ``tsquery`` the retriever
+    builds from the same list.  The default ``"simple"`` is
+    language-agnostic.
+    """
+    expr = fts_combine(
+        sa.func.to_tsvector(sa.literal(cfg), sa.column(source))
+        for cfg in normalize_fts_configs(config)
     )
+    return sa.Computed(expr, persisted=True)
 
 
 @dataclass(slots=True)
@@ -113,8 +127,14 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
             re-exported type (:class:`PGVECTOR` / :class:`HALFVEC`).
         index_type: ``"dense"`` (HNSW only), ``"sparse"`` (GIN only), or
             ``"hybrid"`` (both).
-        tsvector_config: PostgreSQL FTS configuration for the
-            ``tsvector_column`` generator.
+        tsvector_config: PostgreSQL FTS configuration(s) for the
+            ``tsvector_column`` generator and the matching query
+            ``tsquery``.  Defaults to the language-agnostic ``"simple"``
+            (no stemming or stop-words) so non-English text is never
+            silently mis-stemmed.  Pass a single config name (e.g.
+            ``"english"``) for a known monolingual corpus, or a sequence
+            (e.g. ``("german", "english")``) for true multi-language
+            indexing.
         metric_type: Distance metric used by the HNSW index (and mirrored
             at search time by the retriever wrapper).
         conversion_func: Embedding function.  Required for ``"dense"`` /
@@ -128,7 +148,7 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
     pgvector_dim: int | None = None
     vector_type: Literal["float32", "halfvec"] = "float32"
     index_type: Literal["dense", "sparse", "hybrid"] = "dense"
-    tsvector_config: str = "english"
+    tsvector_config: str | Sequence[str] = "simple"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
 
@@ -187,7 +207,7 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
                 sa.Column(
                     self.tsvector_column,
                     TSVECTOR(),
-                    _tsvector_computed_clause(self.value_column, self.tsvector_config),
+                    tsvector_computed(self.value_column, self.tsvector_config),
                     nullable=False,
                 )
             )
@@ -318,7 +338,7 @@ class pgvector[K: int | str, V = Mapping[str, Any]](sqlalchemy[K, V]):
     pgvector_dim: int | None = None
     vector_type: Literal["float32", "halfvec"] = "float32"
     index_type: Literal["dense", "sparse", "hybrid"] = "dense"
-    tsvector_config: str = "english"
+    tsvector_config: str | Sequence[str] = "simple"
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
 
@@ -342,4 +362,5 @@ __all__ = [
     "TSVECTOR",
     "pgvector",
     "pgvector_async",
+    "tsvector_computed",
 ]
