@@ -5,13 +5,10 @@ from typing import override
 from cohere import AsyncClient
 from cohere.core import RequestOptions
 
-from ...helpers import get_logger
 from ._common import RerankFunc
 
-logger = get_logger(__name__)
 
-
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class cohere[K](RerankFunc[K]):
     """Semantic similarity using Cohere's rerank models
 

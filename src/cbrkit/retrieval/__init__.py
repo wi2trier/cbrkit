@@ -35,10 +35,12 @@ Indexable Retrieval:
 - `pgvector` / `pgvector_async`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
 - `zvec`: Zvec vector store retrieval (requires `zvec` extra).
 
-Re-ranking:
+Re-ranking (chain after an indexed retriever in an async pipeline):
+- `cross_encoder`: sentence-transformers cross-encoder (requires `transformers` extra).
+- `http`: HTTP `/rerank` endpoint, e.g. vLLM (requires `http` extra).
 - `cohere`: Cohere re-ranking model (requires `cohere` extra).
 - `voyageai`: Voyage AI re-ranking model (requires `voyageai` extra).
-- `sentence_transformers`: Cross-encoder re-ranking (requires `transformers` extra).
+- `bi_encoder`: embedding-similarity rescoring (requires `transformers` extra).
 
 Example:
     >>> from cbrkit.sim.generic import equality
@@ -64,7 +66,16 @@ from .apply import (
 )
 from .build import build
 from .indexable import embed
-from .wrappers import combine, distribute, dropout, persist, transpose, transpose_value
+from .wrappers import (
+    combine,
+    distribute,
+    dropout,
+    persist,
+    synced,
+    threaded,
+    transpose,
+    transpose_value,
+)
 
 with optional_dependencies():
     from .wrappers import chunk
@@ -76,7 +87,13 @@ with optional_dependencies():
     from .rerank import voyageai
 
 with optional_dependencies():
-    from .rerank import sentence_transformers
+    from .rerank import cross_encoder
+
+with optional_dependencies():
+    from .rerank import bi_encoder, sentence_transformers
+
+with optional_dependencies():
+    from .rerank import http
 
 with optional_dependencies():
     from .indexable import bm25
@@ -100,6 +117,8 @@ __all__ = [
     "dropout",
     "distribute",
     "combine",
+    "threaded",
+    "synced",
     "chunk",
     "apply_batches",
     "apply_batches_async",
@@ -116,7 +135,10 @@ __all__ = [
     "QueryResultStep",
     "cohere",
     "voyageai",
+    "cross_encoder",
+    "bi_encoder",
     "sentence_transformers",
+    "http",
     "bm25",
     "chromadb",
     "embed",

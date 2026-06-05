@@ -6,26 +6,23 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import override
 
-from ...helpers import run_coroutine
-from ...typing import Casebase, RetrieverFunc
+from ...typing import AsyncRetrieverFunc, Casebase
 
 
-@dataclass(slots=True, frozen=True)
-class RerankFunc[K](RetrieverFunc[K, str, float], ABC):
-    """Base for rerank-model retrievers that score documents per query.
+@dataclass(slots=True)
+class RerankFunc[K](AsyncRetrieverFunc[K, str, float], ABC):
+    """Async base for rerank-model retrievers that score documents per query.
 
-    Subclasses implement the single async API call :meth:`_rerank`; the
-    batching and index-to-key mapping scaffolding is shared here.
+    Subclasses implement the single async call :meth:`_rerank`; the per-query
+    fan-out and index-to-key mapping are shared here.  Because the base is an
+    :class:`~cbrkit.typing.AsyncRetrieverFunc`, instances drop straight into an
+    async retrieval pipeline — chain one after an indexed retriever in
+    :func:`cbrkit.retrieval.apply_query_indexed_async`, where the upstream
+    retriever supplies the candidate casebase this reranker rescores.
     """
 
     @override
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, str], str]],
-    ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
-        return run_coroutine(self._retrieve(batches))
-
-    async def _retrieve(
+    async def __call__(
         self,
         batches: Sequence[tuple[Casebase[K, str], str]],
     ) -> Sequence[tuple[Casebase[K, str], dict[K, float]]]:
@@ -38,7 +35,10 @@ class RerankFunc[K](RetrieverFunc[K, str, float], ABC):
         query: str,
         casebase: Casebase[K, str],
     ) -> tuple[Casebase[K, str], dict[K, float]]:
-        scores = await self._rerank(query, list(casebase.values()))
+        documents = list(casebase.values())
+        if not documents:
+            return casebase, {}
+        scores = await self._rerank(query, documents)
         key_index = dict(enumerate(casebase))
         return casebase, {key_index[index]: score for index, score in scores}
 

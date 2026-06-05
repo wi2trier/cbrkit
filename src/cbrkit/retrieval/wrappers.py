@@ -10,6 +10,8 @@ from ..helpers import (
     get_value,
     mp_starmap,
     optional_dependencies,
+    run_coroutine,
+    run_threaded,
     sim_map2ranking,
     unpack_float,
 )
@@ -18,6 +20,7 @@ from ..loaders import path as _load_path
 from ..sim.aggregator import default_aggregator
 from ..typing import (
     AggregatorFunc,
+    AsyncRetrieverFunc,
     Casebase,
     ConversionFunc,
     FilePath,
@@ -36,6 +39,8 @@ __all__ = [
     "distribute",
     "dropout",
     "persist",
+    "synced",
+    "threaded",
     "transpose",
     "transpose_value",
 ]
@@ -478,6 +483,84 @@ class persist[K, V, S: Float](
     ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
         resolved = resolve_casebases(batches, self._casebase)
         return self.retriever_func(resolved)
+
+
+@dataclass(slots=True, frozen=True)
+class threaded[K, V, S: Float](AsyncRetrieverFunc[K, V, S]):
+    """Adapt a synchronous retriever into an async one via a worker thread.
+
+    Lets a blocking `RetrieverFunc` (e.g. one built with `build`) take part
+    in an async pipeline — for instance ahead of an async reranker in
+    `apply_query_async` / `apply_queries_async`. The wrapped retriever runs
+    in a thread (`asyncio.to_thread`), so it never blocks the event loop, and
+    the wrapper itself satisfies `AsyncRetrieverFunc`. This is the inverse of
+    `synced`, which adapts an async retriever for a synchronous pipeline.
+
+    Args:
+        retriever_func: The synchronous retriever to adapt.
+            Typically constructed with the `build` function.
+
+    Returns:
+        An async retriever function that defers to `retriever_func`.
+
+    Examples:
+        >>> import asyncio
+        >>> from cbrkit.retrieval import apply_query_async, build, threaded
+        >>> from cbrkit.sim.generic import equality
+        >>> retriever = threaded(build(equality()))
+        >>> result = asyncio.run(
+        ...     apply_query_async({"a": "x", "b": "y"}, "x", retriever)
+        ... )
+        >>> result.ranking[0]
+        'a'
+    """
+
+    retriever_func: RetrieverFunc[K, V, S]
+
+    @override
+    async def __call__(
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
+        return await run_threaded(self.retriever_func, batches)
+
+
+@dataclass(slots=True, frozen=True)
+class synced[K, V, S: Float](RetrieverFunc[K, V, S]):
+    """Adapt an async retriever into a synchronous one via `run_coroutine`.
+
+    The inverse of `threaded`: lets an `AsyncRetrieverFunc` (e.g. a reranker)
+    run inside the synchronous pipeline (`apply_query` / `apply_queries`), so a
+    sync first-stage retriever and an async reranker compose without switching
+    the whole pipeline to async. The wrapped coroutine is driven to completion
+    via `run_coroutine`, which runs it on a fresh event loop per call.
+
+    Because each call spins up its own loop, this fits stateless or local
+    rerankers (e.g. `cross_encoder`) and one-shot use best. A reranker holding
+    a loop-bound async client (the HTTP-backed `http` / `cohere` / `voyageai`)
+    is better driven through the async pipeline when called repeatedly.
+
+    Args:
+        retriever_func: The async retriever to adapt.
+
+    Returns:
+        A synchronous retriever function that defers to `retriever_func`.
+
+    Examples:
+        >>> from cbrkit.retrieval import apply_query, build, synced, threaded
+        >>> from cbrkit.sim.generic import equality
+        >>> reranker = synced(threaded(build(equality())))
+        >>> result = apply_query({"a": "x", "b": "y"}, "x", reranker)
+        >>> result.ranking[0]
+        'a'
+    """
+
+    retriever_func: AsyncRetrieverFunc[K, V, S]
+
+    @override
+    def __call__(
+        self, batches: Sequence[tuple[Casebase[K, V], V]]
+    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
+        return run_coroutine(self.retriever_func(batches))
 
 
 with optional_dependencies():

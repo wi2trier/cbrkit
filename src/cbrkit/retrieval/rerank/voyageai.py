@@ -4,13 +4,10 @@ from typing import override
 
 from voyageai.client_async import AsyncClient
 
-from ...helpers import get_logger
 from ._common import RerankFunc
 
-logger = get_logger(__name__)
 
-
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class voyageai[K](RerankFunc[K]):
     """Semantic similarity using Voyage AI's rerank models
 

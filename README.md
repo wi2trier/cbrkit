@@ -79,6 +79,7 @@ where `EXTRA_NAME` is one of the following:
 
 - `all`: All optional dependencies
 - **LLM providers:** `anthropic`, `cohere`, `google`, `ollama`, `openai`, `openai-agents`, `pydantic-ai`, `instructor`, `voyageai`
+- **HTTP integrations:** `http`
 - **NLP / text processing:** `bm25`, `chunking`, `levenshtein`, `nltk`, `spacy`
 - **ML / embeddings:** `transformers` (includes `pytorch` and `sentence-transformers`)
 - **Graphs:** `graphs` (`networkx` and `rustworkx`), `graphviz`
@@ -710,20 +711,41 @@ retriever = cbrkit.retrieval.distribute(
 
 ### Re-ranking
 
-CBRkit supports re-ranking retrieved results using external models.
-Re-rankers take the initial retrieval results and reorder them based on a more expensive model.
+CBRkit supports re-ranking retrieved results using dedicated rerank models.
+A re-ranker takes the candidates from a first-stage retriever and reorders them with a more expensive model.
 The following re-rankers are available (each requires its respective extra):
 
+- `cbrkit.retrieval.cross_encoder`: Sentence Transformers cross-encoder (extra: `transformers`)
+- `cbrkit.retrieval.http`: HTTP `/rerank` endpoint, e.g. vLLM (extra: `http`)
 - `cbrkit.retrieval.cohere`: Cohere re-ranking (extra: `cohere`)
 - `cbrkit.retrieval.voyageai`: Voyage AI re-ranking (extra: `voyageai`)
-- `cbrkit.retrieval.sentence_transformers`: Sentence Transformers cross-encoder re-ranking (extra: `transformers`)
+- `cbrkit.retrieval.bi_encoder`: Sentence Transformers embedding-similarity rescoring (extra: `transformers`)
+
+Re-rankers are **async** retrievers, so chain them after a first-stage retriever in an async pipeline (`apply_query_async` / `apply_queries_async`, or the `_indexed` variants for a pre-indexed first stage):
 
 ```python
-reranker = cbrkit.retrieval.cohere(model="rerank-v3.5")
+reranker = cbrkit.retrieval.cross_encoder(model="cross-encoder/ms-marco-MiniLM-L6-v2")
 
-# Use as a second-stage retriever in a sequential pipeline
+# Async first stage (e.g. pgvector) -> reranker
+result = await cbrkit.retrieval.apply_query_indexed_async(query, [retriever, reranker])
+```
+
+To combine a **synchronous** first-stage retriever (such as one built with `build`) with a reranker, bridge the sync/async boundary with one wrapper.
+Use `synced` to keep the simpler synchronous pipeline (it drives the async reranker via a per-call event loop):
+
+```python
 retriever = cbrkit.retrieval.build(cbrkit.sim.attribute_value(...))
-result = cbrkit.retrieval.apply_query(casebase, query, (retriever, reranker))
+result = cbrkit.retrieval.apply_query(
+    casebase, query, [retriever, cbrkit.retrieval.synced(reranker)]
+)
+```
+
+Or, when you are already in an async pipeline, use the inverse `threaded` wrapper to run the sync retriever in a worker thread and expose it as async:
+
+```python
+result = await cbrkit.retrieval.apply_query_async(
+    casebase, query, [cbrkit.retrieval.threaded(retriever), reranker]
+)
 ```
 
 ### Indexed Retrieval

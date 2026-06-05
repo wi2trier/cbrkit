@@ -10,6 +10,10 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[options]
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer-span = "P3D"
+
 [[package]]
 name = "aiofile"
 version = "3.11.1"
@@ -453,6 +457,7 @@ all = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "instructor" },
     { name = "lancedb" },
     { name = "levenshtein" },
@@ -523,6 +528,9 @@ graphs = [
 ]
 graphviz = [
     { name = "pygraphviz" },
+]
+http = [
+    { name = "httpx" },
 ]
 instructor = [
     { name = "instructor" },
@@ -600,7 +608,7 @@ requires-dist = [
     { name = "aiosqlite", marker = "extra == 'sqlite-vec'", specifier = ">=0.20,<1" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40,<1" },
     { name = "bm25s", extras = ["core", "stem", "indexing"], marker = "extra == 'bm25'", specifier = ">=0.3,<1" },
-    { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chromadb", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "instructor", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pgvector", "pydantic-ai", "spacy", "sql", "sqlite-vec", "timeseries", "transformers", "voyageai", "zvec"], marker = "extra == 'all'" },
+    { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chromadb", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "http", "instructor", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pgvector", "pydantic-ai", "spacy", "sql", "sqlite-vec", "timeseries", "transformers", "voyageai", "zvec"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "cbrkit", extras = ["sql"], marker = "extra == 'pgvector'" },
     { name = "cbrkit", extras = ["sql"], marker = "extra == 'sqlite-vec'" },
@@ -611,6 +619,7 @@ requires-dist = [
     { name = "fastmcp", marker = "extra == 'api'", specifier = ">=3,<4" },
     { name = "frozendict", specifier = ">=2,<3" },
     { name = "google-genai", marker = "extra == 'google'", specifier = ">=2,<3" },
+    { name = "httpx", marker = "extra == 'http'", specifier = ">=0.28,<1" },
     { name = "instructor", marker = "extra == 'instructor'", specifier = ">=1,<2" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.20,<1" },
     { name = "levenshtein", marker = "extra == 'levenshtein'", specifier = ">=0.26,<1" },
@@ -649,7 +658,7 @@ requires-dist = [
     { name = "xmltodict", specifier = ">=1,<2" },
     { name = "zvec", marker = "extra == 'zvec'", specifier = ">=0.2,<1" },
 ]
-provides-extras = ["anthropic", "cohere", "google", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "pgvector", "sql", "sqlite-vec", "zvec", "cli", "eval", "timeseries", "api", "all"]
+provides-extras = ["anthropic", "cohere", "google", "http", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "pgvector", "sql", "sqlite-vec", "zvec", "cli", "eval", "timeseries", "api", "all"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -51,6 +51,7 @@ dependencies = [
 anthropic = ["anthropic>=0.40,<1"]
 cohere = ["cohere>=7,<8"]
 google = ["google-genai>=2,<3"]
+http = ["httpx>=0.28,<1"]
 instructor = ["instructor>=1,<2"]
 ollama = ["ollama>=0.3,<1"]
 openai = ["openai>=1,<3", "tiktoken>=0.8,<1"]
@@ -98,7 +99,7 @@ api = [
 
 # Bundle
 all = [
-  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,timeseries,transformers,voyageai,zvec]",
+  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,http,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,timeseries,transformers,voyageai,zvec]",
 ]
 
 [project.urls]
