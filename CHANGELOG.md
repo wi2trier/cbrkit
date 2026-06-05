@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.1](https://github.com/wi2trier/cbrkit/compare/v1.4.0...v1.4.1) (2026-06-05)
+
+### Bug Fixes
+
+* **pgvector:** allow configuring fts config ([850dd01](https://github.com/wi2trier/cbrkit/commit/850dd0155b768ddee33362e88c582071a7f4e6de))
+
 ## [1.4.0](https://github.com/wi2trier/cbrkit/compare/v1.3.0...v1.4.0) (2026-05-29)
 
 ### Features
