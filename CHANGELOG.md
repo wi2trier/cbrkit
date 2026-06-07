@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1](https://github.com/wi2trier/cbrkit/compare/v1.5.0...v1.5.1) (2026-06-07)
+
+### Bug Fixes
+
+* **retrieval/rerank/http:** add headers and api key ([2df67ec](https://github.com/wi2trier/cbrkit/commit/2df67eca96d6e830a3cb4fbf49da1602b9e0d9b9))
+
 ## [1.5.0](https://github.com/wi2trier/cbrkit/compare/v1.4.1...v1.5.0) (2026-06-07)
 
 ### Features
