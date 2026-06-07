@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/wi2trier/cbrkit/compare/v1.4.1...v1.5.0) (2026-06-07)
+
+### Features
+
+* **retrieval/rerank:** rewrite as async-first with additional providers ([366594b](https://github.com/wi2trier/cbrkit/commit/366594ba95b85517b51019f415809bdf7a5055a6))
+* **retrieval:** restructure namespacing of specialized rerank/indexable functions ([b48c020](https://github.com/wi2trier/cbrkit/commit/b48c020d98e8ed94d71d7a9fb11a482c5849b9f7))
+
 ## [1.4.1](https://github.com/wi2trier/cbrkit/compare/v1.4.0...v1.4.1) (2026-06-05)
 
 ### Bug Fixes
