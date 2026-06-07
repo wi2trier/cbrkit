@@ -653,7 +653,7 @@ The BM25 retriever delegates text tokenization to a `cbrkit.sim.embed.bm25` embe
 ```python
 bm25_func = cbrkit.sim.embed.bm25(language="en")
 retriever = cbrkit.retrieval.dropout(
-    cbrkit.retrieval.bm25(conversion_func=bm25_func),
+    cbrkit.retrieval.indexable.bm25(conversion_func=bm25_func),
     limit=10,
 )
 result = cbrkit.retrieval.apply_query(casebase, query, retriever)
@@ -671,7 +671,7 @@ embed_func = cbrkit.sim.embed.cache(
     table="strf/minilm",
 )
 retriever = cbrkit.retrieval.dropout(
-    cbrkit.retrieval.embed(conversion_func=embed_func),
+    cbrkit.retrieval.indexable.embed(conversion_func=embed_func),
     limit=10,
 )
 result = cbrkit.retrieval.apply_query(casebase, query, retriever)
@@ -686,7 +686,7 @@ The `combine` function allows merging results from multiple retrievers:
 
 ```python
 retriever1 = cbrkit.retrieval.build(...)
-retriever2 = cbrkit.retrieval.bm25(...)
+retriever2 = cbrkit.retrieval.indexable.bm25(...)
 
 combined = cbrkit.retrieval.combine(
     retriever_funcs=[retriever1, retriever2],
@@ -715,16 +715,16 @@ CBRkit supports re-ranking retrieved results using dedicated rerank models.
 A re-ranker takes the candidates from a first-stage retriever and reorders them with a more expensive model.
 The following re-rankers are available (each requires its respective extra):
 
-- `cbrkit.retrieval.cross_encoder`: Sentence Transformers cross-encoder (extra: `transformers`)
-- `cbrkit.retrieval.http`: HTTP `/rerank` endpoint, e.g. vLLM (extra: `http`)
-- `cbrkit.retrieval.cohere`: Cohere re-ranking (extra: `cohere`)
-- `cbrkit.retrieval.voyageai`: Voyage AI re-ranking (extra: `voyageai`)
-- `cbrkit.retrieval.bi_encoder`: Sentence Transformers embedding-similarity rescoring (extra: `transformers`)
+- `cbrkit.retrieval.rerank.cross_encoder`: Sentence Transformers cross-encoder (extra: `transformers`)
+- `cbrkit.retrieval.rerank.http`: HTTP `/rerank` endpoint, e.g. vLLM (extra: `http`)
+- `cbrkit.retrieval.rerank.cohere`: Cohere re-ranking (extra: `cohere`)
+- `cbrkit.retrieval.rerank.voyageai`: Voyage AI re-ranking (extra: `voyageai`)
+- `cbrkit.retrieval.rerank.bi_encoder`: Sentence Transformers embedding-similarity rescoring (extra: `transformers`)
 
 Re-rankers are **async** retrievers, so chain them after a first-stage retriever in an async pipeline (`apply_query_async` / `apply_queries_async`, or the `_indexed` variants for a pre-indexed first stage):
 
 ```python
-reranker = cbrkit.retrieval.cross_encoder(model="cross-encoder/ms-marco-MiniLM-L6-v2")
+reranker = cbrkit.retrieval.rerank.cross_encoder(model="cross-encoder/ms-marco-MiniLM-L6-v2")
 
 # Async first stage (e.g. pgvector) -> reranker
 result = await cbrkit.retrieval.apply_query_indexed_async(query, [retriever, reranker])
@@ -758,7 +758,7 @@ The self-contained `bm25` and `embed` retrievers own their index, so you call `p
 ```python
 from frozendict import frozendict
 
-retriever = cbrkit.retrieval.bm25(conversion_func=cbrkit.sim.embed.bm25(language="en"))
+retriever = cbrkit.retrieval.indexable.bm25(conversion_func=cbrkit.sim.embed.bm25(language="en"))
 retriever.put_index(frozendict(casebase))
 ```
 
@@ -767,7 +767,7 @@ The storage-backed `lancedb`, `chromadb`, `zvec`, `pgvector`, and `sqlite_vec` r
 ```python
 storage = cbrkit.indexable.lancedb(uri="./cases", table_name="cases")
 storage.put_index(frozendict(casebase))
-retriever = cbrkit.retrieval.lancedb(storage=storage, search_type="dense")
+retriever = cbrkit.retrieval.indexable.lancedb(storage=storage, search_type="dense")
 ```
 
 Query a pre-indexed retriever with `apply_query_indexed` / `apply_queries_indexed` (or pass an empty casebase `{}` to `apply_query`); querying an un-indexed retriever raises `ValueError`:

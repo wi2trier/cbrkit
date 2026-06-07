@@ -27,20 +27,20 @@ Wrappers:
 - `transpose` / `transpose_value`: Transforms cases/queries before retrieval.
 - `chunk`: Splits cases into chunks for retrieval (requires `chunking` extra).
 
-Indexable Retrieval:
-- `embed`: Embedding-based retrieval using vector similarity.
-- `bm25`: BM25 sparse text retrieval (requires `bm25` extra).
-- `chromadb`: ChromaDB vector store retrieval (requires `chromadb` extra).
-- `lancedb`: LanceDB vector store retrieval (requires `lancedb` extra).
-- `pgvector` / `pgvector_async`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
-- `zvec`: Zvec vector store retrieval (requires `zvec` extra).
+Indexable Retrieval (`cbrkit.retrieval.indexable`):
+- `indexable.embed`: Embedding-based retrieval using vector similarity.
+- `indexable.bm25`: BM25 sparse text retrieval (requires `bm25` extra).
+- `indexable.chromadb`: ChromaDB vector store retrieval (requires `chromadb` extra).
+- `indexable.lancedb`: LanceDB vector store retrieval (requires `lancedb` extra).
+- `indexable.pgvector` / `indexable.pgvector_async`: PostgreSQL/pgvector retrieval (requires `pgvector` extra).
+- `indexable.zvec`: Zvec vector store retrieval (requires `zvec` extra).
 
-Re-ranking (chain after an indexed retriever in an async pipeline):
-- `cross_encoder`: sentence-transformers cross-encoder (requires `transformers` extra).
-- `http`: HTTP `/rerank` endpoint, e.g. vLLM (requires `http` extra).
-- `cohere`: Cohere re-ranking model (requires `cohere` extra).
-- `voyageai`: Voyage AI re-ranking model (requires `voyageai` extra).
-- `bi_encoder`: embedding-similarity rescoring (requires `transformers` extra).
+Re-ranking (`cbrkit.retrieval.rerank`, chain after an indexed retriever in an async pipeline):
+- `rerank.cross_encoder`: sentence-transformers cross-encoder (requires `transformers` extra).
+- `rerank.http`: HTTP `/rerank` endpoint, e.g. vLLM (requires `http` extra).
+- `rerank.cohere`: Cohere re-ranking model (requires `cohere` extra).
+- `rerank.voyageai`: Voyage AI re-ranking model (requires `voyageai` extra).
+- `rerank.bi_encoder`: embedding-similarity rescoring (requires `transformers` extra).
 
 Example:
     >>> from cbrkit.sim.generic import equality
@@ -50,6 +50,7 @@ Example:
     'a'
 """
 
+from . import indexable, rerank
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
 from .apply import (
@@ -65,7 +66,6 @@ from .apply import (
     apply_query_indexed_async,
 )
 from .build import build
-from .indexable import embed
 from .wrappers import (
     combine,
     distribute,
@@ -80,37 +80,9 @@ from .wrappers import (
 with optional_dependencies():
     from .wrappers import chunk
 
-with optional_dependencies():
-    from .rerank import cohere
-
-with optional_dependencies():
-    from .rerank import voyageai
-
-with optional_dependencies():
-    from .rerank import cross_encoder
-
-with optional_dependencies():
-    from .rerank import bi_encoder, sentence_transformers
-
-with optional_dependencies():
-    from .rerank import http
-
-with optional_dependencies():
-    from .indexable import bm25
-
-with optional_dependencies():
-    from .indexable import chromadb
-
-with optional_dependencies():
-    from .indexable import lancedb
-
-with optional_dependencies():
-    from .indexable import pgvector, pgvector_async
-
-with optional_dependencies():
-    from .indexable import zvec
-
 __all__ = [
+    "indexable",
+    "rerank",
     "build",
     "transpose",
     "transpose_value",
@@ -133,18 +105,5 @@ __all__ = [
     "Result",
     "ResultStep",
     "QueryResultStep",
-    "cohere",
-    "voyageai",
-    "cross_encoder",
-    "bi_encoder",
-    "sentence_transformers",
-    "http",
-    "bm25",
-    "chromadb",
-    "embed",
-    "lancedb",
     "persist",
-    "pgvector",
-    "pgvector_async",
-    "zvec",
 ]
