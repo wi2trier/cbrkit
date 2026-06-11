@@ -1,26 +1,28 @@
 """Tests for indexable storage backends."""
 
 import dataclasses
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 import cbrkit
+from cbrkit.typing import NumpyArray
 
 
-def _toy_embed(texts: list[str]):
+def _toy_embed(texts: Sequence[str]) -> Sequence[NumpyArray]:
     """Deterministic bag-of-keywords embedder for sqlite_vec tests."""
     import numpy as np
 
     vocab = ("red", "blue", "green", "car", "sky", "fruit")
-    rows = []
+    rows: list[NumpyArray] = []
     for text in texts:
         lowered = text.lower()
-        vec = np.array([float(word in lowered) for word in vocab], dtype=np.float32)
+        vec = np.array([float(word in lowered) for word in vocab])
         if not vec.any():
             vec[:] = 1.0
         rows.append(vec)
-    return np.asarray(rows)
+    return rows
 
 
 def test_sqlite_vec_dense_sparse_hybrid(tmp_path: Path) -> None:
@@ -72,6 +74,69 @@ def test_sqlite_vec_dense_sparse_hybrid(tmp_path: Path) -> None:
     assert "a" not in cb
 
     storage.close()
+
+
+def test_sqlalchemy_async_populates_system_columns_off_loop(tmp_path: Path) -> None:
+    """System-column population must run in a worker thread, not on the loop.
+
+    Regression: pgvector's ``conversion_func`` ran synchronously inside
+    ``replace_where`` / ``put_index``, freezing the host application's
+    event loop for the duration of the embedding batch.  Caller-owned
+    *data* must still be read on the loop thread: mappings and ORM/model
+    values may be thread-affine, so only the population of the encoded
+    plain dicts may be offloaded.
+    """
+    pytest.importorskip("sqlalchemy")
+    pytest.importorskip("aiosqlite")
+
+    import asyncio
+    import threading
+    from collections.abc import Iterator, Mapping
+    from typing import Any
+
+    from cbrkit.filter import Eq
+    from cbrkit.indexable import sqlalchemy_async
+
+    populate_idents: list[int] = []
+    read_idents: list[int] = []
+
+    class loop_affine(Mapping[str, str]):
+        """Caller-owned mapping that records which thread reads it."""
+
+        def __init__(self, data: dict[str, str]) -> None:
+            self._data = data
+
+        def __getitem__(self, key: str) -> str:
+            return self._data[key]
+
+        def __len__(self) -> int:
+            return len(self._data)
+
+        def __iter__(self) -> Iterator[str]:
+            read_idents.append(threading.get_ident())
+            return iter(self._data)
+
+    class probe(sqlalchemy_async[str, str]):
+        def _populate_system_columns(self, rows: list[dict[str, Any]]) -> None:
+            populate_idents.append(threading.get_ident())
+
+    async def main() -> None:
+        storage = probe(
+            url=f"sqlite+aiosqlite:///{tmp_path}/cases.db",
+            value_column="text",
+        )
+        await storage.put_index(loop_affine({"a": "alpha"}))
+        await storage.upsert_index(loop_affine({"b": "beta"}))
+        await storage.replace_where(Eq("text", "beta"), loop_affine({"c": "gamma"}))
+        await storage.close()
+
+    asyncio.run(main())
+
+    loop_thread = threading.get_ident()
+    assert len(populate_idents) == 3
+    assert all(ident != loop_thread for ident in populate_idents)
+    assert read_idents
+    assert all(ident == loop_thread for ident in read_idents)
 
 
 def test_lancedb_patch_and_predicate_helpers(tmp_path: Path) -> None:

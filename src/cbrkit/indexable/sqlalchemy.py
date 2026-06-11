@@ -36,6 +36,7 @@ with native upsert (e.g. PostgreSQL ``ON CONFLICT``) override
 :meth:`_do_upsert`.
 """
 
+import asyncio
 from collections.abc import (
     AsyncIterator,
     Collection,
@@ -438,14 +439,24 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             if c.name != self.key_column and c.name not in system
         ]
 
-    def _build_rows(self, data: Casebase[K, V]) -> list[dict[str, Any]]:
+    async def _build_rows(self, data: Casebase[K, V]) -> list[dict[str, Any]]:
+        """Build insert rows, populating system columns in a worker thread.
+
+        Row encoding stays on the caller thread: *data* and its values are
+        caller-owned (possibly thread-affine mappings or ORM/model
+        instances), so they must not be touched from a worker.  Only
+        :meth:`_populate_system_columns` is offloaded — it receives the
+        already-encoded plain dicts and may run an expensive embedding
+        batch (e.g. pgvector's ``conversion_func``) that would otherwise
+        stall every other task in the host application.
+        """
         codec = self._codec
         rows: list[dict[str, Any]] = []
         for k, v in data.items():
             payload = codec.encode(v)
             payload[self.key_column] = k
             rows.append(payload)
-        self._populate_system_columns(rows)
+        await asyncio.to_thread(self._populate_system_columns, rows)
         return rows
 
     async def _execute_delete_in(
@@ -532,14 +543,14 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             if stale_keys:
                 await self._execute_delete_in(conn, stale_keys)
             if changed:
-                await self._do_upsert(conn, self._build_rows(changed))
+                await self._do_upsert(conn, await self._build_rows(changed))
 
     async def upsert_index(self, data: Casebase[K, V], /) -> None:
         if not data:
             return
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
-            await self._do_upsert(conn, self._build_rows(data))
+            await self._do_upsert(conn, await self._build_rows(data))
 
     async def delete_index(self, keys: Collection[K], /) -> None:
         if not keys:
@@ -563,7 +574,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             if delete_keys:
                 await self._execute_delete_in(conn, delete_keys)
             if upsert:
-                await self._do_upsert(conn, self._build_rows(upsert))
+                await self._do_upsert(conn, await self._build_rows(upsert))
 
     # -- AsyncFilterableIndexableFunc interface ------------------------------
 
@@ -595,7 +606,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
                     sa.delete(self._table).where(self.compile_filter(where))
                 )
             if data:
-                await self._do_upsert(conn, self._build_rows(data))
+                await self._do_upsert(conn, await self._build_rows(data))
         return old_keys
 
     # -- streaming / lifecycle -----------------------------------------------

@@ -42,6 +42,7 @@ Pass the same ``tsvector_config`` to both :func:`tsvector_computed` and the
 storage so the generated column and the query side agree.
 """
 
+import asyncio
 from collections.abc import (
     Mapping,
     Sequence,
@@ -307,7 +308,9 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
 
                 keys = [k for k, _ in rows]
                 texts = [t for _, t in rows]
-                vecs = self.conversion_func(texts)
+                # Off the event loop: a batch of 1000 embeddings would
+                # otherwise stall the host application's loop.
+                vecs = await asyncio.to_thread(self.conversion_func, texts)
 
                 await conn.execute(
                     sa.update(self._table)

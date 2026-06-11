@@ -48,6 +48,7 @@ table::
     storage.put_index({"a": "red sedan"})  # index -> {"a": "red sedan"}
 """
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
@@ -285,7 +286,9 @@ class sqlite_vec_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, 
     ) -> None:
         """Embed *texts* and insert the vectors into the ``vec0`` shadow."""
         assert self.conversion_func is not None
-        vectors = self.conversion_func(texts)
+        # Off the event loop: an embedding batch would otherwise stall the
+        # host application's loop for its full duration.
+        vectors = await asyncio.to_thread(self.conversion_func, texts)
         stmt = sa.text(
             f'INSERT INTO "{self.vec_table_name}"'
             f'("{self.key_column}", "{self.vector_column}") '
