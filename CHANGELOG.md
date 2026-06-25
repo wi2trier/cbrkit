@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/wi2trier/cbrkit/compare/v1.5.2...v1.5.3) (2026-06-25)
+
+### Bug Fixes
+
+* **pydantic-ai:** migrate to v2 ([000f9bd](https://github.com/wi2trier/cbrkit/commit/000f9bd1c6c17760604564b1a259fa431177ef15))
+* **zvec:** migrate to v0.5 ([eb0628a](https://github.com/wi2trier/cbrkit/commit/eb0628adecf0d27a7ed88a04d118d1901ac487f9))
+
 ## [1.5.2](https://github.com/wi2trier/cbrkit/compare/v1.5.1...v1.5.2) (2026-06-11)
 
 ### Bug Fixes
