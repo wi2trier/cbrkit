@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 from typing import override
 
 import numpy as np
-from pydantic_ai.embeddings import Embedder
-from pydantic_ai.embeddings.result import EmbedInputType
+from pydantic_ai.embeddings import EmbedInputType, Embedder
 
 from ....typing import BatchConversionFunc, NumpyArray
 

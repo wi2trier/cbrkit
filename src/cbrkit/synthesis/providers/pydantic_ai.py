@@ -4,7 +4,7 @@ from typing import cast, override
 
 from ...helpers import get_logger, optional_dependencies, produce_sequence
 from ...typing import MaybeSequence
-from .model import AsyncProvider
+from .model import AsyncProvider, Response, Usage
 
 logger = get_logger(__name__)
 
@@ -20,14 +20,20 @@ with optional_dependencies():
     type PydanticAiPrompt = str | Sequence[UserContent] | Sequence[ModelMessage]
 
     @dataclass(slots=True)
-    class pydantic_ai[T, R](AsyncProvider[PydanticAiPrompt, AgentRunResult[R]]):
-        """Provider that runs pydantic-ai agents."""
+    class pydantic_ai[T, R](AsyncProvider[PydanticAiPrompt, Response[R]]):
+        """Provider that runs pydantic-ai agents.
+
+        Agents are run sequentially, threading the message history from one agent
+        into the next, so a chain of agents can refine a shared conversation.
+        Capabilities, tools, and model settings are configured on the agents
+        themselves via the pydantic-ai v2 `capabilities` primitive.
+        """
 
         agents: MaybeSequence[Agent[T, R]]
         deps: T
 
         @override
-        async def __call_batch__(self, prompt: PydanticAiPrompt) -> AgentRunResult[R]:
+        async def __call_batch__(self, prompt: PydanticAiPrompt) -> Response[R]:
             agents = produce_sequence(self.agents)
 
             user_prompt: str | Sequence[UserContent] | None = None
@@ -40,17 +46,22 @@ with optional_dependencies():
             else:
                 user_prompt = cast(Sequence[UserContent], prompt)
 
-            response: AgentRunResult[R] | None = None
+            result: AgentRunResult[R] | None = None
+            usage = Usage()
 
             for agent in agents:
-                response = await agent.run(
+                result = await agent.run(
                     user_prompt=user_prompt,
                     deps=self.deps,
                     message_history=message_history,
                 )
-                message_history = response.all_messages()
+                usage = Usage(
+                    usage.prompt_tokens + result.usage.input_tokens,
+                    usage.completion_tokens + result.usage.output_tokens,
+                )
+                message_history = result.all_messages()
 
-            if not response:
+            if result is None:
                 raise ValueError("No agents given.")
 
-            return response
+            return Response(result.output, usage)

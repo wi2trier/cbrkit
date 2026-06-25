@@ -2,6 +2,7 @@
 import polars as pl
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Thinking
 from pydantic_ai.models.openai import OpenAIChatModel
 
 import cbrkit
@@ -35,6 +36,7 @@ synthesizer = cbrkit.synthesis.build(
         Agent(
             OpenAIChatModel("gpt-5.1-codex"),
             output_type=str,
+            capabilities=[Thinking(effort="low")],
         ),
         deps=None,
     ),
@@ -49,7 +51,7 @@ retrieval = cbrkit.retrieval.apply_query(
     casebase[0],
     retriever,
 )
-response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response
+response = cbrkit.synthesis.apply_result(retrieval, synthesizer).response.value
 
 print(response)
 
