@@ -22,7 +22,7 @@ import numpy as np
 import sqlalchemy as sa
 
 from ...filter import Filter
-from ...helpers import forward_fields, run_coroutine
+from ...helpers import forward_fields, identity, run_coroutine
 from ...indexable import (
     pgvector as pgvector_storage,
     pgvector_async as pgvector_async_storage,
@@ -158,7 +158,7 @@ class pgvector_async[K: int | str](
         async with self.storage.sa_engine.connect() as conn:
             for query in queries:
                 stmt = _build_sparse_stmt(self.storage, query, self.where, self.limit)
-                results.append(await self._collect_rows(conn, stmt, lambda s: s))
+                results.append(await self._collect_rows(conn, stmt, identity))
 
         return results
 
