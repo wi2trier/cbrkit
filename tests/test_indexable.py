@@ -184,3 +184,60 @@ def test_lancedb_patch_and_predicate_helpers(tmp_path: Path) -> None:
     assert set(storage.keys_where("source = 'doc-a'")) == {"doc-a::0", "doc-a::1"}
     assert set(storage.delete_where("source = 'doc-a'")) == {"doc-a::0", "doc-a::1"}
     assert storage.index == {"doc-b::0": Doc("delta", "doc-b")}
+
+
+def test_zvec_dense_fts_hybrid(tmp_path: Path) -> None:
+    """End-to-end dense / FTS-sparse / hybrid retrieval over a real zvec collection."""
+    pytest.importorskip("zvec")
+
+    import gc
+
+    cases = {"a": "red sedan car", "b": "blue sky", "c": "red apple fruit"}
+    path = str(tmp_path / "cases")
+
+    def _build() -> "cbrkit.indexable.zvec[str, str]":
+        return cbrkit.indexable.zvec[str, str](
+            path=path,
+            collection_name="cases",
+            index_type="hybrid",
+            conversion_func=_toy_embed,
+        )
+
+    storage = _build()
+    storage.put_index(cases)
+    assert storage.has_index()
+    assert dict(storage.index) == cases
+    assert storage.search_limit() == 3
+
+    # dense: "red car" is closest to "a" (red + car)
+    dense = cbrkit.retrieval.indexable.zvec(storage, search_type="dense", limit=2)
+    cb, sm = dense([({}, "red car")])[0]
+    assert next(iter(sm)) == "a"
+    assert cb["a"] == "red sedan car"
+
+    # sparse: native FTS keyword "red" hits "a" and "c", not "b"
+    sparse = cbrkit.retrieval.indexable.zvec(storage, search_type="sparse")
+    _, sm = sparse([({}, "red")])[0]
+    assert set(sm) == {"a", "c"}
+
+    # hybrid: dense + FTS fused via RRF still surfaces the lexical "red" hits
+    hybrid = cbrkit.retrieval.indexable.zvec(storage, search_type="hybrid", limit=5)
+    _, sm = hybrid([({}, "red car")])[0]
+    assert {"a", "c"} <= set(sm)
+
+    # deletes propagate to the FTS index
+    storage.delete_index(["a"])
+    _, sm = sparse([({}, "red")])[0]
+    assert set(sm) == {"c"}
+
+    # reopening the persisted collection restores keys and serves FTS queries;
+    # drop the handle first to release the read-write lock on the path
+    storage._collection = None
+    gc.collect()
+
+    reopened = _build()
+    assert reopened.has_index()
+    assert reopened.search_limit() == 2
+    refts = cbrkit.retrieval.indexable.zvec(reopened, search_type="sparse")
+    _, sm = refts([({}, "red")])[0]
+    assert set(sm) == {"c"}

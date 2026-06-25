@@ -13,7 +13,6 @@ from ..typing import (
     Casebase,
     IndexableFunc,
     NumpyArray,
-    SparseVector,
 )
 from ._common import (
     RowCodec,
@@ -41,7 +40,11 @@ class _ZvecCasebaseView[K: str, V](Mapping[K, V]):
     def __getitem__(self, key: K) -> V:
         if key not in self._keys:
             raise KeyError(key)
-        result = self._collection.fetch(key)
+        result = self._collection.fetch(
+            key,
+            output_fields=list(self._payload_fields),
+            include_vector=False,
+        )
         if key not in result:
             raise KeyError(key)
         doc = result[key]
@@ -63,38 +66,41 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     """Zvec storage backend.
 
     Manages an embedded zvec collection on disk.  Supports dense
-    (vector), sparse (sparse vector), and hybrid index types which
-    control what data is stored and what indices are built.
+    (vector), sparse (full-text search), and hybrid index types which
+    control what data is stored and what indices are built.  The
+    `"sparse"` and `"hybrid"` types attach a native full-text-search
+    (FTS) index to :paramref:`value_field`, so lexical retrieval needs
+    no sparse embedding model — only the text itself.
 
     Warning:
-        Persisted vectors are tied to the
-        :paramref:`conversion_func` /
-        :paramref:`sparse_conversion_func` used when they were
-        written.  Reopening a collection backed by a different
-        embedding model silently returns wrong results when the
-        new model has the same dimension, and raises when it does
-        not — :meth:`put_index` only re-embeds entries whose text
+        Persisted dense vectors are tied to the
+        :paramref:`conversion_func` used when they were written.
+        Reopening a collection backed by a different embedding
+        model silently returns wrong results when the new model
+        has the same dimension, and raises when it does not —
+        :meth:`put_index` only re-embeds entries whose text
         changed.  Drop the collection (or use a fresh
         `collection_name`) when changing models.
 
     Args:
         path: Directory path for the zvec collection.
         collection_name: Collection name used in the schema.
-        index_type: Determines what vectors are stored and which
+        index_type: Determines what data is stored and which
             indices are created.  `"dense"` stores dense
-            embeddings, `"sparse"` stores sparse embeddings,
-            `"hybrid"` stores both.
+            embeddings, `"sparse"` builds an FTS index on
+            :paramref:`value_field`, `"hybrid"` does both.
         conversion_func: Dense embedding function.  Required for
             `"dense"` and `"hybrid"` index types.
-        sparse_conversion_func: Sparse embedding function returning
-            `SparseVector` per document.  Required for
-            `"sparse"` and `"hybrid"` index types.
         metric_type: Distance metric for dense vector search.
-        value_field: Field holding the embeddable text.  With the default
-            ``V = str`` the casebase value *is* this field; with a *model*
-            it names the model field to embed.
+        value_field: Field holding the embeddable / full-text text.
+            With the default ``V = str`` the casebase value *is* this
+            field; with a *model* it names the model field to embed and
+            index.
         dense_vector_name: Name for the dense vector field.
-        sparse_vector_name: Name for the sparse vector field.
+        fts_tokenizer: Tokenizer used by the FTS index (e.g.
+            `"standard"`, or `"jieba"` for Chinese).
+        fts_filters: Token filters applied after tokenization (e.g.
+            `("lowercase",)`).
         model: A dataclass or pydantic :class:`~pydantic.BaseModel`
             describing documents richer than plain text.  When set, ``V`` is
             the model type: every field becomes a stored scalar field,
@@ -108,11 +114,11 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     collection_name: str
     index_type: Literal["dense", "sparse", "hybrid"] = "dense"
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-    sparse_conversion_func: BatchConversionFunc[str, SparseVector] | None = None
     metric_type: Literal["cosine", "ip", "l2"] = "cosine"
     value_field: str = "value"
     dense_vector_name: str = "dense"
-    sparse_vector_name: str = "sparse"
+    fts_tokenizer: str = "standard"
+    fts_filters: tuple[str, ...] = ("lowercase",)
     model: type[V] | None = None
     _collection: zv.Collection | None = field(default=None, init=False, repr=False)
     _keys: set[K] | None = field(default=None, init=False, repr=False)
@@ -125,16 +131,10 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
             raise ValueError(
                 f"conversion_func is required for index_type={self.index_type!r}"
             )
-        if (
-            self.index_type in ("sparse", "hybrid")
-            and self.sparse_conversion_func is None
-        ):
-            raise ValueError(
-                f"sparse_conversion_func is required for index_type={self.index_type!r}"
-            )
 
         try:
             self._collection = zv.open(self.path)
+            self._keys = self._load_keys(self._collection)
         except Exception:
             self._collection = None
 
@@ -160,6 +160,32 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
             return None
 
         return len(self._keys)
+
+    @staticmethod
+    def _load_keys(collection: zv.Collection) -> set[Any]:
+        """Enumerate all document ids in a reopened collection.
+
+        ``put_index`` keeps :attr:`_keys` in memory, but reopening a
+        persisted collection only restores the handle — without this the
+        index would look empty and ``put_index`` would rebuild from
+        scratch.  An empty filter matches every document; ids are fetched
+        without any field payload.
+        """
+        docs = collection.query(
+            filter="", topk=collection.stats.doc_count, output_fields=[]
+        )
+        return {doc.id for doc in docs}
+
+    def _persist(self) -> None:
+        """Build pending writes into the on-disk vector and FTS indices.
+
+        Inserts, upserts, and deletes land in an in-memory segment whose
+        indices are not built until ``optimize`` merges it.  Without this,
+        ANN queries fall back to a brute-force scan and nothing survives
+        reopening the collection — so it runs once per batch mutation.
+        """
+        assert self._collection is not None
+        self._collection.optimize()
 
     @staticmethod
     def _infer_field_type(value: Any) -> zv.DataType:
@@ -201,16 +227,19 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
                 )
             )
 
-        if self.index_type in ("sparse", "hybrid"):
-            vectors.append(
-                zv.VectorSchema(
-                    self.sparse_vector_name,
-                    zv.DataType.SPARSE_VECTOR_FP32,
-                    0,
-                )
-            )
-
         return zv.CollectionSchema(self.collection_name, fields=fields, vectors=vectors)
+
+    def _setup_indices(self, collection: zv.Collection) -> None:
+        """Attach the FTS index to ``value_field`` for sparse/hybrid types."""
+        if self.index_type in ("sparse", "hybrid"):
+            # FtsIndexParam is missing from zvec's published type stub.
+            collection.create_index(
+                self.value_field,
+                zv.FtsIndexParam(  # ty: ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue]
+                    tokenizer_name=self.fts_tokenizer,
+                    filters=list(self.fts_filters),
+                ),
+            )
 
     def _build_docs(self, casebase: Casebase[K, V]) -> list[zv.Doc]:
         """Build zvec Doc objects from a casebase."""
@@ -220,15 +249,10 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         texts = [p[self.value_field] for p in payloads]
 
         dense_vecs = None
-        sparse_vecs = None
 
         if self.index_type in ("dense", "hybrid"):
             assert self.conversion_func is not None
             dense_vecs = self.conversion_func(texts)
-
-        if self.index_type in ("sparse", "hybrid"):
-            assert self.sparse_conversion_func is not None
-            sparse_vecs = self.sparse_conversion_func(texts)
 
         docs: list[zv.Doc] = []
 
@@ -237,9 +261,6 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
 
             if dense_vecs is not None:
                 doc_vectors[self.dense_vector_name] = np.asarray(dense_vecs[i]).tolist()
-
-            if sparse_vecs is not None:
-                doc_vectors[self.sparse_vector_name] = sparse_vecs[i]
 
             docs.append(zv.Doc(id=str(key), vectors=doc_vectors, fields=doc_fields))
 
@@ -278,11 +299,13 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
 
             schema = self._build_schema(data)
             collection = zv.create_and_open(self.path, schema)
+            self._setup_indices(collection)
             docs = self._build_docs(data)
             collection.insert(docs)
 
             self._collection = collection
             self._keys = set(data.keys())
+            self._persist()
             return
 
         existing = self.index
@@ -295,6 +318,22 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
             upsert=changed_or_new or None,
             delete=stale_keys or None,
         )
+
+    def _upsert(self, data: Casebase[K, V]) -> None:
+        """Write documents to the open collection without persisting."""
+        assert self._collection is not None
+        self._collection.upsert(self._build_docs(data))
+
+        if self._keys is not None:
+            self._keys.update(data.keys())
+
+    def _delete(self, keys: Collection[K]) -> None:
+        """Remove documents from the open collection without persisting."""
+        assert self._collection is not None
+        self._collection.delete([str(k) for k in keys])
+
+        if self._keys is not None:
+            self._keys -= set(keys)
 
     @override
     def upsert_index(self, data: Casebase[K, V]) -> None:
@@ -309,11 +348,8 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         if not data:
             return
 
-        docs = self._build_docs(data)
-        self._collection.upsert(docs)
-
-        if self._keys is not None:
-            self._keys.update(data.keys())
+        self._upsert(data)
+        self._persist()
 
     @override
     def delete_index(
@@ -324,10 +360,8 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         if self._collection is None or not data:
             return
 
-        self._collection.delete([str(k) for k in data])
-
-        if self._keys is not None:
-            self._keys -= set(data)
+        self._delete(data)
+        self._persist()
 
     @override
     def patch_index(
@@ -335,7 +369,7 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         upsert: Casebase[K, V] | None = None,
         delete: Collection[K] | None = None,
     ) -> None:
-        """Apply inserts, replacements, and deletes to the zvec collection."""
+        """Apply inserts, replacements, and deletes in a single merge."""
         normalized = _normalize_patch_keys(upsert, delete)
 
         if normalized is None:
@@ -343,11 +377,18 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
 
         _, delete_keys = normalized
 
+        if self._collection is None:
+            if upsert:
+                self.put_index(upsert)
+            return
+
         if delete_keys:
-            self.delete_index(delete_keys)
+            self._delete(delete_keys)
 
         if upsert:
-            self.upsert_index(upsert)
+            self._upsert(upsert)
+
+        self._persist()
 
 
 __all__ = ["zvec"]
