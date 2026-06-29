@@ -232,10 +232,9 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     def _setup_indices(self, collection: zv.Collection) -> None:
         """Attach the FTS index to ``value_field`` for sparse/hybrid types."""
         if self.index_type in ("sparse", "hybrid"):
-            # FtsIndexParam is missing from zvec's published type stub.
             collection.create_index(
                 self.value_field,
-                zv.FtsIndexParam(  # ty: ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue]
+                zv.FtsIndexParam(
                     tokenizer_name=self.fts_tokenizer,
                     filters=list(self.fts_filters),
                 ),

@@ -88,10 +88,9 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
 
     def _fts_query(self, text: str) -> zv.Query:
         """Build a full-text-search query over the storage's ``value_field``."""
-        # Fts is missing from zvec's published type stub.
         return zv.Query(
             self.storage.value_field,
-            fts=zv.Fts(match_string=text),  # ty: ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue]
+            fts=zv.Fts(match_string=text),
         )
 
     @override
@@ -112,7 +111,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
             docs = self.storage._collection.query(
                 zv.Query(
                     self.storage.dense_vector_name,
-                    vector=np.asarray(qvec).tolist(),
+                    vector=np.asarray(qvec),
                 ),
                 topk=n,
                 filter=self.filter,
@@ -167,7 +166,7 @@ class zvec[K: str](VectorStorageRetriever[K, zvec_storage[K, Any]]):
                 [
                     zv.Query(
                         self.storage.dense_vector_name,
-                        vector=np.asarray(qvec).tolist(),
+                        vector=np.asarray(qvec),
                     ),
                     self._fts_query(query),
                 ],

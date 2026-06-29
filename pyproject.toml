@@ -80,7 +80,7 @@ pandas = ["pandas>=2,<4"]
 pgvector = ["pgvector>=0.4,<1", "cbrkit[sql]"]
 sql = ["sqlalchemy[asyncio]>=2,<3"]
 sqlite-vec = ["sqlite-vec>=0.1,<1", "aiosqlite>=0.20,<1", "cbrkit[sql]"]
-zvec = ["zvec>=0.5,<1"]
+zvec = ["zvec>=0.5.1,<1"]
 
 # Tools
 cli = ["rich>=14,<16", "typer>=0.20,<1"]
