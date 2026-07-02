@@ -27,8 +27,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, override
 
-import numpy as np
-import sqlite_vec as sqlite_vec_ext
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -38,6 +36,7 @@ from ...indexable import (
     sqlite_vec as sqlite_vec_storage,
     sqlite_vec_async as sqlite_vec_async_storage,
 )
+from ...indexable.sqlite_vec import serialize_vector
 from ...indexable._common import SQLITE_VEC_METRICS
 from ...typing import (
     BatchConversionFunc,
@@ -51,11 +50,6 @@ from ._common import (
     SqlAlchemyVectorRetriever,
     reciprocal_rank_fusion,
 )
-
-
-def _serialize(vec: NumpyArray) -> bytes:
-    """Pack an embedding into the ``sqlite-vec`` ``float32`` BLOB format."""
-    return sqlite_vec_ext.serialize_float32(np.asarray(vec, dtype=np.float32).tolist())
 
 
 def _build_dense_stmt(
@@ -188,7 +182,7 @@ class sqlite_vec_async[K: int | str](
             k = await self._dense_k(conn)
             for qvec in query_vecs:
                 stmt = _build_dense_stmt(
-                    self.storage, _serialize(qvec), self.where, k, self.limit
+                    self.storage, serialize_vector(qvec), self.where, k, self.limit
                 )
                 results.append(await self._collect_rows(conn, stmt, score_fn))
 
@@ -231,7 +225,7 @@ class sqlite_vec_async[K: int | str](
                     await conn.execute(
                         _build_dense_stmt(
                             self.storage,
-                            _serialize(qvec),
+                            serialize_vector(qvec),
                             self.where,
                             candidate_n,
                             None,

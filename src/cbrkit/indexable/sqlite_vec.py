@@ -65,6 +65,11 @@ from ._common import SQLITE_VEC_METRICS, SQLITE_VEC_TYPES
 from .sqlalchemy import build_indexable_table, sqlalchemy, sqlalchemy_async
 
 
+def serialize_vector(vec: NumpyArray) -> bytes:
+    """Pack an embedding into the ``sqlite-vec`` ``float32`` BLOB format."""
+    return sqlite_vec_ext.serialize_float32(np.asarray(vec, dtype=np.float32).tolist())
+
+
 def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
     """Load ``sqlite-vec`` on every new connection of a SQLite async engine.
 
@@ -295,12 +300,7 @@ class sqlite_vec_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, 
             f"VALUES (:key, {self.vector_value_sql.format(':vec')})"
         )
         params = [
-            {
-                "key": key,
-                "vec": sqlite_vec_ext.serialize_float32(
-                    np.asarray(vec, dtype=np.float32).tolist()
-                ),
-            }
+            {"key": key, "vec": serialize_vector(vec)}
             for key, vec in zip(keys, vectors, strict=True)
         ]
         batch_size = max(1, self._PARAM_LIMIT // 2)
