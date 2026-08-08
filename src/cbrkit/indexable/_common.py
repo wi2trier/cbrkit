@@ -280,17 +280,17 @@ SQLITE_VEC_TYPES: dict[Literal["float32", "int8"], _SqliteVecType] = {
 
 
 __all__ = [
-    "_compute_index_diff",
-    "_normalize_patch_keys",
-    "_sql_literal",
-    "_sql_in_clause",
-    "_PgMetric",
-    "_SqliteVecMetric",
-    "_SqliteVecType",
     "PG_METRICS",
     "SQLITE_VEC_METRICS",
     "SQLITE_VEC_TYPES",
     "RowCodec",
+    "_PgMetric",
+    "_SqliteVecMetric",
+    "_SqliteVecType",
+    "_compute_index_diff",
+    "_normalize_patch_keys",
+    "_sql_in_clause",
+    "_sql_literal",
     "make_codec",
     "model_columns",
 ]

@@ -42,7 +42,6 @@ Pass the same ``tsvector_config`` to both :func:`tsvector_computed` and the
 storage so the generated column and the query side agree.
 """
 
-import asyncio
 from collections.abc import (
     Mapping,
     Sequence,
@@ -52,11 +51,13 @@ from typing import Any, ClassVar, Literal, cast
 
 import numpy as np
 import sqlalchemy as sa
-from pgvector.sqlalchemy import HALFVEC, Vector as PGVECTOR
-from sqlalchemy.dialects.postgresql import TSVECTOR, insert as pg_insert
+from pgvector.sqlalchemy import HALFVEC
+from pgvector.sqlalchemy import Vector as PGVECTOR
+from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from ..helpers import forward_fields, run_coroutine
+from ..helpers import chunkify, forward_fields, run_coroutine
 from ..typing import (
     BatchConversionFunc,
     NumpyArray,
@@ -245,25 +246,35 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
             ).create(sync_conn, checkfirst=True)
 
     def _populate_system_columns(self, rows: list[dict[str, Any]]) -> None:
+        """Embed the text column into the vector column of each row.
+
+        The vector stays an :class:`numpy.ndarray` rather than being flattened
+        to ``list[float]``: :class:`VECTOR` and :class:`HALFVEC` both bind an
+        ndarray to the identical literal, and a page of them is an order of
+        magnitude smaller in memory (a 384-dim row is ~1.6 kB as float32
+        against ~12 kB as boxed Python floats).  That matters wherever a page
+        is held rather than written straight through — see
+        :meth:`sqlalchemy_async._rebuild_pages`.
+        """
         if not self.has_dense:
             return
         assert self.conversion_func is not None
         assert self.value_column is not None
         texts = [row[self.value_column] for row in rows]
         for row, vec in zip(rows, self.conversion_func(texts), strict=True):
-            row[self.pgvector_column] = np.asarray(vec).tolist()
+            row[self.pgvector_column] = np.asarray(vec)
 
     async def _do_upsert(
         self, conn: AsyncConnection, rows: list[dict[str, Any]]
     ) -> None:
+        rows = self._table_rows(rows)
         if not rows:
             return
+
         columns = list(rows[0])
         update_cols = [c for c in columns if c != self.key_column]
-        batch_size = max(1, self._PARAM_LIMIT // len(columns))
 
-        for start in range(0, len(rows), batch_size):
-            chunk = rows[start : start + batch_size]
+        for chunk in chunkify(rows, self._param_batch(len(columns))):
             stmt = pg_insert(self._table).values(chunk)
             await conn.execute(
                 stmt.on_conflict_do_update(
@@ -274,57 +285,58 @@ class pgvector_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, V]
 
     # -- re-embed helper -----------------------------------------------------
 
-    async def reembed_all(self, batch_size: int = 1000) -> int:
+    async def _write_vectors(
+        self, conn: AsyncConnection, rows: list[dict[str, Any]]
+    ) -> None:
+        """UPDATE the vector column of every row whose text is still unchanged.
+
+        Matching on the text as well as the key makes this a compare-and-set: a
+        row edited mid-page keeps the vector its editing writer stored.
+        """
+        assert self.value_column is not None
+        kc = self._table.c[self.key_column]
+        tc = self._table.c[self.value_column]
+        await conn.execute(
+            sa.update(self._table)
+            .where(kc == sa.bindparam("k"), tc == sa.bindparam("t"))
+            .values({self.pgvector_column: sa.bindparam("v")}),
+            [
+                {
+                    "k": row[self.key_column],
+                    "t": row[self.value_column],
+                    "v": row[self.pgvector_column],
+                }
+                for row in rows
+            ],
+        )
+
+    async def reembed_all(self, batch_size: int = 1000, atomic: bool = False) -> int:
         """Recompute embeddings for every row in place.
 
-        Iterates pages of *batch_size* rows ordered by primary key, re-runs
-        :paramref:`conversion_func` on the text column, and UPDATEs the
-        vector column.  Other columns are not touched.
+        Re-runs :paramref:`conversion_func` on the text column page by page and
+        UPDATEs the vector column.  Other columns are not touched.  The
+        embedding always happens outside a transaction (see
+        :meth:`_rebuild_pages`); *atomic* decides only how the results are
+        committed.
+
+        Args:
+            batch_size: Rows read and embedded per page.
+            atomic: Commit every new vector at once (see :meth:`_rebuild_pages`
+                for what that costs).  Worth paying here because a half-finished
+                rebuild is not merely incomplete: the table then holds vectors
+                from two models at once, and distances across them are
+                meaningless, so every search degrades until it is repeated.  A
+                caller that rebuilds with the index offline, or before it begins
+                serving, never exposes that state and should keep the default.
 
         Returns:
-            The total number of rows updated.
+            The number of rows walked, which exceeds the number updated if a row
+            was edited mid-walk (see :meth:`_write_vectors`).
         """
         if not self.has_dense:
             return 0
-        assert self.conversion_func is not None
-        assert self.value_column is not None
 
-        kc = self._table.c[self.key_column]
-        tc = self._table.c[self.value_column]
-        total = 0
-
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
-
-            offset = 0
-            while True:
-                rows = (
-                    await conn.execute(
-                        sa.select(kc, tc).order_by(kc).limit(batch_size).offset(offset)
-                    )
-                ).all()
-                if not rows:
-                    break
-
-                keys = [k for k, _ in rows]
-                texts = [t for _, t in rows]
-                # Off the event loop: a batch of 1000 embeddings would
-                # otherwise stall the host application's loop.
-                vecs = await asyncio.to_thread(self.conversion_func, texts)
-
-                await conn.execute(
-                    sa.update(self._table)
-                    .where(self._table.c[self.key_column] == sa.bindparam("k"))
-                    .values({self.pgvector_column: sa.bindparam("v")}),
-                    [
-                        {"k": k, "v": np.asarray(vec).tolist()}
-                        for k, vec in zip(keys, vecs, strict=True)
-                    ],
-                )
-                total += len(rows)
-                offset += batch_size
-
-        return total
+        return await self._rebuild_pages(self._write_vectors, batch_size, atomic)
 
 
 @dataclass(slots=True)
@@ -355,8 +367,9 @@ class pgvector[K: int | str, V = Mapping[str, Any]](sqlalchemy[K, V]):
         """The wrapped async storage (used by sync retriever facades)."""
         return cast("pgvector_async[K, V]", self._async)
 
-    def reembed_all(self, batch_size: int = 1000) -> int:
-        return run_coroutine(self.async_storage.reembed_all(batch_size))
+    def reembed_all(self, batch_size: int = 1000, atomic: bool = False) -> int:
+        """Recompute embeddings for every row in place."""
+        return run_coroutine(self.async_storage.reembed_all(batch_size, atomic))
 
 
 __all__ = [

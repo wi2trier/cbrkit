@@ -18,7 +18,7 @@ Both shadow tables are kept in sync with the main table: the FTS shadow
 entirely by triggers, and the ``vec0`` shadow by an ``AFTER DELETE`` trigger
 plus a Python-side insert on write (embeddings are computed in Python, so a
 SQL trigger cannot populate them).  The ``sqlite-vec`` extension is loaded on
-every connection via a SQLAlchemy ``connect`` event reaching the
+every connection via a SQLAlchemy ``checkout`` event reaching the
 ``aiosqlite`` worker thread.
 
 The shadow tables are cbrkit-owned auxiliary indexes, distinct from the
@@ -48,21 +48,26 @@ table::
     storage.put_index({"a": "red sedan"})  # index -> {"a": "red sedan"}
 """
 
-import asyncio
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 import numpy as np
-import sqlite_vec as sqlite_vec_ext
 import sqlalchemy as sa
+import sqlite_vec as sqlite_vec_ext
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from ..helpers import forward_fields, run_coroutine
+from ..helpers import chunkify, forward_fields, run_coroutine
 from ..typing import BatchConversionFunc, NumpyArray
 from ._common import SQLITE_VEC_METRICS, SQLITE_VEC_TYPES
 from .sqlalchemy import build_indexable_table, sqlalchemy, sqlalchemy_async
+
+# Row-dict key carrying the serialized vector from _populate_system_columns to
+# _insert_vectors.  Deliberately not a column name: the vec0 shadow's columns
+# are an independent namespace from the data table's, so keying by
+# vector_column would make an unrelated host column of the same name collide.
+_VECTOR_KEY = "__cbrkit_vector__"
 
 
 def serialize_vector(vec: NumpyArray) -> bytes:
@@ -71,12 +76,17 @@ def serialize_vector(vec: NumpyArray) -> bytes:
 
 
 def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
-    """Load ``sqlite-vec`` on every new connection of a SQLite async engine.
+    """Load ``sqlite-vec`` on every connection of a SQLite async engine.
 
     The real ``sqlite3`` connection lives in ``aiosqlite``'s worker thread,
     so the extension must be loaded *in that thread* — reached here through
     the async driver connection's coroutine API driven by the adapter's
-    ``await_`` bridge.  Attaching is idempotent per engine.
+    ``await_`` bridge.
+
+    Hooked on ``checkout`` rather than ``connect`` so connections a host engine
+    opened before handing it over get loaded too, instead of failing with ``no
+    such module: vec0``.  The ``record.info`` latch keeps the load to once per
+    real connection, and attaching is idempotent per engine.
     """
     sync_engine = engine.sync_engine
     if sync_engine.dialect.name != "sqlite":
@@ -86,8 +96,11 @@ def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
     setattr(sync_engine, "_cbrkit_sqlite_vec_loaded", True)  # noqa: B010
     ext_path = sqlite_vec_ext.loadable_path()
 
-    @event.listens_for(sync_engine, "connect")
-    def _load(dbapi_conn: Any, _: Any) -> None:
+    @event.listens_for(sync_engine, "checkout")
+    def _load(dbapi_conn: Any, record: Any, _: Any) -> None:
+        if record.info.get("cbrkit_sqlite_vec_loaded"):
+            return
+        record.info["cbrkit_sqlite_vec_loaded"] = True
         driver = dbapi_conn.driver_connection
         dbapi_conn.await_(driver.enable_load_extension(True))
         dbapi_conn.await_(driver.load_extension(ext_path))
@@ -127,7 +140,6 @@ class sqlite_vec_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, 
     metric_type: Literal["cosine", "l2", "l1"] = "cosine"
     fts_tokenizer: str | None = None
     conversion_func: BatchConversionFunc[str, NumpyArray] | None = None
-    _shadows_ready: bool = field(init=False, default=False, repr=False)
 
     @property
     def has_dense(self) -> bool:
@@ -198,18 +210,11 @@ class sqlite_vec_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, 
         super(sqlite_vec_async, self)._init_engine()
         _attach_sqlite_vec_loader(self._engine)
 
-    async def _ensure_schema(self, conn: AsyncConnection) -> None:
+    def _create_schema(self, sync_conn: sa.Connection) -> None:
         # The base creates the main data table only when manage_schema=True;
-        # the shadow indexes are cbrkit-owned and created unconditionally.
-        await super(sqlite_vec_async, self)._ensure_schema(conn)
-        await self._ensure_shadows(conn)
-
-    async def _ensure_shadows(self, conn: AsyncConnection) -> None:
-        if self._shadows_ready:
-            return
-        if self.has_dense or self.has_sparse:
-            await conn.run_sync(self._create_shadows)
-        self._shadows_ready = True
+        # the shadow indexes are cbrkit-owned and created either way.
+        super(sqlite_vec_async, self)._create_schema(sync_conn)
+        self._create_shadows(sync_conn)
 
     def _create_shadows(self, sync_conn: sa.Connection) -> None:
         assert self.value_column is not None
@@ -272,100 +277,91 @@ class sqlite_vec_async[K: int | str, V = Mapping[str, Any]](sqlalchemy_async[K, 
                 )
             )
 
+    def _populate_system_columns(self, rows: list[dict[str, Any]]) -> None:
+        """Embed the text column into a serialized vector on each row.
+
+        The vector belongs to the ``vec0`` shadow rather than the main table, so
+        it rides along under :data:`_VECTOR_KEY` and the base narrows it back
+        out (see :meth:`_table_rows`).
+        """
+        if not self.has_dense:
+            return
+        assert self.conversion_func is not None
+        assert self.value_column is not None
+        texts = [row[self.value_column] for row in rows]
+        for row, vec in zip(rows, self.conversion_func(texts), strict=True):
+            row[_VECTOR_KEY] = serialize_vector(vec)
+
     async def _do_upsert(
         self, conn: AsyncConnection, rows: list[dict[str, Any]]
     ) -> None:
         # Write the main table (triggers drop stale vec0/fts rows and refresh
-        # fts), then repopulate the vec0 shadow with freshly computed vectors.
+        # fts), then repopulate the vec0 shadow from the same rows.
         await super(sqlite_vec_async, self)._do_upsert(conn, rows)
-        if self.has_dense and rows:
-            assert self.value_column is not None
-            await self._insert_vectors(
-                conn,
-                [row[self.key_column] for row in rows],
-                [row[self.value_column] for row in rows],
-            )
+        if self.has_dense:
+            await self._insert_vectors(conn, rows)
 
     async def _insert_vectors(
-        self, conn: AsyncConnection, keys: list[Any], texts: list[Any]
+        self, conn: AsyncConnection, rows: list[dict[str, Any]]
     ) -> None:
-        """Embed *texts* and insert the vectors into the ``vec0`` shadow."""
-        assert self.conversion_func is not None
-        # Off the event loop: an embedding batch would otherwise stall the
-        # host application's loop for its full duration.
-        vectors = await asyncio.to_thread(self.conversion_func, texts)
+        """Insert the vectors prepared on *rows* into the ``vec0`` shadow."""
         stmt = sa.text(
             f'INSERT INTO "{self.vec_table_name}"'
             f'("{self.key_column}", "{self.vector_column}") '
             f"VALUES (:key, {self.vector_value_sql.format(':vec')})"
         )
         params = [
-            {"key": key, "vec": serialize_vector(vec)}
-            for key, vec in zip(keys, vectors, strict=True)
+            {"key": row[self.key_column], "vec": row[_VECTOR_KEY]} for row in rows
         ]
-        batch_size = max(1, self._PARAM_LIMIT // 2)
-        for start in range(0, len(params), batch_size):
-            await conn.execute(stmt, params[start : start + batch_size])
+
+        for chunk in chunkify(params, self._param_batch(2)):
+            await conn.execute(stmt, chunk)
 
     async def reindex(self, batch_size: int = 1000) -> int:
         """Rebuild the shadow indexes from the existing main-table rows.
 
-        Clears the ``vec0`` / FTS5 shadows and repopulates them by streaming
-        the main table.  Use this once after pointing the storage at a host
-        table that already holds data (writes made *through* cbrkit keep the
-        shadows in sync on their own).
+        Clears the ``vec0`` / FTS5 shadows and repopulates them page by page.
+        Use this once after pointing the storage at a host table that already
+        holds data (writes made *through* cbrkit keep the shadows in sync on
+        their own).  Until it returns, a search sees only the pages rebuilt so
+        far: an interrupted run is incomplete rather than inconsistent, so it
+        needs no atomic mode of its own, just a re-run.
 
         Returns:
             The number of rows indexed.
         """
-        assert self.value_column is not None
-        total = 0
-
         async with self._engine.begin() as conn:
             await self._ensure_schema(conn)
-            kc = self._table.c[self.key_column]
-            vc = self._table.c[self.value_column]
             if self.has_dense:
                 await conn.execute(sa.text(f'DELETE FROM "{self.vec_table_name}"'))
             if self.has_sparse:
                 await conn.execute(sa.text(f'DELETE FROM "{self.fts_table_name}"'))
 
-            offset = 0
-            while True:
-                rows = (
-                    await conn.execute(
-                        sa.select(kc, vc).order_by(kc).limit(batch_size).offset(offset)
-                    )
-                ).all()
-                if not rows:
-                    break
-                await self._populate_shadows(
-                    conn, [r[0] for r in rows], [r[1] for r in rows]
-                )
-                total += len(rows)
-                offset += batch_size
-
-        return total
+        return await self._rebuild_pages(self._populate_shadows, batch_size)
 
     async def _populate_shadows(
-        self, conn: AsyncConnection, keys: list[Any], texts: list[Any]
+        self, conn: AsyncConnection, rows: list[dict[str, Any]]
     ) -> None:
-        """Insert ``(key, text)`` pairs directly into the FTS5 / ``vec0`` shadows.
+        """Insert prepared rows directly into the FTS5 / ``vec0`` shadows.
 
         Used by :meth:`reindex` to backfill from existing rows; the normal
         write path keeps FTS in sync via triggers instead.
         """
+        assert self.value_column is not None
+
         if self.has_sparse:
             await conn.execute(
-                sa.text(
-                    f'INSERT INTO "{self.fts_table_name}"'
-                    f'("{self.key_column}", "{self.value_column}") '
-                    f"VALUES (:key, :val)"
-                ),
-                [{"key": k, "val": t} for k, t in zip(keys, texts, strict=True)],
+                sa.insert(self.fts_table),
+                [
+                    {
+                        self.key_column: row[self.key_column],
+                        self.value_column: row[self.value_column],
+                    }
+                    for row in rows
+                ],
             )
         if self.has_dense:
-            await self._insert_vectors(conn, keys, texts)
+            await self._insert_vectors(conn, rows)
 
 
 @dataclass(slots=True)

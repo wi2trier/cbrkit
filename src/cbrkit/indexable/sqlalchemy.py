@@ -39,11 +39,14 @@ with native upsert (e.g. PostgreSQL ``ON CONFLICT``) override
 import asyncio
 from collections.abc import (
     AsyncIterator,
+    Awaitable,
+    Callable,
     Collection,
     Iterable,
     Mapping,
     Sequence,
 )
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal, cast
 
@@ -56,7 +59,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from ..filter import And, Eq, Filter, In, Like, Not, Or, Raw
-from ..helpers import forward_fields, run_coroutine
+from ..helpers import chunkify, forward_fields, run_coroutine
 from ..typing import (
     AsyncFilterableIndexableFunc,
     Casebase,
@@ -173,7 +176,8 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
     Subclasses extend the schema with backend-specific *system columns*
     via :meth:`_system_columns` (vector, tsv, ...).  Those columns are
     hidden from reads (via :meth:`_system_column_names`) and populated on
-    write by :meth:`_populate_system_columns`.
+    write by :meth:`_populate_system_columns`, which runs outside the write
+    transaction — see :meth:`_write_transaction`.
     """
 
     _PARAM_LIMIT: ClassVar[int] = 32_766
@@ -287,6 +291,22 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         """Write hook: populate system columns on insert rows. No-op by default."""
         return
 
+    def _param_batch(self, per_row: int) -> int:
+        """Rows per statement that stay under the dialect's bind-parameter cap."""
+        return max(1, self._PARAM_LIMIT // per_row)
+
+    def _table_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Narrow *rows* to keys that are actually columns of the table.
+
+        :meth:`_populate_system_columns` may attach a value belonging to a
+        backend's side structure rather than to the table (sqlite_vec's ``vec0``
+        shadow), so the statements below narrow rather than trusting the dicts.
+        """
+        if not rows or not (extras := rows[0].keys() - self._table.c.keys()):
+            return rows
+
+        return [{k: v for k, v in row.items() if k not in extras} for row in rows]
+
     async def _do_upsert(
         self, conn: AsyncConnection, rows: list[dict[str, Any]]
     ) -> None:
@@ -296,14 +316,13 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         dialect).  Subclasses with native upsert (e.g. PostgreSQL
         ``ON CONFLICT``) override.
         """
+        rows = self._table_rows(rows)
         if not rows:
             return
-        n_cols = len(rows[0])
-        batch_size = max(1, self._PARAM_LIMIT // n_cols)
+
         kc = self._table.c[self.key_column]
 
-        for start in range(0, len(rows), batch_size):
-            chunk = rows[start : start + batch_size]
+        for chunk in chunkify(rows, self._param_batch(len(rows[0]))):
             keys = [r[self.key_column] for r in chunk]
             await conn.execute(sa.delete(self._table).where(kc.in_(keys)))
             await conn.execute(sa.insert(self._table).values(chunk))
@@ -325,7 +344,6 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             self.manage_schema = False
             self._adopt_primary_key()
             self._table_ready = True
-            self._schema_ready = True
             return
 
         meta = self.metadata if self.metadata is not None else sa.MetaData()
@@ -350,9 +368,15 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         assert self.value_column is not None
         return {self.value_column: sa.Text()}
 
-    async def _ensure_table(self, conn: AsyncConnection) -> None:
+    async def _ensure_table(self, conn: AsyncConnection | None = None) -> None:
         """Reflect the table from the database on first use (``reflect=True``)."""
         if self._table_ready:
+            return
+
+        if conn is None:
+            async with self._engine.connect() as own_conn:
+                await self._ensure_table(own_conn)
+
             return
 
         def _reflect(sync_conn: sa.Connection) -> sa.Table:
@@ -385,20 +409,38 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
 
     # -- schema setup --------------------------------------------------------
 
-    async def _ensure_schema(self, conn: AsyncConnection) -> None:
-        await self._ensure_table(conn)
-        if self._schema_ready or not self.manage_schema:
-            self._schema_ready = True
+    async def _ensure_schema(self, conn: AsyncConnection | None = None) -> None:
+        """Materialize the schema, in a transaction of its own when *conn* is None."""
+        if conn is None:
+            if self._schema_ready:
+                return
+
+            async with self._engine.begin() as own_conn:
+                await self._ensure_schema(own_conn)
+
             return
 
-        def _create(sync_conn: sa.Connection) -> None:
-            self._pre_create_ddl(sync_conn)
-            self._table.create(sync_conn, checkfirst=True)
-            self._create_system_indexes(sync_conn)
-            self._create_payload_indexes(sync_conn)
+        await self._ensure_table(conn)
+        if self._schema_ready:
+            return
 
-        await conn.run_sync(_create)
+        await conn.run_sync(self._create_schema)
         self._schema_ready = True
+
+    def _create_schema(self, sync_conn: sa.Connection) -> None:
+        """Create every schema object cbrkit owns.
+
+        The data table is the host's unless :attr:`manage_schema`, so it is
+        created only then.  Subclasses extend this with objects that are
+        cbrkit's either way (shadow tables and their triggers).
+        """
+        if not self.manage_schema:
+            return
+
+        self._pre_create_ddl(sync_conn)
+        self._table.create(sync_conn, checkfirst=True)
+        self._create_system_indexes(sync_conn)
+        self._create_payload_indexes(sync_conn)
 
     def _create_payload_indexes(self, conn: sa.Connection) -> None:
         for spec in self.indexes:
@@ -459,15 +501,43 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         await asyncio.to_thread(self._populate_system_columns, rows)
         return rows
 
+    @asynccontextmanager
+    async def _write_transaction(
+        self, data: Casebase[K, V] | None = None
+    ) -> AsyncIterator[tuple[AsyncConnection, list[dict[str, Any]]]]:
+        """Open a write transaction with the schema resolved and *data* encoded.
+
+        Both steps are deliberately hoisted out of the transaction.
+        :meth:`_build_rows` populates the system columns, which for pgvector
+        means embedding the whole batch against a GPU or a remote API — easily
+        seconds — and doing that inside the transaction keeps its pooled
+        connection checked out for the full duration; on PostgreSQL the
+        resulting ``idle in transaction`` session also holds whatever locks the
+        preceding statements took and pins the xmin horizon, stalling vacuum
+        cleanup database-wide.  Hoisting the DDL out too means a first write
+        that fails can leave the empty table behind, which ``checkfirst=True``
+        makes harmless.
+
+        Callers whose rows are a diff against the current contents pass no
+        *data* and build inside the block, so that the read and the write share
+        one transaction (see :meth:`put_index`).
+        """
+        await self._ensure_schema()
+        rows = await self._build_rows(data) if data else []
+
+        async with self._engine.begin() as conn:
+            yield conn, rows
+
     async def _execute_delete_in(
         self, conn: AsyncConnection, keys: Iterable[K]
     ) -> None:
         keys_list = list(keys)
         if not keys_list:
             return
+
         kc = self._table.c[self.key_column]
-        for start in range(0, len(keys_list), self._PARAM_LIMIT):
-            chunk = keys_list[start : start + self._PARAM_LIMIT]
+
+        for chunk in chunkify(keys_list, self._param_batch(1)):
             await conn.execute(sa.delete(self._table).where(kc.in_(chunk)))
 
     def _has_table(self, sync_conn: sa.Connection) -> bool:
@@ -523,23 +593,24 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
         materialized yet — we avoid running DDL just to immediately DELETE
         from an empty table, but still clear an existing table when the
         local cache is cold.
+
+        The rows are built *inside* the transaction that read the existing ones,
+        since they are the diff against what the table currently holds: reading
+        in one transaction and writing the diff in another would silently
+        overwrite a concurrent writer in between.
         """
         if not data and not self._schema_ready:
             async with self._engine.connect() as conn:
                 if not await conn.run_sync(self._has_table):
                     return
 
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
-
+        async with self._write_transaction() as (conn, _):
             if not data:
                 await conn.execute(sa.delete(self._table))
                 return
 
             existing = await self._read_all(conn)
             stale_keys, changed = _compute_index_diff(existing, data)
-            if not stale_keys and not changed:
-                return
             if stale_keys:
                 await self._execute_delete_in(conn, stale_keys)
             if changed:
@@ -548,15 +619,15 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
     async def upsert_index(self, data: Casebase[K, V], /) -> None:
         if not data:
             return
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
-            await self._do_upsert(conn, await self._build_rows(data))
+
+        async with self._write_transaction(data) as (conn, rows):
+            await self._do_upsert(conn, rows)
 
     async def delete_index(self, keys: Collection[K], /) -> None:
         if not keys:
             return
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
+
+        async with self._write_transaction() as (conn, _):
             await self._execute_delete_in(conn, keys)
 
     async def patch_index(
@@ -569,12 +640,11 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             return
         _, delete_keys = normalized
 
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
+        async with self._write_transaction(upsert) as (conn, rows):
             if delete_keys:
                 await self._execute_delete_in(conn, delete_keys)
-            if upsert:
-                await self._do_upsert(conn, await self._build_rows(upsert))
+            if rows:
+                await self._do_upsert(conn, rows)
 
     # -- AsyncFilterableIndexableFunc interface ------------------------------
 
@@ -586,62 +656,136 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
             return await self._keys_where(conn, where)
 
     async def delete_where(self, where: Filter, /) -> Collection[K]:
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
+        async with self._write_transaction() as (conn, _):
             keys = await self._keys_where(conn, where)
             if keys:
                 await conn.execute(
                     sa.delete(self._table).where(self.compile_filter(where))
                 )
+
         return keys
 
     async def replace_where(
         self, where: Filter, data: Casebase[K, V], /
     ) -> Collection[K]:
-        async with self._engine.begin() as conn:
-            await self._ensure_schema(conn)
+        async with self._write_transaction(data) as (conn, rows):
             old_keys = await self._keys_where(conn, where)
             if old_keys:
                 await conn.execute(
                     sa.delete(self._table).where(self.compile_filter(where))
                 )
-            if data:
-                await self._do_upsert(conn, await self._build_rows(data))
+            if rows:
+                await self._do_upsert(conn, rows)
+
         return old_keys
 
     # -- streaming / lifecycle -----------------------------------------------
+
+    async def _iter_pages(
+        self, *columns: sa.ColumnElement[Any], batch_size: int = 1000
+    ) -> AsyncIterator[Sequence[sa.Row[Any]]]:
+        """Yield ``(key, *columns)`` pages in primary-key order.
+
+        Keyset pagination rather than OFFSET: pages stay stable when a
+        concurrent writer inserts or deletes below the cursor, where OFFSET
+        would skip or repeat rows, and each page seeks the primary key index
+        instead of rescanning everything ahead of it.  Every page takes a
+        connection of its own, so a slow consumer never holds one.
+        """
+        kc = self._table.c[self.key_column]
+        page = sa.select(kc, *columns).order_by(kc).limit(batch_size)
+        cursor: Any = None
+
+        while True:
+            stmt = page if cursor is None else page.where(kc > cursor)
+            async with self._engine.connect() as conn:
+                rows = (await conn.execute(stmt)).all()
+
+            if not rows:
+                return
+
+            yield rows
+
+            # A short page means the range above the cursor is exhausted, so
+            # stopping here saves the round trip that would confirm it.
+            if len(rows) < batch_size:
+                return
+
+            cursor = rows[-1][0]
+
+    async def _rebuild_pages(
+        self,
+        write: Callable[[AsyncConnection, list[dict[str, Any]]], Awaitable[None]],
+        batch_size: int,
+        atomic: bool = False,
+    ) -> int:
+        """Repopulate the system columns of every row, page by page.
+
+        Walks the key and value columns, re-runs
+        :meth:`_populate_system_columns` off the event loop, and hands the
+        populated rows to *write*.  The population stays outside any transaction
+        whichever way *atomic* goes, for the reasons in :meth:`_write_transaction`
+        — over a whole-table rebuild they apply many times over.
+
+        With *atomic* every populated row is buffered and written in one
+        transaction at the end, so an interrupted run changes nothing.  Both of
+        its costs scale with the table: the buffer holds every row's value
+        column beside the system columns populated from it, of which the value
+        column is the larger for a text corpus, and the closing transaction
+        issues a write per row, so it incurs against the write the very costs
+        :meth:`_write_transaction` describes for the embedding.  Writing each
+        page as it is produced is what keeps a rebuild feasible on a table of
+        any size.
+
+        Returns:
+            The number of rows walked.
+        """
+        assert self.value_column is not None
+        await self._ensure_schema()
+
+        async def commit(batch: list[dict[str, Any]]) -> None:
+            async with self._engine.begin() as conn:
+                await write(conn, batch)
+
+        buffered: list[dict[str, Any]] = []
+        total = 0
+
+        async for page in self._iter_pages(
+            self._table.c[self.value_column], batch_size=batch_size
+        ):
+            rows = [{self.key_column: k, self.value_column: v} for k, v in page]
+            # Off the event loop: a batch of 1000 embeddings would otherwise
+            # stall the host application's loop for its full duration.
+            await asyncio.to_thread(self._populate_system_columns, rows)
+            total += len(rows)
+
+            if atomic:
+                buffered.extend(rows)
+            else:
+                await commit(rows)
+
+        if buffered:
+            await commit(buffered)
+
+        return total
 
     async def stream_rows(
         self, batch_size: int = 1000
     ) -> AsyncIterator[Sequence[tuple[K, V]]]:
         """Yield ``(key, row)`` pages of size *batch_size*."""
-        async with self._engine.connect() as conn:
-            await self._ensure_table(conn)
-            codec = self._codec
-            payload_names = self._payload_column_names()
-            kc = self._table.c[self.key_column]
-            payload_cols = [self._table.c[n] for n in payload_names]
+        await self._ensure_table()
+        codec = self._codec
+        payload_names = self._payload_column_names()
+        payload_cols = [self._table.c[n] for n in payload_names]
 
-            offset = 0
-            while True:
-                rows = (
-                    await conn.execute(
-                        sa.select(kc, *payload_cols)
-                        .order_by(kc)
-                        .limit(batch_size)
-                        .offset(offset)
-                    )
-                ).all()
-                if not rows:
-                    return
-                yield [
-                    (
-                        self.cast_key(row[0]),
-                        codec.decode(dict(zip(payload_names, row[1:], strict=True))),
-                    )
-                    for row in rows
-                ]
-                offset += batch_size
+        async for rows in self._iter_pages(*payload_cols, batch_size=batch_size):
+            yield [
+                (
+                    self.cast_key(row[0]),
+                    codec.decode(dict(zip(payload_names, row[1:], strict=True))),
+                )
+                for row in rows
+            ]
 
     async def close(self) -> None:
         """Dispose of the engine when cbrkit owns it."""
