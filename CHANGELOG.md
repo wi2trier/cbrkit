@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4](https://github.com/wi2trier/cbrkit/compare/v1.5.3...v1.5.4) (2026-08-10)
+
+### Bug Fixes
+
+* **indexable:** move conversion out of db transaction ([171703a](https://github.com/wi2trier/cbrkit/commit/171703a6fd09c7f8e5aca0fb2e521f298998cc84))
+* **zvec:** improve adapter ([4011505](https://github.com/wi2trier/cbrkit/commit/401150552cd13bef077591b54dbff480be775037))
+
 ## [1.5.3](https://github.com/wi2trier/cbrkit/compare/v1.5.2...v1.5.3) (2026-06-25)
 
 ### Bug Fixes
