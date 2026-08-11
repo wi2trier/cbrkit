@@ -71,7 +71,7 @@ transformers = ["sentence-transformers>=4,<6", "torch>=2.10,<3", "transformers>=
 
 # Graphs
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
-graphviz = ["pygraphviz>=1,<2"]
+graphviz = ["pygraphviz>=2,<3"]
 
 # Data
 chromadb = ["chromadb>=1,<2"]
