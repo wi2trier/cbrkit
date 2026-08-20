@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.5](https://github.com/wi2trier/cbrkit/compare/v1.5.4...v1.5.5) (2026-08-20)
+
+### Bug Fixes
+
+* **graph:** update pygraphviz to v2 ([cdfc127](https://github.com/wi2trier/cbrkit/commit/cdfc127ff62ad9a92c1a96261fa8522330c27c43))
+* improve typing correctness ([398e00c](https://github.com/wi2trier/cbrkit/commit/398e00c0149174240e4a6233a021850e9ce34a3a))
+* **sim/collections:** add time warp edit distance ([d4931c6](https://github.com/wi2trier/cbrkit/commit/d4931c69a66d6b90932a86762f811e3db725f3e0))
+* **sim/collections:** improve sequence measures and split into submodule ([8a0542a](https://github.com/wi2trier/cbrkit/commit/8a0542a6b152220011d2b8079e470b4ae81e152a))
+* **sim/graphs:** add working qap solver ([325a431](https://github.com/wi2trier/cbrkit/commit/325a4312c276c578c9e6ed1121667e1a9df4325d))
+* **sim/graphs:** improve sequence alignment wrappers ([efd757e](https://github.com/wi2trier/cbrkit/commit/efd757e8c645fa914688b91f6a5624b2f84671be))
+* **sim/graphs:** improve similarity measures ([225d9d3](https://github.com/wi2trier/cbrkit/commit/225d9d330c321e6580e772d2b44d66021238cd50))
+
 ## [1.5.4](https://github.com/wi2trier/cbrkit/compare/v1.5.3...v1.5.4) (2026-08-10)
 
 ### Bug Fixes
