@@ -85,7 +85,6 @@ zvec = ["zvec>=0.5.1,<1"]
 # Tools
 cli = ["rich>=14,<16", "typer>=0.20,<1"]
 eval = ["ranx>=0.3,<1"]
-timeseries = ["minineedle>=3,<4"]
 
 # Entry points
 api = [
@@ -99,7 +98,7 @@ api = [
 
 # Bundle
 all = [
-  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,http,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,timeseries,transformers,voyageai,zvec]",
+  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,http,instructor,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,transformers,voyageai,zvec]",
 ]
 
 [project.urls]

@@ -10,7 +10,7 @@ configured similarity function.
 Submodules:
 - `cbrkit.sim.numbers`: Numeric similarity (linear, exponential, threshold, sigmoid, step).
 - `cbrkit.sim.strings`: String similarity (Levenshtein, Jaro, Jaro-Winkler, spaCy, NLTK).
-- `cbrkit.sim.collections`: Collection and sequence similarity (Jaccard, Dice, etc.).
+- `cbrkit.sim.collections`: Collection and sequence similarity (Jaccard, DTW, Smith-Waterman, etc.).
 - `cbrkit.sim.generic`: Generic similarity (equality, static, tables).
 - `cbrkit.sim.embed`: Embedding-based similarity with caching (Sentence Transformers, OpenAI).
 - `cbrkit.sim.graphs`: Graph similarity algorithms (A*, VF2, greedy, LAP, etc.).
