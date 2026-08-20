@@ -346,9 +346,13 @@ class NetworkxEdge[K, N, E](TypedDict):
 with optional_dependencies():
     import networkx as nx
 
-    def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> "nx.DiGraph[Any]":
-        """Convert a graph to a networkx DiGraph."""
-        ng = nx.DiGraph()
+    def to_networkx[K, N, E](g: Graph[K, N, E, Any]) -> "nx.MultiDiGraph[Any]":
+        """Convert a graph to a networkx MultiDiGraph.
+
+        A multigraph is used because `Graph` allows parallel edges between the same
+        pair of nodes, which a plain `DiGraph` would silently collapse into one.
+        """
+        ng = nx.MultiDiGraph()
         ng.graph = g.value
 
         ng.add_nodes_from(
@@ -381,7 +385,7 @@ with optional_dependencies():
         return ng
 
     def from_networkx(g: "nx.DiGraph[Any]") -> Graph[Any, Any, Any, Any]:
-        """Construct a graph from a networkx DiGraph."""
+        """Construct a graph from a networkx DiGraph or MultiDiGraph."""
         nodes = frozendict(
             (idx, Node(key=idx, value=data)) for idx, data in g.nodes(data=True)
         )

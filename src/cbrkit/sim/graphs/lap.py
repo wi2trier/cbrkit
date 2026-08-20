@@ -27,11 +27,15 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
     edge_edit_factor: float = 0.5
     print_matrix: bool = False
 
-    def connected_edges(self, g: Graph[K, N, E, G], n: K) -> set[K]:
-        """Returns the keys of all edges incident to the given node."""
-        return {
+    def connected_edges(self, g: Graph[K, N, E, G], n: K) -> list[K]:
+        """Returns the keys of all edges incident to the given node.
+
+        The order follows the graph, so that the greedy tie-breaking downstream does
+        not depend on set iteration order.
+        """
+        return [
             e.key for e in g.edges.values() if n == e.source.key or n == e.target.key
-        }
+        ]
 
     def edge_sub_cost_greedy(
         self,
@@ -47,8 +51,8 @@ class lap_base[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         - Unmatched y‑edges are deletions, unmatched x‑edges are insertions.
         """
 
-        y_edges = list(self.connected_edges(y, y_node))
-        x_edges = list(self.connected_edges(x, x_node))
+        y_edges = self.connected_edges(y, y_node)
+        x_edges = self.connected_edges(x, x_node)
 
         # trivial fast‑path
         if not y_edges and not x_edges:
@@ -246,7 +250,7 @@ class lap[K, N, E, G](
             if cost_matrix[r, c] < np.inf and r in row2y and c in col2x
         )
 
-        edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
+        edge_mapping = self.induced_edge_mapping(x, y, node_mapping, edge_pair_sims)
 
         return self.similarity(
             x,

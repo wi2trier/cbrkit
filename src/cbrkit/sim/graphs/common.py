@@ -1,10 +1,12 @@
 import itertools
-from collections import defaultdict
+from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
 
+import numpy as np
 from frozendict import frozendict
+from scipy.optimize import linear_sum_assignment
 
 from ...helpers import (
     batchify_sim,
@@ -12,11 +14,28 @@ from ...helpers import (
     unpack_float,
     unpack_floats,
 )
-from ...model.graph import Graph, Node
+from ...model.graph import Graph, GraphElementType, Node
 from ...typing import AnySimFunc, BatchSimFunc, Float, SimFunc, StructuredValue
 from ..wrappers import transpose_value
 
 type PairSim[K] = Mapping[tuple[K, K], float]
+
+
+def _mutually_unique_mapping[K](
+    candidates: Iterable[tuple[K, K]],
+) -> frozendict[K, K]:
+    """Keeps the candidates whose two sides have no competitor.
+
+    Such a pair is the only choice either of its elements has, so every legal
+    mapping that maps them at all maps them onto each other.
+    """
+    pairs = list(candidates)
+    y_counts = Counter(y_key for y_key, _ in pairs)
+    x_counts = Counter(x_key for _, x_key in pairs)
+
+    return frozendict(
+        pair for pair in pairs if y_counts[pair[0]] == 1 and x_counts[pair[1]] == 1
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -82,18 +101,91 @@ class SemanticEdgeSim[K, N, E]:
 default_edge_sim = SemanticEdgeSim()
 
 
-def _induced_edge_mapping[K, N, E, G](
+def _induced_edge_candidates[K, N, E, G](
     x: Graph[K, N, E, G],
     y: Graph[K, N, E, G],
     node_mapping: Mapping[K, K],
     edge_matcher: ElementMatcher[E],
-) -> frozendict[K, K]:
-    return frozendict(
+) -> list[tuple[K, K]]:
+    return [
         (y_value.key, x_value.key)
         for y_value, x_value in itertools.product(y.edges.values(), x.edges.values())
         if edge_matcher(x_value.value, y_value.value)
         and x_value.source.key == node_mapping.get(y_value.source.key)
         and x_value.target.key == node_mapping.get(y_value.target.key)
+    ]
+
+
+def _induced_edge_mapping[K, N, E, G](
+    x: Graph[K, N, E, G],
+    y: Graph[K, N, E, G],
+    node_mapping: Mapping[K, K],
+    edge_matcher: ElementMatcher[E],
+    edge_pair_sims: PairSim[K],
+) -> frozendict[K, K]:
+    candidates = _induced_edge_candidates(x, y, node_mapping, edge_matcher)
+    unique = _mutually_unique_mapping(candidates)
+
+    # Without parallel edges nothing competes, so the mapping is already injective
+    # as required by Bergmann and Gil (2014) and no choice has to be made.
+    if len(unique) == len(candidates):
+        return unique
+
+    return frozendict(_best_edge_matching(candidates, edge_pair_sims))
+
+
+def extend_maximal[K](
+    mapping: dict[K, K],
+    candidates: Iterable[tuple[K, K]],
+) -> dict[K, K]:
+    """Claims in place every candidate whose two sides are both still free.
+
+    All measures prefer the larger of two equally good mappings, so a pair that was
+    left out although nothing competes for it is added here.
+    """
+    mapped_x = set(mapping.values())
+
+    for y_key, x_key in candidates:
+        if y_key not in mapping and x_key not in mapped_x:
+            mapping[y_key] = x_key
+            mapped_x.add(x_key)
+
+    return mapping
+
+
+def _best_edge_matching[K](
+    candidates: Sequence[tuple[K, K]],
+    edge_pair_sims: PairSim[K],
+) -> dict[K, K]:
+    """Pick the most similar injective subset of competing edge candidates.
+
+    Parallel edges make several query edges consistent with the same case edge.
+    Pairing them off is a linear assignment problem in which a forbidden combination
+    scores zero, exactly like an unmapped edge does in the global similarity, so that
+    a valuable pair is never given up for two worthless ones.
+    """
+    y_keys = list(dict.fromkeys(y_key for y_key, _ in candidates))
+    x_keys = list(dict.fromkeys(x_key for _, x_key in candidates))
+    y_index = {key: i for i, key in enumerate(y_keys)}
+    x_index = {key: i for i, key in enumerate(x_keys)}
+
+    weights = np.zeros((len(y_keys), len(x_keys)))
+
+    for pair in candidates:
+        weights[y_index[pair[0]], x_index[pair[1]]] = edge_pair_sims.get(pair, 0.0)
+
+    rows, cols = linear_sum_assignment(weights, maximize=True)
+    allowed = set(candidates)
+
+    # Candidates worth nothing are interchangeable with a forbidden combination, so
+    # the assignment may leave them out and `extend_maximal` picks them back up.
+    return extend_maximal(
+        {
+            y_keys[row]: x_keys[col]
+            for row, col in zip(rows.tolist(), cols.tolist(), strict=True)
+            if (y_keys[row], x_keys[col]) in allowed
+        },
+        candidates,
     )
 
 
@@ -138,9 +230,16 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         x: Graph[K, N, E, G],
         y: Graph[K, N, E, G],
         node_mapping: Mapping[K, K],
+        edge_pair_sims: PairSim[K],
     ) -> frozendict[K, K]:
-        """Derives an edge mapping induced by the given node mapping."""
-        return _induced_edge_mapping(x, y, node_mapping, self.edge_matcher)
+        """Derives an injective edge mapping induced by the given node mapping.
+
+        Parallel edges let several candidates compete, which is resolved in favor of
+        the most similar combination.
+        """
+        return _induced_edge_mapping(
+            x, y, node_mapping, self.edge_matcher, edge_pair_sims
+        )
 
     def node_pairs(
         self,
@@ -242,26 +341,47 @@ class BaseGraphSimFunc[K, N, E, G](BaseGraphEditFunc[K, N, E, G]):
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> GraphSim[K]:
         """Function to compute the similarity of all previous steps"""
-
-        node_sims = [
-            node_pair_sims[(y_key, x_key)] for y_key, x_key in node_mapping.items()
-        ]
-
-        edge_sims = [
-            edge_pair_sims[(y_key, x_key)] for y_key, x_key in edge_mapping.items()
-        ]
-
-        all_sims = itertools.chain(node_sims, edge_sims)
-        upper_bound = self.cost_upper_bound(x, y)
-        total_sim = sum(all_sims) / upper_bound if upper_bound > 0 else 0.0
-
         return GraphSim(
-            total_sim,
+            self.similarity_value(
+                x, y, node_mapping, edge_mapping, node_pair_sims, edge_pair_sims
+            ),
             node_mapping,
             edge_mapping,
-            frozendict(zip(node_mapping.keys(), node_sims, strict=True)),
-            frozendict(zip(edge_mapping.keys(), edge_sims, strict=True)),
+            frozendict(
+                (y_key, node_pair_sims[(y_key, x_key)])
+                for y_key, x_key in node_mapping.items()
+            ),
+            frozendict(
+                (y_key, edge_pair_sims[(y_key, x_key)])
+                for y_key, x_key in edge_mapping.items()
+            ),
         )
+
+    def similarity_value(
+        self,
+        x: Graph[K, N, E, G],
+        y: Graph[K, N, E, G],
+        node_mapping: Mapping[K, K],
+        edge_mapping: Mapping[K, K],
+        node_pair_sims: Mapping[tuple[K, K], float],
+        edge_pair_sims: Mapping[tuple[K, K], float],
+    ) -> float:
+        """Aggregates the mapped similarities without building a `GraphSim`.
+
+        The search based measures need nothing but this value for every state they
+        generate, which is why it is kept free of the per-element bookkeeping.
+        """
+        upper_bound = self.cost_upper_bound(x, y)
+
+        # An upper bound of zero means there is nothing the query asks for,
+        # which is trivially satisfied by any case.
+        if upper_bound <= 0:
+            return 1.0
+
+        return (
+            sum(node_pair_sims[pair] for pair in node_mapping.items())
+            + sum(edge_pair_sims[pair] for pair in edge_mapping.items())
+        ) / upper_bound
 
     def invert_similarity(
         self, x: Graph[K, N, E, G], y: Graph[K, N, E, G], sim: GraphSim[K]
@@ -375,7 +495,7 @@ class init_empty[K, N, E, G](SearchStateInit[K, N, E, G]):
 
 @dataclass(slots=True, init=False)
 class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
-    """Initializes search by pre-mapping uniquely matchable nodes."""
+    """Initializes search by pre-mapping uniquely matchable nodes and edges."""
 
     def __call__(
         self,
@@ -384,23 +504,14 @@ class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
         node_matcher: ElementMatcher[N],
         edge_matcher: ElementMatcher[E],
     ) -> SearchState[K]:
-        # pre-populate the mapping with nodes/edges that only have one possible legal mapping
-        y2x_map: defaultdict[K, set[K]] = defaultdict(set)
-        x2y_map: defaultdict[K, set[K]] = defaultdict(set)
-
-        for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys()):
-            if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
-                y2x_map[y_key].add(x_key)
-                x2y_map[x_key].add(y_key)
-
-        node_mapping: frozendict[K, K] = frozendict(
-            (y_key, next(iter(x_keys)))
-            for y_key, x_keys in y2x_map.items()
-            if len(x_keys) == 1 and len(x2y_map[next(iter(x_keys))]) == 1
+        node_mapping = _mutually_unique_mapping(
+            (y_key, x_key)
+            for y_key, x_key in itertools.product(y.nodes.keys(), x.nodes.keys())
+            if node_matcher(x.nodes[x_key].value, y.nodes[y_key].value)
         )
 
-        edge_mapping: frozendict[K, K] = _induced_edge_mapping(
-            x, y, node_mapping, edge_matcher
+        edge_mapping = _mutually_unique_mapping(
+            _induced_edge_candidates(x, y, node_mapping, edge_matcher)
         )
 
         return SearchState(
@@ -415,11 +526,25 @@ class init_unique_matches[K, N, E, G](SearchStateInit[K, N, E, G]):
 
 @dataclass(slots=True)
 class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
-    """Graph similarity function using search-based node and edge mapping."""
+    """Graph similarity function using search-based node and edge mapping.
+
+    Args:
+        init_func: A function to initialize the state.
+        partial_mapping: Also consider leaving an element of the query unmapped when
+            it has a legal counterpart in the case.
+            [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005) allow
+            this, and it is needed whenever declining a mapping frees an element of
+            the case for a more valuable use elsewhere.
+            Disabling it prunes one successor per expansion, which shrinks the search
+            space by roughly a factor of two but gives up the guarantee of finding the
+            best mapping.
+            Disabled by default.
+    """
 
     init_func: (
         SearchStateInit[K, N, E, G] | AnySimFunc[Graph[K, N, E, G], GraphSim[K]]
     ) = field(default_factory=init_unique_matches)
+    partial_mapping: bool = False
 
     def init_search_state(
         self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]
@@ -501,6 +626,33 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
             and x_value.target.key == state.node_mapping.get(y_value.target.key)
         )
 
+    def append_skipped(
+        self,
+        next_states: list[SearchState[K]],
+        state: SearchState[K],
+        y_key: K,
+        elem_type: GraphElementType,
+    ) -> list[SearchState[K]]:
+        """Adds the successor that leaves the selected query element unmapped.
+
+        It is the only successor whenever nothing legal is available, and
+        `partial_mapping` decides whether it is offered next to the legal ones too.
+        """
+        if self.partial_mapping or not next_states:
+            is_node = elem_type == "node"
+            next_states.append(
+                SearchState(
+                    state.node_mapping,
+                    state.edge_mapping,
+                    state.open_y_nodes - {y_key} if is_node else state.open_y_nodes,
+                    state.open_y_edges if is_node else state.open_y_edges - {y_key},
+                    state.open_x_nodes,
+                    state.open_x_edges,
+                )
+            )
+
+        return next_states
+
     def expand_node(
         self,
         x: Graph[K, N, E, G],
@@ -508,7 +660,13 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
-        """Generates successor states by mapping a query node to all legal case nodes."""
+        """Generates successor states by mapping a query node to all legal case nodes.
+
+        Unless `partial_mapping` is disabled, leaving the node unmapped is always
+        offered as a successor.
+        Otherwise a case node could be consumed by a node of the query that has no
+        alternative, blocking a more valuable mapping elsewhere.
+        """
         next_states: list[SearchState[K]] = [
             SearchState(
                 state.node_mapping.set(y_key, x_key),
@@ -522,19 +680,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
             if self.legal_node_mapping(x, y, state, x_key, y_key)
         ]
 
-        if not next_states:
-            next_states.append(
-                SearchState(
-                    state.node_mapping,
-                    state.edge_mapping,
-                    state.open_y_nodes - {y_key},
-                    state.open_y_edges,
-                    state.open_x_nodes,
-                    state.open_x_edges,
-                )
-            )
-
-        return next_states
+        return self.append_skipped(next_states, state, y_key, "node")
 
     def expand_edge(
         self,
@@ -543,7 +689,11 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
         state: SearchState[K],
         y_key: K,
     ) -> list[SearchState[K]]:
-        """Generates successor states by mapping a query edge to all legal case edges."""
+        """Generates successor states by mapping a query edge to all legal case edges.
+
+        As for nodes, leaving the edge unmapped is offered as a successor unless
+        `partial_mapping` is disabled.
+        """
         next_states: list[SearchState[K]] = [
             SearchState(
                 state.node_mapping,
@@ -557,19 +707,7 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
             if self.legal_edge_mapping(x, y, state, x_key, y_key)
         ]
 
-        if not next_states:
-            next_states.append(
-                SearchState(
-                    state.node_mapping,
-                    state.edge_mapping,
-                    state.open_y_nodes,
-                    state.open_y_edges - {y_key},
-                    state.open_x_nodes,
-                    state.open_x_edges,
-                )
-            )
-
-        return next_states
+        return self.append_skipped(next_states, state, y_key, "edge")
 
     def expand_edge_with_nodes(
         self,
@@ -632,16 +770,4 @@ class SearchGraphSimFunc[K, N, E, G](BaseGraphSimFunc[K, N, E, G]):
                     )
                 )
 
-        if not next_states:
-            next_states.append(
-                SearchState(
-                    state.node_mapping,
-                    state.edge_mapping,
-                    state.open_y_nodes,
-                    state.open_y_edges - {y_key},
-                    state.open_x_nodes,
-                    state.open_x_edges,
-                )
-            )
-
-        return next_states
+        return self.append_skipped(next_states, state, y_key, "edge")

@@ -8,7 +8,7 @@ from ...model.graph import (
     Graph,
 )
 from ...typing import SimFunc
-from .common import BaseGraphSimFunc, GraphSim
+from .common import BaseGraphSimFunc, GraphSim, PairSim
 
 
 @dataclass(slots=True)
@@ -33,36 +33,38 @@ class brute_force[K, N, E, G](
         y: Graph[K, N, E, G],
         y_nodes: Sequence[K],
         x_nodes: Sequence[K],
+        node_pair_sims: PairSim[K],
+        edge_pair_sims: PairSim[K],
     ) -> GraphSim[K] | None:
         """Evaluates a single node mapping candidate and returns its similarity."""
         node_mapping = frozendict(zip(y_nodes, x_nodes, strict=True))
 
         # if one node can't be matched to another, skip this permutation
         for y_key, x_key in node_mapping.items():
-            if not self.node_matcher(x.nodes[x_key].value, y.nodes[y_key].value):
+            if (y_key, x_key) not in node_pair_sims:
                 return None
 
-        edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
-
-        node_pair_sims = self.node_pair_similarities(x, y, list(node_mapping.items()))
-        edge_pair_sims = self.edge_pair_similarities(
-            x, y, node_pair_sims, list(edge_mapping.items())
-        )
+        edge_mapping = self.induced_edge_mapping(x, y, node_mapping, edge_pair_sims)
 
         return self.similarity(
             x,
             y,
-            frozendict(node_mapping),
-            frozendict(edge_mapping),
-            frozendict(node_pair_sims),
-            frozendict(edge_pair_sims),
+            node_mapping,
+            edge_mapping,
+            node_pair_sims,
+            edge_pair_sims,
         )
 
     def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
+        # Computed once up front, since every candidate mapping draws from the same
+        # set of pairs.
+        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+
         y_node_keys = list(y.nodes.keys())
         x_node_keys = list(x.nodes.keys())
-        best_sim: GraphSim[K] = GraphSim(
-            0.0, frozendict(), frozendict(), frozendict(), frozendict()
+        # The empty mapping is a legal candidate and the only one for an empty query.
+        best_sim = self.similarity(
+            x, y, frozendict(), frozendict(), node_pair_sims, edge_pair_sims
         )
 
         # iterate all possible subset sizes of query (up to target size)
@@ -71,9 +73,16 @@ class brute_force[K, N, E, G](
             for y_candidates in itertools.combinations(y_node_keys, k):
                 # all injective mappings from this subset to target nodes
                 for x_candidates in itertools.permutations(x_node_keys, k):
-                    next_sim = self.expand(x, y, y_candidates, x_candidates)
+                    next_sim = self.expand(
+                        x,
+                        y,
+                        y_candidates,
+                        x_candidates,
+                        node_pair_sims,
+                        edge_pair_sims,
+                    )
 
-                    if next_sim and (
+                    if next_sim is not None and (
                         next_sim.value > best_sim.value
                         or (
                             next_sim.value >= best_sim.value

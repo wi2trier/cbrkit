@@ -1,18 +1,58 @@
 import itertools
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import override
+from typing import Any, override
 
+import numpy as np
 from frozendict import frozendict
+from scipy.optimize import linear_sum_assignment
 
 from ...helpers import optional_dependencies, reverse_positional
 from ...model.graph import Graph
 from ...typing import SimFunc
-from .common import BaseGraphSimFunc, GraphSim
+from .common import BaseGraphSimFunc, ElementMatcher, GraphSim
+
+
+def parallel_edges_match[E](
+    edge_matcher: ElementMatcher[E],
+    x_edges: Mapping[Any, Any],
+    y_edges: Mapping[Any, Any],
+) -> bool:
+    """Whether every query edge can be paired with a distinct compatible case edge.
+
+    Since the graph model allows parallel edges, the matchers of the multigraph
+    backend receive all edges between a pair of nodes at once, and pairing them off
+    injectively is a linear assignment problem.
+    """
+    if len(y_edges) > len(x_edges):
+        return False
+
+    # Without parallel edges there is nothing to pair off, and this callback sits in
+    # the innermost loop of the matcher, so the assignment is worth skipping.
+    if len(y_edges) == 1 and len(x_edges) == 1:
+        return edge_matcher(
+            next(iter(x_edges.values()))["value"],
+            next(iter(y_edges.values()))["value"],
+        )
+
+    allowed = np.array(
+        [
+            [
+                1.0 if edge_matcher(x_data["value"], y_data["value"]) else 0.0
+                for x_data in x_edges.values()
+            ]
+            for y_data in y_edges.values()
+        ]
+    )
+    rows, cols = linear_sum_assignment(allowed, maximize=True)
+
+    return bool(allowed[rows, cols].sum() == len(y_edges))
+
 
 with optional_dependencies():
     import rustworkx
-    from networkx.algorithms.isomorphism import DiGraphMatcher
+    from networkx.algorithms.isomorphism import MultiDiGraphMatcher
 
     from ...model.graph import to_networkx, to_rustworkx_with_lookup
 
@@ -30,6 +70,7 @@ class VF2Base[K, N, E, G](
 
     max_iterations: int = 0
     maximum_common_subgraph: bool = True
+    induced: bool = False
 
     @abstractmethod
     def node_mappings(
@@ -48,6 +89,9 @@ class VF2Base[K, N, E, G](
     ) -> GraphSim[K]:
         node_mappings: list[frozendict[K, K]] = []
         next_permutations: list[Graph[K, N, E, G]] = [y]
+        # Removing nodes in a different order yields the same subgraph, so the visited
+        # node sets are tracked to keep the fallback exponential instead of factorial.
+        visited: set[frozenset[K]] = {frozenset(y.nodes.keys())}
 
         while next_permutations and not node_mappings:
             current_permutations = next_permutations
@@ -56,9 +100,18 @@ class VF2Base[K, N, E, G](
             for current_permutation in current_permutations:
                 node_mappings.extend(self.node_mappings(x, current_permutation))
 
-                if self.maximum_common_subgraph:
-                    # remove nodes from y to determine partial mappings
-                    next_permutations.extend(
+                if not self.maximum_common_subgraph:
+                    continue
+
+                # remove nodes from y to determine partial mappings
+                for node_key in current_permutation.nodes:
+                    remaining = frozenset(current_permutation.nodes.keys() - {node_key})
+
+                    if remaining in visited:
+                        continue
+
+                    visited.add(remaining)
+                    next_permutations.append(
                         Graph(
                             nodes=frozendict(
                                 (k, v)
@@ -72,16 +125,13 @@ class VF2Base[K, N, E, G](
                             ),
                             value=current_permutation.value,
                         )
-                        for node_key in current_permutation.nodes.keys()
                     )
 
+        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
         graph_sims: list[GraphSim[K]] = []
 
         for node_mapping in node_mappings:
-            edge_mapping = self.induced_edge_mapping(x, y, node_mapping)
-            node_pair_sims, edge_pair_sims = self.pair_similarities(
-                x, y, list(node_mapping.items()), list(edge_mapping.items())
-            )
+            edge_mapping = self.induced_edge_mapping(x, y, node_mapping, edge_pair_sims)
             graph_sims.append(
                 self.similarity(
                     x,
@@ -111,7 +161,6 @@ class vf2_rustworkx[K, N, E, G](VF2Base[K, N, E, G]):
     """Graph similarity using the VF2 algorithm via rustworkx."""
 
     id_order: bool = False
-    induced: bool = False
     call_limit: int | None = None
 
     def node_mappings(
@@ -203,14 +252,18 @@ class vf2_networkx[K, N, E, G](VF2Base[K, N, E, G]):
             edge_matcher = self.edge_matcher
 
         # `first` must be the larger graph and `second` the smaller one.
-        graph_matcher = DiGraphMatcher(
+        graph_matcher = MultiDiGraphMatcher(
             larger_graph,
             smaller_graph,
             node_match=lambda x, y: node_matcher(x["value"], y["value"]),
-            edge_match=lambda x, y: edge_matcher(x["value"], y["value"]),
+            edge_match=lambda x, y: parallel_edges_match(edge_matcher, x, y),
         )
 
-        mappings_iter = graph_matcher.subgraph_isomorphisms_iter()
+        mappings_iter = (
+            graph_matcher.subgraph_isomorphisms_iter()
+            if self.induced
+            else graph_matcher.subgraph_monomorphisms_iter()
+        )
         node_mappings: list[frozendict[K, K]] = []
 
         for idx in itertools.count():

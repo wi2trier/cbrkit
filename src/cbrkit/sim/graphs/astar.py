@@ -7,7 +7,7 @@ import numpy as np
 from frozendict import frozendict
 from scipy.optimize import linear_sum_assignment
 
-from ...helpers import get_logger, unpack_float
+from ...helpers import get_logger
 from ...model.graph import Graph, GraphElementType, Node
 from ...typing import SimFunc
 from .common import GraphSim, SearchGraphSimFunc, SearchState, next_elem, sorted_iter
@@ -16,6 +16,7 @@ from .lap import lap_base
 __all__ = [
     "HeuristicFunc",
     "SelectionFunc",
+    "build",
     "h1",
     "h2",
     "h3",
@@ -24,7 +25,6 @@ __all__ = [
     "select2",
     "select3",
     "select4",
-    "build",
 ]
 
 logger = get_logger(__name__)
@@ -43,16 +43,22 @@ def node_mapping_feasible[K, N](
     )
 
 
-def feasible_subgraph_pair_sims[K, N, E, G](
+def open_subgraphs[K, N, E, G](
     x: Graph[K, N, E, G],
     y: Graph[K, N, E, G],
     s: SearchState[K],
     node_pair_sims: Mapping[tuple[K, K], float],
     edge_pair_sims: Mapping[tuple[K, K], float],
-    sub_x: Graph[K, N, E, G],
-    sub_y: Graph[K, N, E, G],
-) -> tuple[dict[tuple[K, K], float], dict[tuple[K, K], float]]:
-    """Filter node/edge pair similarities to encode existing mappings.
+) -> tuple[
+    Graph[K, N, E, G],
+    Graph[K, N, E, G],
+    dict[tuple[K, K], float],
+    dict[tuple[K, K], float],
+]:
+    """Restrict both graphs and their pair similarities to the still open elements.
+
+    The subgraphs are built in a deterministic order, since the callers map the rows
+    and columns of the resulting cost matrix back to keys by position.
 
     The LAP routines do not know about the current A* state.
     To respect already fixed node mappings while solving on the remaining subgraphs, we:
@@ -62,6 +68,16 @@ def feasible_subgraph_pair_sims[K, N, E, G](
       endpoint `y_*` either it is open and `x_*` is open, or it is already mapped
       exactly to `x_*`.
     """
+    sub_x = Graph(
+        nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
+        edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
+        value=x.value,
+    )
+    sub_y = Graph(
+        nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
+        edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
+        value=y.value,
+    )
 
     # Restrict to nodes contained in the subgraphs (open elements)
     sub_node_pairs: dict[tuple[K, K], float] = {
@@ -86,7 +102,7 @@ def feasible_subgraph_pair_sims[K, N, E, G](
         ) and node_mapping_feasible(x_edge.target, y_edge.target, s):
             sub_edge_pairs[(y_e, x_e)] = sim
 
-    return sub_node_pairs, sub_edge_pairs
+    return sub_x, sub_y, sub_node_pairs, sub_edge_pairs
 
 
 @dataclass(slots=True, frozen=True, order=True)
@@ -98,7 +114,14 @@ class PriorityState[K]:
 
 
 class HeuristicFunc[K, N, E, G](Protocol):
-    """Estimates the future similarity of unmapped graph elements."""
+    """Estimates the future similarity of unmapped graph elements.
+
+    The returned value is an *unnormalized* upper bound on the similarity that the
+    still open query elements can contribute, i.e. it is expressed in the same units
+    as the numerator of `BaseGraphSimFunc.similarity`.
+    The search normalizes it by its own `cost_upper_bound`, which keeps the heuristic
+    admissible for any configuration of the edit costs.
+    """
 
     def __call__(
         self,
@@ -127,7 +150,11 @@ class SelectionFunc[K, N, E, G](Protocol):
 
 @dataclass(slots=True, frozen=True)
 class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
-    """Heuristic based on the fraction of unmapped elements."""
+    """Heuristic based on the number of unmapped elements.
+
+    This is the `h_I` heuristic of the paper, where every open query element is
+    optimistically assumed to reach the maximum similarity of one.
+    """
 
     def __call__(
         self,
@@ -139,9 +166,7 @@ class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
     ) -> float:
         """Heuristic to compute future similarity"""
 
-        return (len(s.open_y_nodes) + len(s.open_y_edges)) / (
-            len(y.nodes) + len(y.edges)
-        )
+        return len(s.open_y_nodes) + len(s.open_y_edges)
 
 
 @dataclass(slots=True)
@@ -160,17 +185,17 @@ class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
 
         for y_key in s.open_y_nodes:
             h_val += max(
-                (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes.keys()),
+                (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes),
                 default=0.0,
             )
 
         for y_key in s.open_y_edges:
             h_val += max(
-                (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges.keys()),
+                (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges),
                 default=0.0,
             )
 
-        return h_val / (len(y.nodes) + len(y.edges))
+        return h_val
 
 
 @dataclass(slots=True)
@@ -208,7 +233,7 @@ class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
                 default=0.0,
             )
 
-        return h_val / (len(y.nodes) + len(y.edges))
+        return h_val
 
 
 @dataclass(slots=True)
@@ -223,25 +248,12 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
-        # Build subgraphs in a deterministic order to ensure stable LAP results.
-        sub_x = Graph(
-            nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
-            edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
-            value=x.value,
-        )
-        sub_y = Graph(
-            nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
-            edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
-            value=y.value,
-        )
-
-        # Early termination for trivial cases
-        if len(s.open_y_nodes) == 0 and len(s.open_y_edges) == 0:
+        # Nothing is left of the query, so there is no remaining similarity.
+        if not s.open_y_nodes and not s.open_y_edges:
             return 0.0
 
-        # Encode current mappings by filtering pair similarities accordingly.
-        sub_node_pair_sims, sub_edge_pair_sims = feasible_subgraph_pair_sims(
-            x, y, s, node_pair_sims, edge_pair_sims, sub_x, sub_y
+        sub_x, sub_y, sub_node_pair_sims, sub_edge_pair_sims = open_subgraphs(
+            x, y, s, node_pair_sims, edge_pair_sims
         )
 
         cost_matrix = self.build_cost_matrix(
@@ -253,19 +265,14 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         row_idx, col_idx = linear_sum_assignment(cost_matrix)
         cost: float = cost_matrix[row_idx, col_idx].sum()
 
-        # Convert normalized cost to similarity and scale by subgraph size relative to full graph
-        full_upper_bound = self.cost_upper_bound(x, y)
+        # `build_cost_matrix` normalizes by the upper bound of the subgraphs,
+        # so scaling by it recovers the unnormalized similarity of the remainder.
         sub_upper_bound = self.cost_upper_bound(sub_x, sub_y)
 
-        if not (full_upper_bound > 0 and sub_upper_bound > 0):
+        if sub_upper_bound <= 0:
             return 0.0
 
-        similarity = max(0.0, 1.0 - cost)
-
-        # Scale the heuristic by the proportion of remaining elements
-        scaling_factor = sub_upper_bound / full_upper_bound
-
-        return similarity * scaling_factor
+        return max(0.0, 1.0 - cost) * sub_upper_bound
 
 
 @dataclass(slots=True, frozen=True)
@@ -431,21 +438,8 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
             if len(s.open_x_nodes) == 0:
                 return next_elem(s.open_y_nodes), "node"
 
-            # Build subgraphs in a deterministic order matching the cost-matrix layout.
-            sub_x = Graph(
-                nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
-                edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
-                value=x.value,
-            )
-            sub_y = Graph(
-                nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
-                edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
-                value=y.value,
-            )
-
-            # Encode current mappings by filtering pair similarities accordingly.
-            sub_node_pair_sims, sub_edge_pair_sims = feasible_subgraph_pair_sims(
-                x, y, s, node_pair_sims, edge_pair_sims, sub_x, sub_y
+            sub_x, sub_y, sub_node_pair_sims, sub_edge_pair_sims = open_subgraphs(
+                x, y, s, node_pair_sims, edge_pair_sims
             )
 
             cost_matrix = self.build_cost_matrix(
@@ -506,6 +500,12 @@ class build[K, N, E, G](
 ):
     """Performs an A* search as described by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005)
 
+    By default, an element with a legal counterpart must be mapped, which keeps the
+    search space smaller.
+    Enable `partial_mapping` to also consider leaving it unmapped.
+    Together with an admissible `heuristic_func`, this makes the result optimal unless
+    `beam_width` or `pathlength_weight` is used to trade exactness for speed.
+
     Args:
         node_sim_func: A function to compute the similarity between two nodes.
         edge_sim_func: A function to compute the similarity between two edges.
@@ -514,6 +514,10 @@ class build[K, N, E, G](
         heuristic_func: A heuristic function to compute the future similarity.
         selection_func: A function to select the next node or edge to be mapped.
         init_func: A function to initialize the state.
+        partial_mapping: Also consider leaving an element of the query unmapped when
+            it has a legal counterpart in the case, which is required for an optimal
+            result but roughly doubles the number of expanded states.
+            Disabled by default.
         beam_width: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
@@ -570,17 +574,17 @@ class build[K, N, E, G](
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         """Computes the A* priority combining past similarity and heuristic estimate."""
-        past_sim = unpack_float(
-            self.similarity(
-                x,
-                y,
-                state.node_mapping,
-                state.edge_mapping,
-                node_pair_sims,
-                edge_pair_sims,
-            )
+        past_sim = self.similarity_value(
+            x,
+            y,
+            state.node_mapping,
+            state.edge_mapping,
+            node_pair_sims,
+            edge_pair_sims,
         )
-        future_sim = self.heuristic_func(x, y, state, node_pair_sims, edge_pair_sims)
+        upper_bound = self.cost_upper_bound(x, y)
+        future_bound = self.heuristic_func(x, y, state, node_pair_sims, edge_pair_sims)
+        future_sim = future_bound / upper_bound if upper_bound > 0 else 0.0
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
@@ -589,7 +593,13 @@ class build[K, N, E, G](
             total_y_elements = len(y.nodes) + len(y.edges)
             open_y_elements = len(state.open_y_nodes) + len(state.open_y_edges)
             num_paths = total_y_elements - open_y_elements
-            return prio / (self.pathlength_weight**num_paths)
+            factor = float(self.pathlength_weight) ** num_paths
+
+            # Edit costs below the defaults let the similarity exceed one, which makes
+            # the priority negative.
+            # Dividing would then favor short paths, so the factor is applied in the
+            # direction that always favors long ones.
+            return prio / factor if prio > 0 else prio * factor
 
         return prio
 
@@ -602,34 +612,22 @@ class build[K, N, E, G](
 
         open_set: list[PriorityState[K]] = []
         best_state = self.init_search_state(x, y)
-        # best_similarity = self.similarity(
-        #     x,
-        #     y,
-        #     best_state.node_mapping,
-        #     best_state.edge_mapping,
-        #     node_pair_sims,
-        #     edge_pair_sims,
-        # )
+        best_value = self.similarity_value(
+            x,
+            y,
+            best_state.node_mapping,
+            best_state.edge_mapping,
+            node_pair_sims,
+            edge_pair_sims,
+        )
         heapq.heappush(open_set, PriorityState(0, best_state))
 
         while open_set:
             first_elem = heapq.heappop(open_set)
             current_state = first_elem.state
-            # current_similarity = self.similarity(
-            #     x,
-            #     y,
-            #     current_state.node_mapping,
-            #     current_state.edge_mapping,
-            #     node_pair_sims,
-            #     edge_pair_sims,
-            # )
 
-            # not needed because we add null mappings and
-            # the first item of the queue is always the best one
-            # if current_similarity.value > best_similarity.value:
-            #     best_state = current_state
-            #     best_similarity = current_similarity
-
+            # Goal testing on pop rather than on push, so the first finished state is
+            # the optimal one as long as the heuristic is admissible.
             if self.finished(current_state):
                 best_state = current_state
                 break
@@ -641,6 +639,24 @@ class build[K, N, E, G](
                 node_pair_sims,
                 edge_pair_sims,
             )
+
+            if not next_states:
+                # A custom selection function declined to select an element, so this
+                # branch dies here and its state is the only result it can offer.
+                current_value = self.similarity_value(
+                    x,
+                    y,
+                    current_state.node_mapping,
+                    current_state.edge_mapping,
+                    node_pair_sims,
+                    edge_pair_sims,
+                )
+
+                if current_value > best_value:
+                    best_state = current_state
+                    best_value = current_value
+
+                continue
 
             for next_state in next_states:
                 next_prio = self.compute_priority(

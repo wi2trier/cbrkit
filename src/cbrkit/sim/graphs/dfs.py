@@ -51,30 +51,23 @@ with optional_dependencies():
             x_nx = to_networkx(x)
             y_nx = to_networkx(y)
 
-            y_edges_lookup = {
-                (e.source.key, e.target.key): e.key for e in y.edges.values()
-            }
-            x_edges_lookup = {
-                (e.source.key, e.target.key): e.key for e in x.edges.values()
-            }
-
             node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
 
             def node_subst_cost(y: NetworkxNode[K, N], x: NetworkxNode[K, N]) -> float:
                 """Returns the substitution cost for a node pair as one minus similarity."""
-                if sim := node_pair_sims.get((y["key"], x["key"])):
-                    return 1.0 - sim
+                # Compared against None so that a legitimate similarity of zero is not
+                # mistaken for an illegal pair.
+                sim = node_pair_sims.get((y["key"], x["key"]))
 
-                return float("inf")
+                return 1.0 - sim if sim is not None else float("inf")
 
             def edge_subst_cost(
                 y: NetworkxEdge[K, N, E], x: NetworkxEdge[K, N, E]
             ) -> float:
                 """Returns the substitution cost for an edge pair as one minus similarity."""
-                if sim := edge_pair_sims.get((y["key"], x["key"])):
-                    return 1.0 - sim
+                sim = edge_pair_sims.get((y["key"], x["key"]))
 
-                return float("inf")
+                return 1.0 - sim if sim is not None else float("inf")
 
             ged_iter = nx.optimize_edit_paths(
                 y_nx,
@@ -91,8 +84,11 @@ with optional_dependencies():
                 roots=self.roots_func(x, y) if self.roots_func else None,
             )
 
-            node_edit_path: list[tuple[K, K]] = []
-            edge_edit_path: list[tuple[tuple[K, K], tuple[K, K]]] = []
+            node_edit_path: list[tuple[K | None, K | None]] = []
+            # Edges of a multigraph are identified by source, target and edge key.
+            edge_edit_path: list[
+                tuple[tuple[K, K, K] | None, tuple[K, K, K] | None]
+            ] = []
 
             for idx in itertools.count():
                 if self.max_iterations > 0 and idx >= self.max_iterations:
@@ -108,16 +104,12 @@ with optional_dependencies():
                 for y_key, x_key in node_edit_path
                 if x_key is not None and y_key is not None
             )
+            # Networkx identifies the edges of a multigraph by its own key, so the
+            # key of the original edge is read back from the edge data.
             edge_mapping = frozendict(
-                (
-                    y_edges_lookup[y_key],
-                    x_edges_lookup[x_key],
-                )
-                for y_key, x_key in edge_edit_path
-                if x_key is not None
-                and y_key is not None
-                and x_key in x_edges_lookup
-                and y_key in y_edges_lookup
+                (y_nx.edges[y_edge]["key"], x_nx.edges[x_edge]["key"])
+                for y_edge, x_edge in edge_edit_path
+                if x_edge is not None and y_edge is not None
             )
 
             return self.similarity(

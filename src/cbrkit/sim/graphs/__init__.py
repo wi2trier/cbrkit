@@ -7,12 +7,14 @@ global graph similarity score.
 
 Algorithms:
 - `astar`: A* search for optimal graph edit distance.
-  Guarantees optimal results but may be slow for large graphs.
+  Guarantees optimal results when `partial_mapping` is enabled unless `beam_width` or
+  `pathlength_weight` is used, but may be slow for large graphs.
 - `vf2`: VF2 algorithm for (sub)graph isomorphism.
   Available in pure Python (`vf2`), NetworkX (`vf2_networkx`),
   and RustWorkX (`vf2_rustworkx`) variants.
 - `greedy`: Fast greedy matching that pairs nodes by highest similarity.
 - `lap`: Linear Assignment Problem solver using the Hungarian algorithm.
+  Fast but approximate, since it folds the edge costs into the node costs.
 - `brute_force`: Exhaustive search over all possible node matchings.
   Only practical for small graphs.
 - `dfs`: Depth-first search based matching (requires `graphs` extra).
@@ -66,23 +68,23 @@ with optional_dependencies():
     from .dfs import dfs
 
 __all__ = [
-    "astar",
-    "brute_force",
-    "dfs",
-    "greedy",
-    "lap",
-    "vf2",
-    "vf2_networkx",
-    "vf2_rustworkx",
-    "dtw",
-    "smith_waterman",
-    "init_empty",
-    "init_unique_matches",
-    "GraphSim",
-    "ElementMatcher",
-    "SemanticEdgeSim",
     "BaseGraphSimFunc",
+    "ElementMatcher",
+    "GraphSim",
     "SearchGraphSimFunc",
     "SearchState",
     "SearchStateInit",
+    "SemanticEdgeSim",
+    "astar",
+    "brute_force",
+    "dfs",
+    "dtw",
+    "greedy",
+    "init_empty",
+    "init_unique_matches",
+    "lap",
+    "smith_waterman",
+    "vf2",
+    "vf2_networkx",
+    "vf2_rustworkx",
 ]
