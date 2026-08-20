@@ -106,7 +106,6 @@
             packages = with pkgs; [
               uv
               config.treefmt.build.wrapper
-              graphviz
             ];
             nativeBuildInputs = with pkgs; [ zlib ];
             LD_LIBRARY_PATH = lib.makeLibraryPath [

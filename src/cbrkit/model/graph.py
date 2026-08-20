@@ -410,8 +410,8 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    # pygraphviz ships no type information and needs the graphviz headers to build
-    from pygraphviz import AGraph  # type: ignore  # pyright: ignore
+    # pygraphviz ships no type information
+    from pygraphviz import AGraph  # pyright: ignore
 
     def to_graphviz[N, E, G](
         g: Graph[Any, N, E, G],

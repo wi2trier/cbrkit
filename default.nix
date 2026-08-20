@@ -9,7 +9,6 @@
   python3,
   onetbb,
   cacert,
-  graphviz,
   libstemmer,
   zlib,
 }:
@@ -36,9 +35,6 @@ let
   packageOverlay =
     final: prev:
     lib.mapAttrs (name: value: prev.${name}.overrideAttrs value) {
-      pygraphviz = old: {
-        buildInputs = (old.buildInputs or [ ]) ++ [ graphviz ];
-      };
       torch = old: {
         autoPatchelfIgnoreMissingDeps = true;
       };
