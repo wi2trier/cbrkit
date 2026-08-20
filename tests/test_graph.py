@@ -41,6 +41,7 @@ ALGORITHMS: dict[
     "lap": partial(cbrkit.sim.graphs.lap, edge_handling="ignore"),
     "lap_greedy": partial(cbrkit.sim.graphs.lap, edge_handling="greedy"),
     "lap_optimal": partial(cbrkit.sim.graphs.lap, edge_handling="optimal"),
+    "qap": cbrkit.sim.graphs.qap,
     "vf2_networkx": cbrkit.sim.graphs.vf2_networkx,
     "vf2_rustworkx": cbrkit.sim.graphs.vf2_rustworkx,
 }

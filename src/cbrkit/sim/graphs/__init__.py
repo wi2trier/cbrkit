@@ -15,6 +15,9 @@ Algorithms:
 - `greedy`: Fast greedy matching that pairs nodes by highest similarity.
 - `lap`: Linear Assignment Problem solver using the Hungarian algorithm.
   Fast but approximate, since it folds the edge costs into the node costs.
+- `qap`: Quadratic Assignment Problem solved exactly as a binary linear program.
+  Same result as `astar` with exact settings and usually much faster, but slower than
+  `lap`.
 - `brute_force`: Exhaustive search over all possible node matchings.
   Only practical for small graphs.
 - `dfs`: Depth-first search based matching (requires `graphs` extra).
@@ -57,6 +60,7 @@ from .common import (
 )
 from .greedy import greedy
 from .lap import lap
+from .qap import qap
 from .vf2 import vf2, vf2_networkx, vf2_rustworkx
 
 with optional_dependencies():
@@ -78,6 +82,7 @@ __all__ = [
     "init_empty",
     "init_unique_matches",
     "lap",
+    "qap",
     "smith_waterman",
     "twed",
     "vf2",

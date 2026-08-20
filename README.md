@@ -350,7 +350,7 @@ graph_sim = cbrkit.sim.graphs.astar.build(
 )
 ```
 
-Available graph algorithms include `astar`, `vf2`, `greedy`, `lap`, `brute_force`, `dfs`, `dtw`, `twed`, and `smith_waterman`.
+Available graph algorithms include `astar`, `vf2`, `greedy`, `lap`, `qap`, `brute_force`, `dfs`, `dtw`, `twed`, and `smith_waterman`.
 See the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim/graphs.html) for a full list of algorithms and their parameters.
 
 ### Global Similarity and Aggregation

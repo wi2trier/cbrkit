@@ -60,6 +60,7 @@ def measures(*, partial_mapping: bool = False, **kwargs: Any) -> dict[str, Any]:
         "dfs": cbrkit.sim.graphs.dfs(**kwargs),
         "greedy": cbrkit.sim.graphs.greedy(**kwargs),
         "lap": cbrkit.sim.graphs.lap(**kwargs),
+        "qap": cbrkit.sim.graphs.qap(**kwargs),
         "vf2_networkx": cbrkit.sim.graphs.vf2_networkx(**kwargs),
         "vf2_rustworkx": cbrkit.sim.graphs.vf2_rustworkx(**kwargs),
     }
