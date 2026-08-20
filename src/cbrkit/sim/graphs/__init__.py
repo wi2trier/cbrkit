@@ -18,10 +18,10 @@ Algorithms:
 - `brute_force`: Exhaustive search over all possible node matchings.
   Only practical for small graphs.
 - `dfs`: Depth-first search based matching (requires `graphs` extra).
-- `dtw`: Dynamic Time Warping for sequential graph alignment
-  (requires `timeseries` extra).
-- `smith_waterman`: Smith-Waterman local alignment for sequential graphs
-  (requires `timeseries` extra).
+- `dtw`: Dynamic Time Warping for sequential graph alignment.
+- `twed`: Time Warp Edit Distance for sequential graph alignment.
+  A metric alternative to `dtw` that deletes unmatched nodes instead of warping them.
+- `smith_waterman`: Smith-Waterman local alignment for sequential graphs.
 
 Initialization Functions:
 - `init_empty`: Initializes the search state with no pre-matched nodes.
@@ -42,6 +42,7 @@ Example:
 
 from ...helpers import optional_dependencies
 from . import astar
+from .alignment import dtw, smith_waterman, twed
 from .brute_force import brute_force
 from .common import (
     BaseGraphSimFunc,
@@ -57,12 +58,6 @@ from .common import (
 from .greedy import greedy
 from .lap import lap
 from .vf2 import vf2, vf2_networkx, vf2_rustworkx
-
-with optional_dependencies():
-    from .alignment import dtw
-
-with optional_dependencies():
-    from .alignment import smith_waterman
 
 with optional_dependencies():
     from .dfs import dfs
@@ -84,6 +79,7 @@ __all__ = [
     "init_unique_matches",
     "lap",
     "smith_waterman",
+    "twed",
     "vf2",
     "vf2_networkx",
     "vf2_rustworkx",

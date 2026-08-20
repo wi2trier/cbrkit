@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+import cbrkit
+from cbrkit.model.graph import Graph, from_dict
 from cbrkit.sim.collections import dtw, mapping, smith_waterman, twed
 
 type NodeSim = Callable[[Any, Any], float]
@@ -18,6 +20,13 @@ type NodeSim = Callable[[Any, Any], float]
 
 def equality(x: Any, y: Any) -> float:
     return 1.0 if x == y else 0.0
+
+
+ALIGNERS: dict[str, Callable[[NodeSim], Any]] = {
+    "dtw": cbrkit.sim.graphs.dtw,
+    "twed": cbrkit.sim.graphs.twed,
+    "smith_waterman": cbrkit.sim.graphs.smith_waterman,
+}
 
 
 def abs_diff(x: float, y: float) -> float:
@@ -29,6 +38,90 @@ def weighted_sim(weights: list[list[float]]) -> NodeSim:
         return weights[query][case]
 
     return sim
+
+
+def graph(
+    nodes: dict[str, str], edges: list[tuple[str, str, str]]
+) -> Graph[Any, Any, Any, Any]:
+    return from_dict(
+        {
+            "nodes": nodes,
+            "edges": {
+                key: {"source": source, "target": target, "value": None}
+                for key, source, target in edges
+            },
+            "value": None,
+        }
+    )
+
+
+CHAIN_X = graph({"1": "A", "2": "B", "3": "C"}, [("e1", "1", "2"), ("e2", "2", "3")])
+CHAIN_Y = graph({"1": "A", "2": "X", "3": "C"}, [("e1", "1", "2"), ("e2", "2", "3")])
+SHORT_Y = graph({"1": "A", "2": "B"}, [("e1", "1", "2")])
+
+
+@pytest.mark.parametrize("name", ALIGNERS.keys())
+def test_self_similarity_is_one(name: str) -> None:
+    """D1/D2: the aligners used to score a graph against itself at 0.22 and 0.02."""
+    assert ALIGNERS[name](equality)(CHAIN_X, CHAIN_X).value == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("name", ALIGNERS.keys())
+def test_agrees_with_astar(name: str) -> None:
+    """D2: the aligners normalized twice, so their scale was not comparable to A*."""
+    baseline = cbrkit.sim.graphs.astar.build(node_sim_func=equality)
+
+    for query in (CHAIN_X, CHAIN_Y, SHORT_Y):
+        expected = baseline(CHAIN_X, query).value
+        assert ALIGNERS[name](equality)(CHAIN_X, query).value == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("name", ALIGNERS.keys())
+def test_mapping_is_injective_and_query_keyed(name: str) -> None:
+    """D1/D7/D8: warping produced duplicate targets, and dtw keyed the mapping by case."""
+    case = graph({"c1": "A", "c2": "B"}, [("ce", "c1", "c2")])
+    query = graph(
+        {"q1": "A", "q2": "A", "q3": "B"}, [("qe1", "q1", "q2"), ("qe2", "q2", "q3")]
+    )
+    result = ALIGNERS[name](equality)(case, query)
+
+    assert set(result.node_mapping.keys()) <= set(query.nodes.keys())
+    assert set(result.node_mapping.values()) <= set(case.nodes.keys())
+    assert len(set(result.node_mapping.values())) == len(result.node_mapping)
+
+
+@pytest.mark.parametrize("name", ALIGNERS.keys())
+def test_differing_edge_counts(name: str) -> None:
+    """D3: a strict zip over the edge lists raised ValueError for differing counts."""
+    result = ALIGNERS[name](equality)(CHAIN_X, SHORT_Y)
+
+    assert 0.0 <= result.value <= 1.0
+
+
+def test_smith_waterman_uses_node_values() -> None:
+    """D4: the alignment was computed over position indices, so only lengths mattered."""
+    sim = cbrkit.sim.graphs.smith_waterman(equality)
+    same_shape_worse = graph(
+        {"1": "X", "2": "Y", "3": "Z"}, [("e1", "1", "2"), ("e2", "2", "3")]
+    )
+
+    assert sim(CHAIN_X, CHAIN_X).value > sim(CHAIN_X, CHAIN_Y).value
+    assert sim(CHAIN_X, CHAIN_Y).value > sim(CHAIN_X, same_shape_worse).value
+
+
+@pytest.mark.parametrize("name", ALIGNERS.keys())
+def test_retrieval_pipeline(name: str) -> None:
+    """The aligners must rank the identical graph first when used for retrieval.
+
+    The graphs in `data/graphs-v1.json` are cyclic, so they cannot be turned into a
+    sequence and a small sequential casebase is used instead.
+    """
+    casebase = {"exact": CHAIN_X, "partial": CHAIN_Y, "short": SHORT_Y}
+    retriever = cbrkit.retrieval.build(ALIGNERS[name](equality))
+    result = cbrkit.retrieval.apply_query(casebase, CHAIN_X, retriever)
+
+    assert result.similarities["exact"].value == pytest.approx(1.0)
+    assert result.ranking[0] == "exact"
 
 
 def test_smith_waterman_sequence_is_normalized() -> None:
