@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, override
 
 import numpy as np
-import zvec as zv  # pyright: ignore[reportMissingImports]  # type: ignore[unresolved-import]
+import zvec as zv
 
 from ..helpers import get_logger
 from ..typing import (
@@ -135,7 +135,7 @@ class zvec[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
         try:
             self._collection = zv.open(self.path)
             self._keys = self._load_keys(self._collection)
-        except Exception:
+        except ValueError:
             self._collection = None
 
     @property

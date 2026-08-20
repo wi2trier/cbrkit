@@ -3,7 +3,8 @@ from timeit import default_timer
 from typing import cast
 
 from ..helpers import get_logger, get_metadata, produce_factory
-from ..model.result import Result as _PhaseResult, ResultStep as _PhaseResultStep
+from ..model.result import Result as _PhaseResult
+from ..model.result import ResultStep as _PhaseResultStep
 from ..typing import Casebase, Float, MaybeFactory, SynthesizerFunc
 from .model import QueryResultStep, Result, ResultStep
 

@@ -1,3 +1,5 @@
+from typing import Any
+
 import polars as pl
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -8,7 +10,11 @@ df = pl.read_csv("data/cars-1k.csv").head(30)
 
 casebase = cbrkit.loaders.polars(df)
 
-sim_func = cbrkit.sim.attribute_value(
+type CarCase = dict[str, Any]
+type CarSim = cbrkit.sim.AttributeValueSim[float]
+type CarResponse = cbrkit.synthesis.providers.Response[str]
+
+sim_func = cbrkit.sim.attribute_value[CarCase, float](
     attributes={
         "year": cbrkit.sim.numbers.linear(max=50),
         "make": cbrkit.sim.strings.levenshtein(),
@@ -30,8 +36,8 @@ provider = cbrkit.synthesis.providers.pydantic_ai(
     ),
     deps=None,
 )
-synthesizer = cbrkit.synthesis.build(
-    provider,  # type: ignore[arg-type]
+synthesizer = cbrkit.synthesis.build[str, CarResponse, int, CarCase, CarSim](
+    provider,
     prompt,
 )
 queries = [casebase[i] for i in range(2)]
@@ -49,8 +55,10 @@ batches = [
 pooling_prompt = cbrkit.synthesis.prompts.pooling(
     "Which of the following cars is the best replacement for the queried cars?"
 )
-pooling_func = cbrkit.synthesis.pooling(provider, pooling_prompt)  # type: ignore[arg-type]
-get_result = cbrkit.synthesis.chunks(synthesizer, pooling_func, size=10)
+pooling_func = cbrkit.synthesis.pooling[str, CarResponse, str](provider, pooling_prompt)
+get_result = cbrkit.synthesis.chunks[CarResponse, CarResponse, int, CarCase, CarSim](
+    synthesizer, pooling_func, size=10
+)
 response = get_result(batches)
 print("Response:")
 for result in response:

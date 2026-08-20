@@ -111,7 +111,7 @@ def test_retain_indexable_storage():
     casebase: dict[int, str] = {0: "a", 1: "b"}
     results = retainer([(casebase, "c")])
 
-    updated_casebase, sim_map = results[0]
+    updated_casebase, _sim_map = results[0]
     assert updated_casebase == {0: "a", 1: "b"}
     assert fake.index == updated_casebase
 
@@ -133,7 +133,7 @@ def test_retain_indexable_prepopulated():
     pipeline_casebase: dict[int, str] = {1: "b"}
     results = retainer([(pipeline_casebase, "d")])
 
-    updated_casebase, sim_map = results[0]
+    updated_casebase, _sim_map = results[0]
     # Should return the full index with new entry
     assert updated_casebase == {0: "a", 1: "b", 2: "c", 3: "b"}
     assert fake.index == updated_casebase

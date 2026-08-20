@@ -26,10 +26,10 @@ with optional_dependencies():
     from .http import http
 
 __all__ = [
-    "cohere",
-    "voyageai",
-    "cross_encoder",
     "bi_encoder",
-    "sentence_transformers",
+    "cohere",
+    "cross_encoder",
     "http",
+    "sentence_transformers",
+    "voyageai",
 ]

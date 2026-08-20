@@ -18,15 +18,15 @@ from ..loaders import file as load_file
 
 __all__ = [
     "SerializedTaxonomyNode",
-    "TaxonomyNode",
     "Taxonomy",
-    "TaxonomyStrategy",
+    "TaxonomyNode",
     "TaxonomySimFunc",
-    "wu_palmer",
-    "weights",
+    "TaxonomyStrategy",
+    "build",
     "levels",
     "paths",
-    "build",
+    "weights",
+    "wu_palmer",
 ]
 
 

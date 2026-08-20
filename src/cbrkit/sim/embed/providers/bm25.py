@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import cast, override
 
 import bm25s
-import Stemmer  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]
+import Stemmer  # ty: ignore[unresolved-import]
 from bm25s.tokenization import Tokenized
 
 from ....indexable._common import _normalize_patch_keys

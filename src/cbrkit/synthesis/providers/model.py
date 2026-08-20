@@ -87,4 +87,4 @@ class BaseProvider[P, R](AsyncProvider[P, Response[R]], ABC):
                 logger.error(f"Error processing batch {idx + 1}: {e}")
                 return Response(self.default_response, Usage(0, 0))
 
-            raise e
+            raise

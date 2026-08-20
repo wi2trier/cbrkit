@@ -22,8 +22,8 @@ from .typing import (
 )
 
 __all__ = [
-    "System",
     "CasebaseSpec",
+    "System",
 ]
 
 type CasebaseSpec[K, V] = Iterable[K] | Mapping[K, V] | None

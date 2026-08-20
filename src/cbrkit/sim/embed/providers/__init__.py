@@ -30,14 +30,14 @@ with optional_dependencies():
     from .voyageai import voyageai
 
 __all__ = [
-    "spacy",
+    "bm25",
+    "cohere",
     "load_spacy",
+    "ollama",
+    "openai",
     "pydantic_ai",
     "sentence_transformers",
+    "spacy",
     "sparse_encoder",
-    "bm25",
-    "openai",
-    "ollama",
-    "cohere",
     "voyageai",
 ]

@@ -50,9 +50,9 @@ Example:
     'a'
 """
 
-from . import indexable, rerank
 from ..helpers import optional_dependencies
 from ..model import QueryResultStep, Result, ResultStep
+from . import indexable, rerank
 from .apply import (
     apply_batches,
     apply_batches_async,
@@ -81,17 +81,9 @@ with optional_dependencies():
     from .wrappers import chunk
 
 __all__ = [
-    "indexable",
-    "rerank",
-    "build",
-    "transpose",
-    "transpose_value",
-    "dropout",
-    "distribute",
-    "combine",
-    "threaded",
-    "synced",
-    "chunk",
+    "QueryResultStep",
+    "Result",
+    "ResultStep",
     "apply_batches",
     "apply_batches_async",
     "apply_queries",
@@ -102,8 +94,16 @@ __all__ = [
     "apply_query_async",
     "apply_query_indexed",
     "apply_query_indexed_async",
-    "Result",
-    "ResultStep",
-    "QueryResultStep",
+    "build",
+    "chunk",
+    "combine",
+    "distribute",
+    "dropout",
+    "indexable",
     "persist",
+    "rerank",
+    "synced",
+    "threaded",
+    "transpose",
+    "transpose_value",
 ]

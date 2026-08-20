@@ -13,13 +13,13 @@ from .helpers import get_name
 from .typing import ConversionFunc, FilePath
 
 __all__ = [
-    "markdown",
-    "json",
-    "file",
+    "csv",
     "directory",
+    "file",
+    "json",
+    "markdown",
     "path",
     "toml",
-    "csv",
     "yaml",
 ]
 
@@ -82,7 +82,7 @@ class csv(ConversionFunc[Any, str]):
     def __call__(self, obj: Any) -> str:
         # remove nested dicts
         if not isinstance(obj, dict):
-            raise ValueError("Object must be a dictionary")
+            raise TypeError("Object must be a dictionary")
         obj = self.__flatten_dict(obj)
         df = pl.DataFrame(obj)
         return df.write_csv()
@@ -187,7 +187,7 @@ def file(
             f.write(encoded_data)
 
     else:
-        raise ValueError("Invalid dumper output type")
+        raise TypeError("Invalid dumper output type")
 
 
 def directory(

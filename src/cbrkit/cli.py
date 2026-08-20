@@ -24,7 +24,6 @@ app = typer.Typer(pretty_exceptions_enable=False)
 @app.callback()
 def app_callback():
     """Initialize the CBRKit CLI application."""
-    pass
 
 
 @app.command()

@@ -1,6 +1,7 @@
 # uv run examples/cars_rag.py
+from typing import Any
+
 import polars as pl
-from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -10,7 +11,11 @@ import cbrkit
 df = pl.read_csv("data/cars-1k.csv").head(10)
 casebase = cbrkit.loaders.polars(df)
 
-sim_func = cbrkit.sim.attribute_value(
+type CarCase = dict[str, Any]
+type CarSim = cbrkit.sim.AttributeValueSim[float]
+type CarResponse = cbrkit.synthesis.providers.Response[str]
+
+sim_func = cbrkit.sim.attribute_value[CarCase, float](
     attributes={
         "year": cbrkit.sim.numbers.linear(max=50),
         "make": cbrkit.sim.strings.levenshtein(),
@@ -24,15 +29,10 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
-
-class Response(BaseModel):
-    car: str
-    price: float
-    summary: str
-
-
-synthesizer = cbrkit.synthesis.build(
-    cbrkit.synthesis.providers.pydantic_ai(  # type: ignore[arg-type]
+synthesizer = cbrkit.synthesis.build[
+    str, CarResponse, int, CarCase, CarSim
+](
+    cbrkit.synthesis.providers.pydantic_ai(
         Agent(
             OpenAIChatModel("gpt-5.1-codex"),
             output_type=str,

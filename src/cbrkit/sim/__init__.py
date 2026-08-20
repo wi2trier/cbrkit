@@ -41,8 +41,8 @@ Example:
 
 from . import collections, embed, generic, graphs, numbers, pooling, strings, taxonomy
 from .aggregator import aggregator
-from .pooling import PoolingName
 from .attribute_value import AttributeValueSim, attribute_value
+from .pooling import PoolingName
 from .wrappers import (
     attribute_table,
     cache,
@@ -55,24 +55,24 @@ from .wrappers import (
 )
 
 __all__ = [
+    "AttributeValueSim",
+    "PoolingName",
+    "aggregator",
+    "attribute_table",
+    "attribute_value",
+    "cache",
+    "collections",
+    "combine",
+    "dynamic_table",
+    "embed",
+    "generic",
+    "graphs",
+    "numbers",
+    "pooling",
+    "strings",
+    "table",
+    "taxonomy",
     "transpose",
     "transpose_value",
-    "cache",
-    "combine",
-    "table",
-    "dynamic_table",
     "type_table",
-    "attribute_table",
-    "collections",
-    "generic",
-    "numbers",
-    "strings",
-    "attribute_value",
-    "graphs",
-    "embed",
-    "taxonomy",
-    "pooling",
-    "aggregator",
-    "PoolingName",
-    "AttributeValueSim",
 ]

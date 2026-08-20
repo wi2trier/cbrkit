@@ -9,11 +9,11 @@ from ..typing import PoolingFunc
 
 __all__ = [
     "PoolingName",
-    "pooling_funcs",
-    "k_min",
-    "k_max",
-    "minkowski",
     "euclidean",
+    "k_max",
+    "k_min",
+    "minkowski",
+    "pooling_funcs",
 ]
 
 

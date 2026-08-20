@@ -38,14 +38,14 @@ with optional_dependencies():
     from .jaccard import jaccard
 
 __all__ = [
-    "dtw",
-    "twed",
-    "smith_waterman",
-    "jaccard",
-    "mapping",
-    "isolated_mapping",
-    "sequence_mapping",
-    "sequence_correctness",
     "SequenceSim",
     "Weight",
+    "dtw",
+    "isolated_mapping",
+    "jaccard",
+    "mapping",
+    "sequence_correctness",
+    "sequence_mapping",
+    "smith_waterman",
+    "twed",
 ]

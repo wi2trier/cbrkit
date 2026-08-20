@@ -121,4 +121,4 @@ class spacy(BatchConversionFunc[str, NumpyArray], HasMetadata):
         return [np.asarray(doc.vector, dtype=np.float64) for doc in docs_iterator]
 
 
-__all__ = ["spacy", "load_spacy"]
+__all__ = ["load_spacy", "spacy"]

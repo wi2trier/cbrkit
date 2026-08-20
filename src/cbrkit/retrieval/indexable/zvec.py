@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, cast, override
 
 import numpy as np
-import zvec as zv  # pyright: ignore[reportMissingImports]  # type: ignore[unresolved-import]
+import zvec as zv
 
 from ...helpers import dist2sim, identity
 from ...indexable import zvec as zvec_storage

@@ -6,7 +6,7 @@ from collections.abc import Collection, Iterator, MutableMapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import override
+from typing import Any, overload, override
 
 import numpy as np
 
@@ -63,14 +63,32 @@ class build[V, E, S: Float](BatchSimFunc[V, S]):
     sim_func: BatchSimFunc[E, S]
     query_conversion_func: BatchConversionFunc[V, E] | None
 
+    @overload
+    def __init__(
+        self: "build[V, NumpyArray, float]",
+        conversion_func: AnyConversionFunc[V, NumpyArray],
+        sim_func: None = None,
+        query_conversion_func: AnyConversionFunc[V, NumpyArray] | None = None,
+    ) -> None: ...
+
+    @overload
     def __init__(
         self,
         conversion_func: AnyConversionFunc[V, E],
-        sim_func: AnySimFunc[E, S] = default_score_func,  # type: ignore[assignment]  # ty: ignore[invalid-parameter-default]
+        sim_func: AnySimFunc[E, S],
         query_conversion_func: AnyConversionFunc[V, E] | None = None,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        conversion_func: AnyConversionFunc[V, Any],
+        sim_func: AnySimFunc[Any, Any] | None = None,
+        query_conversion_func: AnyConversionFunc[V, Any] | None = None,
     ):
         self.conversion_func = batchify_conversion(conversion_func)
-        self.sim_func = batchify_sim(sim_func)
+        self.sim_func = batchify_sim(
+            sim_func if sim_func is not None else default_score_func
+        )
         self.query_conversion_func = (
             batchify_conversion(query_conversion_func)
             if query_conversion_func

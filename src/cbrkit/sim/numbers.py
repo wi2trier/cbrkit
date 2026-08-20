@@ -6,7 +6,7 @@ from ..typing import SimFunc
 
 type Number = float | int
 
-__all__ = ["linear_interval", "linear", "threshold", "exponential", "sigmoid"]
+__all__ = ["exponential", "linear", "linear_interval", "sigmoid", "threshold"]
 
 
 @dataclass(slots=True, frozen=True)

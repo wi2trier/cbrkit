@@ -97,7 +97,7 @@ class combine[V, S: Float](BatchSimFunc[V, float]):
         elif isinstance(sim_funcs, Sequence):
             self.batch_sim_funcs = [batchify_sim(func) for func in sim_funcs]
         else:
-            raise ValueError(f"Invalid sim_funcs type: {type(sim_funcs)}")
+            raise TypeError(f"Invalid sim_funcs type: {type(sim_funcs)}")
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[float]:

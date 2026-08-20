@@ -53,14 +53,9 @@ class angular(SimFunc[NumpyArray, float]):
     @override
     def __call__(self, u: NumpyArray, v: NumpyArray) -> float:
         if u.any() and v.any():
-            try:
-                return (
-                    1.0
-                    - np.arccos(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)))
-                    / np.pi
-                )
-            except Exception:
-                pass
+            cos_val = np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v))
+
+            return 1.0 - np.arccos(np.clip(cos_val, -1.0, 1.0)).__float__() / np.pi
 
         return 0.0
 
@@ -147,12 +142,12 @@ default_score_func: SimFunc[NumpyArray, float] = cosine()
 
 
 __all__ = [
-    "cosine",
-    "dot",
     "angular",
+    "cosine",
+    "default_score_func",
+    "dot",
     "euclidean",
     "manhattan",
-    "sparse_dot",
     "sparse_cosine",
-    "default_score_func",
+    "sparse_dot",
 ]

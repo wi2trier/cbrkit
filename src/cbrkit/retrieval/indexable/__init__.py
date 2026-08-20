@@ -22,13 +22,13 @@ with optional_dependencies():
     from .sqlite_vec import sqlite_vec, sqlite_vec_async
 
 __all__ = [
-    "embed",
     "bm25",
-    "lancedb",
     "chromadb",
-    "zvec",
+    "embed",
+    "lancedb",
     "pgvector",
     "pgvector_async",
     "sqlite_vec",
     "sqlite_vec_async",
+    "zvec",
 ]

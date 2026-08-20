@@ -39,10 +39,10 @@ from . import graph, result
 from .result import CycleResult, QueryResultStep, Result, ResultStep
 
 __all__ = [
-    "result",
-    "graph",
-    "QueryResultStep",
-    "ResultStep",
-    "Result",
     "CycleResult",
+    "QueryResultStep",
+    "Result",
+    "ResultStep",
+    "graph",
+    "result",
 ]

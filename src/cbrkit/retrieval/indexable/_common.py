@@ -459,14 +459,14 @@ class SqlAlchemyVectorRetriever[K, St: _AsyncSqlVectorStorage](
 
 
 __all__ = [
-    "resolve_casebases",
-    "_normalize_results",
-    "_brute_force_dense_search",
+    "AsyncVectorStorageRetriever",
     "RrfMixin",
-    "reciprocal_rank_fusion",
     "SearchType",
+    "SqlAlchemyVectorRetriever",
     "StorageRetriever",
     "VectorStorageRetriever",
-    "AsyncVectorStorageRetriever",
-    "SqlAlchemyVectorRetriever",
+    "_brute_force_dense_search",
+    "_normalize_results",
+    "reciprocal_rank_fusion",
+    "resolve_casebases",
 ]

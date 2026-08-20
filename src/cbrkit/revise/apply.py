@@ -88,7 +88,7 @@ def apply_batches[Q, C, V, S: Float](
         )
         current_batches = {
             query_key: (step_queries[query_key].casebase, step_queries[query_key].query)
-            for query_key in current_batches.keys()
+            for query_key in current_batches
         }
 
     return Result(steps=steps, duration=default_timer() - loop_start_time)

@@ -12,11 +12,11 @@ from ..typing import (
 )
 
 __all__ = [
-    "table",
-    "static_table",
     "equality",
-    "type_equality",
     "static",
+    "static_table",
+    "table",
+    "type_equality",
 ]
 
 

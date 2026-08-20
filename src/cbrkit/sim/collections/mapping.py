@@ -9,8 +9,8 @@ from ...helpers import unpack_float
 from ...typing import Float, SimFunc
 
 __all__ = [
-    "mapping",
     "isolated_mapping",
+    "mapping",
 ]
 
 

@@ -70,12 +70,12 @@ type Filter = Eq | In | Like | And | Or | Not | Raw
 
 
 __all__ = [
+    "And",
     "Eq",
+    "Filter",
     "In",
     "Like",
-    "And",
-    "Or",
     "Not",
+    "Or",
     "Raw",
-    "Filter",
 ]

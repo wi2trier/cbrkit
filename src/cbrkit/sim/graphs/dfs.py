@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from frozendict import frozendict
 
@@ -99,10 +99,13 @@ with optional_dependencies():
                 except StopIteration:
                     break
 
-            node_mapping = frozendict(
-                (y_key, x_key)
-                for y_key, x_key in node_edit_path
-                if x_key is not None and y_key is not None
+            node_mapping = cast(
+                frozendict[K, K],
+                frozendict(
+                    (y_key, x_key)
+                    for y_key, x_key in node_edit_path
+                    if x_key is not None and y_key is not None
+                ),
             )
             # Networkx identifies the edges of a multigraph by its own key, so the
             # key of the original edge is read back from the edge data.
@@ -115,7 +118,7 @@ with optional_dependencies():
             return self.similarity(
                 x,
                 y,
-                node_mapping,  # type: ignore[arg-type]
+                node_mapping,
                 edge_mapping,
                 node_pair_sims,
                 edge_pair_sims,

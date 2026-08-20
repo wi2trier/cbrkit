@@ -50,12 +50,12 @@ from .retrieval import (
 
 __all__ = [
     "compute",
+    "compute_score_metrics",
     "generate_metrics",
     "parse_metric",
-    "compute_score_metrics",
-    "similarities_to_qrels",
     "retrieval",
     "retrieval_step",
     "retrieval_step_to_qrels",
     "retrieval_to_qrels",
+    "similarities_to_qrels",
 ]

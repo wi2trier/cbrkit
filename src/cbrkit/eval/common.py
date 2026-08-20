@@ -175,7 +175,7 @@ def _correctness_single(
     k: int,
     relevance_level: int,
 ) -> float:
-    concordant_pairs, discordant_pairs, total_pairs = concordances(
+    concordant_pairs, discordant_pairs, _total_pairs = concordances(
         qrel, run, k, relevance_level
     )
 

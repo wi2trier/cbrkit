@@ -11,8 +11,8 @@ from .common import SequenceSim
 
 __all__ = [
     "dtw",
-    "twed",
     "smith_waterman",
+    "twed",
 ]
 
 

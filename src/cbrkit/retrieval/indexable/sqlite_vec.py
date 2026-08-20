@@ -34,10 +34,12 @@ from ...filter import Filter
 from ...helpers import forward_fields, run_coroutine
 from ...indexable import (
     sqlite_vec as sqlite_vec_storage,
+)
+from ...indexable import (
     sqlite_vec_async as sqlite_vec_async_storage,
 )
-from ...indexable.sqlite_vec import serialize_vector
 from ...indexable._common import SQLITE_VEC_METRICS
+from ...indexable.sqlite_vec import serialize_vector
 from ...typing import (
     BatchConversionFunc,
     Casebase,
@@ -285,4 +287,4 @@ class sqlite_vec[K: int | str](
         return run_coroutine(self._build_inner()(batches))
 
 
-__all__ = ["sqlite_vec_async", "sqlite_vec"]
+__all__ = ["sqlite_vec", "sqlite_vec_async"]

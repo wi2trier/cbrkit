@@ -11,8 +11,8 @@ from ..typing import (
 )
 
 __all__ = [
-    "pipe",
     "null",
+    "pipe",
 ]
 
 

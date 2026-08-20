@@ -6,8 +6,8 @@ from ...typing import Float, HasMetadata, JsonDict, SimFunc
 from .common import SequenceSim
 
 __all__ = [
-    "sequence_mapping",
     "Weight",
+    "sequence_mapping",
 ]
 
 

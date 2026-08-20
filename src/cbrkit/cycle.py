@@ -18,10 +18,10 @@ from .typing import (
 )
 
 __all__ = [
-    "apply_queries",
-    "apply_batches",
-    "apply_query",
     "Result",
+    "apply_batches",
+    "apply_queries",
+    "apply_query",
 ]
 
 

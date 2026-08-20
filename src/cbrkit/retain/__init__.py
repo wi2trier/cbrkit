@@ -52,17 +52,17 @@ from .build import build, dropout
 from .storage import KeyFunc, indexable, static
 
 __all__ = [
-    "build",
-    "dropout",
-    "apply_result",
-    "apply_batches",
-    "apply_queries",
-    "apply_query",
-    "apply_pair",
     "KeyFunc",
-    "indexable",
-    "static",
+    "QueryResultStep",
     "Result",
     "ResultStep",
-    "QueryResultStep",
+    "apply_batches",
+    "apply_pair",
+    "apply_queries",
+    "apply_query",
+    "apply_result",
+    "build",
+    "dropout",
+    "indexable",
+    "static",
 ]

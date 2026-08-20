@@ -16,10 +16,10 @@ from ..typing import (
 
 __all__ = [
     "concat",
-    "transpose",
-    "transpose_value",
     "default",
     "pooling",
+    "transpose",
+    "transpose_value",
 ]
 
 

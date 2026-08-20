@@ -13,8 +13,8 @@ from ..typing import (
 from .pooling import PoolingName, pooling_funcs
 
 __all__ = [
-    "default_aggregator",
     "aggregator",
+    "default_aggregator",
 ]
 
 
@@ -52,11 +52,11 @@ class aggregator[K](AggregatorFunc[K, Float]):
             else self.pooling
         )
         assert (self.pooling_weights is None) or (
-            type(similarities) is type(self.pooling_weights)  # noqa: E721
+            type(similarities) is type(self.pooling_weights)
         )
 
         pooling_factor = 1.0
-        sims: Sequence[float]  # noqa: F821
+        sims: Sequence[float]
 
         if isinstance(similarities, Mapping) and isinstance(
             self.pooling_weights, Mapping
@@ -69,7 +69,7 @@ class aggregator[K](AggregatorFunc[K, Float]):
             ]
             pooling_factor = len(sim_map) / sum(
                 weight_map.get(key, self.default_pooling_weight)
-                for key in sim_map.keys()
+                for key in sim_map
             )
         elif isinstance(similarities, Sequence) and isinstance(
             self.pooling_weights, Sequence

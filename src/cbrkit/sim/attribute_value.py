@@ -13,7 +13,7 @@ from ..typing import (
 )
 from .aggregator import default_aggregator
 
-__all__ = ["attribute_value", "AttributeValueSim"]
+__all__ = ["AttributeValueSim", "attribute_value"]
 
 logger = get_logger(__name__)
 
@@ -62,7 +62,7 @@ class attribute_value[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]]):
         if len(batches) == 0:
             return []
 
-        local_sims: list[dict[str, S]] = [dict() for _ in range(len(batches))]
+        local_sims: list[dict[str, S]] = [{} for _ in range(len(batches))]
 
         for attr_name in self.attributes:
             logger.debug(f"Processing attribute {attr_name}")
@@ -91,11 +91,11 @@ class attribute_value[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]]):
                     ):
                         local_sims[i][attr_name] = sim
 
-            except Exception as e:
+            except Exception:
                 if self.default is not None:
                     for idx in range(len(batches)):
                         local_sims[idx][attr_name] = self.default
                 else:
-                    raise e
+                    raise
 
         return [AttributeValueSim(self.aggregator(sims), sims) for sims in local_sims]

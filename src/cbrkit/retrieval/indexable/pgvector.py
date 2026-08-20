@@ -25,6 +25,8 @@ from ...filter import Filter
 from ...helpers import forward_fields, identity, run_coroutine
 from ...indexable import (
     pgvector as pgvector_storage,
+)
+from ...indexable import (
     pgvector_async as pgvector_async_storage,
 )
 from ...indexable._common import PG_METRICS, fts_combine, normalize_fts_configs
@@ -248,4 +250,4 @@ class pgvector[K: int | str](
         return run_coroutine(self._build_inner()(batches))
 
 
-__all__ = ["pgvector_async", "pgvector"]
+__all__ = ["pgvector", "pgvector_async"]

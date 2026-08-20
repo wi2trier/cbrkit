@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, cast, override
 
 from pydantic import BaseModel, Field
 
@@ -25,8 +25,26 @@ class Settings(BaseSettings):
     synthesizer: str = ""
 
 
+class CbrkitApi(FastAPI):
+    """FastAPI application exposing a cached, custom OpenAPI schema."""
+
+    @override
+    def openapi(self) -> dict[str, Any]:
+        """Generate and cache the OpenAPI schema for the CBRKit API."""
+        if not self.openapi_schema:
+            self.openapi_schema = get_openapi(
+                title="CBRKit",
+                version="0.1.0",
+                summary="API for CBRKit",
+                description="Makes it possible to perform Case-Based Reasoning tasks.",
+                routes=self.routes,
+            )
+
+        return self.openapi_schema
+
+
 settings = Settings()
-app = FastAPI()
+app = CbrkitApi()
 
 
 def load_callables(value: str) -> dict[str, Any]:
@@ -72,7 +90,7 @@ def parse_dataset(obj: CasebaseSpec) -> Mapping[str, Any]:
     elif isinstance(obj, Path):
         data = cbrkit.loaders.file(obj)
 
-    if not all(isinstance(key, str) for key in data.keys()):
+    if not all(isinstance(key, str) for key in data):
         return {str(key): value for key, value in data.items()}
 
     return data
@@ -187,20 +205,3 @@ def synthesize(
         cycle_result.retain,
         loaded_synthesizers[request.synthesizer],
     )
-
-
-def openapi_generator() -> dict[str, Any]:
-    """Generate and cache the OpenAPI schema for the CBRKit API."""
-    if not app.openapi_schema:
-        app.openapi_schema = get_openapi(
-            title="CBRKit",
-            version="0.1.0",
-            summary="API for CBRKit",
-            description="Makes it possible to perform Case-Based Reasoning tasks.",
-            routes=app.routes,
-        )
-
-    return app.openapi_schema
-
-
-app.openapi = openapi_generator  # type: ignore[assignment]  # ty: ignore[invalid-assignment]

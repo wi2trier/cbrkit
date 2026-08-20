@@ -9,6 +9,7 @@ from collections.abc import (
     Awaitable,
     Callable,
     Collection,
+    Coroutine,
     Generator,
     Iterable,
     Iterator,
@@ -22,7 +23,7 @@ from importlib import import_module
 from io import BytesIO
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Any, Coroutine, Literal, TypeIs, cast, override
+from typing import Any, Literal, Protocol, TypeIs, cast, override, runtime_checkable
 
 from pydantic import BaseModel, Field, create_model
 
@@ -77,7 +78,6 @@ __all__ = [
     "get_optional_name",
     "get_value",
     "getitem_or_getattr",
-    "setitem_or_setattr",
     "identity",
     "is_factory",
     "load_callable",
@@ -102,6 +102,7 @@ __all__ = [
     "run_coroutine",
     "run_threaded",
     "scale",
+    "setitem_or_setattr",
     "sim_map2ranking",
     "sim_seq2ranking",
     "singleton",
@@ -165,7 +166,7 @@ def forward_fields(obj: object, *, exclude: Collection[str] = ()) -> dict[str, A
 def optional_dependencies(
     error_handling: Literal["ignore", "warn", "raise"] = "ignore",
     extras_name: str | None = None,
-) -> Generator[None, Any, None]:
+) -> Generator[None, Any]:
     """Context manager that catches ImportError for optional dependencies."""
     try:
         yield None
@@ -442,7 +443,7 @@ def produce_sequence[T](obj: MaybeSequence[T]) -> list[T]:
         return cast(list[T], [obj])
 
     if isinstance(obj, Sequence):
-        return cast(list[T], list(obj))
+        return list(obj)
 
     return [obj]
 
@@ -865,14 +866,21 @@ def get_logger(obj: Any) -> logging.Logger:
     return logging.getLogger(name)
 
 
+@runtime_checkable
+class _SizedPool(Protocol):
+    """A pool exposing its worker count, which `multiprocessing` only keeps privately."""
+
+    _processes: int
+
+
 def mp_count(pool_or_processes: Pool | int | bool) -> int:
     """Return the number of worker processes for the given pool or process specification."""
     if isinstance(pool_or_processes, bool):
         return os.cpu_count() or 1
     elif isinstance(pool_or_processes, int):
         return pool_or_processes
-    elif isinstance(pool_or_processes, Pool):
-        return getattr(pool_or_processes, "_processes")
+    elif isinstance(pool_or_processes, _SizedPool):
+        return pool_or_processes._processes
 
     return os.cpu_count() or 1
 

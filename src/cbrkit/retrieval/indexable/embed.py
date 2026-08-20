@@ -2,7 +2,7 @@
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
-from typing import override
+from typing import Any, overload, override
 
 from ...helpers import batchify_sim, dispatch_batches
 from ...indexable._common import _compute_index_diff, _normalize_patch_keys
@@ -47,14 +47,32 @@ class embed[K, S: Float](
     query_conversion_func: cache | None
     _casebase: dict[K, str] | None = field(repr=False, init=False, default=None)
 
+    @overload
+    def __init__(
+        self: "embed[K, float]",
+        conversion_func: cache,
+        sim_func: None = None,
+        query_conversion_func: cache | None = None,
+    ) -> None: ...
+
+    @overload
     def __init__(
         self,
         conversion_func: cache,
-        sim_func: AnySimFunc[NumpyArray, S] = default_score_func,  # type: ignore[assignment]  # ty: ignore[invalid-parameter-default]
+        sim_func: AnySimFunc[NumpyArray, S],
+        query_conversion_func: cache | None = None,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        conversion_func: cache,
+        sim_func: AnySimFunc[NumpyArray, Any] | None = None,
         query_conversion_func: cache | None = None,
     ):
         self.conversion_func = conversion_func
-        self.sim_func = batchify_sim(sim_func)
+        self.sim_func = batchify_sim(
+            sim_func if sim_func is not None else default_score_func
+        )
         self.query_conversion_func = query_conversion_func
         self._casebase = None
 

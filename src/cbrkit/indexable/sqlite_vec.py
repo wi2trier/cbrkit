@@ -51,11 +51,12 @@ table::
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, cast
+from weakref import WeakSet
 
 import numpy as np
 import sqlalchemy as sa
 import sqlite_vec as sqlite_vec_ext
-from sqlalchemy import event
+from sqlalchemy import Engine, event
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from ..helpers import chunkify, forward_fields, run_coroutine
@@ -68,6 +69,10 @@ from .sqlalchemy import build_indexable_table, sqlalchemy, sqlalchemy_async
 # are an independent namespace from the data table's, so keying by
 # vector_column would make an unrelated host column of the same name collide.
 _VECTOR_KEY = "__cbrkit_vector__"
+
+# Engines whose checkout hook is already attached, tracked weakly so a
+# discarded engine does not keep its entry alive.
+_hooked_engines: WeakSet[Engine] = WeakSet()
 
 
 def serialize_vector(vec: NumpyArray) -> bytes:
@@ -89,11 +94,11 @@ def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
     real connection, and attaching is idempotent per engine.
     """
     sync_engine = engine.sync_engine
-    if sync_engine.dialect.name != "sqlite":
+
+    if sync_engine.dialect.name != "sqlite" or sync_engine in _hooked_engines:
         return
-    if getattr(sync_engine, "_cbrkit_sqlite_vec_loaded", False):
-        return
-    setattr(sync_engine, "_cbrkit_sqlite_vec_loaded", True)  # noqa: B010
+
+    _hooked_engines.add(sync_engine)
     ext_path = sqlite_vec_ext.loadable_path()
 
     @event.listens_for(sync_engine, "checkout")

@@ -11,12 +11,12 @@ from ..typing import FilePath, JsonDict, SimFunc
 from .generic import static_table
 
 __all__ = [
-    "levenshtein",
+    "glob",
     "jaro",
     "jaro_winkler",
+    "levenshtein",
     "ngram",
     "regex",
-    "glob",
     "table",
 ]
 

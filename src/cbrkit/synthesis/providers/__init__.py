@@ -65,10 +65,9 @@ __all__ = [
     "BaseProvider",
     "Response",
     "Usage",
-    "pipe",
-    "conversation",
     "anthropic",
     "cohere",
+    "conversation",
     "google",
     "instructor",
     "ollama",
@@ -76,5 +75,6 @@ __all__ = [
     "openai_agents",
     "openai_completions",
     "openai_responses",
+    "pipe",
     "pydantic_ai",
 ]

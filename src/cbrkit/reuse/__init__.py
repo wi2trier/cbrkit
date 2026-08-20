@@ -40,13 +40,13 @@ from .apply import (
 from .build import build
 
 __all__ = [
-    "build",
-    "apply_result",
-    "apply_batches",
-    "apply_queries",
-    "apply_query",
-    "apply_pair",
+    "QueryResultStep",
     "Result",
     "ResultStep",
-    "QueryResultStep",
+    "apply_batches",
+    "apply_pair",
+    "apply_queries",
+    "apply_query",
+    "apply_result",
+    "build",
 ]

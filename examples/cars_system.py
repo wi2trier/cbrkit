@@ -47,7 +47,7 @@ def retriever_factory(
 
     return cbrkit.retrieval.dropout(
         cbrkit.retrieval.build(
-            cbrkit.sim.attribute_value(
+            cbrkit.sim.attribute_value[CarModel, float](
                 attributes={
                     "year": cbrkit.sim.numbers.linear(max=50),
                     "make": cbrkit.sim.strings.levenshtein(),

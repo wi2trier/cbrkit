@@ -6,6 +6,7 @@ from typing import Any, Literal, cast, override
 
 import chromadb as cdb
 from chromadb.api import ClientAPI
+from chromadb.errors import NotFoundError
 
 from ..helpers import get_logger
 from ..typing import Casebase, IndexableFunc
@@ -97,7 +98,7 @@ class chromadb[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
                 self.collection_name,
                 embedding_function=self.embedding_func,
             )
-        except Exception as exc:
+        except NotFoundError as exc:
             logger.debug(
                 "Could not open existing collection %r: %s",
                 self.collection_name,
@@ -129,7 +130,7 @@ class chromadb[K: str, V = str](IndexableFunc[Casebase[K, V], Collection[K]]):
     ) -> tuple[list[str], list[str], list[cdb.Metadata] | None]:
         """Prepare IDs, documents, and metadatas from a casebase."""
         codec = self._codec
-        ids = [str(k) for k in data.keys()]
+        ids = [str(k) for k in data]
         documents: list[str] = []
         metadatas: list[cdb.Metadata] = []
         has_extras = False

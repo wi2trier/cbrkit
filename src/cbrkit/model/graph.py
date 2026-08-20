@@ -9,24 +9,24 @@ from ..helpers import identity, optional_dependencies
 from ..typing import ConversionFunc, StructuredValue
 
 __all__ = [
-    "Node",
     "Edge",
     "Graph",
     "GraphElementType",
+    "NetworkxEdge",
+    "NetworkxNode",
+    "Node",
     "SerializedEdge",
     "SerializedGraph",
-    "to_dict",
     "from_dict",
-    "is_sequential",
+    "from_networkx",
     "from_rustworkx",
+    "is_sequential",
+    "to_dict",
+    "to_graphviz",
+    "to_networkx",
     "to_rustworkx",
     "to_rustworkx_with_lookup",
-    "from_networkx",
-    "to_networkx",
-    "NetworkxNode",
-    "NetworkxEdge",
     "to_sequence",
-    "to_graphviz",
 ]
 
 type GraphElementType = Literal["node", "edge"]
@@ -219,10 +219,13 @@ def is_sequential[K, N, E, G](g: Graph[K, N, E, G]) -> bool:
         return False
 
     # All other nodes must have exactly one in and one out edge
-    for node_key in g.nodes.keys():
-        if node_key not in start_nodes and node_key not in end_nodes:
-            if in_degree[node_key] != 1 or out_degree[node_key] != 1:
-                return False
+    for node_key in g.nodes:
+        if (
+            node_key not in start_nodes
+            and node_key not in end_nodes
+            and (in_degree[node_key] != 1 or out_degree[node_key] != 1)
+        ):
+            return False
 
     return True
 
@@ -407,7 +410,8 @@ with optional_dependencies():
 
 
 with optional_dependencies():
-    from pygraphviz import AGraph
+    # pygraphviz ships no type information and needs the graphviz headers to build
+    from pygraphviz import AGraph  # type: ignore  # pyright: ignore
 
     def to_graphviz[N, E, G](
         g: Graph[Any, N, E, G],

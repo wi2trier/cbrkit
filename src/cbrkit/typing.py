@@ -19,7 +19,9 @@ __all__ = [
     "AnyPoolingFunc",
     "AnyPositionalFunc",
     "AnySimFunc",
-    "InternalFunc",
+    "AsyncFilterableIndexableFunc",
+    "AsyncIndexableFunc",
+    "AsyncRetrieverFunc",
     "BatchAdaptationFunc",
     "BatchConversionFunc",
     "BatchNamedFunc",
@@ -28,6 +30,7 @@ __all__ = [
     "BatchSimFunc",
     "Casebase",
     "CbrFunc",
+    "ComplexAdaptationFunc",
     "ConversionFunc",
     "DataclassInstance",
     "DataclassOrModel",
@@ -35,17 +38,16 @@ __all__ = [
     "Factory",
     "FilePath",
     "Filter",
+    "FilterableIndexableFunc",
     "Float",
     "HasMetadata",
     "IndexableFunc",
-    "FilterableIndexableFunc",
-    "AsyncIndexableFunc",
-    "AsyncFilterableIndexableFunc",
+    "InternalFunc",
     "JsonDict",
     "JsonEntry",
     "MapAdaptationFunc",
-    "MaybeFactory",
     "MaybeFactories",
+    "MaybeFactory",
     "MaybeSequence",
     "NamedFunc",
     "NumpyArray",
@@ -53,16 +55,14 @@ __all__ = [
     "PositionalFunc",
     "QueryCaseMatrix",
     "ReduceAdaptationFunc",
-    "SimpleAdaptationFunc",
-    "ComplexAdaptationFunc",
     "RetainerFunc",
     "RetrieverFunc",
-    "AsyncRetrieverFunc",
     "ReuserFunc",
     "ReviserFunc",
     "SimFunc",
     "SimMap",
     "SimSeq",
+    "SimpleAdaptationFunc",
     "SparseVector",
     "StructuredValue",
     "SynthesizerFunc",
@@ -85,7 +85,7 @@ class DataclassInstance(Protocol):
     __dataclass_fields__: ClassVar[dict[str, Any]]
 
 
-type DataclassOrModel = type[DataclassInstance] | type[BaseModel]
+type DataclassOrModel = type[DataclassInstance | BaseModel]
 """A dataclass or pydantic model class, e.g. a schema source for field names."""
 
 
@@ -115,7 +115,6 @@ class HasMetadata(ABC):
 class InternalFunc(ABC):
     """Marker for internal functions excluded from result steps."""
 
-    pass
 
 
 class IndexableFunc[T, K = T](Protocol):
@@ -352,7 +351,6 @@ class CbrFunc[K, V, S: Float = float](Protocol):
 class RetrieverFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retrieves similar cases from casebases for given queries."""
 
-    ...
 
 
 class AsyncRetrieverFunc[K, V, S: Float = float](Protocol):
@@ -417,19 +415,16 @@ type AnyAdaptationFunc[K, V] = SimpleAdaptationFunc[V] | ComplexAdaptationFunc[K
 class ReuserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Reuses cases by adapting and computing similarities for queries."""
 
-    ...
 
 
 class ReviserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Revises solutions by assessing quality and optionally repairing them."""
 
-    ...
 
 
 class RetainerFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retains cases in the casebase."""
 
-    ...
 
 
 class AggregatorFunc[K, S: Float = float](Protocol):
