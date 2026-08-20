@@ -6,7 +6,7 @@
   uv2nix,
   pyproject-nix,
   pyproject-build-systems,
-  python3,
+  python313,
   onetbb,
   cacert,
   libstemmer,
@@ -128,7 +128,7 @@ let
       };
     };
   baseSet = callPackage pyproject-nix.build.packages {
-    python = python3;
+    python = python313;
   };
   pythonSet = baseSet.overrideScope (
     lib.composeManyExtensions [
@@ -141,7 +141,7 @@ let
   mkVenv =
     name: deps:
     (pythonSet.mkVirtualEnv name deps).overrideAttrs (_: {
-      venvIgnoreCollisions = [ "${python3.sitePackages}/griffe/*" ];
+      venvIgnoreCollisions = [ "${python313.sitePackages}/griffe/*" ];
     });
   inherit (callPackage pyproject-nix.build.util { }) mkApplication;
 in

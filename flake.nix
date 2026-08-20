@@ -98,7 +98,7 @@
               name = "release-env";
               paths = with pkgs; [
                 uv
-                python3
+                python313
               ];
             };
           };
