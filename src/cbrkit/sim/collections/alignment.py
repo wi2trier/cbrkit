@@ -278,7 +278,12 @@ class twed[V](BaseElasticSimFunc[V]):
         if self.timestamp_func is None:
             return np.concatenate([[0.0], np.arange(len(seq), dtype=float)])
 
-        return np.array([0.0, *(float(self.timestamp_func(v)) for v in seq)])
+        timestamps = np.array([0.0, *(float(self.timestamp_func(v)) for v in seq)])
+
+        if not np.all(np.isfinite(timestamps)) or np.any(np.diff(timestamps) < 0.0):
+            raise ValueError("Timestamps must be finite and nondecreasing")
+
+        return timestamps
 
     def distances(
         self, x: Sequence[V] | np.ndarray, y: Sequence[V] | np.ndarray

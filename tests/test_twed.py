@@ -84,6 +84,24 @@ def test_timestamps_are_used() -> None:
     assert sim(values, stretched).value < 1.0
 
 
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        [(10.0, 0.0), (0.0, 0.0)],
+        [(float("nan"), 0.0)],
+        [(float("inf"), 0.0)],
+    ],
+)
+def test_invalid_timestamps(invalid: list[tuple[float, float]]) -> None:
+    sim = twed(distance_func=value_diff, timestamp_func=timestamp, stiffness=1.0)
+
+    with pytest.raises(ValueError, match="finite and nondecreasing"):
+        sim(invalid, [(0.0, 0.0)])
+
+    with pytest.raises(ValueError, match="finite and nondecreasing"):
+        sim([(0.0, 0.0)], invalid)
+
+
 def test_alignment_covers_both_sequences() -> None:
     result = twed()(A, B, return_alignment=True)
 
