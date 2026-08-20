@@ -11,13 +11,17 @@ from typing import Any
 
 import pytest
 
-from cbrkit.sim.collections import dtw, mapping, smith_waterman
+from cbrkit.sim.collections import dtw, mapping, smith_waterman, twed
 
 type NodeSim = Callable[[Any, Any], float]
 
 
 def equality(x: Any, y: Any) -> float:
     return 1.0 if x == y else 0.0
+
+
+def abs_diff(x: float, y: float) -> float:
+    return abs(x - y)
 
 
 def weighted_sim(weights: list[list[float]]) -> NodeSim:
@@ -87,3 +91,18 @@ def test_mapping_edge_cases() -> None:
     assert sim(["a"], ["a", "b", "c"]) == pytest.approx(1 / 3)
     assert sim([], []) == 0.0
     assert sim([[1]], [[1]]) == 1.0
+
+
+def test_twed_graph_alignment_is_injective_without_filtering() -> None:
+    """TWED deletes unmatched nodes, so its raw alignment is already injective."""
+    x = [1, 2, 3]
+    y = [1, 5, 3, 9]
+    result = twed(distance_func=abs_diff)(x, y, return_alignment=True)
+
+    assert result.mapping is not None
+
+    cases = [case for _, case in result.mapping if case is not None]
+    queries = [query for query, _ in result.mapping if query is not None]
+
+    assert cases == x
+    assert queries == y

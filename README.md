@@ -41,7 +41,7 @@ The following modules are part of CBRkit:
 - `cbrkit.sim`: Similarity measures for common data types with utility functions such as `cache`, `combine`, `transpose`, etc.
   - `cbrkit.sim.strings`: String similarity measures (Levenshtein, Jaro, spaCy, etc.).
   - `cbrkit.sim.numbers`: Numeric similarity measures (linear, exponential, threshold).
-  - `cbrkit.sim.collections`: Similarity measures for collections and sequences (Jaccard, DTW, Smith-Waterman, etc.).
+  - `cbrkit.sim.collections`: Similarity measures for collections and sequences (Jaccard, DTW, TWED, Smith-Waterman, etc.).
   - `cbrkit.sim.embed`: Embedding-based similarity functions with caching support.
   - `cbrkit.sim.graphs`: Graph similarity algorithms including A\*, VF2, greedy, LAP, and more.
   - `cbrkit.sim.taxonomy`: Taxonomy-based similarity functions (Wu-Palmer, etc.).
@@ -299,7 +299,8 @@ jaccard_sim = cbrkit.sim.collections.jaccard()
 seq_sim = cbrkit.sim.collections.mapping(cbrkit.sim.generic.equality())
 ```
 
-Dynamic Time Warping and Smith-Waterman alignment are available without any extra.
+Dynamic Time Warping, the Time Warp Edit Distance and Smith-Waterman alignment are available without any extra.
+Unlike DTW, TWED is a true metric and supports per-sample timestamps via its `timestamp_func` parameter.
 See the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim/collections.html) for the full list.
 
 #### Taxonomy-Based Similarity

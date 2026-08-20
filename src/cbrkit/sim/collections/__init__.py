@@ -8,6 +8,8 @@ alignment through `SequenceSim`.
 Algorithms:
 - `jaccard`: Jaccard similarity of two collections interpreted as sets.
 - `dtw`: Dynamic Time Warping, which warps the sequences along the time axis.
+- `twed`: Time Warp Edit Distance, a metric alternative to `dtw` that deletes
+  unmatched elements instead of warping them.
 - `smith_waterman`: Smith-Waterman local alignment.
 - `mapping`: Optimal one-to-one mapping of the query elements onto the case elements.
 - `isolated_mapping`: Maps each query element to its most similar case element.
@@ -26,7 +28,7 @@ Example:
 """
 
 from ...helpers import optional_dependencies
-from .alignment import dtw, smith_waterman
+from .alignment import dtw, smith_waterman, twed
 from .common import SequenceSim
 from .mapping import isolated_mapping, mapping
 from .sequence_correctness import sequence_correctness
@@ -37,6 +39,7 @@ with optional_dependencies():
 
 __all__ = [
     "dtw",
+    "twed",
     "smith_waterman",
     "jaccard",
     "mapping",
