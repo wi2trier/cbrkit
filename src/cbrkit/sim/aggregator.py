@@ -68,8 +68,7 @@ class aggregator[K](AggregatorFunc[K, Float]):
                 for key, sim in sim_map.items()
             ]
             pooling_factor = len(sim_map) / sum(
-                weight_map.get(key, self.default_pooling_weight)
-                for key in sim_map
+                weight_map.get(key, self.default_pooling_weight) for key in sim_map
             )
         elif isinstance(similarities, Sequence) and isinstance(
             self.pooling_weights, Sequence

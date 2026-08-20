@@ -132,7 +132,12 @@ class dropout[K, V, S: Float](RetainerFunc[K, V, S]):
             for key in new_keys:
                 score = unpack_float(sim_map[key])
 
-                if self.min_similarity is not None and score < self.min_similarity or self.max_similarity is not None and score > self.max_similarity:
+                if (
+                    self.min_similarity is not None
+                    and score < self.min_similarity
+                    or self.max_similarity is not None
+                    and score > self.max_similarity
+                ):
                     drop_keys.add(key)
 
             if drop_keys:

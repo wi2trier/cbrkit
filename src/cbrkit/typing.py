@@ -116,7 +116,6 @@ class InternalFunc(ABC):
     """Marker for internal functions excluded from result steps."""
 
 
-
 class IndexableFunc[T, K = T](Protocol):
     """Supports pre-indexing data for efficient processing.
 
@@ -352,7 +351,6 @@ class RetrieverFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retrieves similar cases from casebases for given queries."""
 
 
-
 class AsyncRetrieverFunc[K, V, S: Float = float](Protocol):
     """Async mirror of :class:`RetrieverFunc`."""
 
@@ -416,15 +414,12 @@ class ReuserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Reuses cases by adapting and computing similarities for queries."""
 
 
-
 class ReviserFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Revises solutions by assessing quality and optionally repairing them."""
 
 
-
 class RetainerFunc[K, V, S: Float = float](CbrFunc[K, V, S], Protocol):
     """Retains cases in the casebase."""
-
 
 
 class AggregatorFunc[K, S: Float = float](Protocol):

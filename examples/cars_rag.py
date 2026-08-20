@@ -29,9 +29,7 @@ retriever = cbrkit.retrieval.dropout(
     limit=5,
 )
 
-synthesizer = cbrkit.synthesis.build[
-    str, CarResponse, int, CarCase, CarSim
-](
+synthesizer = cbrkit.synthesis.build[str, CarResponse, int, CarCase, CarSim](
     cbrkit.synthesis.providers.pydantic_ai(
         Agent(
             OpenAIChatModel("gpt-5.1-codex"),
