@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.6](https://github.com/wi2trier/cbrkit/compare/v1.5.5...v1.5.6) (2026-08-21)
+
+### Bug Fixes
+
+* **deps:** upgrade openai to v3 and migrate to httpx2 ([0298494](https://github.com/wi2trier/cbrkit/commit/02984947c91c50582c60db7f4147b4ce24a450d4))
+* **sim/twed:** add timestamp value assertion ([99807f0](https://github.com/wi2trier/cbrkit/commit/99807f0bf223bfc89347155184201e3a5bf9d3ce))
+* **synthesis/providers:** drop instructor ([e1be4a2](https://github.com/wi2trier/cbrkit/commit/e1be4a2d1e38da4dff5e4fc6429a80eb6e775402))
+
 ## [1.5.5](https://github.com/wi2trier/cbrkit/compare/v1.5.4...v1.5.5) (2026-08-20)
 
 ### Bug Fixes
