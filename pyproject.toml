@@ -66,7 +66,7 @@ nltk = ["nltk>=3,<4"]
 spacy = ["spacy>=3.8,<4"]
 
 # ML / embeddings
-transformers = ["sentence-transformers>=4,<6", "torch>=2.10,<3", "transformers>=4,<6"]
+transformers = ["sentence-transformers>=6,<7", "torch>=2.10,<3", "transformers>=4,<6"]
 
 # Graphs
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
