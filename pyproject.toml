@@ -48,7 +48,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # LLM providers
-anthropic = ["anthropic>=0.100,<1"]
+anthropic = ["anthropic>=1,<2"]
 cohere = ["cohere>=7,<8"]
 google = ["google-genai>=2,<3"]
 http = ["httpx2>=2,<3"]
@@ -66,7 +66,7 @@ nltk = ["nltk>=3,<4"]
 spacy = ["spacy>=3.8,<4"]
 
 # ML / embeddings
-transformers = ["sentence-transformers>=4,<6", "torch>=2.10,<3", "transformers>=4,<6"]
+transformers = ["sentence-transformers>=5,<7", "torch>=2.10,<3", "transformers>=4,<6"]
 
 # Graphs
 graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
@@ -92,7 +92,7 @@ api = [
   "pydantic-settings>=2,<3",
   "python-multipart>=0.0.20,<1",
   "uvicorn[standard]>=0.40,<1",
-  "fastmcp>=3,<4",
+  "fastmcp>=4.0.0b1,<5",
 ]
 
 # Bundle
