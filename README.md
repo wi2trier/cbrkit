@@ -78,7 +78,7 @@ pip install cbrkit[EXTRA_NAME,...]
 where `EXTRA_NAME` is one of the following:
 
 - `all`: All optional dependencies
-- **LLM providers:** `anthropic`, `cohere`, `google`, `ollama`, `openai`, `openai-agents`, `pydantic-ai`, `instructor`, `voyageai`
+- **LLM providers:** `anthropic`, `cohere`, `google`, `ollama`, `openai`, `openai-agents`, `pydantic-ai`, `voyageai`
 - **HTTP integrations:** `http`
 - **NLP / text processing:** `bm25`, `chunking`, `levenshtein`, `nltk`, `spacy`
 - **ML / embeddings:** `transformers` (includes `pytorch` and `sentence-transformers`)
@@ -887,7 +887,6 @@ The following **providers** are available in `cbrkit.synthesis.providers` (each 
 - `google`: Google Generative AI (`GOOGLE_API_KEY`)
 - `ollama`: Ollama (local, no API key needed)
 - `pydantic_ai`: Pydantic AI framework
-- `instructor`: Instructor for structured output
 
 Providers can be chained using `cbrkit.synthesis.providers.pipe()` and managed as conversations using `cbrkit.synthesis.providers.conversation()`.
 

@@ -462,7 +462,6 @@ all = [
     { name = "fastmcp" },
     { name = "google-genai" },
     { name = "httpx" },
-    { name = "instructor" },
     { name = "lancedb" },
     { name = "levenshtein" },
     { name = "networkx" },
@@ -535,9 +534,6 @@ graphviz = [
 http = [
     { name = "httpx" },
 ]
-instructor = [
-    { name = "instructor" },
-]
 lancedb = [
     { name = "lancedb" },
 ]
@@ -609,7 +605,7 @@ requires-dist = [
     { name = "aiosqlite", marker = "extra == 'sqlite-vec'", specifier = ">=0.20,<1" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.100,<1" },
     { name = "bm25s", extras = ["core", "stem", "indexing"], marker = "extra == 'bm25'", specifier = ">=0.3,<1" },
-    { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chromadb", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "http", "instructor", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pgvector", "pydantic-ai", "spacy", "sql", "sqlite-vec", "transformers", "voyageai", "zvec"], marker = "extra == 'all'" },
+    { name = "cbrkit", extras = ["anthropic", "api", "bm25", "chromadb", "chunking", "cohere", "eval", "google", "graphs", "graphviz", "http", "lancedb", "levenshtein", "nltk", "ollama", "openai", "openai-agents", "pandas", "pgvector", "pydantic-ai", "spacy", "sql", "sqlite-vec", "transformers", "voyageai", "zvec"], marker = "extra == 'all'" },
     { name = "cbrkit", extras = ["cli"], marker = "extra == 'api'" },
     { name = "cbrkit", extras = ["sql"], marker = "extra == 'pgvector'" },
     { name = "cbrkit", extras = ["sql"], marker = "extra == 'sqlite-vec'" },
@@ -621,7 +617,6 @@ requires-dist = [
     { name = "frozendict", specifier = ">=2,<3" },
     { name = "google-genai", marker = "extra == 'google'", specifier = ">=2,<3" },
     { name = "httpx", marker = "extra == 'http'", specifier = ">=0.28,<1" },
-    { name = "instructor", marker = "extra == 'instructor'", specifier = ">=1,<2" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.30,<1" },
     { name = "levenshtein", marker = "extra == 'levenshtein'", specifier = ">=0.27,<1" },
     { name = "networkx", marker = "extra == 'graphs'", specifier = ">=3,<4" },
@@ -658,7 +653,7 @@ requires-dist = [
     { name = "xmltodict", specifier = ">=1,<2" },
     { name = "zvec", marker = "extra == 'zvec'", specifier = ">=0.5.1,<1" },
 ]
-provides-extras = ["anthropic", "cohere", "google", "http", "instructor", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "pgvector", "sql", "sqlite-vec", "zvec", "cli", "eval", "api", "all"]
+provides-extras = ["anthropic", "cohere", "google", "http", "ollama", "openai", "openai-agents", "pydantic-ai", "voyageai", "bm25", "chunking", "levenshtein", "nltk", "spacy", "transformers", "graphs", "graphviz", "chromadb", "lancedb", "pandas", "pgvector", "sql", "sqlite-vec", "zvec", "cli", "eval", "api", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2100,28 +2095,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
-]
-
-[[package]]
-name = "instructor"
-version = "1.15.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "docstring-parser" },
-    { name = "jinja2" },
-    { name = "jiter" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "tenacity" },
-    { name = "typer" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/24/f6b28e83b3194c6223ed7c6eed5724687f6ecd378ec2ff24044f0cbf1f09/instructor-1.15.4.tar.gz", hash = "sha256:ea2280c3678d0f6891c4d826104f95624b680e69877113a6345b1d7c9027ba0f", size = 70049678, upload-time = "2026-06-28T07:36:43.458Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/8d/f668a30fff4d25b36533355e23aeb0b5724df4628eb974124ed64b7bcf8d/instructor-1.15.4-py3-none-any.whl", hash = "sha256:00e0ecda80fd9746fb6d082d3f9641e193adb1d8849f0775f91519a82aeff968", size = 252522, upload-time = "2026-06-28T07:36:36.863Z" },
 ]
 
 [[package]]
