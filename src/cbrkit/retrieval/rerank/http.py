@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import override
 
-import httpx
+import httpx2
 from pydantic import BaseModel
 
 from ._common import RerankFunc
@@ -48,8 +48,8 @@ class http[K](RerankFunc[K]):
 
     model: str
     url: str
-    client: httpx.AsyncClient = field(
-        default_factory=httpx.AsyncClient, repr=False, compare=False
+    client: httpx2.AsyncClient = field(
+        default_factory=httpx2.AsyncClient, repr=False, compare=False
     )
     api_key: str | None = field(default=None, repr=False)
     extra_headers: Mapping[str, str] | None = None

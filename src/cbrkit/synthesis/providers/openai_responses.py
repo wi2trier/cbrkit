@@ -11,7 +11,7 @@ from .model import BaseProvider, Response, Usage
 logger = get_logger(__name__)
 
 with optional_dependencies():
-    from httpx import Timeout
+    from httpx2 import Timeout
     from openai import AsyncOpenAI, Omit, omit, pydantic_function_tool
     from openai.types.responses import (
         ResponseIncludable,

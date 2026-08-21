@@ -11,12 +11,12 @@ from .model import BaseProvider, Response, Usage
 logger = get_logger(__name__)
 
 with optional_dependencies():
-    from httpx import Timeout
+    from httpx2 import Timeout
     from openai import AsyncOpenAI, Omit, omit, pydantic_function_tool
     from openai.types.chat import (
+        ChatCompletionFunctionToolParam,
         ChatCompletionMessageParam,
         ChatCompletionNamedToolChoiceParam,
-        ChatCompletionToolParam,
     )
     from openai.types.shared.chat_model import ChatModel
 
@@ -67,7 +67,7 @@ with optional_dependencies():
             else:
                 messages.extend(prompt)
 
-            tools: list[ChatCompletionToolParam] | None = None
+            tools: list[ChatCompletionFunctionToolParam] | None = None
             tool_choice: ChatCompletionNamedToolChoiceParam | None = None
             response_type_origin = get_origin(self.response_type)
 
@@ -94,7 +94,7 @@ with optional_dependencies():
                 }
 
             try:
-                res = await self.client.beta.chat.completions.parse(
+                res = await self.client.chat.completions.parse(
                     model=self.model,
                     messages=messages,
                     response_format=self.response_type  # ty: ignore[invalid-argument-type]

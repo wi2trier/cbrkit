@@ -60,19 +60,19 @@ def _run_http_reranker(
     **reranker_kwargs: Any,
 ) -> tuple[Sequence[tuple[Mapping[str, str], dict[str, float]]], list[Any]]:
     """Run the HTTP reranker against a request-capturing mock endpoint."""
-    import httpx
+    import httpx2
 
     from cbrkit.retrieval.rerank.http import http
 
-    requests: list[httpx.Request] = []
+    requests: list[httpx2.Request] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200, json=response, request=request)
+        return httpx2.Response(200, json=response, request=request)
 
     async def run() -> Sequence[tuple[Mapping[str, str], dict[str, float]]]:
-        client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler), **(client_kwargs or {})
+        client = httpx2.AsyncClient(
+            transport=httpx2.MockTransport(handler), **(client_kwargs or {})
         )
         try:
             return await http[str](client=client, **reranker_kwargs)(batches)

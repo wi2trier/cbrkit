@@ -15,7 +15,6 @@ Providers (each requires its respective extra and API key):
 - `google`: Google Generative AI (`GOOGLE_API_KEY`).
 - `ollama`: Ollama local inference (no API key needed).
 - `pydantic_ai`: Pydantic AI framework.
-- `instructor`: Instructor for structured output.
 
 Wrappers:
 - `pipe`: Chains multiple providers sequentially.
@@ -52,8 +51,6 @@ with optional_dependencies():
 with optional_dependencies():
     from .ollama import ollama
 with optional_dependencies():
-    from .instructor import instructor
-with optional_dependencies():
     from .google import google
 with optional_dependencies():
     from .pydantic_ai import pydantic_ai
@@ -69,7 +66,6 @@ __all__ = [
     "cohere",
     "conversation",
     "google",
-    "instructor",
     "ollama",
     "openai",
     "openai_agents",
