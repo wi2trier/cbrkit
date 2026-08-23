@@ -48,7 +48,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # LLM providers
-anthropic = ["anthropic>=0.100,<1"]
+anthropic = ["anthropic>=1,<2"]
 cohere = ["cohere>=7,<8"]
 google = ["google-genai>=2,<3"]
 http = ["httpx2>=2,<3"]
