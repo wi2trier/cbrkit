@@ -55,8 +55,8 @@ def load_spacy(name: str | None, cache_dir: Path = CACHE_DIR) -> Language:
         prefix_len = len(prefix)
 
         for member in tf.getmembers():
-            if member.path.startswith(prefix):
-                member.path = member.path[prefix_len:]
+            if member.name.startswith(prefix):
+                member.name = member.name[prefix_len:]
 
                 yield member
 
