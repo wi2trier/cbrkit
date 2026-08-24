@@ -78,11 +78,13 @@ def mcp_retrieve(
     return system.retrieve(query, config=config)
 
 
-@mcp.resource("casebase://{key}")
-def mcp_case(key: int) -> CarModel:
-    return cast(
+@mcp.resource("casebase://{key}", mime_type="application/json")
+def mcp_case(key: int) -> str:
+    car = cast(
         Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase)
     )[key]
+
+    return car.model_dump_json()
 
 
 mcp_app = mcp.http_app("/")
