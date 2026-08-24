@@ -12,7 +12,14 @@ logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx2 import Timeout
-    from openai import AsyncOpenAI, Omit, omit, pydantic_function_tool
+    from openai import (
+        NOT_GIVEN,
+        AsyncOpenAI,
+        NotGiven,
+        Omit,
+        omit,
+        pydantic_function_tool,
+    )
     from openai.types.responses import (
         ResponseIncludable,
         ResponseTextConfigParam,
@@ -49,7 +56,7 @@ with optional_dependencies():
         extra_headers: Any | None = None
         extra_query: Any | None = None
         extra_body: Any | None = None
-        timeout: float | Timeout | None = None
+        timeout: float | Timeout | None | NotGiven = NOT_GIVEN
 
         @override
         async def __call_batch__(self, prompt: OpenAiResponsesPrompt) -> Response[R]:
@@ -126,7 +133,7 @@ with optional_dependencies():
                     top_logprobs=if_given(self.top_logprobs),
                     top_p=if_given(self.top_p),
                     text=text_param,
-                    text_format=text_format,  # ty: ignore[invalid-argument-type]
+                    text_format=cast(Any, text_format),
                     extra_headers=self.extra_headers,
                     extra_query=self.extra_query,
                     extra_body=self.extra_body,

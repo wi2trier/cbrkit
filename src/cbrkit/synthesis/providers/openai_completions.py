@@ -12,7 +12,14 @@ logger = get_logger(__name__)
 
 with optional_dependencies():
     from httpx2 import Timeout
-    from openai import AsyncOpenAI, Omit, omit, pydantic_function_tool
+    from openai import (
+        NOT_GIVEN,
+        AsyncOpenAI,
+        NotGiven,
+        Omit,
+        omit,
+        pydantic_function_tool,
+    )
     from openai.types.chat import (
         ChatCompletionFunctionToolParam,
         ChatCompletionMessageParam,
@@ -51,7 +58,7 @@ with optional_dependencies():
         extra_headers: Any | None = None
         extra_query: Any | None = None
         extra_body: Any | None = None
-        timeout: float | Timeout | None = None
+        timeout: float | Timeout | None | NotGiven = NOT_GIVEN
 
         @override
         async def __call_batch__(self, prompt: OpenAiPrompt) -> Response[R]:
@@ -93,13 +100,17 @@ with optional_dependencies():
                     },
                 }
 
+            response_format = (
+                cast(Any, self.response_type)
+                if tools is None and issubclass(self.response_type, BaseModel)
+                else omit
+            )
+
             try:
                 res = await self.client.chat.completions.parse(
                     model=self.model,
                     messages=messages,
-                    response_format=self.response_type  # ty: ignore[invalid-argument-type]
-                    if tools is None and issubclass(self.response_type, BaseModel)
-                    else omit,
+                    response_format=response_format,
                     tools=if_given(tools),
                     tool_choice=if_given(tool_choice),
                     frequency_penalty=if_given(self.frequency_penalty),

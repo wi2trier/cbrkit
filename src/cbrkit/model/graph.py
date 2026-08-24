@@ -411,7 +411,7 @@ with optional_dependencies():
 
 with optional_dependencies():
     # pygraphviz ships no type information
-    from pygraphviz import AGraph  # pyright: ignore
+    from pygraphviz import AGraph
 
     def to_graphviz[N, E, G](
         g: Graph[Any, N, E, G],
