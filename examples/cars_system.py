@@ -80,9 +80,9 @@ def mcp_retrieve(
 
 @mcp.resource("casebase://{key}", mime_type="application/json")
 def mcp_case(key: int) -> str:
-    car = cast(
-        Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase)
-    )[key]
+    car = cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[
+        key
+    ]
 
     return car.model_dump_json()
 
