@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/wi2trier/cbrkit/compare/v1.5.6...v1.6.0) (2026-08-26)
+
+### Features
+
+* **retrieval:** add support for grouped case representations ([dfef934](https://github.com/wi2trier/cbrkit/commit/dfef934384fc029e4fa91c058a046e1691dbcd03))
+
+### Bug Fixes
+
+* **deps:** update allowed ranged of anthropic, fastmcp, sentence-transformers ([271209c](https://github.com/wi2trier/cbrkit/commit/271209c0b59c01137c885dbb07a65e8d08e056e5))
+* **reuse:** avoid in-place mutation of cases ([a412237](https://github.com/wi2trier/cbrkit/commit/a4122378366e0c471b24496c0beb6b5545127632))
+* **sim/embed:** improve spacy ([fea88e1](https://github.com/wi2trier/cbrkit/commit/fea88e1c34afed0a0ba2a874d447c01980657b24))
+* **synthesis/anthropic:** update params ([6e283d8](https://github.com/wi2trier/cbrkit/commit/6e283d840e24b475cd1ffbdac3dabe6e7241bf44))
+
 ## [1.5.6](https://github.com/wi2trier/cbrkit/compare/v1.5.5...v1.5.6) (2026-08-21)
 
 ### Bug Fixes
