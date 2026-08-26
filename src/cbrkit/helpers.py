@@ -14,11 +14,13 @@ from collections.abc import (
     Iterable,
     Iterator,
     Mapping,
+    MutableMapping,
     Sequence,
 )
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from dataclasses import dataclass, fields, is_dataclass
+from copy import copy
+from dataclasses import dataclass, fields, is_dataclass, replace
 from importlib import import_module
 from io import BytesIO
 from multiprocessing.pool import Pool
@@ -96,6 +98,7 @@ __all__ = [
     "produce_factories",
     "produce_factory",
     "produce_sequence",
+    "replace_attributes",
     "reverse_batch_positional",
     "reverse_positional",
     "round_int",
@@ -728,6 +731,48 @@ def broadcast_getter(obj: Any, key: Any) -> Any:
         (10, 20)
     """
     return tuple([getitem_or_getattr(case, key) for case in obj])
+
+
+def replace_attributes[V](obj: V, updates: Mapping[str, Any]) -> V:
+    """Return a copy of an object with the given attributes replaced.
+
+    Dispatches on the case representation so that immutable cases are supported
+    as well: pydantic models, dataclasses (including frozen ones), mappings
+    (including `frozendict`), and finally any object with settable attributes.
+
+    Examples:
+        >>> replace_attributes({"price": 10, "year": 2000}, {"price": 20})
+        {'price': 20, 'year': 2000}
+        >>> from dataclasses import dataclass
+        >>> @dataclass(slots=True, frozen=True)
+        ... class Car:
+        ...     price: int
+        >>> replace_attributes(Car(10), {"price": 20})
+        Car(price=20)
+    """
+    if isinstance(obj, BaseModel):
+        return cast(V, obj.model_copy(update=dict(updates)))
+
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return cast(V, replace(obj, **updates))
+
+    if isinstance(obj, MutableMapping):
+        adapted = copy(obj)
+        adapted.update(updates)
+
+        return cast(V, adapted)
+
+    if isinstance(obj, Mapping):
+        mapping_type = cast(Callable[[Mapping[str, Any]], V], type(obj))
+
+        return mapping_type({**obj, **updates})
+
+    adapted = copy(obj)
+
+    for key, value in updates.items():
+        setattr(adapted, key, value)
+
+    return adapted
 
 
 def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:

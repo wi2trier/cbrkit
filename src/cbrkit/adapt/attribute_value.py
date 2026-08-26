@@ -5,7 +5,7 @@ from typing import Any, override
 from ..helpers import (
     getitem_or_getattr,
     produce_sequence,
-    setitem_or_setattr,
+    replace_attributes,
     unbatchify_adaptation,
 )
 from ..typing import AdaptationFunc, MaybeSequence, SimpleAdaptationFunc
@@ -25,10 +25,14 @@ class attribute_value[V](AdaptationFunc[V]):
         attributes: A mapping of attribute names to either single adaptation functions or
             sequences of adaptation functions that will be applied in order.
         value_getter: Function to retrieve values from objects. Defaults to dictionary/attribute access.
-        value_setter: Function to set values on objects. Defaults to dictionary/attribute assignment.
+        case_builder: Function that builds the adapted case from the case and the
+            adapted attributes. Defaults to a copy that supports mappings,
+            dataclasses, and pydantic models, including immutable ones.
 
     Returns:
         A new case with adapted attribute values.
+        The original case is never modified, so adaptation cannot write back
+        into the casebase it was retrieved from.
 
     Examples:
         >>> func = attribute_value({
@@ -45,10 +49,12 @@ class attribute_value[V](AdaptationFunc[V]):
 
     attributes: Mapping[str, MaybeSequence[SimpleAdaptationFunc[Any]]]
     value_getter: Callable[[Any, str], Any] = getitem_or_getattr
-    value_setter: Callable[[Any, str, Any], None] = setitem_or_setattr
+    case_builder: Callable[[Any, Mapping[str, Any]], Any] = replace_attributes
 
     @override
     def __call__(self, case: V, query: V) -> V:
+        adapted_attributes: dict[str, Any] = {}
+
         for attr_name in self.attributes:
             adapt_funcs = produce_sequence(self.attributes[attr_name])
 
@@ -60,6 +66,6 @@ class attribute_value[V](AdaptationFunc[V]):
                     case_attr_value, query_attr_value
                 )
 
-            self.value_setter(case, attr_name, case_attr_value)
+            adapted_attributes[attr_name] = case_attr_value
 
-        return case
+        return self.case_builder(case, adapted_attributes)

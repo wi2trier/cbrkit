@@ -143,3 +143,28 @@ def test_reuse_nested(cars_yaml_casebase):
         "make": "vclass",
         "manufacturer": "mercedes",
     }
+
+
+def test_reuse_does_not_mutate_casebase() -> None:
+    """Adaptation must not write back into the casebase it was retrieved from."""
+    casebase = {"a": {"price": 10, "model": {"make": "vw"}}}
+    query = {"price": 30, "model": {"make": "audi"}}
+    original = {"price": 10, "model": {"make": "vw"}}
+
+    reuse_func = cbrkit.reuse.build(
+        cbrkit.adapt.attribute_value(
+            attributes={
+                "price": cbrkit.adapt.numbers.aggregate("mean"),
+                "model": cbrkit.adapt.attribute_value(
+                    attributes={"make": lambda case, query: query}
+                ),
+            }
+        ),
+        similarity_func=lambda x, y: 1.0,
+    )
+
+    result = cbrkit.reuse.apply_query(casebase, query, reuse_func)
+
+    assert casebase["a"] == original
+    assert casebase["a"]["model"] is not result.casebase["a"]["model"]
+    assert result.casebase["a"] == {"price": 20.0, "model": {"make": "audi"}}
