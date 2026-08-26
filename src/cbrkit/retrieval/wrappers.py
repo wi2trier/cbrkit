@@ -1,4 +1,5 @@
-from collections.abc import Collection, Mapping, Sequence
+import itertools
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import InitVar, dataclass, field
 from multiprocessing.pool import Pool
 from pathlib import Path
@@ -25,6 +26,7 @@ from ..typing import (
     ConversionFunc,
     FilePath,
     Float,
+    GroupCasebase,
     IndexableFunc,
     RetrieverFunc,
     SimMap,
@@ -38,6 +40,7 @@ __all__ = [
     "combine",
     "distribute",
     "dropout",
+    "group",
     "persist",
     "synced",
     "threaded",
@@ -154,6 +157,94 @@ def transpose_value[K, V, S: Float](
 ) -> RetrieverFunc[K, StructuredValue[V], S]:
     """Wrap a retriever to extract values from structured value inputs before retrieval."""
     return transpose(retriever_func, get_value)
+
+
+def _combine_groups[K, V](
+    casebase: GroupCasebase[K, V],
+    size: int,
+    ordered: bool,
+    filter_func: Callable[[tuple[V, ...]], bool] | None,
+) -> dict[tuple[K, ...], tuple[V, ...]]:
+    """Concatenate the groups of a grouped casebase into wider groups."""
+    if size < 1:
+        raise ValueError("size must be at least 1")
+
+    combinator = itertools.permutations if ordered else itertools.combinations
+    combined: dict[tuple[K, ...], tuple[V, ...]] = {}
+
+    for group in combinator(casebase.items(), size):
+        key_group: tuple[K, ...] = ()
+        case_group: tuple[V, ...] = ()
+
+        for key, case in group:
+            key_group += key
+            case_group += case
+
+        if filter_func is None or filter_func(case_group):
+            combined[key_group] = case_group
+
+    return combined
+
+
+@dataclass(slots=True, frozen=True)
+class group[K, V, S: Float](RetrieverFunc[tuple[K, ...], tuple[V, ...], S]):
+    """Combines the cases of a grouped casebase into wider groups before retrieval.
+
+    Takes the casebase produced by `cbrkit.retrieval.as_groups` and enumerates
+    every group of `size` cases, which the wrapped retriever then scores against
+    the query.
+    Because its input and output casebases have the same type, it composes
+    inside a retriever chain, so a cheap retriever can narrow down the source
+    cases before this combinatorial expansion happens.
+
+    Args:
+        retriever_func: The retriever function applied to the combined groups.
+        size: Number of cases combined into each group.
+        ordered: Whether different orders of the same cases produce separate
+            groups, i.e. permutations instead of combinations.
+        filter_func: Optional predicate that decides whether a group is kept.
+            Groups are discarded as they are created, so a selective predicate
+            also bounds the memory needed to hold the expansion.
+
+    Returns:
+        A retriever function that retrieves from the combined groups.
+
+    Examples:
+        >>> import cbrkit
+        >>> casebase = cbrkit.retrieval.as_groups({"a": 0.0, "b": 10.0})
+        >>> def between(case, query):
+        ...     return float(min(case) <= cbrkit.helpers.singleton(query) <= max(case))
+        >>> retriever = group(cbrkit.retrieval.build(between), size=2)
+        >>> result = cbrkit.retrieval.apply_query(casebase, (4.0,), retriever)
+        >>> result.ranking
+        (('a', 'b'),)
+
+    Notes:
+        The expansion is materialized per query, producing `n choose size`
+        groups, or `n! / (n - size)!` when ordered.
+    """
+
+    retriever_func: RetrieverFunc[tuple[K, ...], tuple[V, ...], S]
+    size: int = 2
+    ordered: bool = False
+    filter_func: Callable[[tuple[V, ...]], bool] | None = None
+
+    @override
+    def __call__(
+        self, batches: Sequence[tuple[GroupCasebase[K, V], tuple[V, ...]]]
+    ) -> Sequence[tuple[GroupCasebase[K, V], SimMap[tuple[K, ...], S]]]:
+        # Queries commonly share one casebase object, so expand each only once.
+        expanded: dict[int, GroupCasebase[K, V]] = {}
+
+        for casebase, _ in batches:
+            if id(casebase) not in expanded:
+                expanded[id(casebase)] = _combine_groups(
+                    casebase, self.size, self.ordered, self.filter_func
+                )
+
+        return self.retriever_func(
+            [(expanded[id(casebase)], query) for casebase, query in batches]
+        )
 
 
 @dataclass(slots=True, frozen=True)

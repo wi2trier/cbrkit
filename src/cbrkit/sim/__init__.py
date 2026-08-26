@@ -24,7 +24,7 @@ Top-Level Functions:
   similarity scores into a single global score using a pooling strategy.
 - `combine`: Combines multiple similarity functions and aggregates results.
 - `cache`: Wraps a similarity function with result caching.
-- `transpose` / `transpose_value`: Transforms inputs before passing them
+- `transpose` / `transpose_value` / `transpose_singleton`: Transforms inputs before passing them
   to a similarity function.
 - `table` / `dynamic_table` / `type_table` / `attribute_table`: Lookup-based
   similarity dispatching.
@@ -50,6 +50,7 @@ from .wrappers import (
     dynamic_table,
     table,
     transpose,
+    transpose_singleton,
     transpose_value,
     type_table,
 )
@@ -73,6 +74,7 @@ __all__ = [
     "table",
     "taxonomy",
     "transpose",
+    "transpose_singleton",
     "transpose_value",
     "type_table",
 ]

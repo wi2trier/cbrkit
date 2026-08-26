@@ -63,6 +63,7 @@ __all__ = [
     "batchify_named",
     "batchify_positional",
     "batchify_sim",
+    "broadcast_getter",
     "callable2model",
     "chain_map_chunks",
     "chunkify",
@@ -713,6 +714,20 @@ def getitem_or_getattr(obj: Any, key: Any) -> Any:
         return obj[key]
 
     return getattr(obj, key)
+
+
+def broadcast_getter(obj: Any, key: Any) -> Any:
+    """Retrieve a value from every case of a group, returning them as a tuple.
+
+    Use as the `value_getter` of `cbrkit.sim.attribute_value` for grouped cases.
+    Because the result is a tuple rather than a value, it is never `None`, so the
+    `default` of `attribute_value` does not apply to individual group members.
+
+    Examples:
+        >>> broadcast_getter(({"price": 10}, {"price": 20}), "price")
+        (10, 20)
+    """
+    return tuple([getitem_or_getattr(case, key) for case in obj])
 
 
 def setitem_or_setattr(obj: Any, key: Any, value: Any) -> None:

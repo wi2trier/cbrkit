@@ -449,6 +449,127 @@ Our result has the following attributes:
 
 An example using the provided `cars-1k` dataset can be found under [examples/cars_retriever.py](https://github.com/wi2trier/cbrkit/blob/main/examples/cars_retriever.py).
 
+### Grouped Cases
+
+Interpolation and extrapolation can be represented by treating a group of source cases as a single case.
+`retrieval.as_groups` views a casebase in that representation and `retrieval.group` combines those cases into the groups a retriever scores, for example unordered pairs for interpolation or ordered triples for extrapolation.
+The query must be wrapped in a single-case group so that cases and queries retain the same type expected by retrieval functions.
+
+The following numeric interpolation retrieves a pair that contains the target value:
+
+```python
+casebase = cbrkit.retrieval.as_groups({"low": 0.0, "middle": 10.0})
+
+def between(case: tuple[float, ...], query: tuple[float, ...]) -> float:
+    target = cbrkit.helpers.singleton(query)
+    lower, upper = case
+
+    return float(min(lower, upper) <= target <= max(lower, upper))
+
+retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.group(cbrkit.retrieval.build(between), size=2),
+    min_similarity=1.0,
+)
+result = cbrkit.retrieval.apply_query(casebase, (4.0,), retriever)
+
+assert result.ranking == (("low", "middle"),)
+```
+
+The following numeric extrapolation retrieves ordered triples satisfying an arithmetic analogical proportion:
+
+```python
+casebase = cbrkit.retrieval.as_groups({"first": 0.0, "second": 2.0, "third": 5.0})
+
+def analogy(case: tuple[float, ...], query: tuple[float, ...]) -> float:
+    target = cbrkit.helpers.singleton(query)
+    first, second, third = case
+
+    return 1.0 / (1.0 + abs((second - first) - (target - third)))
+
+retriever = cbrkit.retrieval.dropout(
+    cbrkit.retrieval.group(cbrkit.retrieval.build(analogy), size=3, ordered=True),
+    min_similarity=1.0,
+)
+result = cbrkit.retrieval.apply_query(casebase, (7.0,), retriever)
+
+assert ("first", "second", "third") in result.ranking
+```
+
+Attribute-value cases work the same way once the attribute lookup is broadcast over the group.
+Passing `helpers.broadcast_getter` as the `value_getter` of `sim.attribute_value` turns each local measure into a comparison between a tuple of case values and the single query value, so aggregation is handled by the existing machinery:
+
+```python
+def bracket_width(span: float):
+    def relation(case: tuple[float, ...], query: tuple[float, ...]) -> float:
+        lower, upper = sorted(case)
+        target = cbrkit.helpers.singleton(query)
+
+        if not lower <= target <= upper:
+            return 0.0
+
+        return max(0.0, 1.0 - (upper - lower) / span)
+
+    return relation
+
+interpolation_sim = cbrkit.sim.attribute_value(
+    attributes={
+        "price": bracket_width(100000),
+        "year": bracket_width(50),
+    },
+    value_getter=cbrkit.helpers.broadcast_getter,
+)
+```
+
+Existing element similarity functions can still be useful for grouped representations.
+`sim.collections.isolated_mapping(metric)` compares a single-case query with the closest group member.
+`sim.transpose_singleton(metric)` unwraps single-case groups before applying an existing metric, which is useful for scoring an adapted prediction or for running a classical measure in group space.
+Betweenness and analogical proportions remain domain-specific relations and should be implemented directly rather than inferred from a binary similarity measure.
+
+#### Restricting the Number of Groups
+
+`retrieval.group` expands the casebase for every query, producing `n choose size` groups and `n! / (n - size)!` ordered groups.
+Ordered triples are infeasible for anything but a small casebase, so the source cases usually have to be narrowed down first.
+Because the input and output casebases of `retrieval.group` have the same type, it composes inside a retriever chain, which lets a cheap measure narrow down the cases before the expansion happens:
+
+```python
+result = cbrkit.retrieval.apply_query(
+    cbrkit.retrieval.as_groups(casebase),
+    (query,),
+    [
+        cbrkit.retrieval.dropout(
+            cbrkit.retrieval.build(cbrkit.sim.transpose_singleton(classic_sim)),
+            limit=20,
+        ),
+        cbrkit.retrieval.dropout(
+            cbrkit.retrieval.group(
+                cbrkit.retrieval.build(interpolation_sim), size=2
+            ),
+            limit=3,
+        ),
+    ],
+)
+```
+
+`retrieval.group` also accepts a `filter_func` predicate that decides whether a group is kept.
+Groups are discarded as they are created, so a selective predicate additionally bounds the memory needed to hold the expansion.
+
+```python
+retriever = cbrkit.retrieval.group(
+    cbrkit.retrieval.build(interpolation_sim),
+    size=2,
+    filter_func=lambda group: max(group) - min(group) <= 15.0,
+)
+```
+
+Groups are a representation for the retrieve phase.
+The reuse phase can collapse a group back into a single prediction with an adaptation function that returns a single-case group, which `sim.transpose_singleton` then scores against the query.
+`adapt.attribute_value` does not work on groups, because it builds the adapted case from the group instead of from a single case.
+The later phases treat a group as an ordinary case, so retaining or evaluating one compares a compound case against flat ground truth.
+
+Note that a query taken from the casebase is retrieved as part of its own groups, just as it is retrieved as the most similar case in classical retrieval.
+Remove it from the casebase beforehand if this is not desired.
+Tuple keys are not valid JSON object keys and have to be converted before serializing results.
+
 In some cases, it is useful to combine multiple retrieval pipelines, for example when applying the MAC/FAC pattern where a cheap pre-filter is applied to the whole casebase before a more expensive similarity measure is applied on the remaining cases.
 To use this pattern, first create the corresponding retrievers using the builder:
 

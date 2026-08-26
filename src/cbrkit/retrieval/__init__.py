@@ -27,6 +27,12 @@ Wrappers:
 - `transpose` / `transpose_value`: Transforms cases/queries before retrieval.
 - `chunk`: Splits cases into chunks for retrieval (requires `chunking` extra).
 
+Grouped Retrieval (scoring a relation over several cases at once, e.g. whether a
+query lies between a pair of cases):
+- `as_groups`: Views a casebase as single-case groups, the entry point.
+- `group`: Combines those cases into wider groups inside a retriever
+  chain, so a cheap retriever can narrow down the cases before the expansion.
+
 Indexable Retrieval (`cbrkit.retrieval.indexable`):
 - `indexable.embed`: Embedding-based retrieval using vector similarity.
 - `indexable.bm25`: BM25 sparse text retrieval (requires `bm25` extra).
@@ -65,11 +71,12 @@ from .apply import (
     apply_query_indexed,
     apply_query_indexed_async,
 )
-from .build import build
+from .build import as_groups, build
 from .wrappers import (
     combine,
     distribute,
     dropout,
+    group,
     persist,
     synced,
     threaded,
@@ -94,11 +101,13 @@ __all__ = [
     "apply_query_async",
     "apply_query_indexed",
     "apply_query_indexed_async",
+    "as_groups",
     "build",
     "chunk",
     "combine",
     "distribute",
     "dropout",
+    "group",
     "indexable",
     "persist",
     "rerank",

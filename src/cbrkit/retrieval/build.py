@@ -16,12 +16,38 @@ from ..typing import (
     AnySimFunc,
     Casebase,
     Float,
+    GroupCasebase,
     MaybeFactory,
     RetrieverFunc,
     SimMap,
 )
 
 logger = get_logger(__name__)
+
+__all__ = ["as_groups", "build"]
+
+
+def as_groups[K, V](casebase: Casebase[K, V]) -> GroupCasebase[K, V]:
+    """View a casebase as a casebase of single-case groups.
+
+    Grouped retrieval represents a group of source cases as a single case, which
+    lets a retriever score a relation over several cases at once, for instance
+    whether a query lies between a pair of cases.
+    This function is the entry point into that representation and
+    `cbrkit.retrieval.group` then combines them into wider groups.
+    Queries have to be wrapped in a single-case group as well.
+
+    Args:
+        casebase: Source casebase to view as groups.
+
+    Returns:
+        A casebase mapping each source key to a group holding only that case.
+
+    Examples:
+        >>> as_groups({"a": 1, "b": 2})
+        {('a',): (1,), ('b',): (2,)}
+    """
+    return {(key,): (case,) for key, case in casebase.items()}
 
 
 @dataclass(slots=True, frozen=True)

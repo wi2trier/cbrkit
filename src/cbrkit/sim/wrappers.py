@@ -3,7 +3,13 @@ from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import InitVar, dataclass, field
 from typing import Any, cast, override
 
-from ..helpers import batchify_sim, get_metadata, get_value, getitem_or_getattr
+from ..helpers import (
+    batchify_sim,
+    get_metadata,
+    get_value,
+    getitem_or_getattr,
+    singleton,
+)
 from ..typing import (
     AggregatorFunc,
     AnySimFunc,
@@ -60,6 +66,13 @@ def transpose_value[V, S: Float](
 ) -> BatchSimFunc[StructuredValue[V], S]:
     """Create a transposed similarity function that extracts values before comparing."""
     return transpose(func, get_value)
+
+
+def transpose_singleton[V, S: Float](
+    func: AnySimFunc[V, S],
+) -> BatchSimFunc[tuple[V, ...], S]:
+    """Create a transposed similarity function that unwraps singleton tuples."""
+    return transpose(func, singleton)
 
 
 @dataclass(slots=True)

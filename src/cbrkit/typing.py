@@ -40,6 +40,7 @@ __all__ = [
     "Filter",
     "FilterableIndexableFunc",
     "Float",
+    "GroupCasebase",
     "HasMetadata",
     "IndexableFunc",
     "InternalFunc",
@@ -231,6 +232,8 @@ type Value[T] = T | StructuredValue[T]
 type Float = Value[float]
 type FilePath = str | Path
 type Casebase[K, V] = Mapping[K, V]
+type GroupCasebase[K, V] = Casebase[tuple[K, ...], tuple[V, ...]]
+"""A casebase whose cases are groups of source cases, keyed by their source keys."""
 type SimMap[K, S: Float = float] = Mapping[K, S]
 type SimSeq[S: Float = float] = Sequence[S]
 type QueryCaseMatrix[Q, C, V] = Mapping[Q, Mapping[C, V]]
