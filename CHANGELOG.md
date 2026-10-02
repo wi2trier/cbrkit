@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0](https://github.com/wi2trier/cbrkit/compare/v1.6.0...v1.7.0) (2026-10-02)
+
+### Features
+
+* **sim/twed:** add optional length-normalized similarity ([#336](https://github.com/wi2trier/cbrkit/issues/336)) ([3a3a6d1](https://github.com/wi2trier/cbrkit/commit/3a3a6d1dff7d9d9a91f4279b754d1bd5b8b16273))
+
 ## [1.6.0](https://github.com/wi2trier/cbrkit/compare/v1.5.6...v1.6.0) (2026-08-26)
 
 ### Features
