@@ -57,6 +57,15 @@ class BaseElasticSimFunc[V](SimFunc[Sequence[V] | np.ndarray, SequenceSim[V, flo
         """Returns the distance and, if requested, the alignment it was taken from."""
         raise NotImplementedError
 
+    def to_similarity(
+        self,
+        distance: float,
+        x: Sequence[V] | np.ndarray,
+        y: Sequence[V] | np.ndarray,
+    ) -> float:
+        """Converts the distance between the two sequences into a similarity."""
+        return dist2sim(distance)
+
     def __call__(
         self,
         x: Sequence[V] | np.ndarray,
@@ -78,7 +87,7 @@ class BaseElasticSimFunc[V](SimFunc[Sequence[V] | np.ndarray, SequenceSim[V, flo
         distance, mapping, similarities = self.compute(x, y, return_alignment)
 
         return SequenceSim(
-            value=dist2sim(distance),
+            value=self.to_similarity(distance, x, y),
             similarities=similarities,
             mapping=mapping,
         )
@@ -212,6 +221,16 @@ class twed[V](BaseElasticSimFunc[V]):
     The elasticity along the time axis is controlled by `stiffness`: values close to
     zero behave like DTW, large values approach the Euclidean distance.
 
+    By default, the distance is converted into a similarity via `1 / (1 + distance)`,
+    which does not take the lengths of the sequences into account.
+    If the sample distances lie in [0, 1], for example because they are derived from a
+    similarity as `1 - sim`, `normalize=True` divides the distance by the largest
+    value it can take for the two sequences instead, which is the distance obtained if
+    all sample distances were 1, and returns `1 - distance / max_distance`.
+    Identical sequences then have a similarity of 1, maximally different ones a
+    similarity of 0, and the scale is comparable across sequence lengths.
+    The local similarities of the alignment become `1 - sample distance` in this case.
+
     Marteau, P.-F. (2009). Time Warp Edit Distance with Stiffness Adjustment for Time
     Series Matching. IEEE TPAMI, 31(2), 306-318. <https://arxiv.org/abs/cs/0703033>
 
@@ -223,6 +242,8 @@ class twed[V](BaseElasticSimFunc[V]):
             sequence. Defaults to the position of the sample within the sequence.
         stiffness: Elasticity along the time axis, called nu in the paper.
         penalty: Constant cost of a delete operation, called lambda in the paper.
+        normalize: Normalize the distance by the largest distance the two sequences
+            can have, which requires all sample distances to lie in [0, 1].
 
     Examples:
         >>> sim = twed()
@@ -248,12 +269,16 @@ class twed[V](BaseElasticSimFunc[V]):
         >>> sim([(0, 1), (1, 2), (2, 3)], [(0, 1), (2, 3)], return_alignment=True)
         SequenceSim(value=0.24987506246876562, similarities=[1.0, 0.0, 1.0],
             mapping=[((0, 1), (0, 1)), (None, (1, 2)), ((2, 3), (2, 3))])
+        >>> sim = twed(distance_func=lambda a, b: 0.0 if a == b else 1.0, normalize=True)
+        >>> sim(["a", "b", "c", "d", "e"], ["a", "b", "x", "d", "e"])
+        SequenceSim(value=0.7777777777777778, similarities=None, mapping=None)
     """
 
     distance_func: SimFunc[V, Float] | None
     timestamp_func: ConversionFunc[V, float] | None
     stiffness: float
     penalty: float
+    normalize: bool
 
     def __init__(
         self,
@@ -261,6 +286,7 @@ class twed[V](BaseElasticSimFunc[V]):
         timestamp_func: ConversionFunc[V, float] | None = None,
         stiffness: float = 0.001,
         penalty: float = 1.0,
+        normalize: bool = False,
     ):
         if stiffness < 0.0:
             raise ValueError("The stiffness must not be negative")
@@ -272,6 +298,7 @@ class twed[V](BaseElasticSimFunc[V]):
         self.timestamp_func = timestamp_func
         self.stiffness = stiffness
         self.penalty = penalty
+        self.normalize = normalize
 
     def timestamps(self, seq: Sequence[V] | np.ndarray) -> np.ndarray:
         """Timestamps of the sequence, prefixed by the virtual sample at time zero."""
@@ -340,12 +367,31 @@ class twed[V](BaseElasticSimFunc[V]):
         times_x, times_y = self.timestamps(x), self.timestamps(y)
         pairwise_distances, consecutive_x, consecutive_y = self.distances(x, y)
 
-        deletion_x = np.zeros(len(x) + 1)
+        if self.normalize and any(
+            np.any((distances < 0.0) | (distances > 1.0))
+            for distances in (pairwise_distances, consecutive_x, consecutive_y)
+        ):
+            raise ValueError("With normalize=True, sample distances must lie in [0, 1]")
+
+        return pairwise_distances, *self.edit_costs(
+            times_x, times_y, pairwise_distances, consecutive_x, consecutive_y
+        )
+
+    def edit_costs(
+        self,
+        times_x: np.ndarray,
+        times_y: np.ndarray,
+        pairwise_distances: np.ndarray,
+        consecutive_x: np.ndarray,
+        consecutive_y: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Cost of a match and of a delete in either sequence for every cell."""
+        deletion_x = np.zeros(len(times_x))
         deletion_x[1:] = (
             consecutive_x[1:] + self.stiffness * np.diff(times_x) + self.penalty
         )
 
-        deletion_y = np.zeros(len(y) + 1)
+        deletion_y = np.zeros(len(times_y))
         deletion_y[1:] = (
             consecutive_y[1:] + self.stiffness * np.diff(times_y) + self.penalty
         )
@@ -360,7 +406,78 @@ class twed[V](BaseElasticSimFunc[V]):
             )
         )
 
-        return pairwise_distances, match, deletion_x, deletion_y
+        return match, deletion_x, deletion_y
+
+    @staticmethod
+    def cost_matrix(
+        match: np.ndarray, deletion_x: np.ndarray, deletion_y: np.ndarray
+    ) -> np.ndarray:
+        """Accumulates the edit costs; the TWED distance is in the last cell."""
+        n, m = len(deletion_x) - 1, len(deletion_y) - 1
+        matrix = np.full((n + 1, m + 1), np.inf)
+        matrix[0, 0] = 0.0
+
+        for i in range(1, n + 1):
+            for j in range(1, m + 1):
+                matrix[i, j] = min(
+                    matrix[i - 1, j - 1] + match[i - 1, j - 1],
+                    matrix[i - 1, j] + deletion_x[i],
+                    matrix[i, j - 1] + deletion_y[j],
+                )
+
+        return matrix
+
+    def max_distance(
+        self, x: Sequence[V] | np.ndarray, y: Sequence[V] | np.ndarray
+    ) -> float:
+        """
+        Largest TWED distance the two sequences can have if all sample distances lie in [0, 1].
+
+        The distance does not decrease when a sample distance increases, so it is largest
+        if all sample distances are 1.
+        With the default timestamps, this equals
+        `2 * min(n, m) - 1 + abs(n - m) * (1 + stiffness + penalty)`.
+
+        Examples:
+            >>> twed(stiffness=0.5).max_distance([1, 2, 3], [1, 2, 3, 4])
+            7.5
+        """
+        n, m = len(x), len(y)
+        pairwise_distances = np.zeros((n + 1, m + 1))
+        pairwise_distances[1:, 1:] = 1.0
+        consecutive_x = np.zeros(n + 1)
+        consecutive_x[2:] = 1.0
+        consecutive_y = np.zeros(m + 1)
+        consecutive_y[2:] = 1.0
+
+        match, deletion_x, deletion_y = self.edit_costs(
+            self.timestamps(x),
+            self.timestamps(y),
+            pairwise_distances,
+            consecutive_x,
+            consecutive_y,
+        )
+
+        return float(self.cost_matrix(match, deletion_x, deletion_y)[n, m])
+
+    @override
+    def to_similarity(
+        self,
+        distance: float,
+        x: Sequence[V] | np.ndarray,
+        y: Sequence[V] | np.ndarray,
+    ) -> float:
+        if not self.normalize:
+            return dist2sim(distance)
+
+        if not len(x) or not len(y):
+            return 1.0 if len(x) == len(y) else 0.0
+
+        return min(1.0, max(0.0, 1.0 - distance / self.max_distance(x, y)))
+
+    def local_similarity(self, distance: float) -> float:
+        """Similarity of two aligned samples given their distance."""
+        return 1.0 - distance if self.normalize else dist2sim(distance)
 
     @override
     def compute(
@@ -372,17 +489,7 @@ class twed[V](BaseElasticSimFunc[V]):
         """Compute the TWED distance and optionally the alignment."""
         n, m = len(x), len(y)
         pairwise_distances, match, deletion_x, deletion_y = self.costs(x, y)
-
-        matrix = np.full((n + 1, m + 1), np.inf)
-        matrix[0, 0] = 0.0
-
-        for i in range(1, n + 1):
-            for j in range(1, m + 1):
-                matrix[i, j] = min(
-                    matrix[i - 1, j - 1] + match[i - 1, j - 1],
-                    matrix[i - 1, j] + deletion_x[i],
-                    matrix[i, j - 1] + deletion_y[j],
-                )
+        matrix = self.cost_matrix(match, deletion_x, deletion_y)
 
         if not return_alignment:
             return float(matrix[n, m]), None, None
@@ -418,7 +525,9 @@ class twed[V](BaseElasticSimFunc[V]):
 
             if step == 0:
                 mapping.append((y[j - 1], x[i - 1]))
-                similarities.append(dist2sim(float(pairwise_distances[i, j])))
+                similarities.append(
+                    self.local_similarity(float(pairwise_distances[i, j]))
+                )
                 i -= 1
                 j -= 1
 

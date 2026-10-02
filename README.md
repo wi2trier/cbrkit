@@ -301,6 +301,7 @@ seq_sim = cbrkit.sim.collections.mapping(cbrkit.sim.generic.equality())
 
 Dynamic Time Warping, the Time Warp Edit Distance and Smith-Waterman alignment are available without any extra.
 Unlike DTW, TWED is a true metric and supports per-sample timestamps via its `timestamp_func` parameter.
+If the sample distances lie in [0, 1], `normalize=True` makes TWED return `1 - distance / max_distance` instead of `1 / (1 + distance)`, so its similarities are comparable across sequence lengths.
 See the [module documentation](https://wi2trier.github.io/cbrkit/cbrkit/sim/collections.html) for the full list.
 
 #### Taxonomy-Based Similarity
