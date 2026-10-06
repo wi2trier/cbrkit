@@ -3,7 +3,7 @@ on:
   pull_request:
   workflow_call:
   push:
-    branches: [dev]
+    branches: [main, beta]
 jobs:
   check:
     runs-on: ubuntu-latest

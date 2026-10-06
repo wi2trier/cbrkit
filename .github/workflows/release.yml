@@ -1,10 +1,10 @@
 name: release
 on:
-  push:
-    branches: [main, beta]
+  workflow_dispatch:
 jobs:
   check:
     uses: ./.github/workflows/check.yml
+    secrets: inherit
   release:
     if: ${{ github.repository_owner == 'wi2trier' }}
     runs-on: ubuntu-latest
