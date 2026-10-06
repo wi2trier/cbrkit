@@ -19,7 +19,14 @@ let
     tag = "v16.0.0";
     hash = "sha256-9amp6CWYIcniVfdlmPKYuRFR7B5JJtuMlOoDxpfvvJA=";
   };
-  workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+  uvLock = lib.importTOML ./uv.lock;
+  workspace = uv2nix.lib.workspace.loadWorkspace {
+    workspaceRoot = ./.;
+    uvLock = uvLock // {
+      # uv2nix rejects default-groups, and Nix environments select groups explicitly.
+      package = map (package: removeAttrs package [ "default-groups" ]) uvLock.package;
+    };
+  };
   projectOverlay = workspace.mkPyprojectOverlay {
     sourcePreference = "wheel";
   };
