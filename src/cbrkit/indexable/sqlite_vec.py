@@ -56,8 +56,11 @@ from weakref import WeakSet
 import numpy as np
 import sqlalchemy as sa
 import sqlite_vec as sqlite_vec_ext
+from aiosqlite import Connection as AiosqliteConnection
 from sqlalchemy import Engine, event
+from sqlalchemy.engine import AdaptedConnection
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+from sqlalchemy.pool import ConnectionPoolEntry, PoolProxiedConnection
 
 from ..helpers import chunkify, forward_fields, run_coroutine
 from ..typing import BatchConversionFunc, NumpyArray
@@ -84,9 +87,8 @@ def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
     """Load ``sqlite-vec`` on every connection of a SQLite async engine.
 
     The real ``sqlite3`` connection lives in ``aiosqlite``'s worker thread,
-    so the extension must be loaded *in that thread* — reached here through
-    the async driver connection's coroutine API driven by the adapter's
-    ``await_`` bridge.
+    so the extension must be loaded in that thread through the adapter's
+    ``run_async`` method.
 
     Hooked on ``checkout`` rather than ``connect`` so connections a host engine
     opened before handing it over get loaded too, instead of failing with ``no
@@ -101,15 +103,25 @@ def _attach_sqlite_vec_loader(engine: AsyncEngine) -> None:
     _hooked_engines.add(sync_engine)
     ext_path = sqlite_vec_ext.loadable_path()
 
+    async def _load_extension(driver: AiosqliteConnection) -> None:
+        await driver.enable_load_extension(True)
+
+        try:
+            await driver.load_extension(ext_path)
+        finally:
+            await driver.enable_load_extension(False)
+
     @event.listens_for(sync_engine, "checkout")
-    def _load(dbapi_conn: Any, record: Any, _: Any) -> None:
+    def _load(
+        dbapi_conn: AdaptedConnection,
+        record: ConnectionPoolEntry,
+        _: PoolProxiedConnection,
+    ) -> None:
         if record.info.get("cbrkit_sqlite_vec_loaded"):
             return
+
+        dbapi_conn.run_async(_load_extension)
         record.info["cbrkit_sqlite_vec_loaded"] = True
-        driver = dbapi_conn.driver_connection
-        dbapi_conn.await_(driver.enable_load_extension(True))
-        dbapi_conn.await_(driver.load_extension(ext_path))
-        dbapi_conn.await_(driver.enable_load_extension(False))
 
 
 @dataclass(slots=True)
