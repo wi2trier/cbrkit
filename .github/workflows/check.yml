@@ -10,13 +10,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v23
         with:
           extra-conf: |
             accept-flake-config = true
             log-lines = 1000
-      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+      - uses: cachix/cachix-action@v17
         with:
           name: wi2trier
           authToken: ${{ secrets.CACHIX_TOKEN }}
