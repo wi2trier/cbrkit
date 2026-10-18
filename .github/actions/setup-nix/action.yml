@@ -1,0 +1,18 @@
+name: setup-nix
+description: Install Nix and configure the wi2trier Cachix cache
+inputs:
+  cachix-token:
+    description: Cachix auth token
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: DeterminateSystems/nix-installer-action@v23
+      with:
+        extra-conf: |
+          accept-flake-config = true
+          log-lines = 1000
+    - uses: cachix/cachix-action@v17
+      with:
+        name: wi2trier
+        authToken: ${{ inputs.cachix-token }}

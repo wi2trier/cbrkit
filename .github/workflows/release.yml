@@ -20,14 +20,9 @@ jobs:
       git-head: ${{ steps.semanticrelease.outputs.git-head }}
     steps:
       - uses: actions/checkout@v7
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: $/.github/actions/setup-nix
         with:
-          extra-conf: |
-            accept-flake-config = true
-      - uses: cachix/cachix-action@v17
-        with:
-          name: wi2trier
-          authToken: ${{ secrets.CACHIX_TOKEN }}
+          cachix-token: ${{ secrets.CACHIX_TOKEN }}
       - run: nix profile install .#release-env
       - uses: cihelper/action-semanticrelease-uv@v1
         id: semanticrelease
@@ -70,14 +65,9 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.git-head }}
       - uses: actions/configure-pages@v6
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: $/.github/actions/setup-nix
         with:
-          extra-conf: |
-            accept-flake-config = true
-      - uses: cachix/cachix-action@v17
-        with:
-          name: wi2trier
-          authToken: ${{ secrets.CACHIX_TOKEN }}
+          cachix-token: ${{ secrets.CACHIX_TOKEN }}
       - run: nix build .#docs
       - uses: actions/upload-pages-artifact@v5
         with:
