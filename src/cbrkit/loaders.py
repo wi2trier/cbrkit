@@ -416,7 +416,9 @@ with optional_dependencies():
             2
             >>> # Structured, type-checked query construction:
             >>> meta = sa.MetaData()
-            >>> cases = sa.Table("cases", meta, autoload_with=sa.create_engine(f"sqlite:///{db_path}"))
+            >>> engine = sa.create_engine(f"sqlite:///{db_path}")
+            >>> cases = sa.Table("cases", meta, autoload_with=engine)
+            >>> engine.dispose()
             >>> cb = sqlalchemy(f"sqlite:///{db_path}", sa.select(cases).where(cases.c.id == 1))
             >>> cb[0]["name"]
             'a'
