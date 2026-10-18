@@ -6,6 +6,7 @@ from typing import Any, Literal, cast, override
 
 import lancedb as ldb
 import numpy as np
+from lancedb.index import FTS, BTree
 
 from ..helpers import get_logger
 from ..typing import BatchConversionFunc, Casebase, IndexableFunc, NumpyArray
@@ -111,10 +112,10 @@ class lancedb[K: int | str, V = str](IndexableFunc[Casebase[K, V], Collection[K]
 
     def _setup_indices(self, table: ldb.Table) -> None:
         """Create scalar and optional FTS indices on a table."""
-        table.create_scalar_index(self.key_column, replace=True)
+        table.create_index(self.key_column, config=BTree())
 
         if self.index_type in ("sparse", "hybrid"):
-            table.create_fts_index(self.value_column, replace=True)
+            table.create_index(self.value_column, config=FTS())
 
     @property
     @override
