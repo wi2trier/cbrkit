@@ -38,6 +38,7 @@ with native upsert (e.g. PostgreSQL ``ON CONFLICT``) override
 
 import asyncio
 from collections.abc import (
+    AsyncGenerator,
     AsyncIterator,
     Awaitable,
     Callable,
@@ -504,7 +505,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
     @asynccontextmanager
     async def _write_transaction(
         self, data: Casebase[K, V] | None = None
-    ) -> AsyncIterator[tuple[AsyncConnection, list[dict[str, Any]]]]:
+    ) -> AsyncGenerator[tuple[AsyncConnection, list[dict[str, Any]]]]:
         """Open a write transaction with the schema resolved and *data* encoded.
 
         Both steps are deliberately hoisted out of the transaction.
@@ -683,7 +684,7 @@ class sqlalchemy_async[K: int | str, V = Mapping[str, Any]](
 
     async def _iter_pages(
         self, *columns: sa.ColumnElement[Any], batch_size: int = 1000
-    ) -> AsyncIterator[Sequence[sa.Row[Any]]]:
+    ) -> AsyncIterator[Sequence[sa.Row[*tuple[Any, ...]]]]:
         """Yield ``(key, *columns)`` pages in primary-key order.
 
         Keyset pagination rather than OFFSET: pages stay stable when a

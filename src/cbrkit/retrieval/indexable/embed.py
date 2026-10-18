@@ -48,8 +48,8 @@ class embed[K, S: Float](
     _casebase: dict[K, str] | None = field(repr=False, init=False, default=None)
 
     @overload
-    def __init__(
-        self: "embed[K, float]",
+    def __init__[T](
+        self: "embed[T, float]",
         conversion_func: cache,
         sim_func: None = None,
         query_conversion_func: cache | None = None,

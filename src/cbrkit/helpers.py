@@ -468,9 +468,9 @@ def produce_factory[T](obj: T | Factory[T]) -> T:
 def produce_factories[T](obj: MaybeFactories[T]) -> list[T]:
     """Resolve one or more factories into a list of values."""
     if isinstance(obj, Sequence):
-        return cast(list[T], [produce_factory(item) for item in obj])
+        return [produce_factory(item) for item in obj]
 
-    return cast(list[T], [produce_factory(obj)])
+    return [produce_factory(obj)]
 
 
 @dataclass(slots=True, frozen=True)

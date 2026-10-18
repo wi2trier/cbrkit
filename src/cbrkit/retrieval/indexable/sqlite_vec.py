@@ -60,7 +60,7 @@ def _build_dense_stmt(
     where: Filter | None,
     k: int,
     outer_limit: int | None,
-) -> sa.Select[Any]:
+) -> sa.Select[Any, Any, Any]:
     assert storage.value_column is not None
     main = storage.sa_table
     match_expr = storage.vector_value_sql.format(":qvec")
@@ -98,7 +98,7 @@ def _build_sparse_stmt(
     query: str,
     where: Filter | None,
     limit: int | None,
-) -> sa.Select[Any]:
+) -> sa.Select[Any, Any, Any]:
     assert storage.value_column is not None
     main = storage.sa_table
     fts = storage.fts_table

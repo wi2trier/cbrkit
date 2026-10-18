@@ -2,7 +2,7 @@
 
 import sqlite3
 from collections import ChainMap
-from collections.abc import Collection, Iterator, MutableMapping, Sequence
+from collections.abc import Collection, Generator, MutableMapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,11 +64,11 @@ class build[V, E, S: Float](BatchSimFunc[V, S]):
     query_conversion_func: BatchConversionFunc[V, E] | None
 
     @overload
-    def __init__(
-        self: "build[V, NumpyArray, float]",
-        conversion_func: AnyConversionFunc[V, NumpyArray],
+    def __init__[T](
+        self: "build[T, NumpyArray, float]",
+        conversion_func: AnyConversionFunc[T, NumpyArray],
         sim_func: None = None,
-        query_conversion_func: AnyConversionFunc[V, NumpyArray] | None = None,
+        query_conversion_func: AnyConversionFunc[T, NumpyArray] | None = None,
     ) -> None: ...
 
     @overload
@@ -161,7 +161,7 @@ class cache(
                     self.store[text] = np.frombuffer(vector_blob, dtype=np.float64)
 
     @contextmanager
-    def connect(self) -> Iterator[sqlite3.Connection]:
+    def connect(self) -> Generator[sqlite3.Connection]:
         """Open a context-managed SQLite connection to the cache database."""
         if self.path is None:
             raise ValueError("Path must be set to use the cache")

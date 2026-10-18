@@ -49,7 +49,7 @@ def _build_dense_stmt(
     qvec: list[float],
     where: Filter | None,
     limit: int | None,
-) -> sa.Select[Any]:
+) -> sa.Select[Any, Any, Any]:
     assert storage.value_column is not None
     table = storage.sa_table
     metric = PG_METRICS[storage.metric_type]
@@ -71,7 +71,7 @@ def _build_sparse_stmt(
     query: str,
     where: Filter | None,
     limit: int | None,
-) -> sa.Select[Any]:
+) -> sa.Select[Any, Any, Any]:
     assert storage.value_column is not None
     table = storage.sa_table
     tsv = table.c[storage.tsvector_column]
