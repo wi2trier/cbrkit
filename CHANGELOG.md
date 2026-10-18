@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.1](https://github.com/wi2trier/cbrkit/compare/v1.7.0...v1.7.1) (2026-10-18)
+
+### Bug Fixes
+
+* **deps/uv:** allow polars v2 ([ad76925](https://github.com/wi2trier/cbrkit/commit/ad76925a4be6247db1fc9c7be6764a94962678a9))
+* **indexable/lancedb:** replace deprecated index creation ([600b3ff](https://github.com/wi2trier/cbrkit/commit/600b3ff6af258dd4bc5795fec9700b49c09b3a7f))
+* **sqlite_vec:** update extension loading ([f58b623](https://github.com/wi2trier/cbrkit/commit/f58b623eb3b1f5ece408c69fff031f75bc405c37))
+* **typing:** resolve type checker errors ([1106f3e](https://github.com/wi2trier/cbrkit/commit/1106f3e74575311eb41fa6708c0f9fcadcbafc41))
+
 ## [1.7.0](https://github.com/wi2trier/cbrkit/compare/v1.6.0...v1.7.0) (2026-10-02)
 
 ### Features

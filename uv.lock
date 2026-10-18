@@ -14,8 +14,6 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
-exclude-newer-span = "P3D"
 
 [options.exclude-newer-package]
 pydantic-ai-slim = { timestamp = "0001-01-01T00:00:00Z", span = "P1D" }
@@ -522,7 +520,7 @@ wheels = [
 
 [[package]]
 name = "cbrkit"
-version = "1.7.0"
+version = "1.7.1"
 source = { editable = "." }
 default-groups = ["dev", "docs", "test"]
 dependencies = [
