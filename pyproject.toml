@@ -2,19 +2,20 @@
 name = "cbrkit"
 version = "1.7.1"
 description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI"
-authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 readme = "README.md"
+requires-python = ">=3.13,<4"
 license = "MIT"
+authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 keywords = [
-  "cbr",
-  "case-based reasoning",
   "api",
-  "similarity",
+  "case-based reasoning",
+  "cbr",
+  "cli",
+  "library",
   "nlp",
   "retrieval",
-  "cli",
+  "similarity",
   "tool",
-  "library",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -24,16 +25,15 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "Natural Language :: English",
   "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
-  "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Information Analysis",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Utilities",
   "Typing :: Typed",
 ]
-requires-python = ">=3.13,<4"
 dependencies = [
   "frozendict>=2,<3",
   "numpy>=2,<3",
@@ -46,10 +46,19 @@ dependencies = [
   "xmltodict>=1,<2",
 ]
 
+[project.urls]
+Changelog = "https://github.com/wi2trier/cbrkit/releases"
+Documentation = "https://wi2trier.github.io/cbrkit/"
+Issues = "https://github.com/wi2trier/cbrkit/issues"
+Repository = "https://github.com/wi2trier/cbrkit"
+
+[project.scripts]
+cbrkit = "cbrkit.cli:app"
+
 [project.optional-dependencies]
 # LLM providers
 anthropic = [
-    "anthropic>=2,<3",
+  "anthropic>=2,<3",
 ]
 cohere = ["cohere>=7,<8"]
 google = ["google-genai>=2,<3"]
@@ -102,33 +111,27 @@ all = [
   "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,http,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,transformers,voyageai,zvec]",
 ]
 
-[project.urls]
-Repository = "https://github.com/wi2trier/cbrkit"
-Documentation = "https://wi2trier.github.io/cbrkit/"
-Issues = "https://github.com/wi2trier/cbrkit/issues"
-Changelog = "https://github.com/wi2trier/cbrkit/releases"
-
-[project.scripts]
-cbrkit = "cbrkit.cli:app"
-
 [dependency-groups]
 dev = ["pandas-stubs>=2,<4", "scipy-stubs>=1,<2", "types-networkx>=3,<4"]
-test = ["pytest>=9,<10", "pytest-cov>=7,<8"]
 docs = ["pdoc>=16,<17"]
+test = ["pytest>=9,<10", "pytest-cov>=7,<8"]
 
 [build-system]
 requires = ["uv-build>=0.11,<1"]
 build-backend = "uv_build"
 
 [tool.pytest]
-testpaths = ["src", "tests"]
 addopts = [
   "--cov=src/cbrkit",
   "--cov-report=term-missing",
   "--doctest-modules",
   "--import-mode=importlib",
 ]
-doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL", "ELLIPSIS"]
+doctest_optionflags = ["ELLIPSIS", "IGNORE_EXCEPTION_DETAIL", "NORMALIZE_WHITESPACE"]
+testpaths = ["src", "tests"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.uv]
 default-groups = ["dev", "test", "docs"]
@@ -142,6 +145,3 @@ cbor = ["setuptools"]
 warc3-wet-clueweb09 = ["setuptools"]
 zlib-state = ["setuptools"]
 pystemmer = ["setuptools", "cython"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"

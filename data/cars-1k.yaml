@@ -602,7 +602,7 @@
     transmission: manual
   miles: 99000
   model:
-    make: '500'
+    make: "500"
     manufacturer: fiat
   paint_color: black
   price: 5547
@@ -719,7 +719,7 @@
     transmission: manual
   miles: 140700
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 5070
@@ -1525,7 +1525,7 @@
     transmission: manual
   miles: 151000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 3031
@@ -1577,7 +1577,7 @@
     transmission: manual
   miles: 102000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 4071
@@ -1928,7 +1928,7 @@
     transmission: manual
   miles: 171294
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 8874
@@ -2682,7 +2682,7 @@
     transmission: manual
   miles: 176080
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 3293
@@ -2695,7 +2695,7 @@
     transmission: manual
   miles: 6170000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 4515
@@ -2864,7 +2864,7 @@
     transmission: manual
   miles: 253000
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 6846
@@ -3241,7 +3241,7 @@
     transmission: manual
   miles: 36000
   model:
-    make: '323'
+    make: "323"
     manufacturer: mazda
   paint_color: black
   price: 921
@@ -3553,7 +3553,7 @@
     transmission: manual
   miles: 100
   model:
-    make: '100'
+    make: "100"
     manufacturer: rover
   paint_color: black
   price: 2923
@@ -3605,7 +3605,7 @@
     transmission: manual
   miles: 5100
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 6994
@@ -4424,7 +4424,7 @@
     transmission: manual
   miles: 112077
   model:
-    make: '100'
+    make: "100"
     manufacturer: audi
   paint_color: black
   price: 5144
@@ -5009,7 +5009,7 @@
     transmission: manual
   miles: 100
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 2146
@@ -5165,7 +5165,7 @@
     transmission: manual
   miles: 360000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 2405
@@ -5893,7 +5893,7 @@
     transmission: manual
   miles: 115000
   model:
-    make: '115'
+    make: "115"
     manufacturer: mercedes-benz
   paint_color: black
   price: 15544
@@ -5906,7 +5906,7 @@
     transmission: manual
   miles: 222100
   model:
-    make: '75'
+    make: "75"
     manufacturer: rover
   paint_color: black
   price: 2142
@@ -6309,7 +6309,7 @@
     transmission: manual
   miles: 100
   model:
-    make: '80'
+    make: "80"
     manufacturer: audi
   paint_color: black
   price: 11435
@@ -6504,7 +6504,7 @@
     transmission: manual
   miles: 70000
   model:
-    make: '500'
+    make: "500"
     manufacturer: fiat
   paint_color: black
   price: 536
@@ -6530,7 +6530,7 @@
     transmission: manual
   miles: 138000
   model:
-    make: '100'
+    make: "100"
     manufacturer: rover
   paint_color: black
   price: 12953
@@ -6647,7 +6647,7 @@
     transmission: manual
   miles: 151000
   model:
-    make: '323'
+    make: "323"
     manufacturer: mazda
   paint_color: black
   price: 814
@@ -6855,7 +6855,7 @@
     transmission: manual
   miles: 155000
   model:
-    make: '3'
+    make: "3"
     manufacturer: mazda
   paint_color: black
   price: 4774
@@ -7128,7 +7128,7 @@
     transmission: manual
   miles: 100
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 3293
@@ -7622,7 +7622,7 @@
     transmission: manual
   miles: 218822
   model:
-    make: '190'
+    make: "190"
     manufacturer: mercedes-benz
   paint_color: black
   price: 2405
@@ -7869,7 +7869,7 @@
     transmission: manual
   miles: 177000
   model:
-    make: '80'
+    make: "80"
     manufacturer: audi
   paint_color: black
   price: 1846
@@ -7908,7 +7908,7 @@
     transmission: manual
   miles: 608000
   model:
-    make: '460'
+    make: "460"
     manufacturer: volvo
   paint_color: black
   price: 42190
@@ -8376,7 +8376,7 @@
     transmission: manual
   miles: 3116000
   model:
-    make: '6'
+    make: "6"
     manufacturer: mazda
   paint_color: black
   price: 3663
@@ -9026,7 +9026,7 @@
     transmission: manual
   miles: 240000
   model:
-    make: '323'
+    make: "323"
     manufacturer: mazda
   paint_color: black
   price: 1109
@@ -9117,7 +9117,7 @@
     transmission: manual
   miles: 239154
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 2923
@@ -9143,7 +9143,7 @@
     transmission: manual
   miles: 183000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 5547
@@ -10625,7 +10625,7 @@
     transmission: manual
   miles: 189000
   model:
-    make: '200'
+    make: "200"
     manufacturer: audi
   paint_color: black
   price: 16280
@@ -10963,7 +10963,7 @@
     transmission: manual
   miles: 171000
   model:
-    make: '100'
+    make: "100"
     manufacturer: rover
   paint_color: black
   price: 1776
@@ -11041,7 +11041,7 @@
     transmission: manual
   miles: 168072
   model:
-    make: '200'
+    make: "200"
     manufacturer: rover
   paint_color: black
   price: 14800
@@ -11262,7 +11262,7 @@
     transmission: manual
   miles: 2000
   model:
-    make: '323'
+    make: "323"
     manufacturer: mazda
   paint_color: black
   price: 925
@@ -11366,7 +11366,7 @@
     transmission: manual
   miles: 58546
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 3330
@@ -11392,7 +11392,7 @@
     transmission: manual
   miles: 274823
   model:
-    make: '140'
+    make: "140"
     manufacturer: mercedes-benz
   paint_color: black
   price: 2220
@@ -12380,7 +12380,7 @@
     transmission: manual
   miles: 19800
   model:
-    make: '80'
+    make: "80"
     manufacturer: audi
   paint_color: black
   price: 73501
@@ -12796,7 +12796,7 @@
     transmission: manual
   miles: 172000
   model:
-    make: '323'
+    make: "323"
     manufacturer: mazda
   paint_color: black
   price: 1073
@@ -12913,7 +12913,7 @@
     transmission: manual
   miles: 179000
   model:
-    make: '2'
+    make: "2"
     manufacturer: mazda
   paint_color: black
   price: 2368
