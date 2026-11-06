@@ -19,8 +19,8 @@ workflows:
         - 'actions/download-artifact@v8'
         - 'actions/upload-artifact@v7'
         - 'actions/upload-pages-artifact@v5'
-        - 'astral-sh/attest-action@v0.0.6'
-        - 'astral-sh/setup-uv@v10.3.0'
+        - 'astral-sh/attest-action@v0.0.7'
+        - 'astral-sh/setup-uv@v10.3.3'
         - 'cachix/cachix-action@v17'
         - 'cihelper/action-semanticrelease-uv@v1'
         - 'determinatesystems/nix-installer-action@v23'
@@ -67,21 +67,21 @@ dependencies:
         repo_id: 496012378
         uses:
             - 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
-    'astral-sh/attest-action@v0.0.6':
-        ref: 'v0.0.6'
-        commit: 'sha1-f589a42a7efb6fe400b4f400de60b4bc90390027'
+    'astral-sh/attest-action@v0.0.7':
+        ref: 'v0.0.7'
+        commit: 'sha1-39b6ce43875c196a579e31635b11aa2a2036384a'
         owner_id: 115962839
         repo_id: 1101470881
         uses:
-            - 'astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b'
-    'astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b':
-        ref: 'v8.1.0'
-        commit: 'sha1-08807647e7069bb48b6ef5acd8ec9567f424441b'
+            - 'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7'
+    'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7':
+        ref: 'v10.2.0'
+        commit: 'sha1-c18668ad3cf93ea998bef934396af7bb5c839dc7'
         owner_id: 115962839
         repo_id: 846733598
-    'astral-sh/setup-uv@v10.3.0':
-        ref: 'v10.3.0'
-        commit: 'sha1-1c37ad07a6a961277cf70c0d37d6f313000f5884'
+    'astral-sh/setup-uv@v10.3.3':
+        ref: 'v10.3.3'
+        commit: 'sha1-68559e99cc807c1eb7e9238fd43a15bba460eec2'
         owner_id: 115962839
         repo_id: 846733598
     'astral-sh/setup-uv@v3':

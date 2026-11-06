@@ -43,14 +43,14 @@ jobs:
       name: release
       url: https://pypi.org/project/cbrkit/${{ needs.release.outputs.version }}/
     steps:
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: false
       - uses: actions/download-artifact@v8
         with:
           name: uv-build
           path: ./dist
-      - uses: astral-sh/attest-action@v0.0.6
+      - uses: astral-sh/attest-action@v0.0.7
       - run: uv publish
   build-docs:
     runs-on: ubuntu-latest
