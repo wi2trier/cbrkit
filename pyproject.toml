@@ -61,7 +61,9 @@ anthropic = [
   "anthropic>=2,<3",
 ]
 cohere = ["cohere>=7,<8"]
-google = ["google-genai>=2,<3"]
+google = [
+    "google-genai>=3,<4",
+]
 http = ["httpx2>=2,<3"]
 ollama = ["ollama>=0.5,<1"]
 openai = ["openai>=3,<4", "tiktoken>=0.10,<1"]
