@@ -23,7 +23,6 @@ from . import (
     reuse,
     revise,
     sim,
-    synthesis,
     system,
     typing,
 )
@@ -43,7 +42,6 @@ __all__ = [
     "reuse",
     "revise",
     "sim",
-    "synthesis",
     "system",
     "typing",
 ]
