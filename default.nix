@@ -6,7 +6,9 @@
   uv2nix,
   pyproject-nix,
   pyproject-build-systems,
-  python313,
+  python314,
+  ty,
+  basedpyright,
   onetbb,
   cacert,
   libstemmer,
@@ -63,7 +65,7 @@ let
           maintainers = with lib.maintainers; [ mirkolenz ];
           license = lib.licenses.mit;
           homepage = "https://github.com/wi2trier/cbrkit";
-          description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI";
+          description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a CLI, REST API and MCP server";
           platforms = with lib.platforms; darwin ++ linux;
         };
         passthru = lib.recursiveUpdate (old.passthru or { }) {
@@ -91,6 +93,26 @@ let
               runHook preInstall
               mv htmlcov $out
               runHook postInstall
+            '';
+          };
+          tests.typecheck = stdenv.mkDerivation {
+            name = "${final.cbrkit.name}-typecheck";
+            inherit (final.cbrkit) src;
+            nativeBuildInputs = [
+              ty
+              basedpyright
+              typecheckVenv
+            ];
+            dontConfigure = true;
+            buildPhase = ''
+              runHook preBuild
+              export HOME=$(mktemp -d)
+              ty check --python ${typecheckVenv} src
+              basedpyright --level error --pythonpath ${typecheckVenv}/bin/python src
+              runHook postBuild
+            '';
+            installPhase = ''
+              touch $out
             '';
           };
           docs = stdenv.mkDerivation {
@@ -135,7 +157,7 @@ let
       };
     };
   baseSet = callPackage pyproject-nix.build.packages {
-    python = python313;
+    python = python314;
   };
   pythonSet = baseSet.overrideScope (
     lib.composeManyExtensions [
@@ -148,8 +170,14 @@ let
   mkVenv =
     name: deps:
     (pythonSet.mkVirtualEnv name deps).overrideAttrs (_: {
-      venvIgnoreCollisions = [ "${python313.sitePackages}/griffe/*" ];
+      venvIgnoreCollisions = [ "${pythonSet.python.sitePackages}/griffe/*" ];
     });
+  typecheckVenv = mkVenv "cbrkit-typecheck-env" {
+    cbrkit = [
+      "all"
+      "dev"
+    ];
+  };
   inherit (callPackage pyproject-nix.build.util { }) mkApplication;
 in
 mkApplication {

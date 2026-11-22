@@ -88,17 +88,11 @@
             cbrkit = pkgs.callPackage ./default.nix {
               inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
             };
-            docker = pkgs.dockerTools.streamLayeredImage {
-              name = "cbrkit";
-              tag = "latest";
-              created = "now";
-              config.Entrypoint = [ (lib.getExe config.packages.cbrkit) ];
-            };
             release-env = pkgs.buildEnv {
               name = "release-env";
               paths = with pkgs; [
                 uv
-                python313
+                python314
               ];
             };
           };
@@ -113,10 +107,10 @@
               pkgs.zlib
               "/run/opengl-driver"
             ];
-            UV_PYTHON = lib.getExe pkgs.python313;
+            UV_PYTHON = lib.getExe pkgs.python314;
             TOKENIZERS_PARALLELISM = true;
             shellHook = ''
-              uv sync --all-extras --locked
+              uv sync --all-extras
             '';
           };
         };

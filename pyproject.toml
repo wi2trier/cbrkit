@@ -1,32 +1,29 @@
 [project]
 name = "cbrkit"
 version = "1.7.1"
-description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a built-in API and CLI"
+description = "Customizable Case-Based Reasoning (CBR) toolkit for Python with a CLI, REST API and MCP server"
 readme = "README.md"
-requires-python = ">=3.13,<4"
+requires-python = ">=3.14,<4"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Mirko Lenz", email = "mirko@mirkolenz.com" }]
 keywords = [
   "api",
   "case-based reasoning",
   "cbr",
   "cli",
-  "library",
-  "nlp",
+  "mcp",
   "retrieval",
   "similarity",
-  "tool",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
-  "Framework :: Pytest",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "Natural Language :: English",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Information Analysis",
@@ -35,15 +32,15 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "frozendict>=2,<3",
+  "filelock>=4,<5",
+  "griffelib>=2,<3",
   "numpy>=2,<3",
   "orjson>=3,<4",
   "polars>=2,<3",
   "pydantic>=2,<3",
   "pyyaml>=6,<7",
-  "rtoml>=0.12,<1",
+  "rapidfuzz>=3,<4",
   "scipy>=1,<2",
-  "xmltodict>=1,<2",
 ]
 
 [project.urls]
@@ -56,84 +53,74 @@ Repository = "https://github.com/wi2trier/cbrkit"
 cbrkit = "cbrkit.cli:app"
 
 [project.optional-dependencies]
-# LLM providers
-anthropic = [
-  "anthropic>=2,<3",
-]
-cohere = ["cohere>=7,<8"]
-google = [
-    "google-genai>=3,<4",
-]
+# Language and embedding models
 http = ["httpx2>=2,<3"]
-ollama = ["ollama>=0.5,<1"]
-openai = ["openai>=3,<4", "tiktoken>=0.10,<1"]
-openai-agents = ["openai-agents>=0.10,<1"]
 pydantic-ai = ["pydantic-ai-slim>=2,<3"]
-voyageai = ["voyageai>=0.3,<1"]
 
 # NLP / text processing
-bm25 = ["bm25s[core,stem,indexing]>=0.3,<1"]
-chunking = ["chonkie>=1,<2"]
-levenshtein = ["levenshtein>=0.27,<1"]
-nltk = ["nltk>=3,<4"]
-spacy = ["spacy>=3.8,<4"]
+bm25 = ["bm25s[core,stem,indexing]>=0.3,<0.4"]
 
 # ML / embeddings
-transformers = ["sentence-transformers>=5,<7", "torch>=2.10,<3", "transformers>=4,<6"]
+transformers = ["sentence-transformers>=6,<7"]
 
 # Graphs
-graphs = ["networkx>=3,<4", "rustworkx>=0.15,<1"]
+bpmn = ["xsdata>=26,<27"]
+graphs = ["networkx>=3,<4", "rustworkx>=0.18,<0.19"]
 graphviz = ["pygraphviz>=2,<3"]
 
 # Data
-chromadb = ["chromadb>=1,<2"]
-lancedb = ["lancedb>=0.30,<1"]
-pandas = ["pandas>=2,<4"]
-pgvector = ["pgvector>=0.4,<1", "cbrkit[sql]"]
+fastexcel = ["fastexcel>=0.21,<0.22"]
+lancedb = ["lancedb>=0.41,<0.42"]
+pgvector = ["pgvector>=0.5,<0.6", "cbrkit[sql]"]
 sql = ["sqlalchemy[asyncio]>=2,<3"]
-sqlite-vec = ["sqlite-vec>=0.1,<1", "aiosqlite>=0.20,<1", "cbrkit[sql]"]
-zvec = ["zvec>=0.5.1,<1"]
-
-# Tools
-cli = ["rich>=14,<16", "typer>=0.20,<1"]
-eval = ["ranx>=0.3,<1"]
+sqlite-vec = ["sqlite-vec>=0.1,<0.2", "aiosqlite>=0.22,<0.23", "cbrkit[sql]"]
+zvec = ["zvec>=0.8,<0.9"]
 
 # Entry points
-api = [
-  "cbrkit[cli]",
-  "fastapi>=0.100,<1",
-  "pydantic-settings>=2,<3",
-  "python-multipart>=0.0.20,<1",
-  "uvicorn[standard]>=0.40,<1",
-  "fastmcp>=4.0.0b1,<5",
-]
+api = ["fastapi>=0.163,<0.164", "uvicorn>=0.54,<0.55", "cbrkit[cli]"]
+cli = ["typer>=0.29,<0.30"]
+mcp = ["fastmcp>=4,<5", "cbrkit[cli]"]
 
 # Bundle
 all = [
-  "cbrkit[anthropic,api,bm25,chromadb,chunking,cohere,eval,google,graphs,graphviz,http,lancedb,levenshtein,nltk,ollama,openai,openai-agents,pandas,pgvector,pydantic-ai,spacy,sql,sqlite-vec,transformers,voyageai,zvec]",
+  "cbrkit[api,bm25,bpmn,cli,fastexcel,graphs,graphviz,http,lancedb,mcp,pgvector,pydantic-ai,sql,sqlite-vec,transformers,zvec]",
 ]
 
 [dependency-groups]
-dev = ["pandas-stubs>=2,<4", "scipy-stubs>=1,<2", "types-networkx>=3,<4"]
+dev = ["scipy-stubs>=1,<2", "types-networkx>=3,<4"]
 docs = ["pdoc>=16,<17"]
 test = ["pytest>=9,<10", "pytest-cov>=7,<8"]
 
 [build-system]
-requires = ["uv-build>=0.11,<1"]
+requires = ["uv-build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [tool.pytest]
 addopts = [
   "--cov=src/cbrkit",
   "--cov-report=term-missing",
+  "--doctest-glob=README.md",
   "--doctest-modules",
   "--import-mode=importlib",
 ]
 doctest_optionflags = ["ELLIPSIS", "IGNORE_EXCEPTION_DETAIL", "NORMALIZE_WHITESPACE"]
-testpaths = ["src", "tests"]
+testpaths = ["README.md", "src", "tests"]
+
+[tool.basedpyright]
+ignore = ["src/cbrkit/model/graph/_bpmn_schema"]
+
+[tool.ruff]
+extend-exclude = ["src/cbrkit/model/graph/_bpmn_schema"]
+
+[tool.ruff.lint]
+# lazy exports live in `if TYPE_CHECKING:` blocks that `cbrkit._lazy` resolves at runtime
+ignore = ["TC004"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ty.src]
+exclude = ["src/cbrkit/model/graph/_bpmn_schema"]
 
 [tool.uv]
 default-groups = ["dev", "test", "docs"]
@@ -143,7 +130,4 @@ pydantic-ai-slim = "1 day"
 pydantic-graph = "1 day"
 
 [tool.uv.extra-build-dependencies]
-cbor = ["setuptools"]
-warc3-wet-clueweb09 = ["setuptools"]
-zlib-state = ["setuptools"]
 pystemmer = ["setuptools", "cython"]
