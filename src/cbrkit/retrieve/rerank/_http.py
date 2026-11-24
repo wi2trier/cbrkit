@@ -1,13 +1,12 @@
-"""Re-ranking via an HTTP ``/rerank`` endpoint."""
+"""Rerank model behind an HTTP `/rerank` endpoint."""
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import override
 
 import httpx2
 from pydantic import BaseModel
 
-from ._common import RerankFunc
+from ...typing import RerankFunc
 
 
 class _RerankRequest(BaseModel):
@@ -26,34 +25,31 @@ class _RerankResponse(BaseModel):
     results: list[_RerankResult]
 
 
-@dataclass(slots=True)
-class http[K](RerankFunc[K]):
-    """Re-ranking via an HTTP ``/rerank`` endpoint.
+@dataclass(slots=True, frozen=True, kw_only=True)
+class HTTP(RerankFunc):
+    """Rerank model behind an HTTP `/rerank` endpoint, the scores of `Rerank`.
 
-    The endpoint receives ``{"model", "query", "documents"}`` and returns
-    ``{"results": [{"index", "relevance_score"}]}``.
+    The endpoint receives `{"model", "query", "documents", "top_n"}` and returns
+    `{"results": [{"index", "relevance_score"}]}`, where `top_n` is the limit of the call, all documents if None.
 
     Args:
         model: Name of the reranker model served by the endpoint.
         url: Absolute URL, or a path resolved against the client's base URL.
-        client: HTTP client used for transport, auth, and timeouts.
-        api_key: Optional bearer token sent as an ``Authorization`` header.
-            Kept separate from ``client`` so a shared transport can stay
+        client: HTTP client used for transport, auth, and timeouts,
+            which the host opens and closes, so it may share it with other rerankers.
+        api_key: Optional bearer token sent as an `Authorization` header.
+            Kept separate from `client` so a shared transport can stay
             auth-neutral while each reranker carries its own token. Excluded
-            from ``repr`` so the secret is not leaked when printing instances.
+            from `repr` so the secret is not leaked when printing instances.
         extra_headers: Optional extra headers sent with every request.
-            ``api_key`` takes precedence over an ``Authorization`` entry here.
-        top_n: Optional cap on the number of results the server returns.
+            `api_key` takes precedence over an `Authorization` entry here.
     """
 
     model: str
     url: str
-    client: httpx2.AsyncClient = field(
-        default_factory=httpx2.AsyncClient, repr=False, compare=False
-    )
+    client: httpx2.AsyncClient = field(repr=False, compare=False)
     api_key: str | None = field(default=None, repr=False)
     extra_headers: Mapping[str, str] | None = None
-    top_n: int | None = None
 
     @property
     def _request_headers(self) -> dict[str, str]:
@@ -62,12 +58,11 @@ class http[K](RerankFunc[K]):
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
-    @override
-    async def _rerank(
-        self, query: str, documents: list[str]
-    ) -> Iterable[tuple[int, float]]:
+    async def __call__(
+        self, query: str, documents: Sequence[str], /, limit: int | None = None
+    ) -> Mapping[int, float]:
         body = _RerankRequest(
-            model=self.model, query=query, documents=documents, top_n=self.top_n
+            model=self.model, query=query, documents=list(documents), top_n=limit
         )
         response = await self.client.post(
             self.url,
@@ -76,7 +71,7 @@ class http[K](RerankFunc[K]):
         )
         response.raise_for_status()
         data = _RerankResponse.model_validate_json(response.content)
-        return ((result.index, result.relevance_score) for result in data.results)
+        return {result.index: result.relevance_score for result in data.results}
 
 
-__all__ = ["http"]
+__all__ = ["HTTP"]

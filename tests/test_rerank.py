@@ -1,68 +1,74 @@
-"""Tests for the async-composable rerank retrievers."""
+"""Tests for the reranking of retrieved cases by rerank models."""
 
 import asyncio
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
 import cbrkit
-from cbrkit.retrieval.rerank._common import RerankFunc
+from cbrkit.retrieve.rerank import Rerank
+from cbrkit.typing import Casebase, SimMap
 
 
 @dataclass(slots=True, frozen=True)
-class _StubIndexed:
-    """Indexed-retriever stand-in: emits a fixed candidate casebase per query."""
+class _StubStorageRetriever:
+    """Storage-retriever stand-in: emits a fixed candidate casebase per query."""
 
     casebase: Mapping[str, str]
 
     async def __call__(
         self, batches: Sequence[tuple[Mapping[str, str], str]]
-    ) -> Sequence[tuple[Mapping[str, str], dict[str, float]]]:
+    ) -> Sequence[tuple[Casebase[str, str], SimMap[str, float]]]:
         return [(dict(self.casebase), {k: 1.0 for k in self.casebase}) for _ in batches]
 
 
-@dataclass(slots=True)
-class _LengthRerank(RerankFunc[str]):
-    """Toy reranker preferring documents whose length matches the query's."""
-
-    async def _rerank(
-        self, query: str, documents: list[str]
-    ) -> Iterable[tuple[int, float]]:
-        return [(i, -abs(len(d) - len(query))) for i, d in enumerate(documents)]
+async def _length(
+    query: str, documents: Sequence[str], /, limit: int | None = None
+) -> Mapping[int, float]:
+    """Toy rerank model preferring documents whose length matches the query's."""
+    return {i: -abs(len(d) - len(query)) for i, d in enumerate(documents)}
 
 
-def test_rerank_composes_after_indexed_retriever() -> None:
-    """A RerankFunc chains after an indexed retriever in the async pipeline."""
+def test_rerank_composes_after_storage_retriever() -> None:
+    """A reranker chains after a storage retriever in the async pipeline."""
     candidates = {"a": "xx", "b": "xxxxxx", "c": "x"}
     result = asyncio.run(
-        cbrkit.retrieval.apply_query_indexed_async(
-            "xx", [_StubIndexed(candidates), _LengthRerank()]
+        cbrkit.cycle.run_query_async(
+            None,
+            "xx",
+            _StubStorageRetriever(candidates),
+            Rerank(model=_length, limit=2),
         )
     )
-    step = result.final_step.queries["default"]
-    assert list(step.ranking) == ["a", "c", "b"]
+    assert list(result.ranking) == ["a", "c"]
 
 
-def test_synced_runs_reranker_in_sync_pipeline() -> None:
-    """`synced` drives an async reranker through the synchronous pipeline."""
+def test_sync_and_async_functions_mix() -> None:
+    """Both engines run synchronous and asynchronous functions in any order."""
     casebase = {"a": "xx", "b": "xxxxxx", "c": "x"}
-    result = cbrkit.retrieval.apply_query(
-        casebase, "xx", cbrkit.retrieval.synced(_LengthRerank())
+    retriever = cbrkit.retrieve.Retriever(measure=lambda case, query: 1.0)
+    rerank = Rerank(model=_length)
+    result = cbrkit.cycle.run_query(casebase, "xx", retriever, rerank)
+    result_async = asyncio.run(
+        cbrkit.cycle.run_query_async(casebase, "xx", rerank, retriever)
     )
+
     assert list(result.ranking) == ["a", "c", "b"]
+    assert set(result_async.casebase) == set(casebase)
 
 
 def _run_http_reranker(
     response: dict[str, Any],
     batches: Sequence[tuple[Mapping[str, str], str]],
     client_kwargs: Mapping[str, Any] | None = None,
-    **reranker_kwargs: Any,
-) -> tuple[Sequence[tuple[Mapping[str, str], dict[str, float]]], list[Any]]:
+    limit: int | None = None,
+    **model_kwargs: Any,
+) -> tuple[Sequence[tuple[Casebase[str, str], SimMap[str, float]]], list[Any]]:
     """Run the HTTP reranker against a request-capturing mock endpoint."""
     import httpx2
 
-    from cbrkit.retrieval.rerank.http import http
+    from cbrkit.retrieve.rerank import HTTP
 
     requests: list[httpx2.Request] = []
 
@@ -70,12 +76,13 @@ def _run_http_reranker(
         requests.append(request)
         return httpx2.Response(200, json=response, request=request)
 
-    async def run() -> Sequence[tuple[Mapping[str, str], dict[str, float]]]:
+    async def run() -> Sequence[tuple[Casebase[str, str], SimMap[str, float]]]:
         client = httpx2.AsyncClient(
             transport=httpx2.MockTransport(handler), **(client_kwargs or {})
         )
         try:
-            return await http[str](client=client, **reranker_kwargs)(batches)
+            model = HTTP(client=client, **model_kwargs)
+            return await Rerank(model=model, limit=limit)(batches)
         finally:
             await client.aclose()
 
@@ -97,11 +104,11 @@ def test_http_reranker_parses_results() -> None:
         client_kwargs={"base_url": "https://reranker.test/v1"},
         model="rerank-x",
         url="rerank",
-        top_n=2,
+        limit=2,
     )
 
     ((_, scores),) = results
-    assert scores == {"a": 0.1, "b": 0.9, "c": 0.5}
+    assert scores == {"b": 0.9, "c": 0.5}
     assert requests[0].url == "https://reranker.test/v1/rerank"
     body = cast(dict[str, Any], json.loads(requests[0].content))
     assert body == {
