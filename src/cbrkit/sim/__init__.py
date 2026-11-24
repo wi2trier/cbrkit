@@ -12,11 +12,13 @@ The numeric, date, string and generic measures also score whole columns of pairs
 
 Submodules:
 - `cbrkit.sim.numbers`: Numeric similarity (linear, linear interval, exponential, sigmoid, threshold).
+- `cbrkit.sim.dates`: Similarity of dates, datetimes and durations.
 - `cbrkit.sim.strings`: String similarity (Levenshtein, Indel, Jaro, Jaro-Winkler, n-grams, regex, glob, word coverage).
 - `cbrkit.sim.generic`: Generic similarity (equality, type equality, static, lookup tables).
 - `cbrkit.sim.collections`: Collection and sequence similarity (Jaccard, DTW, TWED, Smith-Waterman, etc.).
 - `cbrkit.sim.embed`: Embedding-based similarity with caching (Sentence Transformers, BM25, remote providers).
 - `cbrkit.sim.taxonomy`: Similarity of values by their nodes in a taxonomy (Wu-Palmer, weights, levels, paths).
+- `cbrkit.sim.llm`: Similarity judged by a language model of the host (`Critique`).
 - `cbrkit.sim.pooling`: Pooling functions of an `Aggregator`, one class of `POOLINGS` per pooling such as `Mean` or `KMax`.
 
 Top-Level Measures and Helpers:
@@ -64,8 +66,10 @@ from ..schema import Family
 from ..typing import AnySimFunc, Float
 from . import (
     collections,
+    dates,
     embed,
     generic,
+    llm,
     numbers,
     pooling,
     strings,
@@ -97,11 +101,13 @@ MEASURES = Family(
         collections.SequenceMapping,
         collections.SmithWaterman,
         collections.TWED,
+        dates.DateLinear,
         embed.Embedding,
         generic.Equality,
         generic.Static,
         generic.Table,
         generic.TypeEquality,
+        llm.Critique,
         numbers.Exponential,
         numbers.Linear,
         numbers.LinearInterval,
@@ -138,9 +144,11 @@ __all__ = [
     "Measure",
     "Transpose",
     "collections",
+    "dates",
     "embed",
     "explain",
     "generic",
+    "llm",
     "numbers",
     "pooling",
     "strings",
