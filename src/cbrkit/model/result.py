@@ -1,195 +1,215 @@
-from collections.abc import Mapping, Sequence
-from typing import Any
+"""Results of running the functions of the CBR cycle, see `cbrkit.cycle`."""
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, override
 
-from ..helpers import sim_map2ranking, singleton
-from ..typing import (
-    Casebase,
-    Float,
-    JsonEntry,
-    SimMap,
-)
+from pydantic import ConfigDict, computed_field
+
+from .._util import fuse_rankings, sim_map2ranking
+from ..schema import Model
+from ..typing import Casebase, JsonEntry, SimMap
+from .changes import Add, Changes, Update
+from .explanation import Explanation
+from .similarity import ChangeSim, SerializedFloat
+
+__all__ = ["Hit", "QueryResult", "Result", "Step"]
 
 
-class QueryResultStep[K, V, S: Float](BaseModel):
-    """Result of a single query with similarities, ranking, and matched cases."""
+class Hit[K, V, S: SerializedFloat](Model):
+    """A case with its similarity to a query.
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
-    similarities: SimMap[K, S]
-    ranking: Sequence[K] = ()
-    casebase: Casebase[K, V]
+    `model_dump(mode="json")` gives plain JSON, with graphs and `cbrkit.helpers.frozendict` cases in their serialized form.
+
+    Args:
+        key: Key of the case in the casebase.
+        value: The case.
+        score: Similarity of the case to the query,
+            with details such as the scores of the attributes or the issues of a critique.
+        explanation: Breakdown of the similarity by attribute or graph element, if requested.
+    """
+
+    key: K
+    value: V
+    score: S
+    explanation: Explanation | None = None
+
+
+class QueryResult[K, V, S: SerializedFloat](Model):
+    """Cases with their similarities to one query, ranked by similarity.
+
+    Detailed similarities such as `AttributeValueSim` keep their details through JSON.
+
+    Args:
+        query: The query.
+        casebase: The cases kept for the query.
+        similarities: Similarity of every kept case to the query.
+    """
+
+    # the computed ranking is part of the dumped JSON, which validates back
+    model_config = ConfigDict(extra="ignore")
+
     query: V
-    duration: float
+    casebase: Casebase[K, V]
+    similarities: SimMap[K, S]
 
-    @model_validator(mode="before")
-    @classmethod
-    def _custom_validator(cls, data: dict[str, Any]) -> dict[str, Any]:
-        assert len(data["similarities"]) == len(data["casebase"]), (
-            "similarities and casebase must have equal length"
-        )
+    @computed_field
+    @property
+    def ranking(self) -> tuple[K, ...]:
+        """Keys of the cases by descending similarity."""
+        return tuple(sim_map2ranking(self.similarities))
 
-        if not data.get("ranking"):
-            data["ranking"] = tuple(sim_map2ranking(data["similarities"]))
+    def hits(self, limit: int | None = None) -> list[Hit[K, V, S]]:
+        """The best cases with their similarities, by descending similarity.
 
-        return data
+        Args:
+            limit: Maximal number of hits, all if None.
+
+        Examples:
+            >>> result = QueryResult(query="a", casebase={1: "a", 2: "b"}, similarities={1: 1.0, 2: 0.5})
+            >>> result.hits(limit=1)
+            [Hit(key=1, value='a', score=1.0, explanation=None)]
+        """
+        return [
+            Hit.model_construct(
+                key=key, value=self.casebase[key], score=self.similarities[key]
+            )
+            for key in sim_map2ranking(self.similarities, limit)
+        ]
 
     @property
-    def casebase_similarities(self) -> Mapping[K, tuple[V, S]]:
-        """Return a mapping of case keys to their case-similarity pairs."""
-        return {
-            key: (self.casebase[key], self.similarities[key]) for key in self.ranking
-        }
-
-    @property
-    def similarity(self) -> S:
-        """Return the similarity value when only a single case exists."""
-        return singleton(self.similarities.values())
-
-    @property
-    def case(self) -> V:
-        """Return the case value when only a single case exists."""
-        return singleton(self.casebase.values())
-
-    def remove_cases(self) -> "QueryResultStep[K, None, S]":
-        """Return a copy of this result step with all case data removed."""
-        return QueryResultStep[K, None, S](
-            similarities=self.similarities,
-            ranking=self.ranking,
-            casebase={},
-            query=None,
-            duration=self.duration,
-        )
+    def changes(self) -> Changes[K, V]:
+        """The applied changes that stored the cases of a retain run, see `cbrkit.retain.Retainer`, empty otherwise."""
+        return _changes([self])
 
 
-class ResultStep[Q, C, V, S: Float](BaseModel):
-    """Aggregated result step across multiple queries."""
+@dataclass(slots=True, frozen=True)
+class Step[Q, T](Mapping[Q, T]):
+    """Outputs of one function for every query, a read-only mapping of every query key to its output.
 
-    model_config = ConfigDict(frozen=True)
-    queries: Mapping[Q, QueryResultStep[C, V, S]]
+    A function of the cycle yields a `QueryResult` per query.
+
+    Args:
+        outputs: Output of every query by its key.
+        metadata: Name and configuration of the function.
+        duration: Time spent in the function in seconds.
+
+    Examples:
+        >>> step = Step(outputs={"q": "response"}, metadata={}, duration=0.0)
+        >>> step["q"], len(step)
+        ('response', 1)
+    """
+
+    outputs: Mapping[Q, T]
     metadata: JsonEntry
     duration: float
 
-    @property
-    def default_query(self) -> QueryResultStep[C, V, S]:
-        """Return the single query result when only one query exists."""
-        return singleton(self.queries.values())
+    @override
+    def __getitem__(self, query: Q) -> T:
+        return self.outputs[query]
 
-    @property
-    def similarities(self) -> SimMap[C, S]:
-        """Return the similarity map of the default query."""
-        return self.default_query.similarities
+    @override
+    def __iter__(self) -> Iterator[Q]:
+        return iter(self.outputs)
 
-    @property
-    def ranking(self) -> Sequence[C]:
-        """Return the case ranking of the default query."""
-        return self.default_query.ranking
-
-    @property
-    def casebase(self) -> Casebase[C, V]:
-        """Return the casebase of the default query."""
-        return self.default_query.casebase
-
-    @property
-    def similarity(self) -> S:
-        """Return the similarity value of the default query's single case."""
-        return self.default_query.similarity
-
-    @property
-    def case(self) -> V:
-        """Return the case value of the default query's single case."""
-        return self.default_query.case
-
-    def remove_cases(self) -> "ResultStep[Q, C, None, S]":
-        """Return a copy of this result step with all case data removed."""
-        return ResultStep[Q, C, None, S](
-            queries={key: value.remove_cases() for key, value in self.queries.items()},
-            metadata=self.metadata,
-            duration=self.duration,
-        )
+    @override
+    def __len__(self) -> int:
+        return len(self.outputs)
 
 
-class Result[Q, C, V, S: Float](BaseModel):
-    """Complete result containing all pipeline steps."""
+@dataclass(slots=True, frozen=True)
+class Result[Q, K, V, S: SerializedFloat](Mapping[Q, QueryResult[K, V, S]]):
+    """Results of every function of the cycle, see `cbrkit.cycle.run`.
 
-    model_config = ConfigDict(frozen=True)
-    steps: list[ResultStep[Q, C, V, S]]
+    It maps every query key to the result of the last function for that query.
+
+    Args:
+        steps: Results of the functions in the order in which they ran.
+        duration: Time spent in all functions in seconds.
+
+    Examples:
+        >>> result = Result(
+        ...     steps=(
+        ...         Step(
+        ...             outputs={"q": QueryResult(query="a", casebase={1: "a"}, similarities={1: 1.0})},
+        ...             metadata={},
+        ...             duration=0.0,
+        ...         ),
+        ...     ),
+        ...     duration=0.0,
+        ... )
+        >>> list(result), len(result), result["q"].ranking
+        (['q'], 1, (1,))
+    """
+
+    steps: Sequence[Step[Q, QueryResult[K, V, S]]]
     duration: float
 
-    @property
-    def first_step(self) -> ResultStep[Q, C, V, S]:
-        """Return the first step of the pipeline."""
-        return self.steps[0]
+    @override
+    def __getitem__(self, query: Q) -> QueryResult[K, V, S]:
+        return self.steps[-1][query]
 
-    @property
-    def final_step(self) -> ResultStep[Q, C, V, S]:
-        """Return the last step of the pipeline."""
-        return self.steps[-1]
+    @override
+    def __iter__(self) -> Iterator[Q]:
+        return iter(self.steps[-1])
 
-    @property
-    def metadata(self) -> JsonEntry:
-        """Return the metadata from the final step."""
-        return self.final_step.metadata
+    @override
+    def __len__(self) -> int:
+        return len(self.steps[-1])
 
-    @property
-    def queries(self) -> Mapping[Q, QueryResultStep[C, V, S]]:
-        """Return the query results from the final step."""
-        return self.final_step.queries
+    def hits(self, limit: int | None = None) -> list[Hit[K, V, S | float]]:
+        """The best cases for all queries as one ranking, such as of a search by several phrasings.
 
-    @property
-    def default_query(self) -> QueryResultStep[C, V, S]:
-        """Return the single query result from the final step."""
-        return singleton(self.queries.values())
+        The ranking of a single query keeps its similarities with their details,
+        those of several queries are fused by reciprocal rank fusion, see `cbrkit.retrieve.fuse`,
+        so a case that several queries find ranks higher.
 
-    @property
-    def similarities(self) -> SimMap[C, S]:
-        """Return the similarity map from the final step."""
-        return self.final_step.similarities
+        Args:
+            limit: Maximal number of hits, all if None.
 
-    @property
-    def ranking(self) -> Sequence[C]:
-        """Return the case ranking from the final step."""
-        return self.final_step.ranking
+        Examples:
+            >>> step = Step(
+            ...     outputs={
+            ...         "a": QueryResult(query="a", casebase={1: "a", 2: "b"}, similarities={1: 0.9, 2: 0.1}),
+            ...         "b": QueryResult(query="b", casebase={1: "a", 2: "b"}, similarities={1: 0.2, 2: 0.8}),
+            ...     },
+            ...     metadata={},
+            ...     duration=0.0,
+            ... )
+            >>> [hit.key for hit in Result(steps=(step,), duration=0.0).hits(limit=1)]
+            [1]
+        """
+        if len(self) == 1:
+            return [
+                Hit.model_construct(key=hit.key, value=hit.value, score=hit.score)
+                for result in self.values()
+                for hit in result.hits(limit)
+            ]
 
-    @property
-    def casebase(self) -> Casebase[C, V]:
-        """Return the casebase from the final step."""
-        return self.final_step.casebase
-
-    @property
-    def similarity(self) -> S:
-        """Return the similarity value from the final step's single case."""
-        return self.final_step.similarity
-
-    @property
-    def case(self) -> V:
-        """Return the case value from the final step's single case."""
-        return self.final_step.case
-
-    def remove_cases(self) -> "Result[Q, C, None, S]":
-        """Return a copy of this result with all case data removed."""
-        return Result[Q, C, None, S](
-            steps=[step.remove_cases() for step in self.steps],
-            duration=self.duration,
+        casebase, scores = fuse_rankings(
+            ((result.casebase, result.similarities) for result in self.values()),
+            limit=limit,
         )
 
+        return [
+            Hit.model_construct(key=key, value=casebase[key], score=score)
+            for key, score in scores.items()
+        ]
 
-class CycleResult[Q, C, V, S: Float](BaseModel):
-    """Combined results for all phases of a CBR cycle."""
+    @property
+    def changes(self) -> Changes[K, V]:
+        """The applied changes that stored the cases of a retain run for every query, see `QueryResult.changes`."""
+        return _changes(self.values())
 
-    model_config = ConfigDict(frozen=True)
-    retrieval: Result[Q, C, V, S]
-    reuse: Result[Q, C, V, S]
-    revise: Result[Q, C, V, S]
-    retain: Result[Q, C, V, S]
-    duration: float
 
-    def remove_cases(self) -> "CycleResult[Q, C, None, S]":
-        """Return a copy of this cycle result with all case data removed."""
-        return CycleResult[Q, C, None, S](
-            retrieval=self.retrieval.remove_cases(),
-            reuse=self.reuse.remove_cases(),
-            revise=self.revise.remove_cases(),
-            retain=self.retain.remove_cases(),
-            duration=self.duration,
-        )
+def _changes[K, V](results: Iterable[QueryResult[K, V, Any]]) -> Changes[K, V]:
+    items: dict[K, Add[K, V] | Update[K, V]] = {}
+
+    for result in results:
+        for key, sim in result.similarities.items():
+            if not isinstance(sim, ChangeSim):
+                continue
+
+            items[key] = sim.change(key, result.casebase[key])
+
+    return Changes(items=list(items.values()), applied=True)
