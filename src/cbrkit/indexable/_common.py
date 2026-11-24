@@ -1,17 +1,23 @@
-"""Shared helpers and SQL utilities for indexable storage backends."""
+"""Shared helpers of the indexable storage backends."""
 
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
-from functools import reduce
-from typing import Any, Literal, cast
+from collections.abc import Mapping
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Any, ClassVar, Protocol, cast
 
 from pydantic import BaseModel
 
-from ..helpers import dist2sim
-from ..typing import Casebase, DataclassOrModel
+from ..sim.embed.metrics import Cosine, Dot, Euclidean
 
 
-def model_columns(model: DataclassOrModel) -> tuple[str, ...]:
+class _DataclassInstance(Protocol):
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+type _DataclassOrModel = type[_DataclassInstance | BaseModel]
+"""A dataclass or pydantic model class, whose fields are the columns of a storage."""
+
+
+def model_columns(model: _DataclassOrModel) -> tuple[str, ...]:
     """Return the declared field names of a dataclass or pydantic model."""
     if is_dataclass(model):
         return tuple(f.name for f in fields(model))
@@ -23,57 +29,69 @@ def make_codec[V](
     value_column: str,
     *,
     key_column: str | None = None,
-) -> "RowCodec[V]":
-    """Build a :class:`RowCodec` for a storage backend.
+) -> RowCodec[V]:
+    """Build a `RowCodec` for a storage backend.
 
-    The casebase key is never part of the codec payload — this is the
+    The casebase key is never part of the codec payload, this is the
     single, uniform policy across backends.  How the key is kept out
     depends on where the backend stores it:
 
-    * **column-oriented** backends (e.g. ``lancedb``) keep the key in a
-      dedicated *key_column* that shares the column namespace with the
+    * **column-oriented** backends (e.g. `lancedb`) keep the key in a
+      dedicated `key_column` that shares the column namespace with the
       model's fields, so it is excluded from the payload here.
-    * **record-oriented** backends (``chromadb``, ``zvec``) store the key
+    * **record-oriented** backends (e.g. `zvec`) store the key
       as the native record id, a separate namespace, and pass
-      ``key_column=None`` since no model column can collide with it.
+      `key_column=None` since no model column can collide with it.
 
-    Without a model the value is plain text stored under *value_column*.
-    The resulting ``codec.columns`` is the authoritative list of
+    Without a model the value is plain text stored under `value_column`.
+    The resulting `codec.columns` is the authoritative list of
     cbrkit-owned columns, so backends read it directly instead of
     recomputing it.
     """
     if model is None:
-        columns = (value_column,)
-    else:
-        names = model_columns(cast(DataclassOrModel, model))
-        columns = tuple(c for c in names if c != key_column)
-    return RowCodec(model=model, columns=columns, value_column=value_column)
+        return RowCodec(columns=(value_column,), value_column=value_column)
+
+    names = model_columns(cast(_DataclassOrModel, model))
+
+    return RowCodec(
+        model=model,
+        columns=tuple(c for c in names if c != key_column),
+        value_column=value_column,
+        key_column=key_column,
+    )
 
 
 @dataclass(slots=True, frozen=True)
 class RowCodec[V]:
-    """Convert a casebase value ``V`` to/from a column-payload mapping.
+    """Convert a casebase value `V` to/from a column-payload mapping.
 
-    The payload mapping holds the *user* columns cbrkit owns for a row;
+    The payload mapping holds the user columns cbrkit owns for a row,
     the key column is added/stripped separately by the backend.  Three
     value shapes are supported, selected at construction:
 
-    * **plain text** — ``model`` is ``None`` and ``value_column`` is set:
-      ``V`` is ``str``; the value is stored as ``{value_column: value}``
+    * **plain text**, `model` is `None` and `value_column` is set:
+      `V` is `str`, the value is stored as `{value_column: value}`
       and read back as the bare string.
-    * **mapping** — ``model`` is ``None`` and ``value_column`` is ``None``:
-      ``V`` is ``Mapping[str, Any]``; the payload is the mapping itself.
-    * **typed model** — ``model`` is a class: Pydantic
-      :class:`~pydantic.BaseModel` values round-trip via
-      ``model_dump`` / ``model_validate``; any other class (dataclass,
-      SQLAlchemy mapped class, ...) is read via ``getattr`` and rebuilt via
-      its constructor, with the payload being ``columns`` projected from the
+    * **mapping**, `model` is `None` and `value_column` is `None`:
+      `V` is `Mapping[str, Any]`, the payload is the mapping itself.
+    * **typed model**, `model` is a class: Pydantic
+      `pydantic.BaseModel` values round-trip via
+      `model_dump` / `model_validate`, any other class (dataclass,
+      SQLAlchemy mapped class, ...) is read via `getattr` and rebuilt via
+      its constructor, with the payload being `columns` projected from the
       value.
 
-    ``columns`` is the explicit set of cbrkit-owned user columns — driven
-    off the resolved schema, never off dataclass ``init=`` flags — so the
+    `columns` is the explicit set of cbrkit-owned user columns, driven
+    off the resolved schema, never off dataclass `init=` flags, so the
     dump/load round-trip stays symmetric and independent of how the host
     declared the model.
+
+    Args:
+        model: Class of typed values, plain text or mappings if None.
+        columns: The user columns of a typed value.
+        value_column: Column of plain text values, mappings if None and there is no model.
+        key_column: Column of the key, which `decode` restores into the field of that name if the model has one,
+            so a field that the model would otherwise fill itself, such as a generated id, matches the key.
 
     Examples:
         >>> import dataclasses
@@ -93,13 +111,31 @@ class RowCodec[V]:
     model: type[V] | None = None
     columns: tuple[str, ...] = ()
     value_column: str | None = None
+    key_column: str | None = None
+    key_field: str | None = field(init=False, default=None)
+    init_fields: frozenset[str] | None = field(init=False, default=None)
+    """The fields the constructor of a dataclass model takes, None for other models."""
+
+    def __post_init__(self) -> None:
+        if self.model is None:
+            return
+
+        model = cast(_DataclassOrModel, self.model)
+
+        if self.key_column in model_columns(model):
+            object.__setattr__(self, "key_field", self.key_column)
+
+        if is_dataclass(model):
+            object.__setattr__(
+                self, "init_fields", frozenset(f.name for f in fields(model) if f.init)
+            )
 
     def encode(self, value: V) -> dict[str, Any]:
         """Project a value to its column payload (key column excluded).
 
-        Pydantic models go through ``model_dump``; every other model type
+        Pydantic models go through `model_dump`, every other model type
         (dataclass, SQLAlchemy mapped class, ...) is read attribute-wise via
-        ``getattr`` — the latter covers ORM rows used as plain data carriers.
+        `getattr`, the latter covers ORM rows used as plain data carriers.
         """
         if self.model is None:
             if self.value_column is not None:
@@ -109,188 +145,41 @@ class RowCodec[V]:
             return cast(BaseModel, value).model_dump(include=set(self.columns))
         return {c: getattr(value, c) for c in self.columns}
 
-    def decode(self, payload: Mapping[str, Any]) -> V:
-        """Rebuild a value from a column payload (extra columns ignored)."""
+    def decode(self, payload: Mapping[str, Any], key: Any = None) -> V:
+        """Rebuild a value from a column payload (extra columns ignored), with its `key` in the `key_field`.
+
+        Fields of a dataclass that its constructor does not take are set on the built value.
+        """
         if self.model is None:
             if self.value_column is not None:
                 return cast(V, payload[self.value_column])
             return cast(V, dict(payload))
         data = {c: payload[c] for c in self.columns if c in payload}
+        if self.key_field is not None and key is not None:
+            data[self.key_field] = key
         if issubclass(self.model, BaseModel):
             return cast(V, cast(type[BaseModel], self.model).model_validate(data))
-        return self.model(**data)
+        init = self.init_fields
+        if init is None:
+            return self.model(**data)
+        value = self.model(**{k: v for k, v in data.items() if k in init})
+        for name, item in data.items():
+            if name not in init:
+                # bypasses a frozen dataclass, while descriptors such as those of an ORM still apply
+                object.__setattr__(value, name, item)
+        return value
 
 
-def _compute_index_diff[K, V](
-    existing: Casebase[K, V],
-    data: Casebase[K, V],
-) -> tuple[set[K], Casebase[K, V]]:
-    """Compute stale keys and changed/new entries for index updates.
+type VectorMetric = Cosine | Dot | Euclidean
+"""Vector metric of a dense index, one of `cbrkit.sim.embed.metrics.VECTOR_METRICS`.
 
-    Args:
-        existing: The current indexed casebase.
-        data: The desired casebase to sync with.
-
-    Returns:
-        A tuple `(stale_keys, changed_or_new)` where *stale_keys* are
-        keys present in *existing* but absent from *data*, and
-        *changed_or_new* maps keys whose values differ or are new.
-    """
-    new_keys = set(data.keys())
-    old_keys = set(existing.keys())
-    stale_keys = old_keys - new_keys
-    changed_or_new: Casebase[K, V] = {
-        k: data[k] for k in new_keys if k not in existing or existing[k] != data[k]
-    }
-    return stale_keys, changed_or_new
-
-
-def _normalize_patch_keys[K](
-    upsert: Collection[K] | None,
-    delete: Collection[K] | None,
-) -> tuple[set[K], set[K]] | None:
-    """Validate `patch_index` arguments and split into key sets.
-
-    Mappings count as collections of their keys, so this helper works
-    for both keyed (`Casebase[K, str]`) and bare (`Collection[str]`)
-    patch arguments.
-
-    Returns `None` when both inputs are empty (the patch is a no-op).
-    Raises `ValueError` if the same key appears in both *upsert* and
-    *delete*.
-    """
-    if not upsert and not delete:
-        return None
-
-    upsert_keys = set(upsert) if upsert else set()
-    delete_keys = set(delete) if delete else set()
-    overlap = upsert_keys & delete_keys
-
-    if overlap:
-        raise ValueError(f"Cannot upsert and delete the same entries: {overlap!r}")
-
-    return upsert_keys, delete_keys
-
-
-def _sql_literal(value: int | str) -> str:
-    """Return a SQL literal for supported index keys."""
-    if isinstance(value, str):
-        return "'" + value.replace("'", "''") + "'"
-
-    return str(value)
-
-
-def _sql_in_clause[K: int | str](column: str, keys: Collection[K]) -> str:
-    """Build a SQL `IN (...)` predicate for supported index keys."""
-    return f"{column} IN ({', '.join(_sql_literal(k) for k in keys)})"
-
-
-@dataclass(slots=True, frozen=True)
-class _PgMetric:
-    """Per-metric pgvector configuration."""
-
-    ops_suffix: str
-    """Operator-class suffix; the full HNSW opclass is
-    `f"{type_prefix}_{ops_suffix}_ops"` (e.g. `vector_cosine_ops`,
-    `halfvec_cosine_ops`)."""
-    distance_attr: str
-    """`pgvector.sqlalchemy` comparator method returning the distance expression."""
-    sim_from_distance: Callable[[float], float]
-    """Convert a raw pgvector distance to a similarity score."""
-
-
-PG_METRICS: dict[Literal["cosine", "ip", "l2"], _PgMetric] = {
-    "cosine": _PgMetric("cosine", "cosine_distance", dist2sim),
-    "ip": _PgMetric("ip", "max_inner_product", lambda d: -d),
-    "l2": _PgMetric("l2", "l2_distance", dist2sim),
-}
-
-
-def normalize_fts_configs(config: str | Sequence[str]) -> tuple[str, ...]:
-    """Normalize a PostgreSQL FTS configuration argument to a tuple.
-
-    A single string is the common case (one text-search configuration).
-    A sequence enables true multi-language indexing: the stored
-    ``tsvector`` and the query ``tsquery`` become the union of one
-    ``to_tsvector`` / ``plainto_tsquery`` per configuration, so a corpus
-    mixing e.g. German and English is stemmed correctly for both.
-
-    The default ``"simple"`` configuration is language-agnostic (no
-    stemming, no stop-words), the safe choice when the language is
-    unknown or mixed; the dense embedding channel carries the semantic
-    load.
-    """
-    if isinstance(config, str):
-        return (config,)
-    configs = tuple(config)
-    if not configs:
-        raise ValueError("tsvector_config sequence must be non-empty")
-    return configs
-
-
-def fts_combine(terms: Iterable[Any]) -> Any:
-    """Fold per-config FTS expressions with the PostgreSQL ``||`` operator.
-
-    ``||`` concatenates ``tsvector`` operands and ORs ``tsquery`` operands,
-    so this combines one ``to_tsvector`` / ``plainto_tsquery`` per configured
-    language into a single multilingual expression.  *terms* must be
-    non-empty (guaranteed by :func:`normalize_fts_configs`).
-    """
-    return reduce(lambda acc, term: acc.op("||")(term), terms)
-
-
-@dataclass(slots=True, frozen=True)
-class _SqliteVecMetric:
-    """Per-metric `vec0` configuration."""
-
-    distance_metric: str
-    """`distance_metric=` keyword used in the `vec0` table definition."""
-    sim_from_distance: Callable[[float], float]
-    """Convert a `vec0` `distance` value to a similarity score."""
-
-
-SQLITE_VEC_METRICS: dict[Literal["cosine", "l2", "l1"], _SqliteVecMetric] = {
-    "cosine": _SqliteVecMetric("cosine", dist2sim),
-    "l2": _SqliteVecMetric("l2", dist2sim),
-    "l1": _SqliteVecMetric("l1", dist2sim),
-}
-
-
-@dataclass(slots=True, frozen=True)
-class _SqliteVecType:
-    """Per-element-type `vec0` configuration.
-
-    `value_template` wraps a bound float32-BLOB placeholder into the SQL
-    expression `vec0` expects for the declared column type — used verbatim
-    for both inserts and the KNN `MATCH` query, so storage and query stay in
-    lock-step.  Embeddings are always serialized as float32; the extension
-    performs any quantization at the SQL layer.
-    """
-
-    column_type: str
-    """`vec0` element type, combined with `[dim]` (e.g. `float` -> `float[384]`)."""
-    value_template: str
-    """SQL template wrapping a placeholder (`{0}`), e.g. `vec_f32({0})`."""
-
-
-SQLITE_VEC_TYPES: dict[Literal["float32", "int8"], _SqliteVecType] = {
-    "float32": _SqliteVecType("float", "vec_f32({0})"),
-    "int8": _SqliteVecType("int8", "vec_quantize_int8(vec_f32({0}), 'unit')"),
-}
+The scores come from the backend, so they may differ from those of the metric itself.
+"""
 
 
 __all__ = [
-    "PG_METRICS",
-    "SQLITE_VEC_METRICS",
-    "SQLITE_VEC_TYPES",
     "RowCodec",
-    "_PgMetric",
-    "_SqliteVecMetric",
-    "_SqliteVecType",
-    "_compute_index_diff",
-    "_normalize_patch_keys",
-    "_sql_in_clause",
-    "_sql_literal",
+    "VectorMetric",
     "make_codec",
     "model_columns",
 ]
