@@ -1,36 +1,41 @@
 import heapq
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Protocol
+import logging
+import math
+from collections.abc import Hashable, Mapping
+from dataclasses import dataclass, field, replace
+from typing import Annotated, Literal, Protocol, override
 
 import numpy as np
-from frozendict import frozendict
-from scipy.optimize import linear_sum_assignment
+import scipy
+from pydantic import Field
 
-from ...helpers import get_logger
+from ..._util import sorted_keys
+from ...helpers import frozendict
 from ...model.graph import Graph, GraphElementType, Node
-from ...typing import SimFunc
-from .common import GraphSim, SearchGraphSimFunc, SearchState, next_elem, sorted_iter
-from .lap import lap_base
+from ...model.similarity import GraphSim
+from ...schema import Family, serializable
+from ._base import BaseGraphEditFunc, PairSimilarities
+from ._search import SearchGraphSimFunc, SearchState, next_elem
+from .lap import BaseLAP
 
 __all__ = [
+    "AssignmentCost",
+    "Astar",
+    "BestOpenPair",
+    "BestPair",
+    "EdgesFirst",
     "HeuristicFunc",
+    "InOrder",
+    "MostConstrained",
+    "OpenAssignment",
     "SelectionFunc",
-    "build",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "select1",
-    "select2",
-    "select3",
-    "select4",
+    "Unmapped",
 ]
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-def node_mapping_feasible[K, N](
+def node_mapping_feasible[K: Hashable, N](
     x_node: Node[K, N], y_node: Node[K, N], s: SearchState[K]
 ) -> bool:
     """Return whether mapping `y_node` to `x_node` is feasible in state `s`.
@@ -43,9 +48,9 @@ def node_mapping_feasible[K, N](
     )
 
 
-def open_subgraphs[K, N, E, G](
-    x: Graph[K, N, E, G],
-    y: Graph[K, N, E, G],
+def open_subgraphs[K: Hashable, N, E, G](
+    case: Graph[K, N, E, G],
+    query: Graph[K, N, E, G],
     s: SearchState[K],
     node_pair_sims: Mapping[tuple[K, K], float],
     edge_pair_sims: Mapping[tuple[K, K], float],
@@ -69,14 +74,14 @@ def open_subgraphs[K, N, E, G](
       exactly to `x_*`.
     """
     sub_x = Graph(
-        nodes=frozendict((k, x.nodes[k]) for k in sorted_iter(s.open_x_nodes)),
-        edges=frozendict((k, x.edges[k]) for k in sorted_iter(s.open_x_edges)),
-        value=x.value,
+        nodes=frozendict((k, case.nodes[k]) for k in sorted_keys(s.open_x_nodes)),
+        edges=frozendict((k, case.edges[k]) for k in sorted_keys(s.open_x_edges)),
+        value=case.value,
     )
     sub_y = Graph(
-        nodes=frozendict((k, y.nodes[k]) for k in sorted_iter(s.open_y_nodes)),
-        edges=frozendict((k, y.edges[k]) for k in sorted_iter(s.open_y_edges)),
-        value=y.value,
+        nodes=frozendict((k, query.nodes[k]) for k in sorted_keys(s.open_y_nodes)),
+        edges=frozendict((k, query.edges[k]) for k in sorted_keys(s.open_y_edges)),
+        value=query.value,
     )
 
     # Restrict to nodes contained in the subgraphs (open elements)
@@ -94,8 +99,8 @@ def open_subgraphs[K, N, E, G](
         if y_e not in sub_y.edges or x_e not in sub_x.edges:
             continue
 
-        y_edge = y.edges[y_e]
-        x_edge = x.edges[x_e]
+        y_edge = query.edges[y_e]
+        x_edge = case.edges[x_e]
 
         if node_mapping_feasible(
             x_edge.source, y_edge.source, s
@@ -106,41 +111,48 @@ def open_subgraphs[K, N, E, G](
 
 
 @dataclass(slots=True, frozen=True, order=True)
-class PriorityState[K]:
-    """A search state with a priority value for the A* priority queue."""
+class PriorityState[K: Hashable]:
+    """A search state with a priority value for the A* priority queue.
+
+    Args:
+        priority: Priority of the state, smaller is expanded first.
+        state: The search state.
+    """
 
     priority: float
     state: SearchState[K] = field(compare=False)
 
 
-class HeuristicFunc[K, N, E, G](Protocol):
+class HeuristicFunc[K: Hashable, N, E, G](Protocol):
     """Estimates the future similarity of unmapped graph elements.
 
-    The returned value is an *unnormalized* upper bound on the similarity that the
+    The returned value is an `unnormalized` upper bound on the similarity that the
     still open query elements can contribute, i.e. it is expressed in the same units
     as the numerator of `BaseGraphSimFunc.similarity`.
-    The search normalizes it by its own `cost_upper_bound`, which keeps the heuristic
-    admissible for any configuration of the edit costs.
+    Each pair is weighted by the `node_weight` or `edge_weight` of the given `costs`,
+    and the search normalizes the result by its own `cost_upper_bound`, which keeps
+    the heuristic admissible for any configuration of the edit costs.
     """
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
+        costs: BaseGraphEditFunc[K, N, E, G],
         /,
     ) -> float: ...
 
 
-class SelectionFunc[K, N, E, G](Protocol):
+class SelectionFunc[K: Hashable, N, E, G](Protocol):
     """Selects the next graph element to map during search."""
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -148,126 +160,150 @@ class SelectionFunc[K, N, E, G](Protocol):
     ) -> None | tuple[K, GraphElementType]: ...
 
 
-@dataclass(slots=True, frozen=True)
-class h1[K, N, E, G](HeuristicFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Unmapped[K: Hashable, N, E, G](HeuristicFunc[K, N, E, G]):
     """Heuristic based on the number of unmapped elements.
 
     This is the `h_I` heuristic of the paper, where every open query element is
     optimistically assumed to reach the maximum similarity of one.
     """
 
+    kind: Literal["unmapped"] = field(default="unmapped", repr=False)
+
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
+        costs: BaseGraphEditFunc[K, N, E, G],
     ) -> float:
         """Heuristic to compute future similarity"""
 
-        return len(s.open_y_nodes) + len(s.open_y_edges)
+        return costs.node_weight * len(s.open_y_nodes) + costs.edge_weight * len(
+            s.open_y_edges
+        )
 
 
-@dataclass(slots=True)
-class h2[K, N, E, G](HeuristicFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class BestPair[K: Hashable, N, E, G](HeuristicFunc[K, N, E, G]):
     """Heuristic based on the best pairwise similarity of unmapped elements."""
 
+    kind: Literal["best_pair"] = field(default="best_pair", repr=False)
+
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
+        costs: BaseGraphEditFunc[K, N, E, G],
     ) -> float:
-        h_val = 0
-
-        for y_key in s.open_y_nodes:
-            h_val += max(
-                (node_pair_sims.get((y_key, x_key), 0.0) for x_key in x.nodes),
+        return costs.node_weight * math.fsum(
+            max(
+                (node_pair_sims.get((y_key, x_key), 0.0) for x_key in case.nodes),
                 default=0.0,
             )
-
-        for y_key in s.open_y_edges:
-            h_val += max(
-                (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in x.edges),
+            for y_key in s.open_y_nodes
+        ) + costs.edge_weight * math.fsum(
+            max(
+                (edge_pair_sims.get((y_key, x_key), 0.0) for x_key in case.edges),
                 default=0.0,
             )
+            for y_key in s.open_y_edges
+        )
 
-        return h_val
 
-
-@dataclass(slots=True)
-class h3[K, N, E, G](HeuristicFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class BestOpenPair[K: Hashable, N, E, G](HeuristicFunc[K, N, E, G]):
     """Heuristic based on feasible pairwise similarities of open elements."""
 
+    kind: Literal["best_open_pair"] = field(default="best_open_pair", repr=False)
+
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
+        costs: BaseGraphEditFunc[K, N, E, G],
     ) -> float:
-        h_val = 0
-
-        for y_key in s.open_y_nodes:
-            h_val += max(
+        return costs.node_weight * math.fsum(
+            max(
                 (node_pair_sims.get((y_key, x_key), 0.0) for x_key in s.open_x_nodes),
                 default=0.0,
             )
-
-        for y_key in s.open_y_edges:
-            h_val += max(
+            for y_key in s.open_y_nodes
+        ) + costs.edge_weight * math.fsum(
+            max(
                 (
                     edge_pair_sims.get((y_key, x_key), 0.0)
                     for x_key in s.open_x_edges
                     if node_mapping_feasible(
-                        x.edges[x_key].source, y.edges[y_key].source, s
+                        case.edges[x_key].source, query.edges[y_key].source, s
                     )
                     and node_mapping_feasible(
-                        x.edges[x_key].target, y.edges[y_key].target, s
+                        case.edges[x_key].target, query.edges[y_key].target, s
                     )
                 ),
                 default=0.0,
             )
+            for y_key in s.open_y_edges
+        )
 
-        return h_val
 
-
-@dataclass(slots=True)
-class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class OpenAssignment[K: Hashable, N, E, G](
+    HeuristicFunc[K, N, E, G], BaseLAP[K, N, E, G]
+):
     """Heuristic based on LAP-solved subgraph similarity of open elements."""
+
+    kind: Literal["open_assignment"] = field(default="open_assignment", repr=False)
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
+        costs: BaseGraphEditFunc[K, N, E, G],
     ) -> float:
         # Nothing is left of the query, so there is no remaining similarity.
         if not s.open_y_nodes and not s.open_y_edges:
             return 0.0
 
         sub_x, sub_y, sub_node_pair_sims, sub_edge_pair_sims = open_subgraphs(
-            x, y, s, node_pair_sims, edge_pair_sims
+            case, query, s, node_pair_sims, edge_pair_sims
         )
 
-        cost_matrix = self.build_cost_matrix(
+        # The estimate has to be expressed in the edit costs of the search.
+        estimator = replace(
+            self,
+            node_deletion_cost=costs.node_deletion_cost,
+            node_insertion_cost=costs.node_insertion_cost,
+            edge_deletion_cost=costs.edge_deletion_cost,
+            edge_insertion_cost=costs.edge_insertion_cost,
+        )
+        cost_matrix = estimator.build_cost_matrix(
             sub_x,
             sub_y,
             sub_node_pair_sims,
             sub_edge_pair_sims,
         )
-        row_idx, col_idx = linear_sum_assignment(cost_matrix)
+        row_idx, col_idx = scipy.optimize.linear_sum_assignment(cost_matrix)
         cost: float = cost_matrix[row_idx, col_idx].sum()
 
         # `build_cost_matrix` normalizes by the upper bound of the subgraphs,
         # so scaling by it recovers the unnormalized similarity of the remainder.
-        sub_upper_bound = self.cost_upper_bound(sub_x, sub_y)
+        sub_upper_bound = estimator.cost_upper_bound(sub_x, sub_y)
 
         if sub_upper_bound <= 0:
             return 0.0
@@ -275,14 +311,17 @@ class h4[K, N, E, G](HeuristicFunc[K, N, E, G], lap_base[K, N, E, G]):
         return max(0.0, 1.0 - cost) * sub_upper_bound
 
 
-@dataclass(slots=True, frozen=True)
-class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class InOrder[K: Hashable, N, E, G](SelectionFunc[K, N, E, G]):
     """Selects the next element in natural order, nodes before edges."""
+
+    kind: Literal["in_order"] = field(default="in_order", repr=False)
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -297,14 +336,17 @@ class select1[K, N, E, G](SelectionFunc[K, N, E, G]):
         return None
 
 
-@dataclass(slots=True, frozen=True)
-class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class EdgesFirst[K: Hashable, N, E, G](SelectionFunc[K, N, E, G]):
     """Selects edges with both endpoints mapped first, then nodes."""
+
+    kind: Literal["edges_first"] = field(default="edges_first", repr=False)
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -312,9 +354,9 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
 
         edge_candidates = {
             key
-            for key in sorted_iter(s.open_y_edges)
-            if y.edges[key].source.key not in s.open_y_nodes
-            and y.edges[key].target.key not in s.open_y_nodes
+            for key in sorted_keys(s.open_y_edges)
+            if query.edges[key].source.key not in s.open_y_nodes
+            and query.edges[key].target.key not in s.open_y_nodes
         }
 
         if edge_candidates:
@@ -326,14 +368,17 @@ class select2[K, N, E, G](SelectionFunc[K, N, E, G]):
         return None
 
 
-@dataclass(slots=True, frozen=True)
-class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class MostConstrained[K: Hashable, N, E, G](SelectionFunc[K, N, E, G]):
     """Selects the element with the highest heuristic score and fewest options."""
+
+    kind: Literal["most_constrained"] = field(default="most_constrained", repr=False)
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -359,10 +404,10 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
                 for x_key in s.open_x_edges
                 if (y_key, x_key) in edge_pair_sims
                 and node_mapping_feasible(
-                    x.edges[x_key].source, y.edges[y_key].source, s
+                    case.edges[x_key].source, query.edges[y_key].source, s
                 )
                 and node_mapping_feasible(
-                    x.edges[x_key].target, y.edges[y_key].target, s
+                    case.edges[x_key].target, query.edges[y_key].target, s
                 )
             ]
 
@@ -375,7 +420,8 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
             # Use sorted to ensure deterministic selection
             if s.open_y_nodes:
                 return next_elem(s.open_y_nodes), "node"
-            elif s.open_y_edges:
+
+            if s.open_y_edges:
                 return next_elem(s.open_y_edges), "edge"
             return None
 
@@ -394,31 +440,34 @@ class select3[K, N, E, G](SelectionFunc[K, N, E, G]):
                 if mapping_options[key] == min_mapping_options
             }
 
-        # select the one with the lowest key
-        selection_key, selection_type = next_elem(
-            best_selections,
-            key=lambda item: item[0],
-        )
+        # select the one with the lowest key, nodes and edges may share keys
+        selection_key, selection_type = next_elem(best_selections)
 
         if selection_type == "edge":
-            edge = y.edges[selection_key]
+            edge = query.edges[selection_key]
 
             if edge.source.key in s.open_y_nodes:
                 return edge.source.key, "node"
-            elif edge.target.key in s.open_y_nodes:
+
+            if edge.target.key in s.open_y_nodes:
                 return edge.target.key, "node"
 
         return selection_key, selection_type
 
 
-@dataclass(slots=True)
-class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class AssignmentCost[K: Hashable, N, E, G](
+    SelectionFunc[K, N, E, G], BaseLAP[K, N, E, G]
+):
     """Selects elements using LAP-based cost analysis of the remaining subgraph."""
+
+    kind: Literal["assignment_cost"] = field(default="assignment_cost", repr=False)
 
     def __call__(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         s: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -426,9 +475,9 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
 
         edge_candidates = {
             key
-            for key in sorted_iter(s.open_y_edges)
-            if y.edges[key].source.key not in s.open_y_nodes
-            and y.edges[key].target.key not in s.open_y_nodes
+            for key in sorted_keys(s.open_y_edges)
+            if query.edges[key].source.key not in s.open_y_nodes
+            and query.edges[key].target.key not in s.open_y_nodes
         }
 
         if edge_candidates:
@@ -439,7 +488,7 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
                 return next_elem(s.open_y_nodes), "node"
 
             sub_x, sub_y, sub_node_pair_sims, sub_edge_pair_sims = open_subgraphs(
-                x, y, s, node_pair_sims, edge_pair_sims
+                case, query, s, node_pair_sims, edge_pair_sims
             )
 
             cost_matrix = self.build_cost_matrix(
@@ -451,7 +500,7 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
             # Map row indices back to the actual y keys using exactly the
             # insertion order of the subgraph's nodes to stay aligned with the
             # matrix construction.
-            row2y = {r: k for r, k in enumerate(sub_y.nodes.keys())}
+            row2y = dict(enumerate(sub_y.nodes))
 
             # get upper-left quadrant (substitution block only)
             rows = len(sub_y.nodes)
@@ -494,49 +543,60 @@ class select4[K, N, E, G](SelectionFunc[K, N, E, G], lap_base[K, N, E, G]):
         return None
 
 
-@dataclass(slots=True)
-class build[K, N, E, G](
-    SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
-):
+ASTAR_HEURISTICS = Family(
+    "astar heuristic",
+    (Unmapped, BestPair, BestOpenPair, OpenAssignment),
+)
+
+
+ASTAR_SELECTIONS = Family(
+    "astar selection",
+    (InOrder, EdgesFirst, MostConstrained, AssignmentCost),
+)
+
+
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Astar[K: Hashable, N, E, G](SearchGraphSimFunc[K, N, E, G]):
     """Performs an A* search as described by [Bergmann and Gil (2014)](https://doi.org/10.1016/j.is.2012.07.005)
 
     By default, an element with a legal counterpart must be mapped, which keeps the
     search space smaller.
     Enable `partial_mapping` to also consider leaving it unmapped.
-    Together with an admissible `heuristic_func`, this makes the result optimal unless
+    Together with an admissible `heuristic`, this makes the result optimal unless
     `beam_width` or `pathlength_weight` is used to trade exactness for speed.
+    The result is flagged as `exact` only in this case.
 
     Args:
-        node_sim_func: A function to compute the similarity between two nodes.
-        edge_sim_func: A function to compute the similarity between two edges.
-        node_matcher: A function that returns true if two nodes can be mapped legally.
-        edge_matcher: A function that returns true if two edges can be mapped legally.
-        heuristic_func: A heuristic function to compute the future similarity.
-        selection_func: A function to select the next node or edge to be mapped.
-        init_func: A function to initialize the state.
-        partial_mapping: Also consider leaving an element of the query unmapped when
-            it has a legal counterpart in the case, which is required for an optimal
-            result but roughly doubles the number of expanded states.
-            Disabled by default.
+        heuristic: A heuristic function to compute the future similarity.
+        selection: A function to select the next node or edge to be mapped.
         beam_width: Limits the queue size which prunes the search space.
             This leads to a faster search and less memory usage but also introduces a similarity error.
-            Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
+            Unbounded by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
         pathlength_weight: Favor long partial edit paths over shorter ones.
             Disabled by default. Based on [Neuhaus et al. (2006)](https://doi.org/10.1007/11815921_17).
+        max_expansions: Number of expanded states after which the search stops and
+            returns the most similar mapping among the states it reached, which is
+            then not flagged as `exact`.
+            Unbounded by default.
 
-    Returns:
-        The similarity between a query and a case graph along with the mapping.
     """
 
-    heuristic_func: HeuristicFunc[K, N, E, G] = field(default_factory=h3)
-    selection_func: SelectionFunc[K, N, E, G] = field(default_factory=select3)
-    beam_width: int = 0
-    pathlength_weight: int = 0
+    heuristic: Annotated[HeuristicFunc[K, N, E, G], ASTAR_HEURISTICS] = field(
+        default_factory=BestOpenPair
+    )
+    selection: Annotated[SelectionFunc[K, N, E, G], ASTAR_SELECTIONS] = field(
+        default_factory=MostConstrained
+    )
+    beam_width: Annotated[int, Field(ge=1)] | None = None
+    pathlength_weight: float = 0.0
+    max_expansions: Annotated[int, Field(ge=0)] | None = None
+    kind: Literal["astar"] = field(default="astar", repr=False)
 
     def expand(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         state: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
@@ -544,9 +604,9 @@ class build[K, N, E, G](
         """Expand a given node and its queue"""
 
         next_states: list[SearchState[K]] = []
-        selection = self.selection_func(
-            x,
-            y,
+        selection = self.selection(
+            case,
+            query,
             state,
             node_pair_sims,
             edge_pair_sims,
@@ -558,69 +618,71 @@ class build[K, N, E, G](
         y_key, y_type = selection
 
         if y_type == "node":
-            next_states = self.expand_node(x, y, state, y_key)
+            next_states = self.expand_node(case, query, state, y_key)
 
         elif y_type == "edge":
-            next_states = self.expand_edge(x, y, state, y_key)
+            next_states = self.expand_edge(case, query, state, y_key)
 
         return next_states
 
     def compute_priority(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         state: SearchState[K],
         node_pair_sims: Mapping[tuple[K, K], float],
         edge_pair_sims: Mapping[tuple[K, K], float],
     ) -> float:
         """Computes the A* priority combining past similarity and heuristic estimate."""
         past_sim = self.similarity_value(
-            x,
-            y,
+            case,
+            query,
             state.node_mapping,
             state.edge_mapping,
             node_pair_sims,
             edge_pair_sims,
         )
-        upper_bound = self.cost_upper_bound(x, y)
-        future_bound = self.heuristic_func(x, y, state, node_pair_sims, edge_pair_sims)
+        upper_bound = self.cost_upper_bound(case, query)
+        future_bound = self.heuristic(
+            case, query, state, node_pair_sims, edge_pair_sims, self
+        )
         future_sim = future_bound / upper_bound if upper_bound > 0 else 0.0
         prio = 1 - (past_sim + future_sim)
 
         if self.pathlength_weight > 0:
             # Calculate the number of mapping decisions made so far (partial edit path length)
             # This includes actual mappings plus null mappings (elements processed but not mapped)
-            total_y_elements = len(y.nodes) + len(y.edges)
+            total_y_elements = len(query.nodes) + len(query.edges)
             open_y_elements = len(state.open_y_nodes) + len(state.open_y_edges)
             num_paths = total_y_elements - open_y_elements
-            factor = float(self.pathlength_weight) ** num_paths
 
-            # Edit costs below the defaults let the similarity exceed one, which makes
-            # the priority negative.
-            # Dividing would then favor short paths, so the factor is applied in the
-            # direction that always favors long ones.
-            return prio / factor if prio > 0 else prio * factor
+            return prio / float(self.pathlength_weight) ** num_paths
 
         return prio
 
-    def __call__(
+    @override
+    def search(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
+        sims: PairSimilarities[K],
+        state: SearchState[K],
     ) -> GraphSim[K]:
-        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+        node_pair_sims, edge_pair_sims = sims.nodes, sims.edges
 
         open_set: list[PriorityState[K]] = []
-        best_state = self.init_search_state(x, y)
+        best_state = state
         best_value = self.similarity_value(
-            x,
-            y,
+            case,
+            query,
             best_state.node_mapping,
             best_state.edge_mapping,
             node_pair_sims,
             edge_pair_sims,
         )
         heapq.heappush(open_set, PriorityState(0, best_state))
+        goal_reached = False
+        expansions = 0
 
         while open_set:
             first_elem = heapq.heappop(open_set)
@@ -630,11 +692,31 @@ class build[K, N, E, G](
             # the optimal one as long as the heuristic is admissible.
             if self.finished(current_state):
                 best_state = current_state
+                goal_reached = True
                 break
 
+            if self.max_expansions is not None and expansions >= self.max_expansions:
+                # Every reached state holds a legal partial mapping.
+                for reached in (current_state, *(item.state for item in open_set)):
+                    value = self.similarity_value(
+                        case,
+                        query,
+                        reached.node_mapping,
+                        reached.edge_mapping,
+                        node_pair_sims,
+                        edge_pair_sims,
+                    )
+
+                    if value > best_value:
+                        best_state, best_value = reached, value
+
+                break
+
+            expansions += 1
+
             next_states = self.expand(
-                x,
-                y,
+                case,
+                query,
                 current_state,
                 node_pair_sims,
                 edge_pair_sims,
@@ -644,8 +726,8 @@ class build[K, N, E, G](
                 # A custom selection function declined to select an element, so this
                 # branch dies here and its state is the only result it can offer.
                 current_value = self.similarity_value(
-                    x,
-                    y,
+                    case,
+                    query,
                     current_state.node_mapping,
                     current_state.edge_mapping,
                     node_pair_sims,
@@ -660,19 +742,28 @@ class build[K, N, E, G](
 
             for next_state in next_states:
                 next_prio = self.compute_priority(
-                    x, y, next_state, node_pair_sims, edge_pair_sims
+                    case, query, next_state, node_pair_sims, edge_pair_sims
                 )
                 heapq.heappush(open_set, PriorityState(next_prio, next_state))
 
-            if self.beam_width > 0 and len(open_set) > self.beam_width:
+            if self.beam_width is not None and len(open_set) > self.beam_width:
                 open_set = heapq.nsmallest(self.beam_width, open_set)
                 heapq.heapify(open_set)
 
         return self.similarity(
-            x,
-            y,
+            case,
+            query,
             best_state.node_mapping,
-            best_state.edge_mapping,
-            node_pair_sims,
-            edge_pair_sims,
+            sims,
+            edge_mapping=best_state.edge_mapping,
+            exact=goal_reached and self.exact_search,
+        )
+
+    @property
+    def exact_search(self) -> bool:
+        """Whether a completed search is optimal, given an admissible heuristic."""
+        return (
+            self.partial_mapping
+            and self.beam_width is None
+            and self.pathlength_weight == 0
         )

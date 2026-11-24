@@ -17,6 +17,7 @@ Submodules:
 - `cbrkit.sim.generic`: Generic similarity (equality, type equality, static, lookup tables).
 - `cbrkit.sim.collections`: Collection and sequence similarity (Jaccard, DTW, TWED, Smith-Waterman, etc.).
 - `cbrkit.sim.embed`: Embedding-based similarity with caching (Sentence Transformers, BM25, remote providers).
+- `cbrkit.sim.graphs`: Graph similarity algorithms (A*, VF2, greedy, LAP, QAP, etc.).
 - `cbrkit.sim.taxonomy`: Similarity of values by their nodes in a taxonomy (Wu-Palmer, weights, levels, paths).
 - `cbrkit.sim.llm`: Similarity judged by a language model of the host (`Critique`).
 - `cbrkit.sim.pooling`: Pooling functions of an `Aggregator`, one class of `POOLINGS` per pooling such as `Mean` or `KMax`.
@@ -69,6 +70,7 @@ from . import (
     dates,
     embed,
     generic,
+    graphs,
     llm,
     numbers,
     pooling,
@@ -107,6 +109,17 @@ MEASURES = Family(
         generic.Static,
         generic.Table,
         generic.TypeEquality,
+        graphs.Astar,
+        graphs.BruteForce,
+        graphs.DFS,
+        graphs.GraphDTW,
+        graphs.GraphSmithWaterman,
+        graphs.GraphTWED,
+        graphs.Greedy,
+        graphs.LAP,
+        graphs.QAP,
+        graphs.VF2Networkx,
+        graphs.VF2Rustworkx,
         llm.Critique,
         numbers.Exponential,
         numbers.Linear,
@@ -148,6 +161,7 @@ __all__ = [
     "embed",
     "explain",
     "generic",
+    "graphs",
     "llm",
     "numbers",
     "pooling",

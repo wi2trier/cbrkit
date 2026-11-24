@@ -1,68 +1,63 @@
-from dataclasses import dataclass
+import logging
+from collections.abc import Hashable
+from dataclasses import dataclass, field
+from typing import Literal, override
 
-from ...helpers import (
-    get_logger,
-)
+from ..._util import sorted_keys
 from ...model.graph import (
     Graph,
 )
-from ...typing import SimFunc
-from .common import GraphSim, SearchGraphSimFunc, SearchState
+from ...model.similarity import GraphSim
+from ...schema import serializable
+from ._base import PairSimilarities
+from ._search import SearchGraphSimFunc, SearchState
 
-logger = get_logger(__name__)
+__all__ = ["Greedy"]
+
+logger = logging.getLogger(__name__)
 
 
-@dataclass(slots=True)
-class greedy[K, N, E, G](
-    SearchGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
-):
-    """Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5)
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Greedy[K: Hashable, N, E, G](SearchGraphSimFunc[K, N, E, G]):
+    """Performs a Greedy search as described by [Dijkman et al. (2009)](https://doi.org/10.1007/978-3-642-03848-8_5)."""
 
-    Args:
-        node_sim_func: A function to compute the similarity between two nodes.
-        edge_sim_func: A function to compute the similarity between two edges.
-        node_matcher: A function that returns true if two nodes can be mapped legally.
-        edge_matcher: A function that returns true if two edges can be mapped legally.
+    kind: Literal["greedy"] = field(default="greedy", repr=False)
 
-    Returns:
-        The similarity between a query and a case graph along with the mapping.
-    """
-
-    def __call__(
+    @override
+    def search(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
+        sims: PairSimilarities[K],
+        state: SearchState[K],
     ) -> GraphSim[K]:
-        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
-
-        current_state = self.init_search_state(x, y)
+        current_state = state
         current_sim = self.similarity(
-            x,
-            y,
+            case,
+            query,
             current_state.node_mapping,
-            current_state.edge_mapping,
-            node_pair_sims,
-            edge_pair_sims,
+            sims,
+            edge_mapping=current_state.edge_mapping,
         )
 
         while not self.finished(current_state):
             # Iterate over all open pairs and find the best pair
             next_states: list[SearchState[K]] = []
 
-            for y_key in current_state.open_y_nodes:
-                next_states.extend(self.expand_node(x, y, current_state, y_key))
+            for y_key in sorted_keys(current_state.open_y_nodes):
+                next_states.extend(self.expand_node(case, query, current_state, y_key))
 
-            for y_key in current_state.open_y_edges:
-                next_states.extend(self.expand_edge(x, y, current_state, y_key))
+            for y_key in sorted_keys(current_state.open_y_edges):
+                next_states.extend(self.expand_edge(case, query, current_state, y_key))
 
             new_sims = [
                 self.similarity(
-                    x,
-                    y,
+                    case,
+                    query,
                     state.node_mapping,
-                    state.edge_mapping,
-                    node_pair_sims,
-                    edge_pair_sims,
+                    sims,
+                    edge_mapping=state.edge_mapping,
                 )
                 for state in next_states
             ]

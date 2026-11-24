@@ -1,29 +1,37 @@
-from dataclasses import dataclass
+import logging
+import math
+from collections.abc import Hashable
+from dataclasses import dataclass, field
+from typing import Annotated, Literal, override
 
 import numpy as np
-from frozendict import frozendict
-from scipy.optimize import Bounds, LinearConstraint, milp
-from scipy.sparse import coo_array
+import scipy
+from pydantic import Field
 
-from ...helpers import get_logger
+from ...helpers import frozendict
 from ...model.graph import Graph
-from ...typing import NumpyArray, SimFunc
-from .common import BaseGraphSimFunc, GraphSim, extend_maximal
+from ...model.similarity import GraphSim
+from ...schema import serializable
+from ...typing import NumpyArray
+from ._base import BaseGraphSimFunc, PairSimilarities, extend_maximal
+from .lap import BaseLAP
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
-__all__ = ["qap"]
+# The largest node limit of HiGHS, which is its default.
+UNLIMITED_NODES = int(np.iinfo(np.int32).max)
+
+__all__ = ["QAP"]
 
 
-@dataclass(slots=True)
-class qap[K, N, E, G](
-    BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
-):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class QAP[K: Hashable, N, E, G](BaseLAP[K, N, E, G], BaseGraphSimFunc[K, N, E, G]):
     """Graph similarity as a quadratic assignment problem.
 
     Mapping two graphs onto each other is a quadratic assignment problem, since the
-    contribution of an edge depends on where *both* of its endpoints are mapped.
-    `lap` sidesteps the quadratic term by folding an estimate of the edge cost into
+    contribution of an edge depends on where both of its endpoints are mapped.
+    `LAP` sidesteps the quadratic term by folding an estimate of the edge cost into
     the node costs, which makes it fast but approximate.
     This function keeps the quadratic term and states it as a binary linear program,
     which is the standard linearization of the problem and is solved exactly.
@@ -35,24 +43,25 @@ class qap[K, N, E, G](
     the mapping partial and injective, and an edge pair may only be selected if both
     of its endpoint pairs are, which makes the edges induced by the nodes.
 
-    The result is therefore identical to `astar` and `brute_force`, while the branch
+    The result is therefore identical to `Astar` and `BruteForce`, while the branch
     and bound of the solver is usually much faster than searching the mappings.
 
-    Args:
-        node_sim_func: A similarity function for node values.
-        edge_sim_func: A similarity function for edges.
-        node_matcher: A function that returns true if two nodes can be mapped legally.
-        edge_matcher: A function that returns true if two edges can be mapped legally.
-        time_limit: Seconds after which the solver returns the best mapping found so
-            far, which is then no longer guaranteed to be optimal.
-            Disabled by default.
+    Whenever a budget stops the solver before it proves optimality, the mapping of
+    `LAP` is computed as well and returned if it is better, and the result is not
+    flagged as `exact`.
 
-    Returns:
-        The similarity between a query and a case graph along with the mapping.
+    Args:
+        max_expansions: Number of branch and bound nodes after which the solver returns
+            the best mapping found so far.
+            Unlike `timeout`, this budget gives the same result on every run.
+            Unbounded by default.
+        timeout: Seconds after which the solver returns the best mapping found so
+            far, which then depends on the load of the machine.
+            Unbounded by default.
 
     Examples:
         >>> from ...model.graph import from_dict
-        >>> node_sim_func = lambda n1, n2: 1.0 if n1 == n2 else 0.0
+        >>> node_measure = lambda n1, n2: 1.0 if n1 == n2 else 0.0
         >>> data_x = {
         ...     "nodes": {"1": "A", "2": "B"},
         ...     "edges": {"e1": {"source": "1", "target": "2", "value": None}},
@@ -65,28 +74,32 @@ class qap[K, N, E, G](
         ... }
         >>> graph_x = from_dict(data_x)
         >>> graph_y = from_dict(data_y)
-        >>> sim = qap(node_sim_func)
-        >>> sim(graph_x, graph_x)
+        >>> sim = QAP(node_measure=node_measure)
+        >>> sim([(graph_x, graph_x)])[0]
         GraphSim(value=1.0,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 1.0}),
-            edge_similarities=frozendict.frozendict({'e1': 1.0}))
-        >>> sim(graph_x, graph_y)
+            similarities=frozendict({'1': 1.0, '2': 1.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 1.0}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=True)
+        >>> sim([(graph_x, graph_y)])[0]
         GraphSim(value=0.5,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 0.0}),
-            edge_similarities=frozendict.frozendict({'e1': 0.5}))
+            similarities=frozendict({'1': 1.0, '2': 0.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 0.5}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=True)
     """
 
-    time_limit: float | None = None
+    max_expansions: Annotated[int, Field(ge=0)] | None = None
+    timeout: Annotated[float, Field(ge=0)] | None = None
+    kind: Literal["qap"] = field(default="qap", repr=False)
 
     def assignment_constraint(
         self,
         node_pairs: list[tuple[K, K]],
         edge_pairs: list[tuple[K, K]],
-    ) -> LinearConstraint:
+    ) -> scipy.optimize.LinearConstraint:
         """Restricts every graph element to at most one of the pairs it occurs in.
 
         This is what makes the mapping partial and injective, for the nodes as well
@@ -108,20 +121,20 @@ class qap[K, N, E, G](
             row_indices += [row("query edge", y_key), row("case edge", x_key)]
             column_indices += [column, column]
 
-        matrix = coo_array(
+        matrix = scipy.sparse.coo_array(
             (np.ones(len(row_indices)), (row_indices, column_indices)),
             shape=(len(rows), len(node_pairs) + len(edge_pairs)),
         )
 
-        return LinearConstraint(matrix, 0, 1)
+        return scipy.optimize.LinearConstraint(matrix, 0, 1)
 
     def endpoint_constraint(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         node_pairs: list[tuple[K, K]],
         edge_pairs: list[tuple[K, K]],
-    ) -> LinearConstraint:
+    ) -> scipy.optimize.LinearConstraint:
         """Allows an edge pair only if both of its endpoint pairs are selected.
 
         This is the quadratic part of the problem, expressed as `edge - endpoint <= 0`
@@ -133,8 +146,8 @@ class qap[K, N, E, G](
         values: list[float] = []
 
         for offset, (y_key, x_key) in enumerate(edge_pairs):
-            y_edge = y.edges[y_key]
-            x_edge = x.edges[x_key]
+            y_edge = query.edges[y_key]
+            x_edge = case.edges[x_key]
             endpoints = (
                 (y_edge.source.key, x_edge.source.key),
                 (y_edge.target.key, x_edge.target.key),
@@ -145,45 +158,55 @@ class qap[K, N, E, G](
                 column_indices += [len(node_pairs) + offset, node_columns[endpoint]]
                 values += [1.0, -1.0]
 
-        matrix = coo_array(
+        matrix = scipy.sparse.coo_array(
             (values, (row_indices, column_indices)),
             shape=(2 * len(edge_pairs), len(node_pairs) + len(edge_pairs)),
         )
 
-        return LinearConstraint(matrix, -np.inf, 0)
+        return scipy.optimize.LinearConstraint(matrix, -np.inf, 0)
 
-    def solve(
+    def optimize(
         self,
-        x: Graph[K, N, E, G],
-        y: Graph[K, N, E, G],
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
         node_pairs: list[tuple[K, K]],
         edge_pairs: list[tuple[K, K]],
         objective: NumpyArray,
-    ) -> NumpyArray | None:
-        """Selects the pairs that maximize the total similarity."""
+    ) -> tuple[NumpyArray | None, bool]:
+        """Selects the pairs that maximize the total similarity.
+
+        Returns the selection, if any was found, and whether it is proven optimal.
+        """
         constraints = [self.assignment_constraint(node_pairs, edge_pairs)]
 
         if edge_pairs:
-            constraints.append(self.endpoint_constraint(x, y, node_pairs, edge_pairs))
+            constraints.append(
+                self.endpoint_constraint(case, query, node_pairs, edge_pairs)
+            )
 
-        result = milp(
+        result = scipy.optimize.milp(
             # The solver minimizes, so the similarities are negated to maximize them.
             -objective,
             integrality=np.ones(len(objective), dtype=int),
-            bounds=Bounds(0, 1),
+            bounds=scipy.optimize.Bounds(0, 1),
             constraints=constraints,
-            options={"time_limit": self.time_limit} if self.time_limit else None,
+            options={
+                "node_limit": UNLIMITED_NODES
+                if self.max_expansions is None
+                else self.max_expansions,
+                "time_limit": math.inf if self.timeout is None else self.timeout,
+            },
         )
 
         if result.x is None:
-            logger.warning(f"No mapping found: {result.message}")
+            logger.warning("No mapping found: %s", result.message)
 
-            return None
+            return None, False
 
         if result.status != 0:
-            logger.warning(f"Mapping may be suboptimal: {result.message}")
+            logger.warning("Mapping may be suboptimal: %s", result.message)
 
-        return np.round(result.x).astype(bool)
+        return np.round(result.x).astype(bool), result.status == 0
 
     def node_mapping(
         self,
@@ -206,20 +229,30 @@ class qap[K, N, E, G](
             )
         )
 
-    def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
-        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
+    @override
+    def solve(
+        self,
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
+        sims: PairSimilarities[K],
+    ) -> GraphSim[K]:
+        node_pair_sims, edge_pair_sims = sims.nodes, sims.edges
         node_pairs = list(node_pair_sims)
         edge_pairs = list(edge_pair_sims)
-        selected = (
-            self.solve(
-                x,
-                y,
+        # Without node pairs, the empty mapping is the only and thus optimal one.
+        selected, optimal = (
+            self.optimize(
+                case,
+                query,
                 node_pairs,
                 edge_pairs,
-                np.array(list(node_pair_sims.values()) + list(edge_pair_sims.values())),
+                np.array(
+                    [self.node_weight * sim for sim in node_pair_sims.values()]
+                    + [self.edge_weight * sim for sim in edge_pair_sims.values()]
+                ),
             )
             if node_pairs
-            else None
+            else (None, True)
         )
         node_mapping = (
             frozendict[K, K]()
@@ -227,13 +260,20 @@ class qap[K, N, E, G](
             else self.node_mapping(node_pairs, selected[: len(node_pairs)])
         )
 
+        node_mappings = [node_mapping]
+
+        if not optimal:
+            node_mappings.append(
+                self.lap_node_mapping(case, query, node_pair_sims, edge_pair_sims)
+            )
+
         # The edge variables drive the objective, but the mapping is derived from the
         # nodes so that it is maximal for the same reason as above.
-        return self.similarity(
-            x,
-            y,
-            node_mapping,
-            self.induced_edge_mapping(x, y, node_mapping, edge_pair_sims),
-            node_pair_sims,
-            edge_pair_sims,
+        # On a tie, the solution of the solver is kept.
+        return max(
+            (
+                self.similarity(case, query, mapping, sims, exact=optimal)
+                for mapping in node_mappings
+            ),
+            key=lambda sim: sim.value,
         )

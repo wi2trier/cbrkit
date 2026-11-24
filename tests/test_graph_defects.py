@@ -5,15 +5,20 @@ of each test names the behaviour that used to be wrong.
 The `G` identifiers refer to the audit these fixes came from.
 """
 
+import os
 import random
+import subprocess
+import sys
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 
 import cbrkit
+from cbrkit.helpers import batched, unbatchify
 from cbrkit.model.graph import Graph, from_dict
-from cbrkit.sim.graphs import SemanticEdgeSim, astar, init_empty
+from cbrkit.sim.graphs import InitEmpty, InitFromMeasure, SemanticEdge, astar
+from cbrkit.sim.graphs.lap import incident_edges
 
 type AnyGraph = Graph[Any, Any, Any, Any]
 
@@ -35,38 +40,43 @@ def equality(x: Any, y: Any) -> float:
     return 1.0 if x == y else 0.0
 
 
-def measures(*, partial_mapping: bool = False, **kwargs: Any) -> dict[str, Any]:
+def batch_measures(*, partial_mapping: bool = False, **kwargs: Any) -> dict[str, Any]:
     return {
-        "astar1": astar.build(
-            heuristic_func=astar.h1(),
-            selection_func=astar.select1(),
+        "astar1": astar.Astar(
+            heuristic=astar.Unmapped(),
+            selection=astar.InOrder(),
             partial_mapping=partial_mapping,
             **kwargs,
         ),
-        "astar2": astar.build(
-            heuristic_func=astar.h2(),
-            selection_func=astar.select2(),
+        "astar2": astar.Astar(
+            heuristic=astar.BestPair(),
+            selection=astar.EdgesFirst(),
             partial_mapping=partial_mapping,
             **kwargs,
         ),
-        "astar3": astar.build(partial_mapping=partial_mapping, **kwargs),
-        "astar4": astar.build(
-            heuristic_func=astar.h4(),
-            selection_func=astar.select4(),
+        "astar3": astar.Astar(partial_mapping=partial_mapping, **kwargs),
+        "astar4": astar.Astar(
+            heuristic=astar.OpenAssignment(),
+            selection=astar.AssignmentCost(),
             partial_mapping=partial_mapping,
             **kwargs,
         ),
-        "brute_force": cbrkit.sim.graphs.brute_force(**kwargs),
-        "dfs": cbrkit.sim.graphs.dfs(**kwargs),
-        "greedy": cbrkit.sim.graphs.greedy(**kwargs),
-        "lap": cbrkit.sim.graphs.lap(**kwargs),
-        "qap": cbrkit.sim.graphs.qap(**kwargs),
-        "vf2_networkx": cbrkit.sim.graphs.vf2_networkx(**kwargs),
-        "vf2_rustworkx": cbrkit.sim.graphs.vf2_rustworkx(**kwargs),
+        "brute_force": cbrkit.sim.graphs.BruteForce(**kwargs),
+        "dfs": cbrkit.sim.graphs.DFS(**kwargs),
+        "greedy": cbrkit.sim.graphs.Greedy(**kwargs),
+        "lap": cbrkit.sim.graphs.LAP(**kwargs),
+        "qap": cbrkit.sim.graphs.QAP(**kwargs),
+        "vf2_networkx": cbrkit.sim.graphs.VF2Networkx(**kwargs),
+        "vf2_rustworkx": cbrkit.sim.graphs.VF2Rustworkx(**kwargs),
     }
 
 
-MEASURES = measures(node_sim_func=equality)
+def measures(**kwargs: Any) -> dict[str, Any]:
+    return {name: unbatchify(func) for name, func in batch_measures(**kwargs).items()}
+
+
+MEASURES = measures(node_measure=equality)
+EXACT = {"brute_force", "qap"}
 
 
 def random_graph(rng: random.Random) -> AnyGraph:
@@ -82,7 +92,7 @@ def random_graph(rng: random.Random) -> AnyGraph:
 
 def is_legal(x: AnyGraph, y: AnyGraph, sim: Any) -> bool:
     """Checks legality as defined by Bergmann and Gil (2014)."""
-    node_mapping, edge_mapping = sim.node_mapping, sim.edge_mapping
+    node_mapping, edge_mapping = sim.mapping, sim.edge_mapping
 
     if len(set(node_mapping.values())) != len(node_mapping):
         return False
@@ -112,6 +122,17 @@ def test_parallel_edges_map_injectively(name: str) -> None:
     assert sim.value == pytest.approx(0.75)
 
 
+@pytest.mark.parametrize("name", MEASURES)
+def test_mappings_are_legal(name: str) -> None:
+    """`dfs` took the edges from the networkx edit path, which mixes up parallel edges."""
+    rng = random.Random(1)
+
+    for _ in range(25):
+        x, y = random_graph(rng), random_graph(rng)
+
+        assert is_legal(x, y, MEASURES[name](x, y))
+
+
 def test_competing_edges_are_matched_optimally() -> None:
     """G1: competing candidates were claimed greedily, which is not the best pairing."""
     nodes = {"n0": "A", "n1": "B"}
@@ -119,14 +140,14 @@ def test_competing_edges_are_matched_optimally() -> None:
     y = graph(nodes, {"e0": ("n0", "n1", "P"), "e1": ("n0", "n1", "R")})
     sims = {("P", "P"): 0.9, ("P", "Q"): 0.8, ("R", "P"): 0.85, ("R", "Q"): 0.1}
 
-    def edge_sim_func(case: Any, query: Any) -> float:
+    def edge_measure(case: Any, query: Any) -> float:
         return sims[query, case]
 
-    func = cbrkit.sim.graphs.brute_force(
-        node_sim_func=equality,
-        edge_sim_func=SemanticEdgeSim(edge_sim_func=edge_sim_func),
+    func = cbrkit.sim.graphs.BruteForce(
+        node_measure=equality,
+        edge_measure=SemanticEdge(value_measure=edge_measure),
     )
-    _, edge_pair_sims = func.pair_similarities(x, y)
+    edge_pair_sims = func.batch_pair_similarities([(x, y)])[0].edges
     mapping = func.induced_edge_mapping(x, y, {"n0": "n0", "n1": "n1"}, edge_pair_sims)
 
     assert dict(mapping) == {"e0": "e1", "e1": "e0"}
@@ -142,16 +163,16 @@ def test_astar_searches_competing_edges_from_default_initialization() -> None:
     x = graph(nodes, {"e0": ("n0", "n1", "P"), "e1": ("n0", "n1", "Q")})
     y = graph(nodes, {"e0": ("n0", "n1", "Q"), "e1": ("n0", "n1", "P")})
     kwargs: dict[str, Any] = {
-        "node_sim_func": equality,
-        "edge_sim_func": SemanticEdgeSim(edge_sim_func=equality),
+        "node_measure": equality,
+        "edge_measure": SemanticEdge(value_measure=equality),
         "node_matcher": lambda a, b: a == b,
     }
 
-    sim = astar.build(**kwargs)(x, y)
+    sim = unbatchify(astar.Astar(**kwargs))(x, y)
 
     assert sim.value == pytest.approx(1.0)
     assert dict(sim.edge_mapping) == {"e0": "e1", "e1": "e0"}
-    assert sim.value == cbrkit.sim.graphs.brute_force(**kwargs)(x, y).value
+    assert sim.value == unbatchify(cbrkit.sim.graphs.BruteForce(**kwargs))(x, y).value
 
 
 def test_edge_matching_does_not_trade_similarity_for_count() -> None:
@@ -161,15 +182,15 @@ def test_edge_matching_does_not_trade_similarity_for_count() -> None:
     y = graph(nodes, {"q0": ("n0", "n1", "Q0"), "q1": ("n0", "n1", "Q1")})
     sims = {("Q0", "C0"): 0.9, ("Q0", "C1"): 0.05, ("Q1", "C0"): 0.05}
 
-    def edge_sim_func(case: Any, query: Any) -> float:
+    def edge_measure(case: Any, query: Any) -> float:
         return sims[query, case]
 
-    func = cbrkit.sim.graphs.brute_force(
-        node_sim_func=equality,
-        edge_sim_func=SemanticEdgeSim(edge_sim_func=edge_sim_func),
+    func = cbrkit.sim.graphs.BruteForce(
+        node_measure=equality,
+        edge_measure=SemanticEdge(value_measure=edge_measure),
         edge_matcher=lambda case, query: (query, case) in sims,
     )
-    _, edge_pair_sims = func.pair_similarities(x, y)
+    edge_pair_sims = func.batch_pair_similarities([(x, y)])[0].edges
     mapping = func.induced_edge_mapping(x, y, {"n0": "n0", "n1": "n1"}, edge_pair_sims)
 
     assert dict(mapping) == {"q0": "c0"}
@@ -177,7 +198,12 @@ def test_edge_matching_does_not_trade_similarity_for_count() -> None:
 
 @pytest.mark.parametrize(
     "costs",
-    [{}, {"node_del_cost": 0.5}, {"node_del_cost": 2.0}, {"edge_del_cost": 0.25}],
+    [
+        {},
+        {"node_deletion_cost": 0.5},
+        {"node_deletion_cost": 2.0},
+        {"edge_deletion_cost": 0.25},
+    ],
 )
 def test_exact_measures_agree(costs: dict[str, float]) -> None:
     """G2/G3: A* had to map every mappable element and mis-normalized its heuristics.
@@ -186,7 +212,7 @@ def test_exact_measures_agree(costs: dict[str, float]) -> None:
     the search based measures on every input.
     """
     rng = random.Random(0)
-    funcs = measures(node_sim_func=equality, partial_mapping=True, **costs)
+    funcs = measures(node_measure=equality, partial_mapping=True, **costs)
     reference = funcs["brute_force"]
 
     for _ in range(25):
@@ -194,10 +220,12 @@ def test_exact_measures_agree(costs: dict[str, float]) -> None:
         optimum = reference(x, y).value
 
         for name, func in funcs.items():
-            if not name.startswith("astar") and name != "qap":
-                continue
+            sim = func(x, y)
 
-            assert func(x, y).value == pytest.approx(optimum), name
+            if name.startswith("astar") or name == "qap":
+                assert sim.value == pytest.approx(optimum), name
+
+            assert sim.exact == (name.startswith("astar") or name in EXACT), name
 
 
 # The only case node fits both query nodes, but only the second one carries an edge
@@ -208,34 +236,36 @@ PARTIAL_QUERY = graph({"n0": "A", "n1": "A"}, {"e0": ("n1", "n1", "B")})
 
 def test_partial_mapping_must_be_enabled_for_the_optimum() -> None:
     """G2: the smaller default search omits the branch required for the optimum."""
-    default_func = astar.build(node_sim_func=equality)
-    exact_func = astar.build(node_sim_func=equality, partial_mapping=True)
+    default_func = unbatchify(astar.Astar(node_measure=equality))
+    exact_func = unbatchify(astar.Astar(node_measure=equality, partial_mapping=True))
     default_sim = default_func(PARTIAL_CASE, PARTIAL_QUERY)
     exact_sim = exact_func(PARTIAL_CASE, PARTIAL_QUERY)
 
     assert default_sim.value == pytest.approx(1 / 3)
     assert exact_sim.value == pytest.approx(2 / 3)
-    assert dict(exact_sim.node_mapping) == {"n1": "n0"}
+    assert dict(exact_sim.mapping) == {"n1": "n0"}
 
 
 def expanded_states(enabled: bool) -> tuple[float, int]:
     """Runs A* on the partial mapping example and counts the states it expands."""
     visited: list[int] = []
 
-    class counting(astar.build[Any, Any, Any, Any]):
+    class counting(astar.Astar[Any, Any, Any, Any]):
         def compute_priority(
             self,
-            x: AnyGraph,
-            y: AnyGraph,
+            case: AnyGraph,
+            query: AnyGraph,
             state: Any,
             node_pair_sims: Any,
             edge_pair_sims: Any,
         ) -> float:
             visited.append(1)
 
-            return super().compute_priority(x, y, state, node_pair_sims, edge_pair_sims)
+            return super().compute_priority(
+                case, query, state, node_pair_sims, edge_pair_sims
+            )
 
-    sim = counting(node_sim_func=equality, partial_mapping=enabled)(
+    sim = unbatchify(counting(node_measure=equality, partial_mapping=enabled))(
         PARTIAL_CASE, PARTIAL_QUERY
     )
 
@@ -256,24 +286,24 @@ def test_zero_similarity_node_is_mapped() -> None:
     """G4: `dfs` tested the similarity for truthiness, so zero meant infeasible."""
     x = graph({"a": "A", "b": "B"}, {"e": ("a", "b", None)})
     y = graph({"a": "A", "b": "Z"}, {"e": ("a", "b", None)})
-    sim = cbrkit.sim.graphs.dfs(node_sim_func=equality)(x, y)
+    sim = unbatchify(cbrkit.sim.graphs.DFS(node_measure=equality))(x, y)
 
-    assert dict(sim.node_mapping) == {"a": "a", "b": "b"}
+    assert dict(sim.mapping) == {"a": "a", "b": "b"}
 
 
 def test_vf2_visits_every_subgraph_once() -> None:
     """G5: the fallback enumerated removal sequences, which grows factorially."""
     visited: list[frozenset[str]] = []
 
-    class counting(cbrkit.sim.graphs.vf2_networkx[Any, Any, Any, Any]):
-        def node_mappings(self, x: AnyGraph, y: AnyGraph) -> Any:
-            visited.append(frozenset(y.nodes.keys()))
+    class counting(cbrkit.sim.graphs.VF2Networkx[Any, Any, Any, Any]):
+        def node_mappings(self, case: AnyGraph, query: AnyGraph) -> Any:
+            visited.append(frozenset(query.nodes.keys()))
 
-            return super().node_mappings(x, y)
+            return super().node_mappings(case, query)
 
     x = graph({"c0": "Z"}, {})
     y = graph({f"n{i}": "A" for i in range(6)}, {})
-    counting(node_sim_func=equality, node_matcher=lambda a, b: a == b)(x, y)
+    counting(node_measure=equality, node_matcher=lambda a, b: a == b)([(x, y)])
 
     assert len(visited) == len(set(visited)) == 2**6
 
@@ -283,7 +313,7 @@ def test_node_pairs_are_scored_once(name: str) -> None:
     """G6: `brute_force` and `vf2` rescored every pair for every candidate mapping."""
     calls: list[tuple[Any, Any]] = []
 
-    def node_sim_func(case: Any, query: Any) -> float:
+    def node_measure(case: Any, query: Any) -> float:
         calls.append((case, query))
 
         return equality(case, query)
@@ -296,7 +326,7 @@ def test_node_pairs_are_scored_once(name: str) -> None:
         {f"q{i}": chr(65 + i) for i in range(4)},
         {"f0": ("q0", "q1", None), "f1": ("q1", "q2", None)},
     )
-    measures(node_sim_func=node_sim_func)[name](x, y)
+    measures(node_measure=node_measure)[name](x, y)
 
     assert len(calls) == len(set(calls)) == len(x.nodes) * len(y.nodes)
 
@@ -313,33 +343,58 @@ def test_dead_end_branch_keeps_its_mapping() -> None:
             if len(s.open_y_nodes) + len(s.open_y_edges) < len(y.nodes) + len(y.edges):
                 return None
 
-            return astar.select1()(x, y, s, node_sims, edge_sims)
+            return astar.InOrder()(x, y, s, node_sims, edge_sims)
 
     x = graph({"n0": "A", "n1": "B"}, {"e0": ("n0", "n1", None)})
     y = graph({"m0": "A", "m1": "B"}, {"f0": ("m0", "m1", None)})
-    sim = astar.build(
-        node_sim_func=equality,
-        selection_func=give_up_after_one(),
-        init_func=init_empty(),
-    )(x, y)
+    sim = astar.Astar(
+        node_measure=equality,
+        selection=give_up_after_one(),
+        init=InitEmpty(),
+    )([(x, y)])[0]
 
-    assert sim.node_mapping
+    assert sim.mapping
+
+
+def test_search_starts_from_a_measure() -> None:
+    """A measure as the initialization was told apart from the inits by its MRO."""
+    x = graph({"n0": "A", "n1": "B"}, {"e0": ("n0", "n1", None)})
+    y = graph({"m0": "A", "m1": "B"}, {"f0": ("m0", "m1", None)})
+    init = InitFromMeasure(measure=cbrkit.sim.graphs.LAP(node_measure=equality))
+    func = astar.Astar(node_measure=equality, init=init)
+
+    assert func.init_search_state(x, y).node_mapping == {"m0": "n0", "m1": "n1"}
+    assert unbatchify(func)(x, y).value == 1.0
 
 
 def test_pathlength_weight_favors_long_paths() -> None:
-    """G9: edit costs below the defaults made the priority negative, inverting it."""
+    """G9: dividing by the path length factor has to favor long paths."""
     x = graph({"n0": "A", "n1": "B"}, {"e0": ("n0", "n1", None)})
-    y = graph({"m0": "A", "m1": "B"}, {"f0": ("m0", "m1", None)})
-    func = astar.build(node_sim_func=equality, pathlength_weight=2, node_del_cost=0.5)
-    node_sims, edge_sims = func.pair_similarities(x, y)
+    y = graph({"m0": "A", "m1": "C"}, {"f0": ("m0", "m1", None)})
+    func = astar.Astar(
+        node_measure=equality, pathlength_weight=2, node_deletion_cost=0.5
+    )
+    sims = func.batch_pair_similarities([(x, y)])[0]
+    node_sims, edge_sims = sims.nodes, sims.edges
     root = func.init_search_state(x, y)
     deeper = func.expand(x, y, root, node_sims, edge_sims)[0]
 
     root_priority = func.compute_priority(x, y, root, node_sims, edge_sims)
     deeper_priority = func.compute_priority(x, y, deeper, node_sims, edge_sims)
 
-    assert root_priority < 0.0
+    assert root_priority > 0.0
     assert deeper_priority < root_priority
+
+
+@pytest.mark.parametrize("name", MEASURES)
+def test_costs_act_as_weights(name: str) -> None:
+    """Costs other than one let the similarity of identical graphs exceed one."""
+    g = graph({"n0": "A", "n1": "B"}, {"e0": ("n0", "n1", None)})
+    func = measures(
+        node_measure=equality, edge_deletion_cost=0.5, node_insertion_cost=2.0
+    )[name]
+
+    assert func(g, g).value == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("name", MEASURES)
@@ -357,22 +412,137 @@ def test_vf2_backends_agree() -> None:
 
     for _ in range(50):
         x, y = random_graph(rng), random_graph(rng)
-        networkx = cbrkit.sim.graphs.vf2_networkx(
-            node_sim_func=equality, node_matcher=matcher
-        )(x, y)
-        rustworkx = cbrkit.sim.graphs.vf2_rustworkx(
-            node_sim_func=equality, node_matcher=matcher
-        )(x, y)
+        networkx = cbrkit.sim.graphs.VF2Networkx(
+            node_measure=equality, node_matcher=matcher
+        )([(x, y)])[0]
+        rustworkx = cbrkit.sim.graphs.VF2Rustworkx(
+            node_measure=equality, node_matcher=matcher
+        )([(x, y)])[0]
 
         assert networkx.value == pytest.approx(rustworkx.value)
 
 
 def test_connected_edges_are_ordered() -> None:
     """G12: a set was returned, so the greedy edge cost depended on iteration order."""
-    func = cbrkit.sim.graphs.lap(node_sim_func=equality)
     g = graph(
         {"alpha": "A", "beta": "B"},
         {f"e{i}": ("alpha", "beta", None) for i in range(4)},
     )
 
-    assert func.connected_edges(g, "alpha") == list(g.edges.keys())
+    assert incident_edges(g)["alpha"] == list(g.edges.keys())
+
+
+DETERMINISM_SCRIPT = """
+import random
+import cbrkit
+from cbrkit.helpers import unbatchify
+from tests.test_graph_defects import astar, graph, measures
+
+rng = random.Random(3)
+funcs = measures(node_measure=lambda x, y: 1.0 if x[0] == y[0] else 0.5)
+funcs["astar_budget"] = unbatchify(astar.Astar(
+    node_measure=lambda x, y: 1.0 if x[0] == y[0] else 0.5, max_expansions=3
+))
+funcs["qap_budget"] = unbatchify(cbrkit.sim.graphs.QAP(
+    node_measure=lambda x, y: 1.0 if x[0] == y[0] else 0.5, max_expansions=0
+))
+
+for _ in range(10):
+    pair = []
+
+    for _ in range(2):
+        keys = [str(i) for i in range(rng.randint(2, 5))]
+        nodes = {key: rng.choice(["A1", "A2", "B1"]) for key in keys}
+        edges = {
+            str(i): (rng.choice(keys), rng.choice(keys), None)
+            for i in range(rng.randint(1, 5))
+        }
+        pair.append(graph(nodes, edges))
+
+    for name, func in funcs.items():
+        sim = func(*pair)
+        print(name, sim.value, sim.exact, sorted(sim.mapping.items()))
+"""
+
+
+def test_results_do_not_depend_on_hash_seed() -> None:
+    """Set iteration order depends on the hash seed, which made `greedy` vary."""
+    outputs = {
+        subprocess.run(
+            [sys.executable, "-c", DETERMINISM_SCRIPT],
+            env=os.environ | {"PYTHONHASHSEED": str(seed)},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        for seed in range(4)
+    }
+
+    assert len(outputs) == 1
+
+
+def test_lap_explains_attribute_scores() -> None:
+    """Node similarities were reduced to floats, which lost the per-attribute scores."""
+    x = graph({"n0": {"name": "a", "kind": "t"}, "n1": {"name": "b", "kind": "t"}}, {})
+    y = graph({"m0": {"name": "a", "kind": "t"}, "m1": {"name": "z", "kind": "g"}}, {})
+    node_measure = cbrkit.sim.AttributeValue(
+        attributes={"name": equality, "kind": equality},
+        aggregator=cbrkit.sim.Aggregator(),
+    )
+    func = cbrkit.sim.graphs.LAP(
+        node_measure=node_measure,
+        node_matcher=lambda a, b: a["kind"] == b["kind"],
+    )
+    explanation = cbrkit.sim.explain(x, y, func([(x, y)])[0], func)
+    mapping = explanation.graph
+
+    assert explanation.similarity == 0.5 and mapping is not None
+    assert [(node.query, node.case) for node in mapping.nodes] == [("m0", "n0")]
+    assert {
+        name: (item.similarity, item.query, item.contribution)
+        for name, item in mapping.nodes[0].attributes.items()
+    } == {"name": (1.0, "a", 0.5), "kind": (1.0, "t", 0.5)}
+    assert (mapping.unmapped_nodes, mapping.node_coverage) == (["m1"], 0.5)
+
+
+@pytest.mark.parametrize("name", MEASURES)
+def test_measures_batch_node_similarities(name: str) -> None:
+    """Node similarities were computed per graph pair, so per case for a case base."""
+    calls: list[int] = []
+
+    @batched
+    def node_measure(batches: Any) -> list[float]:
+        calls.append(len(batches))
+
+        return [equality(x, y) for x, y in batches]
+
+    g = graph({"n0": "A", "n1": "B"}, {"e0": ("n0", "n1", None)})
+    func = batch_measures(node_measure=node_measure)[name]
+
+    assert [sim.value for sim in func([(g, g), (g, g)])] == [1.0, 1.0]
+    assert calls == [8]
+
+
+def test_budgets_return_approximate_results() -> None:
+    """Budgets have to cut the search deterministically and flag the result."""
+    rng = random.Random(5)
+    optimum = unbatchify(cbrkit.sim.graphs.BruteForce(node_measure=equality))
+    lap = unbatchify(cbrkit.sim.graphs.LAP(node_measure=equality))
+    qap = unbatchify(cbrkit.sim.graphs.QAP(node_measure=equality, max_expansions=0))
+    search = unbatchify(
+        astar.Astar(node_measure=equality, partial_mapping=True, max_expansions=1)
+    )
+    results = []
+
+    for _ in range(25):
+        x, y = random_graph(rng), random_graph(rng)
+        best = optimum(x, y).value
+        qap_sim, astar_sim = qap(x, y), search(x, y)
+
+        assert qap_sim.value >= lap(x, y).value - 1e-9
+        assert qap_sim.exact or qap_sim.value <= best + 1e-9
+        assert astar_sim.exact or astar_sim.value <= best + 1e-9
+        assert is_legal(x, y, astar_sim)
+        results += [qap_sim.exact, astar_sim.exact]
+
+    assert not all(results)

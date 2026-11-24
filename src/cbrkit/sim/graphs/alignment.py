@@ -1,29 +1,51 @@
-from collections.abc import Sequence
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from collections.abc import Hashable, Sequence
+from dataclasses import dataclass, field
+from typing import Annotated, Literal, override
 
-from frozendict import frozendict
+from pydantic import Field
 
-from ...model.graph import Graph, Node, to_sequence
+from ...helpers import frozendict
+from ...model.graph import Graph, to_sequence
+from ...model.similarity import Alignment, GraphSim, SequenceSim
+from ...schema import serializable
 from ...typing import SimFunc
-from ..collections import SequenceSim
-from ..collections import dtw as collections_dtw
-from ..collections import smith_waterman as collections_smith_waterman
-from ..collections import twed as collections_twed
-from .common import BaseGraphSimFunc, GraphSim, PairSim, extend_maximal
+from ..collections import DTW, TWED, SmithWaterman
+from ._base import BaseGraphSimFunc, PairSim, PairSimilarities, extend_maximal
 
 __all__ = [
-    "dtw",
-    "smith_waterman",
-    "twed",
+    "GraphDTW",
+    "GraphSmithWaterman",
+    "GraphTWED",
 ]
 
-type NodeAlignment[K, N] = Sequence[tuple[Node[K, N] | None, Node[K, N] | None]]
+
+@dataclass(slots=True, frozen=True)
+class AlignedNode[K: Hashable]:
+    """A node of a graph pair as an element of the aligned sequences.
+
+    Args:
+        key: Key of the node.
+        sims: Similarities of the legal node pairs of the graph pair.
+    """
+
+    key: K
+    sims: PairSim[K] = field(repr=False, compare=False)
 
 
-@dataclass(slots=True)
-class BaseAlignmentSimFunc[K, N, E, G](
-    BaseGraphSimFunc[K, N, E, G], SimFunc[Graph[K, N, E, G], GraphSim[K]]
-):
+def _node_similarity[K: Hashable](case: AlignedNode[K], query: AlignedNode[K]) -> float:
+    """Looks up the similarity of a case node and a query node, zero for an illegal pair."""
+    return case.sims.get((query.key, case.key), 0.0)
+
+
+type Aligner[K: Hashable] = SimFunc[
+    Sequence[AlignedNode[K]], SequenceSim[AlignedNode[K], float]
+]
+"""A sequence measure that aligns the nodes of a graph pair."""
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class BaseAlignmentSimFunc[K: Hashable, N, E, G](BaseGraphSimFunc[K, N, E, G], ABC):
     """
     Base class for graph similarity functions that align the graphs as node sequences.
 
@@ -36,18 +58,20 @@ class BaseAlignmentSimFunc[K, N, E, G](
     graph similarity functions.
     """
 
-    def align(
-        self,
-        sequence_x: Sequence[Node[K, N]],
-        sequence_y: Sequence[Node[K, N]],
-        node_pair_sims: PairSim[K],
-    ) -> SequenceSim[Node[K, N], float]:
-        """Align the two node sequences, returning the alignment as a mapping."""
-        raise NotImplementedError
+    _aligner: Aligner[K] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        super(BaseAlignmentSimFunc, self).__post_init__()
+        object.__setattr__(self, "_aligner", self.aligner(_node_similarity))
+
+    @abstractmethod
+    def aligner(self, element_measure: SimFunc[AlignedNode[K], float]) -> Aligner[K]:
+        """The sequence measure that aligns the nodes by the given node similarity."""
+        ...
 
     def legal_node_mapping(
         self,
-        alignment: NodeAlignment[K, N],
+        alignment: Alignment[AlignedNode[K]],
         node_pair_sims: PairSim[K],
     ) -> frozendict[K, K]:
         """
@@ -73,26 +97,30 @@ class BaseAlignmentSimFunc[K, N, E, G](
             extend_maximal({}, ((y_key, x_key) for _, y_key, x_key in candidates))
         )
 
-    def __call__(self, x: Graph[K, N, E, G], y: Graph[K, N, E, G]) -> GraphSim[K]:
-        sequence_x, _ = to_sequence(x)
-        sequence_y, _ = to_sequence(y)
-        node_pair_sims, edge_pair_sims = self.pair_similarities(x, y)
-
-        alignment = self.align(sequence_x, sequence_y, node_pair_sims).mapping or []
-        node_mapping = self.legal_node_mapping(alignment, node_pair_sims)
-
-        return self.similarity(
-            x,
-            y,
-            node_mapping,
-            self.induced_edge_mapping(x, y, node_mapping, edge_pair_sims),
-            node_pair_sims,
-            edge_pair_sims,
+    @override
+    def solve(
+        self,
+        case: Graph[K, N, E, G],
+        query: Graph[K, N, E, G],
+        sims: PairSimilarities[K],
+    ) -> GraphSim[K]:
+        sequence_x, _ = to_sequence(case)
+        sequence_y, _ = to_sequence(query)
+        alignment = (
+            self._aligner(
+                [AlignedNode(node.key, sims.nodes) for node in sequence_x],
+                [AlignedNode(node.key, sims.nodes) for node in sequence_y],
+            ).mapping
+            or ()
         )
+        node_mapping = self.legal_node_mapping(alignment, sims.nodes)
+
+        return self.similarity(case, query, node_mapping, sims)
 
 
-@dataclass(slots=True)
-class dtw[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class GraphDTW[K: Hashable, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
     """
     Graph similarity function based on Dynamic Time Warping of the node sequences.
 
@@ -100,13 +128,9 @@ class dtw[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
     DTW may warp several query nodes onto the same case node, in which case only the
     most similar of these pairs is kept to obtain a legal mapping.
 
-    Args:
-        node_sim_func: A similarity function for node values.
-        edge_sim_func: A similarity function for edges.
-
     Examples:
         >>> from ...model.graph import from_dict
-        >>> node_sim_func = lambda n1, n2: 1.0 if n1 == n2 else 0.0
+        >>> node_measure = lambda n1, n2: 1.0 if n1 == n2 else 0.0
         >>> data_x = {
         ...     "nodes": {"1": "A", "2": "B"},
         ...     "edges": {"e1": {"source": "1", "target": "2", "value": None}},
@@ -119,53 +143,47 @@ class dtw[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
         ... }
         >>> graph_x = from_dict(data_x)
         >>> graph_y = from_dict(data_y)
-        >>> sim = dtw(node_sim_func)
-        >>> sim(graph_x, graph_x)
+        >>> sim = GraphDTW(node_measure=node_measure)
+        >>> sim([(graph_x, graph_x)])[0]
         GraphSim(value=1.0,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 1.0}),
-            edge_similarities=frozendict.frozendict({'e1': 1.0}))
-        >>> sim(graph_x, graph_y)
+            similarities=frozendict({'1': 1.0, '2': 1.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 1.0}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
+        >>> sim([(graph_x, graph_y)])[0]
         GraphSim(value=0.5,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 0.0}),
-            edge_similarities=frozendict.frozendict({'e1': 0.5}))
+            similarities=frozendict({'1': 1.0, '2': 0.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 0.5}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
     """
 
-    def align(
-        self,
-        sequence_x: Sequence[Node[K, N]],
-        sequence_y: Sequence[Node[K, N]],
-        node_pair_sims: PairSim[K],
-    ) -> SequenceSim[Node[K, N], float]:
-        def distance_func(x_node: Node[K, N], y_node: Node[K, N]) -> float:
-            return 1.0 - node_pair_sims.get((y_node.key, x_node.key), 0.0)
+    kind: Literal["graph_dtw"] = field(default="graph_dtw", repr=False)
 
-        return collections_dtw(distance_func)(
-            sequence_x, sequence_y, return_alignment=True
-        )
+    @override
+    def aligner(self, element_measure: SimFunc[AlignedNode[K], float]) -> Aligner[K]:
+        return DTW(element_measure=element_measure, alignment=True)
 
 
-@dataclass(slots=True)
-class twed[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class GraphTWED[K: Hashable, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
     """
     Graph similarity function based on the Time Warp Edit Distance of the node sequences.
 
-    In contrast to `dtw`, nodes without a good counterpart are deleted instead of being
+    In contrast to `GraphDTW`, nodes without a good counterpart are deleted instead of being
     warped onto an already mapped node, so the alignment is injective by construction.
     The node similarity is converted into a distance, since TWED minimizes a cost.
 
     Args:
-        node_sim_func: A similarity function for node values.
-        edge_sim_func: A similarity function for edges.
         stiffness: Elasticity along the node sequence, called nu in the TWED paper.
         penalty: Constant cost of deleting a node, called lambda in the TWED paper.
 
     Examples:
         >>> from ...model.graph import from_dict
-        >>> node_sim_func = lambda n1, n2: 1.0 if n1 == n2 else 0.0
+        >>> node_measure = lambda n1, n2: 1.0 if n1 == n2 else 0.0
         >>> data_x = {
         ...     "nodes": {"1": "A", "2": "B"},
         ...     "edges": {"e1": {"source": "1", "target": "2", "value": None}},
@@ -178,40 +196,40 @@ class twed[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
         ... }
         >>> graph_x = from_dict(data_x)
         >>> graph_y = from_dict(data_y)
-        >>> sim = twed(node_sim_func)
-        >>> sim(graph_x, graph_x)
+        >>> sim = GraphTWED(node_measure=node_measure)
+        >>> sim([(graph_x, graph_x)])[0]
         GraphSim(value=1.0,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 1.0}),
-            edge_similarities=frozendict.frozendict({'e1': 1.0}))
-        >>> sim(graph_x, graph_y)
+            similarities=frozendict({'1': 1.0, '2': 1.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 1.0}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
+        >>> sim([(graph_x, graph_y)])[0]
         GraphSim(value=0.5,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 0.0}),
-            edge_similarities=frozendict.frozendict({'e1': 0.5}))
+            similarities=frozendict({'1': 1.0, '2': 0.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 0.5}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
     """
 
-    stiffness: float = 0.001
-    penalty: float = 1.0
+    stiffness: Annotated[float, Field(ge=0)] = 0.001
+    penalty: Annotated[float, Field(ge=0)] = 1.0
+    kind: Literal["graph_twed"] = field(default="graph_twed", repr=False)
 
-    def align(
-        self,
-        sequence_x: Sequence[Node[K, N]],
-        sequence_y: Sequence[Node[K, N]],
-        node_pair_sims: PairSim[K],
-    ) -> SequenceSim[Node[K, N], float]:
-        def distance_func(x_node: Node[K, N], y_node: Node[K, N]) -> float:
-            return 1.0 - node_pair_sims.get((y_node.key, x_node.key), 0.0)
-
-        return collections_twed(
-            distance_func, stiffness=self.stiffness, penalty=self.penalty
-        )(sequence_x, sequence_y, return_alignment=True)
+    @override
+    def aligner(self, element_measure: SimFunc[AlignedNode[K], float]) -> Aligner[K]:
+        return TWED(
+            element_measure=element_measure,
+            stiffness=self.stiffness,
+            penalty=self.penalty,
+            alignment=True,
+        )
 
 
-@dataclass(slots=True)
-class smith_waterman[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class GraphSmithWaterman[K: Hashable, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
     """
     Graph similarity function based on the Smith-Waterman alignment of the node sequences.
 
@@ -219,14 +237,12 @@ class smith_waterman[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
     the aligned region remain unmapped and contribute a similarity of zero.
 
     Args:
-        node_sim_func: A similarity function for node values.
-        edge_sim_func: A similarity function for edges.
         deletion_penalty: Score of skipping a node of the query.
         insertion_penalty: Score of skipping a node of the case.
 
     Examples:
         >>> from ...model.graph import from_dict
-        >>> node_sim_func = lambda n1, n2: 1.0 if n1 == n2 else 0.0
+        >>> node_measure = lambda n1, n2: 1.0 if n1 == n2 else 0.0
         >>> data_x = {
         ...     "nodes": {"1": "A", "2": "B"},
         ...     "edges": {"e1": {"source": "1", "target": "2", "value": None}},
@@ -239,35 +255,34 @@ class smith_waterman[K, N, E, G](BaseAlignmentSimFunc[K, N, E, G]):
         ... }
         >>> graph_x = from_dict(data_x)
         >>> graph_y = from_dict(data_y)
-        >>> sim = smith_waterman(node_sim_func)
-        >>> sim(graph_x, graph_x)
+        >>> sim = GraphSmithWaterman(node_measure=node_measure)
+        >>> sim([(graph_x, graph_x)])[0]
         GraphSim(value=1.0,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 1.0}),
-            edge_similarities=frozendict.frozendict({'e1': 1.0}))
-        >>> sim(graph_x, graph_y)
+            similarities=frozendict({'1': 1.0, '2': 1.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 1.0}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
+        >>> sim([(graph_x, graph_y)])[0]
         GraphSim(value=0.5,
-            node_mapping=frozendict.frozendict({'1': '1', '2': '2'}),
-            edge_mapping=frozendict.frozendict({'e1': 'e1'}),
-            node_similarities=frozendict.frozendict({'1': 1.0, '2': 0.0}),
-            edge_similarities=frozendict.frozendict({'e1': 0.5}))
+            similarities=frozendict({'1': 1.0, '2': 0.0}),
+            mapping=frozendict({'1': '1', '2': '2'}),
+            edge_similarities=frozendict({'e1': 0.5}),
+            edge_mapping=frozendict({'e1': 'e1'}),
+            exact=False)
     """
 
     deletion_penalty: float = -1.0
     insertion_penalty: float = -1.0
+    kind: Literal["graph_smith_waterman"] = field(
+        default="graph_smith_waterman", repr=False
+    )
 
-    def align(
-        self,
-        sequence_x: Sequence[Node[K, N]],
-        sequence_y: Sequence[Node[K, N]],
-        node_pair_sims: PairSim[K],
-    ) -> SequenceSim[Node[K, N], float]:
-        def element_similarity(x_node: Node[K, N], y_node: Node[K, N]) -> float:
-            return node_pair_sims.get((y_node.key, x_node.key), 0.0)
-
-        return collections_smith_waterman(
-            element_similarity,
+    @override
+    def aligner(self, element_measure: SimFunc[AlignedNode[K], float]) -> Aligner[K]:
+        return SmithWaterman(
+            element_measure=element_measure,
             deletion_penalty=self.deletion_penalty,
             insertion_penalty=self.insertion_penalty,
-        )(sequence_x, sequence_y, return_alignment=True)
+            alignment=True,
+        )
