@@ -1,68 +1,32 @@
-"""Retain phase for deciding whether to store solved cases back into the casebase.
+"""Retain phase: storing the solutions that revise accepted in the case base.
 
-The retain phase evaluates solved cases and integrates them into the casebase
-using storage functions.
-Cases are assessed with a similarity function and stored via a storage backend.
+Revise assesses solutions and retain stores those it accepted, without assessing them again,
+so a `Retainer` is the last function of the cycle in `cbrkit.cycle`.
+A run plans the changes of the case base, additions of solutions or merges with the stored cases they duplicate,
+as one `cbrkit.model.Changes` of typed changes with their reasons,
+and applies them as one mutation of a storage implementing `cbrkit.typing.Storage`,
+the protocol of the storages of `cbrkit.indexable` that allocate the keys of new cases.
+The storage applies changes only if it still holds the cases they were planned on,
+so concurrent runs never overwrite each other, and a refused run is planned again.
+Retained cases are immediately visible to runs that read the storage,
+such as `cbrkit.cycle.run_query(storage, query, ...)` or the retrievers of the database storages.
+Maintaining the whole case base, such as removing cases by competence, is a separate activity, see `cbrkit.maintain`.
 
-Building Retainers:
-- `build`: Creates a retainer from an assessment function (`assess_func`)
-  and a storage function (`storage_func`).
-- `dropout`: Wraps a retainer to filter cases below a `min_similarity` threshold.
-
-Storage Functions:
-- `static`: Generates keys from a fixed reference casebase to avoid key collisions.
-  Takes a `key_func` that computes the next key from existing keys.
-- `indexable`: Keeps an `IndexableFunc`'s index in sync with the casebase
-  when new cases are retained.
-
-Applying Retainers:
-- `apply_result`: Applies the retainer to a revise result.
-- `apply_query`: Applies the retainer to a single query against a casebase.
-- `apply_queries`: Applies the retainer to multiple queries.
-- `apply_batches`: Applies the retainer to batches of (casebase, query) pairs.
-- `apply_pair`: Applies the retainer to a single (case, query) pair.
-
-Types:
-- `KeyFunc`: Protocol for functions that generate new casebase keys.
+- `Retainer`: Stores the cases of every query, a `cbrkit.model.Planner` whose `plan` plans the changes of a dry run purely,
+  and `cbrkit.model.QueryResult.changes` collects the changes of a run.
 
 Example:
-    >>> from cbrkit.sim.generic import equality
-    >>> casebase = {0: "a", 1: "b"}
-    >>> retainer = build(
-    ...     assess_func=equality(),
-    ...     storage_func=static(
-    ...         key_func=lambda keys: max(keys, default=-1) + 1,
-    ...         casebase=casebase,
-    ...     ),
-    ... )
-    >>> result = apply_query(casebase, "a", retainer)
-    >>> len(result.casebase)
-    4
+    >>> from cbrkit.cycle import run_query
+    >>> from cbrkit.indexable import InMemory
+    >>> from cbrkit.revise import Reviser
+    >>> from cbrkit.sim.generic import Equality
+    >>> storage = InMemory({0: "a", 1: "b"})
+    >>> retainer = Retainer(storage=storage, measure=Equality())
+    >>> result = run_query({"x": "a", "y": "c"}, "a", Reviser(measure=Equality(), min_similarity=1.0), retainer)
+    >>> [(change.op, change.key, change.value) for change in result.changes.items]
+    [('add', 2, 'a')]
 """
 
-from ..model import QueryResultStep, Result, ResultStep
-from .apply import (
-    apply_batches,
-    apply_pair,
-    apply_queries,
-    apply_query,
-    apply_result,
-)
-from .build import build, dropout
-from .storage import KeyFunc, indexable, static
+from .build import Retainer, changed
 
-__all__ = [
-    "KeyFunc",
-    "QueryResultStep",
-    "Result",
-    "ResultStep",
-    "apply_batches",
-    "apply_pair",
-    "apply_queries",
-    "apply_query",
-    "apply_result",
-    "build",
-    "dropout",
-    "indexable",
-    "static",
-]
+__all__ = ["Retainer", "changed"]
