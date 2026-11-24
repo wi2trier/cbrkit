@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from . import (
         adapt,
-        constants,
         cycle,
         errors,
         eval,
@@ -34,7 +33,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "adapt",
-    "constants",
     "cycle",
     "errors",
     "eval",
