@@ -1,247 +1,219 @@
-"""
+"""Command line of cbrkit, requires the `cli` extra.
+
+`cbrkit infer` writes the sidecar of a case base, and every operation of `cbrkit.system.operations`
+is a command that reads a request as JSON and prints the response as JSON,
+like the routes of `cbrkit serve` and the tools of `cbrkit mcp`.
+The documentation build renders the reference of every command below.
+
 .. include:: ../../cli.md
 """
 
-import os
+import asyncio
+import inspect
+import ipaddress
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import orjson
+import typer
+from pydantic import ValidationError
 
-import cbrkit
-
-with cbrkit.helpers.optional_dependencies("raise", "cli"):
-    import typer
-    from rich import print
-
+from . import io, spec
+from .errors import CbrkitError
+from .schema import parse_docstring
+from .system import System
+from .system.operations import OPERATIONS, operations
 
 __all__ = ["app"]
 
-app = typer.Typer(pretty_exceptions_enable=False)
+app = typer.Typer(
+    name="cbrkit",
+    help="Case-based reasoning over a case base configured by its sidecar file.",
+    no_args_is_help=True,
+    pretty_exceptions_enable=False,
+)
+
+Casebase = Annotated[
+    Path, typer.Argument(help="Case base file or folder.", exists=True)
+]
+ConfigPath = Annotated[
+    Path | None,
+    typer.Option("--config", help="Sidecar file, <casebase>.cbrkit.json by default."),
+]
 
 
-@app.callback()
-def app_callback():
-    """Initialize the CBRKit CLI application."""
+def _fail(message: str) -> typer.Exit:
+    typer.echo(f"Error: {message}", err=True)
+
+    return typer.Exit(1)
 
 
-@app.command()
-def retrieve(
-    casebase_path: Path,
-    queries_path: Path,
-    retriever: str,
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    print_ranking: bool = True,
-    print_similarities: bool = False,
-    output_path: Path | None = None,
-) -> None:
-    """Retrieve similar cases from a casebase for the given queries."""
-    sys.path.extend(str(x) for x in search_path)
-    casebase = cbrkit.loaders.path(casebase_path)
-    queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(retriever)
+def _read(request: str) -> str:
+    if request == "-":
+        return sys.stdin.read()
 
-    result = cbrkit.retrieval.apply_queries(casebase, queries, retrievers)
+    if request.startswith("@"):
+        return Path(request[1:]).read_text()
 
-    if output_path:
-        cbrkit.dumpers.file(output_path, result)
-
-    if print_ranking or print_similarities:
-        for query_key, query_result in result.final_step.queries.items():
-            print(f"Query: {query_key}")
-
-            if print_ranking:
-                print(f"Ranking: {', '.join(map(str, query_result.ranking))}")
-
-            if print_similarities:
-                print("Similarities:")
-                for case_name, similarity in query_result.similarities.items():
-                    print(f"  {case_name}: {cbrkit.helpers.unpack_float(similarity)}")
-
-            print()
+    return request
 
 
-@app.command()
-def reuse(
-    casebase_path: Path,
-    queries_path: Path,
-    reuser: str,
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    output_path: Path | None = None,
-) -> None:
-    """Reuse retrieved cases by adapting them for the given queries."""
-    sys.path.extend(str(x) for x in search_path)
-    casebase = cbrkit.loaders.path(casebase_path)
-    queries = cbrkit.loaders.path(queries_path)
-    reusers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(reuser)
+def _command(name: str) -> Callable[..., None]:
+    def command(
+        casebase: Casebase,
+        request: Annotated[
+            str,
+            typer.Argument(
+                help="Request as JSON, @file to read a file, or - for stdin."
+            ),
+        ] = "{}",
+        config: ConfigPath = None,
+    ) -> None:
+        try:
+            enabled = {
+                operation.__name__: operation
+                for operation in operations(System.load(casebase, config))
+            }
 
-    result = cbrkit.reuse.apply_queries(casebase, queries, reusers)
+            if name not in enabled:
+                raise _fail(f"the specification does not enable {name}")
 
-    if output_path:
-        cbrkit.dumpers.file(output_path, result)
+            operation = enabled[name]
+            arguments = operation.request.model_validate_json(_read(request))
+            response = asyncio.run(operation(**dict(arguments)))
+        except (OSError, ValidationError, CbrkitError) as error:
+            raise _fail(str(error)) from error
+
+        typer.echo(response.model_dump_json(indent=2))
+
+    return command
 
 
-@app.command()
-def cycle(
-    casebase_path: Path,
-    queries_path: Path,
-    retriever: str,
-    reuser: str,
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    reviser: str | None = None,
-    retainer: str | None = None,
-    output_path: Path | None = None,
-) -> None:
-    """Run a full CBR cycle with retrieval, reuse, revision, and retention."""
-    sys.path.extend(str(x) for x in search_path)
-    casebase = cbrkit.loaders.path(casebase_path)
-    queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(retriever)
-    reusers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(reuser)
-    revisers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(reviser) if reviser else []
-    retainers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(retainer) if retainer else []
-
-    result = cbrkit.cycle.apply_queries(
-        casebase, queries, retrievers, reusers, revisers, retainers
-    )
-
-    if output_path:
-        cbrkit.dumpers.file(output_path, result)
+for _method in OPERATIONS:
+    app.command(
+        name=_method.__name__,
+        help=parse_docstring(inspect.getdoc(_method) or "")[0],
+    )(_command(_method.__name__))
 
 
 @app.command()
-def synthesis(
-    casebase_path: Path,
-    queries_path: Path,
-    retriever: str,
-    reuser: str,
-    synthesizer: str,
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    reviser: str | None = None,
-    retainer: str | None = None,
-    output_path: Path | None = None,
+def infer(
+    casebase: Casebase,
+    key_column: Annotated[
+        str | None,
+        typer.Option(help="Column or field keying the records, positions by default."),
+    ] = None,
+    embedder: Annotated[
+        str | None,
+        typer.Option(help="Embedder name for long texts, see the providers section."),
+    ] = None,
+    samples: Annotated[int, typer.Option(help="Sample values kept per element.")] = 20,
 ) -> None:
-    """Run a CBR cycle followed by synthesis to produce a generated response."""
-    sys.path.extend(str(x) for x in search_path)
-    casebase = cbrkit.loaders.path(casebase_path)
-    queries = cbrkit.loaders.path(queries_path)
-    retrievers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.RetrieverFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(retriever)
-    reusers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.ReuserFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(reuser)
-    revisers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.ReviserFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(reviser) if reviser else []
-    retainers: list[
-        cbrkit.typing.MaybeFactory[cbrkit.typing.RetainerFunc[Any, Any, Any]]
-    ] = cbrkit.helpers.load_callables(retainer) if retainer else []
-    synthesis_func: cbrkit.typing.MaybeFactory[
-        cbrkit.typing.SynthesizerFunc[Any, Any, Any, Any]
-    ] = cbrkit.helpers.load_callable(synthesizer)
+    """Infers the measure of a case base and writes or merges its sidecar file."""
+    try:
+        source = io.detect(casebase).model_copy(update={"key_column": key_column})
+        path = io.companion(casebase, "sidecar")
+        saved = spec.read(path) if path.exists() else None
+        config = spec.infer(
+            io.load(casebase, source),
+            source,
+            saved,
+            embedder=embedder,
+            samples=samples,
+        )
 
-    cycle_result = cbrkit.cycle.apply_queries(
-        casebase, queries, retrievers, reusers, revisers, retainers
-    )
-    synthesis_result = cbrkit.synthesis.apply_result(
-        cycle_result.retain, synthesis_func
-    )
+        if config != saved:
+            spec.write(path, config)
+    except (OSError, ValidationError, CbrkitError) as error:
+        raise _fail(str(error)) from error
 
-    if output_path:
-        cbrkit.dumpers.file(output_path, synthesis_result)
+    typer.echo(path)
+
+
+@app.command()
+def schema(
+    output: Annotated[
+        Path | None, typer.Option(help="File to write, stdout by default.")
+    ] = None,
+) -> None:
+    """Prints the JSON Schema of sidecar files."""
+    schema = orjson.dumps(
+        spec.Config.model_json_schema(), option=orjson.OPT_INDENT_2
+    ).decode()
+
+    if output is None:
+        typer.echo(schema)
+    else:
+        output.write_text(schema)
+
+
+def _loopback(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return host == "localhost"
 
 
 @app.command()
 def serve(
-    retriever: Annotated[list[str], typer.Option(default_factory=list)],
-    reuser: Annotated[list[str], typer.Option(default_factory=list)],
-    reviser: Annotated[list[str], typer.Option(default_factory=list)],
-    retainer: Annotated[list[str], typer.Option(default_factory=list)],
-    synthesizer: Annotated[list[str], typer.Option(default_factory=list)],
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    host: str = "0.0.0.0",
-    port: int = 8080,
-    reload: bool = False,
-    root_path: str = "",
+    casebase: Casebase,
+    config: ConfigPath = None,
+    host: Annotated[str, typer.Option(help="Address to bind.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to bind.")] = 8000,
+    token: Annotated[
+        str | None,
+        typer.Option(
+            envvar="CBRKIT_TOKEN",
+            help="Bearer token required by every request, best given as CBRKIT_TOKEN to keep it out of the process list.",
+        ),
+    ] = None,
+    max_body: Annotated[int, typer.Option(help="Largest request body in bytes.")] = 1
+    << 20,
+    mcp: Annotated[
+        bool, typer.Option(help="Serve MCP at /mcp, requires the mcp extra.")
+    ] = True,
+    insecure: Annotated[
+        bool,
+        typer.Option(
+            help="Allow a public address or write operations without a token."
+        ),
+    ] = False,
 ) -> None:
-    """Start the CBRKit API server with the specified components."""
+    """Serves the operations over REST and MCP, requires the api extra."""
     import uvicorn
 
-    from cbrkit.api import app
+    from .system.api import LOOPBACK_HOSTS
+    from .system.api import app as api
 
-    sys.path.extend(str(x) for x in search_path)
+    try:
+        system = System.load(casebase, config)
+    except (OSError, ValidationError, CbrkitError) as error:
+        raise _fail(str(error)) from error
 
-    os.environ["CBRKIT_RETRIEVER"] = ",".join(retriever)
-    os.environ["CBRKIT_REUSER"] = ",".join(reuser)
-    os.environ["CBRKIT_REVISER"] = ",".join(reviser)
-    os.environ["CBRKIT_RETAINER"] = ",".join(retainer)
-    os.environ["CBRKIT_SYNTHESIZER"] = ",".join(synthesizer)
+    # An empty token would accept the bare `Bearer ` header, so it is none.
+    token = token or None
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=reload,
-        root_path=root_path,
-    )
+    if token is None and not insecure:
+        if not _loopback(host):
+            raise _fail("a public address needs --token or --insecure")
 
+        if system.config.writes:
+            raise _fail("write operations need --token or --insecure")
 
-@app.command()
-def uvicorn(
-    app: str,
-    search_path: Annotated[list[Path], typer.Option(default_factory=list)],
-    host: str = "0.0.0.0",
-    port: int = 8080,
-    reload: bool = False,
-    root_path: str = "",
-) -> None:
-    """Start a custom ASGI application using the uvicorn server."""
-    import uvicorn
-
-    sys.path.extend(str(x) for x in search_path)
-
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=reload,
-        root_path=root_path,
-    )
+    hosts = LOOPBACK_HOSTS if _loopback(host) else ("*",)
+    uvicorn.run(api(system, token, max_body, hosts, mcp), host=host, port=port)
 
 
-@app.command()
-def openapi(file: Path | None = None):
-    """Generate the OpenAPI schema and print or write it to a file."""
-    from cbrkit.api import app
+@app.command("mcp")
+def mcp_stdio(casebase: Casebase, config: ConfigPath = None) -> None:
+    """Serves the operations as MCP tools over stdio, requires the mcp extra."""
+    from .system.mcp import server
 
-    schema = orjson.dumps(
-        app.openapi(),
-        option=orjson.OPT_INDENT_2,
-    )
+    try:
+        system = System.load(casebase, config)
+    except (OSError, ValidationError, CbrkitError) as error:
+        raise _fail(str(error)) from error
 
-    if file is None:
-        print(schema.decode())
-
-    else:
-        print(f"Writing OpenAPI schema to {file}")
-
-        with file.open("wb") as fp:
-            fp.write(schema)
-
-
-if __name__ == "__main__":
-    app()
+    server(system).run(show_banner=False)
