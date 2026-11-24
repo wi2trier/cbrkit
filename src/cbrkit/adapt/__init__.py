@@ -10,6 +10,7 @@ Submodules:
 - `cbrkit.adapt.numbers`: Numeric adaptation (e.g., `Aggregate` with pooling).
 - `cbrkit.adapt.strings`: String adaptation (e.g., `RegexAdaptation` replacement).
 - `cbrkit.adapt.generic`: Generic adaptation functions (`Null`, `Union`, and `Pipe` for chaining).
+- `cbrkit.adapt.llm`: Adaptation by a language model of the host (`Rewrite`).
 
 Top-Level Adaptations:
 - `AttributeValueAdaptation`: Applies per-attribute adaptation functions to
@@ -29,7 +30,7 @@ from typing import Annotated, TypeVar
 
 from ..schema import Family
 from ..typing import AnyAdaptationFunc
-from . import generic, numbers, strings
+from . import generic, llm, numbers, strings
 from .attribute_value import AttributeValueAdaptation
 
 ADAPTATIONS = Family(
@@ -39,6 +40,7 @@ ADAPTATIONS = Family(
         generic.Null,
         generic.Pipe,
         generic.Union,
+        llm.Rewrite,
         numbers.Aggregate,
         strings.RegexAdaptation,
     ),
@@ -56,6 +58,7 @@ __all__ = [
     "Adaptation",
     "AttributeValueAdaptation",
     "generic",
+    "llm",
     "numbers",
     "strings",
 ]
