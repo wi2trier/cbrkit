@@ -1,155 +1,84 @@
-import itertools
-from collections.abc import Sequence
+from concurrent.futures import Executor
 from dataclasses import dataclass
-from inspect import signature as inspect_signature
-from multiprocessing.pool import Pool
-from typing import cast, override
+from typing import Any
 
-from ..helpers import (
-    batchify_adaptation,
-    batchify_sim,
-    chunkify,
-    get_logger,
-    mp_count,
-    mp_map,
-    mp_starmap,
-    produce_factory,
-    use_mp,
-)
-from ..typing import (
-    AnyAdaptationFunc,
-    AnySimFunc,
-    Casebase,
-    Float,
-    MapAdaptationFunc,
-    MaybeFactory,
-    ReduceAdaptationFunc,
-    ReuserFunc,
-    SimMap,
-    SimpleAdaptationFunc,
-)
+from .._phase import Ranking, adapt_pairs, problems, required, reused, score_pairs
+from ..adapt import Adaptation
+from ..schema import PythonOnly, serializable
+from ..sim import Measure
+from ..typing import Batches, Float, Results
 
-logger = get_logger(__name__)
-
-__all__ = ["build"]
+__all__ = ["Reuser"]
 
 
-@dataclass(slots=True, frozen=True)
-class build[K, V, S: Float](ReuserFunc[K, V, S]):
-    """Builds a casebase by adapting cases using an adaptation function and a similarity function.
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Reuser[V, S: Float](Ranking):
+    """Adapts every case to the query and scores the adapted cases, the reuse phase of the CBR cycle.
+
+    An unsplit case is scored as adapted.
+    A split `cbrkit.model.Case` reuses the adapted solution for the problem of the query
+    and is scored by the similarity of its source problem to the query,
+    since its new problem is the one of the query.
+    It is the `reuse` section of a `cbrkit.spec.Config`, which fills in a missing measure.
+    It keeps the best adapted cases by the fields of `cbrkit.retrieve.Ranking`,
+    the one best by default, since reuse proposes the solution of the new problem,
+    which revise assesses and retain learns, after Aamodt and Plaza (1994).
 
     Args:
-        adaptation_func: The adaptation function that will be applied to the cases.
-        similarity_func: The similarity function that will be used to compare the adapted cases to the query.
-        multiprocessing: Multiprocessing configuration for adaptation.
-        chunksize: Number of batches to process at a time using the adaptation function.
-            If 0, it will be set to the number of batches divided by the number of processes.
+        adaptation: Adapts a case to the query, any adaptation of `cbrkit.adapt`.
+        limit: Number of solutions it proposes per query, every adapted case if None.
+        measure: Similarity of a problem to the one of the query, needed to reuse,
+            the measure of the configuration in a `cbrkit.spec.Config` if None.
+        executor: Runs chunks of pairs in parallel, such as a `ProcessPoolExecutor`,
+            `ThreadPoolExecutor` or `InterpreterPoolExecutor` that the caller owns,
+            in the current thread if None.
+        chunksize: Number of pairs per call of the function, all pairs in one call
+            without an executor and one chunk per available CPU with one if None.
 
-    Returns:
-        The adapted casebases and the similarities between the adapted cases and the query.
+    Examples:
+        >>> from cbrkit.adapt.generic import Null
+        >>> from cbrkit.model import Case
+        >>> from cbrkit.sim.generic import Equality
+        >>> Reuser(adaptation=Null(target="query"), measure=Equality())([({"a": "x"}, "y")])
+        [({'a': 'y'}, {'a': 1.0})]
+        >>> upper = lambda case, query: Case(problem=case.problem, solution=case.solution.upper())
+        >>> Reuser(adaptation=upper, measure=Equality())([({"a": Case(problem="x", solution="fix")}, Case(problem="y"))])
+        [({'a': Case(problem='y', solution='FIX')}, {'a': 0.0})]
     """
 
-    adaptation_func: MaybeFactory[AnyAdaptationFunc[K, V]]
-    similarity_func: MaybeFactory[AnySimFunc[V, S]]
-    multiprocessing: Pool | int | bool = False
-    chunksize: int = 0
+    adaptation: Adaptation[V]
+    limit: int | None = 1
+    measure: Measure[Any, S] | None = None
+    executor: PythonOnly[Executor | None] = None
+    chunksize: PythonOnly[int | None] = None
 
-    @override
-    def __call__(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-    ) -> Sequence[tuple[Casebase[K, V], SimMap[K, S]]]:
-        adaptation_func = cast(
-            AnyAdaptationFunc[K, V], produce_factory(self.adaptation_func)
-        )
-        adapted_casebases = self._adapt(batches, adaptation_func)
-        adapted_batches = [
-            (adapted_casebase, query)
-            for adapted_casebase, (_, query) in zip(
-                adapted_casebases, batches, strict=True
-            )
+    def __call__[K](self, batches: Batches[K, V], /) -> Results[K, V, S]:
+        adapted = adapt_pairs(batches, self.adaptation, self.executor, self.chunksize)
+        reuses = [
+            {key: reused(case, query, cases[key]) for key, case in casebase.items()}
+            for (casebase, query), cases in zip(batches, adapted, strict=True)
         ]
 
-        # Score adapted cases against queries
-        sim_func = batchify_sim(produce_factory(self.similarity_func))
-
-        flat_batches: list[tuple[V, V]] = []
-        flat_index: list[tuple[int, K]] = []
-
-        for idx, (casebase, query) in enumerate(adapted_batches):
-            for key, case in casebase.items():
-                flat_index.append((idx, key))
-                flat_batches.append((case, query))
-
-        scores = sim_func(flat_batches)
-
-        sim_maps: list[dict[K, S]] = [{} for _ in adapted_batches]
-        for (idx, key), score in zip(flat_index, scores, strict=True):
-            sim_maps[idx][key] = score
-
-        return [
-            (adapted_casebase, sim_map)
-            for adapted_casebase, sim_map in zip(
-                adapted_casebases, sim_maps, strict=True
-            )
-        ]
-
-    def _adapt(
-        self,
-        batches: Sequence[tuple[Casebase[K, V], V]],
-        adaptation_func: AnyAdaptationFunc[K, V],
-    ) -> Sequence[Casebase[K, V]]:
-        adaptation_func_signature = inspect_signature(adaptation_func)
-
-        if "casebase" in adaptation_func_signature.parameters:
-            adapt_func = cast(
-                MapAdaptationFunc[K, V] | ReduceAdaptationFunc[K, V],
-                adaptation_func,
-            )
-            adaptation_results = mp_starmap(
-                adapt_func,
-                batches,
-                self.multiprocessing,
-                logger,
-            )
-
-            if all(isinstance(item, tuple) for item in adaptation_results):
-                adaptation_results = cast(Sequence[tuple[K, V]], adaptation_results)
-                return [
-                    {adapted_key: adapted_case}
-                    for adapted_key, adapted_case in adaptation_results
+        scores = score_pairs(
+            problems(
+                [
+                    ({key: scored for key, (_, scored) in entries.items()}, query)
+                    for entries, (_, query) in zip(reuses, batches, strict=True)
                 ]
+            ),
+            required(self.measure, "measure"),
+            self.executor,
+            self.chunksize,
+        )
 
-            return cast(Sequence[Casebase[K, V]], adaptation_results)
-
-        adapt_func = batchify_adaptation(cast(SimpleAdaptationFunc[V], adaptation_func))
-        batches_index: list[tuple[int, K]] = []
-        flat_batches: list[tuple[V, V]] = []
-
-        for idx, (casebase, query) in enumerate(batches):
-            for key, case in casebase.items():
-                batches_index.append((idx, key))
-                flat_batches.append((case, query))
-
-        adapted_cases: Sequence[V]
-
-        if use_mp(self.multiprocessing) or self.chunksize > 0:
-            chunksize = (
-                self.chunksize
-                if self.chunksize > 0
-                else len(flat_batches) // mp_count(self.multiprocessing)
+        return self.select(
+            zip(
+                [
+                    {key: case for key, (case, _) in entries.items()}
+                    for entries in reuses
+                ],
+                scores,
+                strict=True,
             )
-            batch_chunks = list(chunkify(flat_batches, chunksize))
-            adapted_chunks = mp_map(
-                adapt_func, batch_chunks, self.multiprocessing, logger
-            )
-            adapted_cases = list(itertools.chain.from_iterable(adapted_chunks))
-        else:
-            adapted_cases = list(adapt_func(flat_batches))
-
-        adapted_casebases: list[dict[K, V]] = [{} for _ in range(len(batches))]
-
-        for (idx, key), adapted_case in zip(batches_index, adapted_cases, strict=True):
-            adapted_casebases[idx][key] = adapted_case
-
-        return adapted_casebases
+        )

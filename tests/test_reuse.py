@@ -20,32 +20,33 @@ def test_reuse_simple(car_query):
         "miles": 150000,
     }
 
-    reuse_func = cbrkit.reuse.build(
-        cbrkit.adapt.attribute_value(
+    reuse_func = cbrkit.reuse.Reuser(
+        limit=None,
+        adaptation=cbrkit.adapt.AttributeValueAdaptation(
             attributes={
                 "price": adapt_int,
-                "make": cbrkit.adapt.strings.regex("a[0-9]", "a[0-9]", "a4"),
-                "manufacturer": cbrkit.adapt.strings.regex(
-                    "audi",
-                    "audi",
-                    lambda case, query: f"{case.string}-{query.string}",
+                "make": cbrkit.adapt.strings.RegexAdaptation(
+                    case_pattern="a[0-9]", query_pattern="a[0-9]", replacement="a4"
                 ),
-                "miles": cbrkit.adapt.numbers.aggregate("mean"),
+                "manufacturer": cbrkit.adapt.strings.RegexAdaptation(
+                    case_pattern="(audi)", query_pattern="audi", replacement=r"\1-\1"
+                ),
+                "miles": cbrkit.adapt.numbers.Aggregate(),
             }
         ),
-        similarity_func=cbrkit.sim.attribute_value(
+        measure=cbrkit.sim.AttributeValue(
             attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=100000),
+                "price": cbrkit.sim.numbers.Linear(max_distance=100000),
+                "year": cbrkit.sim.numbers.Linear(max_distance=50),
+                "make": cbrkit.sim.strings.Levenshtein(),
+                "miles": cbrkit.sim.numbers.Linear(max_distance=100000),
             }
         ),
     )
 
-    result = cbrkit.reuse.apply_pair(case, car_query, reuse_func)
+    result = cbrkit.cycle.run_query({"case": case}, car_query, reuse_func)
 
-    assert result.case == {
+    assert result.casebase["case"] == {
         "price": 2000,
         "year": 2008,
         "manufacturer": "audi-audi",
@@ -75,21 +76,22 @@ def test_reuse_custom(car_query):
         "miles": 150000,
     }
 
-    reuse_func = cbrkit.reuse.build(
-        custom_adapt,
-        similarity_func=cbrkit.sim.attribute_value(
+    reuse_func = cbrkit.reuse.Reuser(
+        limit=None,
+        adaptation=custom_adapt,
+        measure=cbrkit.sim.AttributeValue(
             attributes={
-                "price": cbrkit.sim.numbers.linear(max=100000),
-                "year": cbrkit.sim.numbers.linear(max=50),
-                "make": cbrkit.sim.strings.levenshtein(),
-                "miles": cbrkit.sim.numbers.linear(max=100000),
+                "price": cbrkit.sim.numbers.Linear(max_distance=100000),
+                "year": cbrkit.sim.numbers.Linear(max_distance=50),
+                "make": cbrkit.sim.strings.Levenshtein(),
+                "miles": cbrkit.sim.numbers.Linear(max_distance=100000),
             }
         ),
     )
 
-    result = cbrkit.reuse.apply_pair(case, car_query, reuse_func)
+    result = cbrkit.cycle.run_query({"case": case}, car_query, reuse_func)
 
-    assert result.case == {
+    assert result.casebase["case"] == {
         "price": 2000,
         "year": 2008,
         "manufacturer": "audi-2010",
@@ -109,34 +111,39 @@ def test_reuse_nested(cars_yaml_casebase):
     full_casebase: Mapping[int, Any] = cars_yaml_casebase
     casebase = {key: full_casebase[key] for key in list(full_casebase.keys())[:10]}
 
-    reuse_func = cbrkit.reuse.build(
-        cbrkit.adapt.attribute_value(
+    reuse_func = cbrkit.reuse.Reuser(
+        limit=None,
+        adaptation=cbrkit.adapt.AttributeValueAdaptation(
             attributes={
-                "miles": cbrkit.adapt.numbers.aggregate("mean"),
-                "model": cbrkit.adapt.attribute_value(
-                    {
-                        "make": cbrkit.adapt.strings.regex("v.*", ".*", "vclass"),
-                        "manufacturer": cbrkit.adapt.strings.regex(
-                            "mercedes-benz", ".*", "mercedes"
+                "miles": cbrkit.adapt.numbers.Aggregate(),
+                "model": cbrkit.adapt.AttributeValueAdaptation(
+                    attributes={
+                        "make": cbrkit.adapt.strings.RegexAdaptation(
+                            case_pattern="v.*", query_pattern=".*", replacement="vclass"
+                        ),
+                        "manufacturer": cbrkit.adapt.strings.RegexAdaptation(
+                            case_pattern="mercedes-benz",
+                            query_pattern=".*",
+                            replacement="mercedes",
                         ),
                     }
                 ),
             }
         ),
-        similarity_func=cbrkit.sim.attribute_value(
+        measure=cbrkit.sim.AttributeValue(
             attributes={
-                "miles": cbrkit.sim.numbers.linear(max=100000),
-                "model": cbrkit.sim.attribute_value(
+                "miles": cbrkit.sim.numbers.Linear(max_distance=100000),
+                "model": cbrkit.sim.AttributeValue(
                     attributes={
-                        "make": cbrkit.sim.strings.levenshtein(),
-                        "manufacturer": cbrkit.sim.strings.levenshtein(),
+                        "make": cbrkit.sim.strings.Levenshtein(),
+                        "manufacturer": cbrkit.sim.strings.Levenshtein(),
                     }
                 ),
             }
         ),
     )
 
-    result = cbrkit.reuse.apply_query(casebase, query, reuse_func)
+    result = cbrkit.cycle.run_query(casebase, query, reuse_func)
 
     assert len(result.casebase) == len(casebase)
     assert result.casebase[0]["model"] == {
@@ -151,19 +158,20 @@ def test_reuse_does_not_mutate_casebase() -> None:
     query = {"price": 30, "model": {"make": "audi"}}
     original = {"price": 10, "model": {"make": "vw"}}
 
-    reuse_func = cbrkit.reuse.build(
-        cbrkit.adapt.attribute_value(
+    reuse_func = cbrkit.reuse.Reuser(
+        limit=None,
+        adaptation=cbrkit.adapt.AttributeValueAdaptation(
             attributes={
-                "price": cbrkit.adapt.numbers.aggregate("mean"),
-                "model": cbrkit.adapt.attribute_value(
+                "price": cbrkit.adapt.numbers.Aggregate(),
+                "model": cbrkit.adapt.AttributeValueAdaptation(
                     attributes={"make": lambda case, query: query}
                 ),
             }
         ),
-        similarity_func=lambda x, y: 1.0,
+        measure=lambda x, y: 1.0,
     )
 
-    result = cbrkit.reuse.apply_query(casebase, query, reuse_func)
+    result = cbrkit.cycle.run_query(casebase, query, reuse_func)
 
     assert casebase["a"] == original
     assert casebase["a"]["model"] is not result.casebase["a"]["model"]

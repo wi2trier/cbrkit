@@ -1,52 +1,24 @@
 """Reuse phase for adapting retrieved cases and scoring the adapted results.
 
-The reuse phase takes the output of retrieval and applies adaptation functions
-to modify retrieved cases, then scores the adapted cases using a similarity
-function to assess adaptation quality.
+A reuser adapts the retrieved cases to the query and scores the adapted cases
+with a similarity function, so it follows a retriever in `cbrkit.cycle`.
 
 Building Reusers:
-- `build`: Creates a reuser from an adaptation function and a similarity function.
-  The adaptation function transforms cases, and the similarity function scores the result.
-
-Applying Reusers:
-- `apply_result`: Applies the reuser to a retrieval result.
-- `apply_query`: Applies the reuser to a single query against a casebase.
-- `apply_queries`: Applies the reuser to multiple queries.
-- `apply_batches`: Applies the reuser to batches of (casebase, query) pairs.
-- `apply_pair`: Applies the reuser to a single (case, query) pair.
-
-Multiple reusers can be composed by passing them as a list or tuple,
-producing a multi-step pipeline with `final_step` and `steps` attributes.
+- `Reuser`: Adapts every case with a pairwise adaptation function such as those of `cbrkit.adapt`
+  and scores the adapted cases with a similarity function.
+  An adaptation of the whole casebase is a custom `cbrkit.typing.CbrFunc`.
 
 Example:
-    >>> from cbrkit.sim.generic import equality
-    >>> reuser = build(
-    ...     adaptation_func=lambda case, query: query,
-    ...     similarity_func=equality(),
+    >>> from cbrkit.cycle import run_query
+    >>> from cbrkit.sim.generic import Equality
+    >>> reuser = Reuser(
+    ...     adaptation=lambda case, query: query,
+    ...     measure=Equality(),
     ... )
-    >>> result = apply_pair("hello", "hello", reuser)
-    >>> result.casebase
-    {'default': 'hello'}
+    >>> run_query({"a": "hello"}, "world", reuser).casebase
+    {'a': 'world'}
 """
 
-from ..model import QueryResultStep, Result, ResultStep
-from .apply import (
-    apply_batches,
-    apply_pair,
-    apply_queries,
-    apply_query,
-    apply_result,
-)
-from .build import build
+from .build import Reuser
 
-__all__ = [
-    "QueryResultStep",
-    "Result",
-    "ResultStep",
-    "apply_batches",
-    "apply_pair",
-    "apply_queries",
-    "apply_query",
-    "apply_result",
-    "build",
-]
+__all__ = ["Reuser"]
