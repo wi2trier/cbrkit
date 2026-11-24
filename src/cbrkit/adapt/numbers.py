@@ -1,52 +1,41 @@
-from dataclasses import dataclass
-from typing import cast, override
+from dataclasses import dataclass, field
+from typing import Annotated, Literal, override
 
-from ..sim.aggregator import PoolingName, pooling_funcs
+from ..schema import serializable
+from ..sim.pooling import POOLINGS, Mean
 from ..typing import AdaptationFunc, PoolingFunc
 
 type Number = float | int
 
 __all__ = [
-    "aggregate",
+    "Aggregate",
 ]
 
 
-@dataclass(slots=True)
-class aggregate(AdaptationFunc[Number]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Aggregate(AdaptationFunc[Number]):
     """Aggregate two numbers using a pooling function.
 
     Args:
-        pooling: Pooling function or name of a pooling function.
+        pooling: Pooling function of the two values, such as `cbrkit.sim.pooling.Mean`.
         case_factor: Factor to multiply the case value by.
         query_factor: Factor to multiply the query value by.
 
-    Returns:
-        The aggregated value.
-
     Examples:
-        >>> func1 = aggregate("mean")
+        >>> func1 = Aggregate()
         >>> func1(10, 20)
         15.0
-        >>> func2 = aggregate("mean", case_factor=3, query_factor=0.5)
+        >>> func2 = Aggregate(case_factor=3, query_factor=0.5)
         >>> func2(10, 20)
         20.0
     """
 
-    pooling: PoolingName | PoolingFunc[Number] = "mean"
-    case_factor: Number = 1.0
-    query_factor: Number = 1.0
+    pooling: Annotated[PoolingFunc[float], POOLINGS] = field(default_factory=Mean)
+    case_factor: float = 1.0
+    query_factor: float = 1.0
+    kind: Literal["aggregate"] = field(default="aggregate", repr=False)
 
     @override
     def __call__(self, case: Number, query: Number) -> float:
-        pooling_func: PoolingFunc[Number] = (
-            pooling_funcs[cast(PoolingName, self.pooling)]
-            if isinstance(self.pooling, str)
-            else self.pooling
-        )
-
-        values = [
-            case * self.case_factor,
-            query * self.query_factor,
-        ]
-
-        return pooling_func(values)
+        return self.pooling([case * self.case_factor, query * self.query_factor])

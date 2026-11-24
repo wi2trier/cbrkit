@@ -1,113 +1,135 @@
+from collections.abc import Sequence
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import Literal, cast, override
+from dataclasses import dataclass, field
+from typing import Any, Literal, override
 
-from ..helpers import unbatchify_adaptation, unbatchify_sim, unpack_float
-from ..typing import (
-    AdaptationFunc,
-    AnySimFunc,
-    Float,
-    SimpleAdaptationFunc,
-)
+from ..helpers import batchify
+from ..schema import serializable
+from ..sim import Measure
+from ..typing import AdaptationFunc, BatchAdaptationFunc, Float
+from ._nested import NestedAdaptation
 
 __all__ = [
-    "null",
-    "pipe",
+    "Null",
+    "Pipe",
+    "Union",
 ]
 
 
-@dataclass(slots=True, frozen=True)
-class pipe[V](AdaptationFunc[V]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Pipe[V](BatchAdaptationFunc[V]):
     """Chain multiple adaptation functions together.
 
-    Args:
-        functions: List of adaptation functions to apply in order.
+    Every step adapts all pairs in one batch, so a batch adaptation such as `cbrkit.adapt.llm.Rewrite` sends them at once.
 
-    Returns:
-        The adapted value.
+    Args:
+        adaptations: Adaptation functions to apply in order.
+        measure: Similarity of a case to the query, which keeps only steps that improve it if given.
+        similarity_delta: Minimal improvement of the similarity that keeps a step.
+        stop: Stop adapting a case after its first step that is not kept instead of continuing with the next one.
 
     Examples:
-        >>> func = pipe([
+        >>> func = Pipe(adaptations=[
         ...     lambda x, y: x + y,
         ...     lambda x, y: x * y,
         ... ])
-        >>> func(2, 3)
-        15
+        >>> func([(2, 3)])
+        [15]
+        >>> func = Pipe(
+        ...     adaptations=[lambda x, y: x + 10, lambda x, y: x + 1],
+        ...     measure=lambda x, y: 1 / (1 + abs(x - y)),
+        ... )
+        >>> func([(2, 3), (0, 20)])
+        [3, 11]
     """
 
-    functions: SimpleAdaptationFunc[V] | list[SimpleAdaptationFunc[V]]
-    similarity_func: AnySimFunc[V, Float] | None = None
+    adaptations: Sequence[NestedAdaptation[V]]
+    measure: Measure[V, Float] | None = None
     similarity_delta: float = 0.0
-    strategy: Literal["continue", "break"] = "continue"
+    stop: bool = False
+    kind: Literal["pipe"] = field(default="pipe", repr=False)
 
     @override
-    def __call__(self, case: V, query: V) -> V:
-        functions = (
-            self.functions if isinstance(self.functions, list) else [self.functions]
-        )
-        current_case = case
-        similarity_func = None
-        current_similarity = None
+    def __call__(self, batches: Sequence[tuple[V, V]], /) -> Sequence[V]:
+        cases = [case for case, _ in batches]
+        queries = [query for _, query in batches]
+        measure = None if self.measure is None else batchify(self.measure)
+        scores = [] if measure is None else [float(sim) for sim in measure(batches)]
+        active = list(range(len(batches)))
 
-        if self.similarity_func is not None:
-            similarity_func = unbatchify_sim(self.similarity_func)
-            current_similarity = similarity_func(current_case, query)
+        for func in self.adaptations:
+            if not active:
+                break
 
-        for func in functions:
-            adapted_case = unbatchify_adaptation(cast(SimpleAdaptationFunc[V], func))(
-                current_case, query
+            adapted = batchify(func)([(cases[idx], queries[idx]) for idx in active])
+
+            if measure is None:
+                for idx, case in zip(active, adapted, strict=True):
+                    cases[idx] = case
+
+                continue
+
+            sims = measure(
+                [
+                    (case, queries[idx])
+                    for idx, case in zip(active, adapted, strict=True)
+                ]
             )
+            kept: list[int] = []
 
-            if similarity_func is not None and current_similarity is not None:
-                adapted_similarity = similarity_func(current_case, adapted_case)
+            for idx, case, sim in zip(active, adapted, sims, strict=True):
+                if float(sim) >= scores[idx] + self.similarity_delta:
+                    cases[idx], scores[idx] = case, float(sim)
+                    kept.append(idx)
+                elif not self.stop:
+                    kept.append(idx)
 
-                if (
-                    unpack_float(adapted_similarity)
-                    >= unpack_float(current_similarity) + self.similarity_delta
-                ):
-                    current_case = adapted_case
-                    current_similarity = adapted_similarity
-                elif self.strategy == "break":
-                    break
+            active = kept
 
-            else:
-                current_case = adapted_case
-
-        return current_case
+        return cases
 
 
-@dataclass(slots=True, frozen=True)
-class null[V](AdaptationFunc[V]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Null[V](AdaptationFunc[V]):
     """Perform a null adaptation and return the original case or query value.
 
     Args:
-        select: Either "case" or "query".
+        target: Whether to return the case or the query value.
         copy: Whether to copy the value before returning it.
 
-    Returns:
-        The original case value.
-
     Examples:
-        >>> func = null()
+        >>> func = Null()
         >>> func(2, 3)
         2
+        >>> Null(target="query")(2, 3)
+        3
     """
 
     target: Literal["case", "query"] = "case"
     copy: bool = False
+    kind: Literal["null"] = field(default="null", repr=False)
 
     @override
     def __call__(self, case: V, query: V) -> V:
-        value: V
+        value = case if self.target == "case" else query
 
-        if self.target == "case":
-            value = case
-        elif self.target == "query":
-            value = query
-        else:
-            raise ValueError(f"Invalid target value: {self.target}")
+        return deepcopy(value) if self.copy else value
 
-        if self.copy:
-            value = deepcopy(value)
 
-        return value
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Union(AdaptationFunc[Sequence[Any]]):
+    """The elements of the case followed by those of the query that the case lacks.
+
+    Examples:
+        >>> Union()([1, 2], [2, 3])
+        [1, 2, 3]
+    """
+
+    kind: Literal["union"] = field(default="union", repr=False)
+
+    @override
+    def __call__(self, case: Sequence[Any], query: Sequence[Any]) -> list[Any]:
+        return [*case, *(value for value in query if value not in case)]

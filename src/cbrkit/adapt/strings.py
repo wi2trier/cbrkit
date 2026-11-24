@@ -1,104 +1,53 @@
 import re
 import sys
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import override
+from dataclasses import dataclass, field
+from typing import Annotated, Literal, override
 
-from ..helpers import HasMetadata, get_metadata
-from ..typing import AdaptationFunc, JsonDict
+from pydantic import Field
+
+from ..schema import serializable
+from ..typing import AdaptationFunc
 
 __all__ = [
-    "regex",
+    "RegexAdaptation",
 ]
 
 
-@dataclass(slots=True)
-class regex(AdaptationFunc[str], HasMetadata):
-    """Replace parts of a string using regular expressions.
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class RegexAdaptation(AdaptationFunc[str]):
+    r"""Replace parts of a string using regular expressions.
+
+    The case pattern is only replaced if the query pattern matches the query.
 
     Args:
         case_pattern: Regular expression pattern to match against the case.
         query_pattern: Regular expression pattern to match against the query.
-        replacement: Replacement string or function that takes two match objects.
-        count: Maximum number of replacements to make.
-        pos: Position in the string to start searching.
-        endpos: Position in the string to stop searching.
-
-    Returns:
-        The modified string.
+        replacement: Replacement of the case matches, which may refer to their groups like `re.sub`.
+        count: Maximum number of replacements to make, all if None.
+        pos: Position in the query to start searching.
+        endpos: Position in the query to stop searching.
 
     Examples:
-        >>> func = regex("25", "30", "NUMBER")
+        >>> func = RegexAdaptation(case_pattern="25", query_pattern="30", replacement="NUMBER")
         >>> func("Alice is 25 years old.", "Peter is 30 years old.")
         'Alice is NUMBER years old.'
+        >>> RegexAdaptation(case_pattern=r"(\w+) is", query_pattern="Peter", replacement=r"\1 was")("Alice is 25.", "Peter")
+        'Alice was 25.'
     """
 
-    case_pattern: re.Pattern[str]
-    query_pattern: re.Pattern[str]
-    replacement: Callable[[re.Match[str], re.Match[str]], str]
-    count: int
-    pos: int
-    endpos: int
-    _metadata: JsonDict
-
-    def __init__(
-        self,
-        case_pattern: str | re.Pattern[str],
-        query_pattern: str | re.Pattern[str],
-        replacement: str | Callable[[re.Match[str], re.Match[str]], str],
-        count: int = 0,
-        pos: int = 0,
-        endpos: int = sys.maxsize,
-    ):
-        if isinstance(query_pattern, str):
-            self.query_pattern = re.compile(query_pattern)
-        else:
-            self.query_pattern = query_pattern
-
-        if isinstance(case_pattern, str):
-            self.case_pattern = re.compile(case_pattern)
-        else:
-            self.case_pattern = case_pattern
-
-        if isinstance(replacement, str):
-            self.replacement = lambda case_match, query_match: replacement
-        else:
-            self.replacement = replacement
-
-        self.count = count
-        self.pos = pos
-        self.endpos = endpos
-
-        self._metadata = {
-            "query_pattern": str(query_pattern),
-            "case_pattern": str(case_pattern),
-            "replacement": replacement
-            if isinstance(replacement, str)
-            else get_metadata(replacement),
-            "count": count,
-            "pos": pos,
-            "endpos": endpos,
-        }
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        """Return metadata describing the regex configuration."""
-        return self._metadata
+    case_pattern: str
+    query_pattern: str
+    replacement: str
+    count: Annotated[int, Field(ge=1)] | None = None
+    pos: int = 0
+    endpos: int = sys.maxsize
+    kind: Literal["regex"] = field(default="regex", repr=False)
 
     @override
     def __call__(self, case: str, query: str) -> str:
-        query_match = self.query_pattern.search(
-            query,
-            self.pos,
-            self.endpos,
-        )
+        if re.compile(self.query_pattern).search(query, self.pos, self.endpos) is None:
+            return case
 
-        if query_match is not None:
-            return self.case_pattern.sub(
-                lambda case_match: self.replacement(case_match, query_match),
-                case,
-                self.count,
-            )
-
-        return case
+        # `re.sub` replaces all for a count of 0.
+        return re.sub(self.case_pattern, self.replacement, case, count=self.count or 0)
