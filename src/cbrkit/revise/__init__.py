@@ -1,50 +1,19 @@
-"""Revise phase for assessing solution quality and optionally repairing solutions.
+"""Revise phase: assessing solutions and repairing the failing ones.
 
-The revise phase takes the output of reuse and evaluates the quality of
-adapted solutions using a similarity function.
-Optionally, a repair function can be applied to fix solutions before assessment.
+A reviser assesses every solution for its query with a measure,
+repairs those below its minimal quality with an adaptation, and assesses them again,
+so it follows a reuser in `cbrkit.cycle` and precedes a `cbrkit.retain.Retainer`.
 
-Building Revisers:
-- `build`: Creates a reviser from an assessment function (`assess_func`)
-  and an optional repair function (`repair_func`).
-  The assessment function is a similarity function that scores solutions.
-  The repair function is an adaptation function applied before assessment.
-
-Applying Revisers:
-- `apply_result`: Applies the reviser to a reuse result.
-- `apply_query`: Applies the reviser to a single query against a casebase.
-- `apply_queries`: Applies the reviser to multiple queries.
-- `apply_batches`: Applies the reviser to batches of (casebase, query) pairs.
-- `apply_pair`: Applies the reviser to a single (case, query) pair.
-
-Multiple revisers can be composed by passing them as a list or tuple.
+- `Reviser`: Assesses solutions with `measure` and repairs failing ones with `repair`.
 
 Example:
-    >>> from cbrkit.sim.generic import equality
-    >>> reviser = build(assess_func=equality())
-    >>> result = apply_query({0: "a", 1: "b"}, "a", reviser)
-    >>> len(result.casebase)
-    2
+    >>> from cbrkit.cycle import run_query
+    >>> from cbrkit.sim.generic import Equality
+    >>> reviser = Reviser(measure=Equality())
+    >>> run_query({0: "a", 1: "b"}, "a", reviser).similarities
+    {0: 1.0, 1: 0.0}
 """
 
-from ..model import QueryResultStep, Result, ResultStep
-from .apply import (
-    apply_batches,
-    apply_pair,
-    apply_queries,
-    apply_query,
-    apply_result,
-)
-from .build import build
+from .build import Reviser
 
-__all__ = [
-    "QueryResultStep",
-    "Result",
-    "ResultStep",
-    "apply_batches",
-    "apply_pair",
-    "apply_queries",
-    "apply_query",
-    "apply_result",
-    "build",
-]
+__all__ = ["Reviser"]
