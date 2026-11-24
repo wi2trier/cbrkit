@@ -76,6 +76,7 @@
           };
           treefmt = {
             projectRootFile = "flake.nix";
+            settings.global.excludes = [ "src/cbrkit/model/graph/_bpmn_schema/*" ];
             programs = {
               ruff-check.enable = true;
               ruff-format.enable = true;
@@ -88,6 +89,8 @@
             cbrkit = pkgs.callPackage ./default.nix {
               inherit (inputs) uv2nix pyproject-nix pyproject-build-systems;
             };
+            bpmn-bindings = pkgs.callPackage ./nix/bpmn { };
+            vendor-bpmn = config.packages.bpmn-bindings.vendor;
             release-env = pkgs.buildEnv {
               name = "release-env";
               paths = with pkgs; [

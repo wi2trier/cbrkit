@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Config xmlns="http://pypi.org/project/xsdata" version="26.10">
+  <Output maxLineLength="88">
+    <Package>bpmn.model</Package>
+    <Format slots="true" frozen="true">dataclasses</Format>
+    <Structure>single-package</Structure>
+    <DocstringStyle>Google</DocstringStyle>
+    <RelativeImports>true</RelativeImports>
+    <CompoundFields useSubstitutionGroups="true">true</CompoundFields>
+  </Output>
+</Config>
