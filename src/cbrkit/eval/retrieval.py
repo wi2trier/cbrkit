@@ -1,81 +1,59 @@
-from collections.abc import Sequence
+import statistics
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Literal
 
-from ..helpers import unpack_float
-from ..retrieval import Result, ResultStep
+from ..model import QueryResult
 from ..typing import EvalMetricFunc, Float, QueryCaseMatrix
 from .common import DEFAULT_METRICS, compute, similarities_to_qrels
 
+__all__ = ["evaluate", "to_qrels"]
 
-def retrieval_step[Q, C, S: Float](
+
+def evaluate[Q, C, S: Float](
     qrels: QueryCaseMatrix[Q, C, int],
-    step: ResultStep[Q, C, Any, S],
-    metrics: Sequence[str] = DEFAULT_METRICS,
-    metric_funcs: dict[str, EvalMetricFunc] | None = None,
-) -> dict[str, float]:
-    """Evaluate a single retrieval step against relevance judgments."""
+    results: Mapping[Q, QueryResult[C, Any, S]],
+    metrics: Sequence[EvalMetricFunc] = DEFAULT_METRICS,
+    aggregation: Callable[[Sequence[float]], float] = statistics.fmean,
+) -> dict[EvalMetricFunc, float]:
+    """Evaluate the results of a cycle against relevance judgments, see `compute`.
+
+    Args:
+        qrels: Relevance of the cases for every query, higher is more relevant.
+        results: The result of every query, such as a `cbrkit.model.Result` (its last step)
+            or one of its `cbrkit.model.Step`.
+        metrics: Metrics such as `Metric` or custom functions of the `cbrkit.typing.EvalMetricFunc` protocol.
+        aggregation: Aggregates the values of a metric over the queries.
+    """
     return compute(
         qrels,
-        {query: entry.similarities for query, entry in step.queries.items()},
+        {query: result.similarities for query, result in results.items()},
         metrics,
-        metric_funcs,
+        aggregation,
     )
 
 
-def retrieval[Q, C, S: Float](
-    qrels: QueryCaseMatrix[Q, C, int],
-    result: Result[Q, C, Any, S],
-    metrics: Sequence[str] = DEFAULT_METRICS,
-    metric_funcs: dict[str, EvalMetricFunc] | None = None,
-) -> list[dict[str, float]]:
-    """Evaluate all retrieval steps against relevance judgments."""
-    return [
-        retrieval_step(
-            qrels,
-            step,
-            metrics,
-            metric_funcs,
-        )
-        for step in result.steps
-    ]
-
-
-def retrieval_step_to_qrels[Q, C, S: Float](
-    result: ResultStep[Q, C, Any, S],
+def to_qrels[Q, C, S: Float](
+    results: Mapping[Q, QueryResult[C, Any, S]],
     max_qrel: int | None = None,
     min_qrel: int = 1,
     round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
     auto_scale: bool = True,
 ) -> QueryCaseMatrix[Q, C, int]:
-    """Convert a retrieval step's similarities to integer relevance judgments."""
-    unpacked_sims = {
-        query: {case: unpack_float(value) for case, value in entry.similarities.items()}
-        for query, entry in result.queries.items()
-    }
+    """Convert the similarities of the results of a cycle to integer relevance judgments, see `similarities_to_qrels`.
+
+    Args:
+        results: The result of every query, such as a `cbrkit.model.Result` (its last step)
+            or one of its `cbrkit.model.Step`.
+        max_qrel: Largest relevance, which the most similar case gets,
+            the cases are ranked from `min_qrel` upwards by their order if None.
+        min_qrel: Smallest relevance.
+        round_mode: How scaled similarities are rounded to relevances.
+        auto_scale: Scale by the smallest and largest similarity instead of between 0 and 1.
+    """
     return similarities_to_qrels(
-        unpacked_sims,
+        {query: result.similarities for query, result in results.items()},
         max_qrel,
         min_qrel,
         round_mode,
         auto_scale,
     )
-
-
-def retrieval_to_qrels[Q, C, S: Float](
-    result: Result[Q, C, Any, S],
-    max_qrel: int = 5,
-    min_qrel: int = 1,
-    round_mode: Literal["floor", "ceil", "nearest"] = "nearest",
-    auto_scale: bool = True,
-) -> list[QueryCaseMatrix[Q, C, int]]:
-    """Convert all retrieval steps' similarities to integer relevance judgments."""
-    return [
-        retrieval_step_to_qrels(
-            step,
-            max_qrel,
-            min_qrel,
-            round_mode,
-            auto_scale,
-        )
-        for step in result.steps
-    ]

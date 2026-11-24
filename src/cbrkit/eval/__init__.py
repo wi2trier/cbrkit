@@ -1,61 +1,58 @@
-"""Evaluation metrics for assessing retrieval quality based on `ranx`.
+"""Evaluation metrics for assessing retrieval quality.
 
-This module provides functions for computing Information Retrieval metrics
-on CBRkit retrieval results.
-Standard metrics from `ranx` (e.g., `precision`, `recall`, `f1`) are supported
-alongside two CBRkit-specific metrics.
+Metrics are typed objects that score the ranking of one query:
+`Metric` names a built-in metric with its cutoff `k` (all cases if None) and minimal relevance,
+such as `Metric(name="precision", k=5)`, and any hashable function of the `cbrkit.typing.EvalMetricFunc` protocol
+is a custom metric.
+`compute` aggregates the values of every metric over the queries, by their mean unless an `aggregation` is given.
+The standard metrics are `hits`, `hit_rate`, `precision`, `recall`, `f1`, `r_precision`,
+`mrr`, `map`, `dcg`, `dcg_burges`, `ndcg`, and `ndcg_burges`, see `MetricName`.
 
 Functions:
-- `compute`: Computes metrics given ground truth (qrels), retrieval scores (run),
-  and a list of metric names.
-  Supports cutoff notation (e.g., `precision@5`).
-- `retrieval`: Evaluates a full retrieval `Result` directly.
-- `retrieval_step`: Evaluates a single retrieval `ResultStep`.
-- `generate_metrics`: Generates metric name strings for multiple cutoff points.
-- `parse_metric`: Parses a metric string like `"precision@5"` into its components.
-- `compute_score_metrics`: Computes score-based (non-ranking) metrics.
+- `compute`: Computes metrics given ground truth (qrels) and retrieval scores (run).
+- `evaluate`: Evaluates the results of a cycle, a `Result` (its last step) or one of its steps.
+- `generate_metrics`: Generates metrics for multiple cutoff points and relevance levels.
+- `compute_score_metrics`: Evaluates scores against expected scores with metrics such as correlations.
 - `similarities_to_qrels`: Converts similarity maps to relevance judgments (qrels).
-- `retrieval_to_qrels` / `retrieval_step_to_qrels`: Converts retrieval results to qrels.
+- `to_qrels`: Converts the results of a cycle to qrels.
 
 CBRkit-specific Metrics:
 - `correctness`: Measures how well the ranking preserves relevance ordering (-1 to 1).
 - `completeness`: Measures what fraction of relevance pairs are preserved (0 to 1).
-
-Custom metrics can be provided via the `metric_funcs` parameter of `compute`.
-See `cbrkit.typing.EvalMetricFunc` for the expected signature.
-
-For the full list of `ranx` metrics, see: https://amenra.github.io/ranx/metrics/
+- `kendall_tau`: Kendall's tau between relevance and retrieval scores (-1 to 1).
+- `mean_score`: Mean retrieval score of the top-k results.
 
 Example:
     >>> results = compute(
     ...     qrels={"q1": {"c1": 2, "c2": 1}},
     ...     run={"q1": {"c1": 0.9, "c2": 0.5}},
-    ...     metrics=["precision@5", "recall@10"],
+    ...     metrics=[Metric(name="precision", k=5), Metric(name="recall", k=10)],
     ... )
+    >>> results[Metric(name="recall", k=10)]
+    1.0
 """
 
 from .common import (
+    DEFAULT_METRICS,
+    Metric,
+    MetricName,
+    ScoreMetricFunc,
     compute,
     compute_score_metrics,
     generate_metrics,
-    parse_metric,
     similarities_to_qrels,
 )
-from .retrieval import (
-    retrieval,
-    retrieval_step,
-    retrieval_step_to_qrels,
-    retrieval_to_qrels,
-)
+from .retrieval import evaluate, to_qrels
 
 __all__ = [
+    "DEFAULT_METRICS",
+    "Metric",
+    "MetricName",
+    "ScoreMetricFunc",
     "compute",
     "compute_score_metrics",
+    "evaluate",
     "generate_metrics",
-    "parse_metric",
-    "retrieval",
-    "retrieval_step",
-    "retrieval_step_to_qrels",
-    "retrieval_to_qrels",
     "similarities_to_qrels",
+    "to_qrels",
 ]
