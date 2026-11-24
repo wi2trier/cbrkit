@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         revise,
         schema,
         sim,
+        spec,
         system,
         typing,
     )
@@ -48,6 +49,7 @@ __all__ = [
     "revise",
     "schema",
     "sim",
+    "spec",
     "system",
     "typing",
 ]

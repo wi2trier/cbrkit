@@ -60,6 +60,7 @@ __all__ = [
     "bounded_gather",
     "broadcast_getter",
     "dist2sim",
+    "format_number",
     "frozendict",
     "get_attribute",
     "get_name",
@@ -73,6 +74,16 @@ __all__ = [
     "unbatchify",
     "wait",
 ]
+
+
+def format_number(value: float) -> str:
+    """A number for text, rounded to two decimals, without exponent or trailing zeros.
+
+    Examples:
+        >>> format_number(1167561.3), format_number(18.0), format_number(0.125)
+        ('1167561.3', '18', '0.12')
+    """
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
 class frozendict[K, V](Mapping[K, V]):
