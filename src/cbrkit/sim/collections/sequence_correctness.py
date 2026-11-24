@@ -1,37 +1,42 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations
-from typing import override
+from typing import Literal, override
 
+from ...schema import Unit, serializable
 from ...typing import SimFunc
 
 __all__ = [
-    "sequence_correctness",
+    "SequenceCorrectness",
 ]
 
 
-@dataclass(slots=True, frozen=True)
-class sequence_correctness[V](SimFunc[Sequence[V], float]):
-    """List Correctness similarity function.
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class SequenceCorrectness[V](SimFunc[Sequence[V], float]):
+    """Similarity of two sequences by the order of their shared elements.
 
-    Parameters:
-    worst_case_sim (float): The similarity value to use when all pairs are discordant. Default is 0.0.
+    Args:
+        worst_case_similarity: The similarity when all pairs are discordant.
 
     Examples:
-        >>> sim = sequence_correctness(0.5)
+        >>> sim = SequenceCorrectness(worst_case_similarity=0.5)
         >>> sim(["Monday", "Tuesday", "Wednesday"], ["Monday", "Wednesday", "Tuesday"])
         0.3333333333333333
     """
 
-    worst_case_sim: float = 0.0
+    worst_case_similarity: Unit = 0.0
+    kind: Literal["sequence_correctness"] = field(
+        default="sequence_correctness", repr=False
+    )
 
     @override
-    def __call__(self, x: Sequence[V], y: Sequence[V]) -> float:
-        if len(x) != len(y):
+    def __call__(self, case: Sequence[V], query: Sequence[V]) -> float:
+        if len(case) != len(query):
             return 0.0
 
         # Looking every element up once keeps the pair loop free of scans over y.
-        positions = [y.index(value) for value in x if value in y]
+        positions = [query.index(value) for value in case if value in query]
         count_concordant = 0
         count_discordant = 0
 
@@ -53,4 +58,4 @@ class sequence_correctness[V](SimFunc[Sequence[V], float]):
         if correctness >= 0:
             return correctness
 
-        return abs(correctness) * self.worst_case_sim
+        return abs(correctness) * self.worst_case_similarity

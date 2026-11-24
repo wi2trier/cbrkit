@@ -1,158 +1,33 @@
 """Shared fixtures and helpers for cbrkit tests."""
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import polars as pl
 import pytest
 
 import cbrkit
-from cbrkit.indexable._common import _normalize_patch_keys
-from cbrkit.retrieval.indexable._common import resolve_casebases
 
 
 def _custom_numeric_sim(x: float, y: float) -> float:
     return 1 - abs(x - y) / 100000
 
 
-class FakeIndexable(
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
-):
-    """Fake indexable implementing create/update/delete for testing."""
+@dataclass(slots=True, frozen=True)
+class SearchingRetriever(cbrkit.typing.CbrFunc[int, str, float]):
+    """Retriever that searches its own cases and ignores the given ones, like a storage retriever."""
 
-    def __init__(self) -> None:
-        self._data: dict[int, str] | None = None
-
-    @property
-    def index(self) -> Mapping[int, str]:
-        if self._data is None:
-            return {}
-        return self._data
-
-    def has_index(self) -> bool:
-        return self._data is not None
-
-    def put_index(
-        self,
-        data: Mapping[int, str],
-    ) -> None:
-        self._data = dict(data)
-
-    def upsert_index(
-        self,
-        data: Mapping[int, str],
-    ) -> None:
-        if self._data is None:
-            self.put_index(data)
-            return
-        self._data.update(data)
-
-    def delete_index(
-        self,
-        data: Collection[int],
-    ) -> None:
-        if self._data is None:
-            return
-        for key in data:
-            self._data.pop(key, None)
-
-    def patch_index(
-        self,
-        upsert: Mapping[int, str] | None = None,
-        delete: Collection[int] | None = None,
-    ) -> None:
-        normalized = _normalize_patch_keys(upsert, delete)
-
-        if normalized is None:
-            return
-
-        _, delete_keys = normalized
-
-        if self._data is None:
-            self._data = {}
-
-        for key in delete_keys:
-            self._data.pop(key, None)
-
-        if upsert:
-            self._data.update(upsert)
-
-
-class FakeIndexableRetriever(
-    cbrkit.typing.RetrieverFunc[int, str, float],
-    cbrkit.typing.IndexableFunc[Mapping[int, str], Collection[int]],
-):
-    """Fake retriever with indexable support for testing."""
-
-    def __init__(self) -> None:
-        self._indexed_casebase: dict[int, str] | None = None
-
-    @property
-    def index(self) -> Mapping[int, str]:
-        if self._indexed_casebase is None:
-            return {}
-        return self._indexed_casebase
-
-    def has_index(self) -> bool:
-        return self._indexed_casebase is not None
-
-    def put_index(
-        self,
-        data: Mapping[int, str],
-    ) -> None:
-        self._indexed_casebase = dict(data)
-
-    def upsert_index(
-        self,
-        data: Mapping[int, str],
-    ) -> None:
-        if self._indexed_casebase is None:
-            self.put_index(data)
-            return
-
-        self._indexed_casebase.update(data)
-
-    def delete_index(
-        self,
-        data: Collection[int],
-    ) -> None:
-        if self._indexed_casebase is None:
-            return
-
-        for key in data:
-            self._indexed_casebase.pop(key, None)
-
-    def patch_index(
-        self,
-        upsert: Mapping[int, str] | None = None,
-        delete: Collection[int] | None = None,
-    ) -> None:
-        normalized = _normalize_patch_keys(upsert, delete)
-
-        if normalized is None:
-            return
-
-        _, delete_keys = normalized
-
-        if self._indexed_casebase is None:
-            self._indexed_casebase = {}
-
-        for key in delete_keys:
-            self._indexed_casebase.pop(key, None)
-
-        if upsert:
-            self._indexed_casebase.update(upsert)
+    cases: Mapping[int, str]
 
     def __call__(
         self,
         batches: Sequence[tuple[cbrkit.typing.Casebase[int, str], str]],
+        /,
     ) -> Sequence[
         tuple[cbrkit.typing.Casebase[int, str], cbrkit.typing.SimMap[int, float]]
     ]:
-        return [
-            (dict(casebase), {key: 1.0 for key in casebase})
-            for casebase, _query in resolve_casebases(batches, self._indexed_casebase)
-        ]
+        return [(self.cases, dict.fromkeys(self.cases, 1.0)) for _ in batches]
 
 
 # --- Session-scoped fixtures ---
@@ -162,13 +37,13 @@ class FakeIndexableRetriever(
 def cars_csv_casebase() -> Mapping[int, Any]:
     """Cars casebase loaded from CSV via polars."""
     df = pl.read_csv("data/cars-1k.csv")
-    return cbrkit.loaders.polars(df)
+    return cbrkit.io.Polars(df)
 
 
 @pytest.fixture(scope="session")
 def cars_yaml_casebase() -> Mapping[int, Any]:
     """Cars casebase loaded from YAML."""
-    return cbrkit.loaders.path("data/cars-1k.yaml")
+    return cbrkit.io.load("data/cars-1k.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -211,10 +86,10 @@ def simple_query() -> dict[str, int]:
 @pytest.fixture(scope="session")
 def sim_func_simple() -> cbrkit.typing.AnySimFunc[Any, Any]:
     """Simple similarity function for price+year attributes."""
-    return cbrkit.sim.attribute_value(
+    return cbrkit.sim.AttributeValue(
         attributes={
-            "price": cbrkit.sim.numbers.linear(max=100000),
-            "year": cbrkit.sim.numbers.linear(max=50),
+            "price": cbrkit.sim.numbers.Linear(max_distance=100000),
+            "year": cbrkit.sim.numbers.Linear(max_distance=50),
         },
-        aggregator=cbrkit.sim.aggregator(pooling="mean"),
+        aggregator=cbrkit.sim.Aggregator(),
     )

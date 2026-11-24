@@ -1,22 +1,33 @@
 """sentence-transformers sparse embedding provider."""
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+import asyncio
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, cast, override
 
-from sentence_transformers.sparse_encoder import SparseEncoder
+import sentence_transformers
 
-from ....typing import BatchConversionFunc, HasMetadata, JsonDict, SparseVector
+from ....helpers import lazy
+from ....typing import EmbeddingFunc, SparseVector
 
 
-@dataclass(slots=True)
-class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
+def _load(model: str | sentence_transformers.SparseEncoder) -> Callable[..., Any]:
+    return (
+        sentence_transformers.SparseEncoder(model) if isinstance(model, str) else model
+    ).encode
+
+
+@dataclass(slots=True, frozen=True)
+class SparseEncoder(EmbeddingFunc[str, SparseVector]):
     """Sparse embeddings using `sentence-transformers <https://www.sbert.net/>`_ SparseEncoder.
 
     Wraps any `SparseEncoder` model, including SPLADE variants and other
     sparse embedding models.  Produces sparse vectors where each dimension
     corresponds to a vocabulary token and the value represents the token's
     importance.
+    The weights of a model given by name are loaded on the first call,
+    and the texts are encoded in a worker thread.
 
     Args:
         model: Either the name of a sparse model (e.g.,
@@ -26,51 +37,25 @@ class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
         show_progress_bar: Whether to show a progress bar.
     """
 
-    model: SparseEncoder
-    batch_size: int
-    show_progress_bar: bool | None
-    _metadata: JsonDict
+    model: str | sentence_transformers.SparseEncoder
+    batch_size: int = 32
+    show_progress_bar: bool | None = None
+    _encode: Callable[..., Any] = field(init=False, repr=False, compare=False)
 
-    def __init__(
-        self,
-        model: str | SparseEncoder,
-        batch_size: int = 32,
-        show_progress_bar: bool | None = None,
-    ):
-        self._metadata = {}
-        self.batch_size = batch_size
-        self.show_progress_bar = show_progress_bar
-
-        if isinstance(model, str):
-            self.model = SparseEncoder(model)
-            self._metadata["model"] = model
-        else:
-            self.model = model
-            self._metadata["model"] = (
-                model.model_card_data.model_id
-                or model.model_card_data.base_model
-                or "custom"
-            )
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        """Return metadata describing the sparse encoder model."""
-        return self._metadata
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_encode", lazy(partial(_load, self.model)))
 
     @override
-    def __call__(self, texts: Sequence[str]) -> Sequence[SparseVector]:
-        if not texts:
+    async def __call__(self, values: Sequence[str], /) -> Sequence[SparseVector]:
+        if not values:
             return []
 
-        embeddings = cast(
-            Any,
-            self.model.encode(
-                cast(list[str], texts),
-                batch_size=self.batch_size,
-                show_progress_bar=self.show_progress_bar,
-                convert_to_sparse_tensor=True,
-            ),
+        embeddings = await asyncio.to_thread(
+            self._encode,
+            cast(list[str], values),
+            batch_size=self.batch_size,
+            show_progress_bar=self.show_progress_bar,
+            convert_to_sparse_tensor=True,
         )
 
         # Convert 2D sparse COO tensor to list of {token_id: weight}
@@ -78,7 +63,7 @@ class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
         indices = coalesced.indices()  # [2, nnz]
         values = coalesced.values()  # [nnz]
 
-        result: list[SparseVector] = [{} for _ in range(len(texts))]
+        result: list[SparseVector] = [{} for _ in range(len(values))]
 
         for idx in range(indices.shape[1]):
             row = int(indices[0, idx])
@@ -90,4 +75,4 @@ class sparse_encoder(BatchConversionFunc[str, SparseVector], HasMetadata):
         return result
 
 
-__all__ = ["sparse_encoder"]
+__all__ = ["SparseEncoder"]

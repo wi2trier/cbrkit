@@ -1,181 +1,109 @@
 """BM25 sparse embedding provider."""
 
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast, override
 
 import bm25s
-import Stemmer  # ty: ignore[unresolved-import]
+import Stemmer  # ty: ignore[import-not-found]
 from bm25s.tokenization import Tokenized
 
-from ....indexable._common import _normalize_patch_keys
-from ....typing import BatchConversionFunc, IndexableFunc, SparseVector
+from ....typing import EmbeddingFunc, SparseVector
 
 
-@dataclass(slots=True)
-class bm25(
-    BatchConversionFunc[str, SparseVector],
-    IndexableFunc[Collection[str]],
-):
-    """BM25-based sparse embeddings using
+def tokenize(
+    texts: Sequence[str], language: str, stopwords: Sequence[str] | None
+) -> Tokenized:
+    """Tokenize texts with the stemmer and the stopwords of a language.
+
+    Args:
+        texts: The texts.
+        language: Language of the stemmer, and of the stopwords if they are None.
+        stopwords: The stopwords, those of the language if None.
+    """
+    return cast(
+        Tokenized,
+        bm25s.tokenize(
+            list(texts),
+            stemmer=Stemmer.Stemmer(language),
+            stopwords=language if stopwords is None else list(stopwords),
+        ),
+    )
+
+
+def index(
+    texts: Sequence[str], language: str, stopwords: Sequence[str] | None
+) -> bm25s.BM25:
+    """Build the BM25 index of a corpus.
+
+    Args:
+        texts: The corpus.
+        language: Language of the stemmer, and of the stopwords if they are None.
+        stopwords: The stopwords, those of the language if None.
+    """
+    model = bm25s.BM25()
+    model.index(tokenize(texts, language, stopwords))
+
+    return model
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class BM25Encoder(EmbeddingFunc[str, SparseVector]):
+    """BM25-based sparse embeddings over the vocabulary of a corpus using
     `bm25s <https://github.com/xhluca/bm25s>`_.
 
     Produces sparse vectors where each dimension corresponds to a
-    vocabulary token and the value represents the term frequency.
-    Requires fitting on a corpus via `put_index` before use.
+    vocabulary token of the corpus and the value represents the term frequency.
+    The vocabulary is derived from the corpus once, when the function is created.
 
     Args:
+        corpus: The texts whose vocabulary spans the dimensions.
         language: Language for stemming and stopwords.
-        stopwords: Stopword configuration.  `None` uses the
-            language default, a `str` sets the stopwords language
-            independently, and a `list[str]` provides custom
-            stopwords.
+        stopwords: The stopwords, those of the language if None.
+
+    Examples:
+        >>> import asyncio
+        >>> embed = BM25Encoder(corpus=["red car", "blue bike"])
+        >>> [len(vector) for vector in asyncio.run(embed(["red bike", "green"]))]
+        [2, 0]
     """
 
+    corpus: Sequence[str]
     language: str = "english"
-    stopwords: str | list[str] | None = None
-    _corpus: list[str] | None = field(default=None, init=False, repr=False)
-    _retriever: bm25s.BM25 | None = field(default=None, init=False, repr=False)
+    stopwords: Sequence[str] | None = None
+    _vocabulary: dict[str, int] = field(init=False, repr=False, compare=False)
 
-    @property
-    def _stopwords(self) -> str | list[str]:
-        return self.stopwords if self.stopwords is not None else self.language
-
-    @property
-    def _stemmer(self) -> Stemmer.Stemmer:
-        return Stemmer.Stemmer(self.language)
-
-    def _build_retriever(self, texts: Collection[str]) -> bm25s.BM25:
-        tokens = bm25s.tokenize(
-            list(texts),
-            stemmer=self._stemmer,
-            stopwords=self._stopwords,
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "_vocabulary",
+            index(self.corpus, self.language, self.stopwords).vocab_dict
+            if self.corpus
+            else {},
         )
-        retriever = bm25s.BM25()
-        retriever.index(tokens)
-        return retriever
 
     @override
-    def has_index(self) -> bool:
-        """Return whether a BM25 corpus has been indexed."""
-        return self._corpus is not None
-
-    @property
-    @override
-    def index(self) -> Collection[str]:
-        """Return the indexed corpus or an empty list if not indexed."""
-        if self._corpus is None:
+    async def __call__(self, values: Sequence[str], /) -> Sequence[SparseVector]:
+        if not values:
             return []
-        return self._corpus
 
-    @override
-    def put_index(
-        self,
-        data: Collection[str],
-    ) -> None:
-        """Build a new BM25 index from the given corpus."""
-        self._corpus = list(data)
-        self._rebuild_index()
-
-    def _rebuild_index(self) -> None:
-        """Rebuild the BM25 model from the current corpus."""
-        if self._corpus is None:
-            self._retriever = None
-            return
-
-        if self._corpus:
-            self._retriever = self._build_retriever(self._corpus)
-        else:
-            self._retriever = None
-
-    @override
-    def upsert_index(
-        self,
-        data: Collection[str],
-    ) -> None:
-        """Add new documents to the existing BM25 index."""
-        if self._corpus is None:
-            self.put_index(data)
-            return
-
-        items = list(data)
-
-        if not items:
-            return
-
-        self._corpus.extend(items)
-        self._rebuild_index()
-
-    @override
-    def delete_index(
-        self,
-        data: Collection[str],
-    ) -> None:
-        """Remove the specified documents from the BM25 index."""
-        if self._corpus is None:
-            return
-
-        if not data:
-            return
-
-        remove_set = set(data)
-        self._corpus = [t for t in self._corpus if t not in remove_set]
-        self._rebuild_index()
-
-    @override
-    def patch_index(
-        self,
-        upsert: Collection[str] | None = None,
-        delete: Collection[str] | None = None,
-    ) -> None:
-        """Apply corpus insertions and deletions."""
-        normalized = _normalize_patch_keys(upsert, delete)
-
-        if normalized is None:
-            return
-
-        _, delete_set = normalized
-        upsert_items = list(upsert) if upsert else []
-
-        if self._corpus is None:
-            self.put_index(upsert_items)
-            return
-
-        if delete_set:
-            self._corpus = [t for t in self._corpus if t not in delete_set]
-
-        self._corpus.extend(upsert_items)
-        self._rebuild_index()
-
-    @override
-    def __call__(self, texts: Sequence[str]) -> Sequence[SparseVector]:
-        if not texts:
-            return []
-        if self._retriever is None:
-            raise ValueError("BM25 model must be fitted first. Call put_index().")
-
-        tokenized = cast(
-            Tokenized,
-            bm25s.tokenize(
-                list(texts),
-                stemmer=self._stemmer,
-                stopwords=self._stopwords,
-            ),
-        )
-        corpus_vocab = self._retriever.vocab_dict
-        query_reverse = {v: k for k, v in tokenized.vocab.items()}
+        tokenized = tokenize(values, self.language, self.stopwords)
+        tokens = {token_id: token for token, token_id in tokenized.vocab.items()}
         result: list[SparseVector] = []
 
         for token_ids in tokenized.ids:
-            sparse_vec: SparseVector = {}
-            for tid in token_ids:
-                token_str = query_reverse.get(int(tid))
-                if token_str is not None and token_str in corpus_vocab:
-                    corpus_id = corpus_vocab[token_str]
-                    sparse_vec[corpus_id] = sparse_vec.get(corpus_id, 0.0) + 1.0
-            result.append(sparse_vec)
+            vector: SparseVector = {}
+
+            for token_id in token_ids:
+                token = tokens.get(int(token_id))
+
+                if token is not None and token in self._vocabulary:
+                    dimension = self._vocabulary[token]
+                    vector[dimension] = vector.get(dimension, 0.0) + 1.0
+
+            result.append(vector)
 
         return result
 
 
-__all__ = ["bm25"]
+__all__ = ["BM25Encoder", "index", "tokenize"]

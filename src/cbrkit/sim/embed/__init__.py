@@ -1,66 +1,74 @@
-"""Embedding-based similarity: metrics, builder, cache, and providers."""
+"""Embedding-based similarity: metrics, builder, cache, and providers.
 
-from ...helpers import optional_dependencies
-from .core import build, cache, concat, embed_pairs
+`Embedding` compares two texts by the vectors of an `Embedder` with a metric such as `Cosine`,
+where the `Embedder` names an embedding function, the one it is bound to in Python or by `cbrkit.spec.bind`,
+and `EmbeddingCache` keeps the vectors of an embedding function in a store the caller owns,
+a dict in memory or a `SQLiteStore` on disk.
+Local embedding functions are `SentenceTransformers`, `SparseEncoder` and `BM25Encoder`,
+and `PydanticAI` reaches every remote provider that Pydantic AI supports, with the `pydantic-ai` extra.
+A specification names its embedders, which `cbrkit.spec.bind` binds, so it holds no provider settings.
+Embedding functions are asynchronous (`cbrkit.typing.EmbeddingFunc`), local models load their weights on the first call,
+and the synchronous `Embedding` measure waits for them with `cbrkit.helpers.wait`.
+
+Example:
+    >>> from pathlib import Path
+    >>> embedder = EmbeddingCache(embedder=SentenceTransformers("all-MiniLM-L6-v2"), store={})  # doctest: +SKIP
+    >>> persistent = EmbeddingCache(  # doctest: +SKIP
+    ...     embedder=SentenceTransformers("all-MiniLM-L6-v2"),
+    ...     store=SQLiteStore(Path("embeddings.sqlite3"), "all-MiniLM-L6-v2"),
+    ... )
+    >>> measure = Embedding(embedder=Embedder("minilm", embedder), metric=Cosine())  # doctest: +SKIP
+"""
+
+from typing import TYPE_CHECKING
+
+from ..._lazy import lazy_exports
+from .core import (
+    Concat,
+    Embedder,
+    Embedding,
+    EmbeddingCache,
+    Scratch,
+    SQLiteStore,
+    embed_pairs,
+    for_queries,
+)
 from .metrics import (
-    angular,
-    cosine,
-    default_score_func,
-    dot,
-    euclidean,
-    manhattan,
-    sparse_cosine,
-    sparse_dot,
+    Angular,
+    Cosine,
+    Dot,
+    Euclidean,
+    Manhattan,
+    SparseCosine,
+    SparseDot,
 )
 
-with optional_dependencies():
-    from .providers.spacy import load_spacy, spacy
-
-with optional_dependencies():
-    from .providers.pydantic_ai import pydantic_ai
-
-with optional_dependencies():
-    from .providers.sentence_transformers import sentence_transformers
-
-with optional_dependencies():
-    from .providers.sparse_encoder import sparse_encoder
-
-with optional_dependencies():
-    from .providers.bm25 import bm25
-
-with optional_dependencies():
-    from .providers.openai import openai
-
-with optional_dependencies():
-    from .providers.ollama import ollama
-
-with optional_dependencies():
-    from .providers.cohere import cohere
-
-with optional_dependencies():
-    from .providers.voyageai import voyageai
+if TYPE_CHECKING:
+    from .providers.bm25 import BM25Encoder
+    from .providers.pydantic_ai import PydanticAI
+    from .providers.sentence_transformers import SentenceTransformers
+    from .providers.sparse_encoder import SparseEncoder
 
 __all__ = [
-    "angular",
-    "bm25",
-    "build",
-    "cache",
-    "cohere",
-    "concat",
-    "cosine",
-    "default_score_func",
-    "dot",
+    "Angular",
+    "BM25Encoder",
+    "Concat",
+    "Cosine",
+    "Dot",
+    "Embedder",
+    "Embedding",
+    "EmbeddingCache",
+    "Euclidean",
+    "Manhattan",
+    "PydanticAI",
+    "SQLiteStore",
+    "Scratch",
+    "SentenceTransformers",
+    "SparseCosine",
+    "SparseDot",
+    "SparseEncoder",
     "embed_pairs",
-    "euclidean",
-    "load_spacy",
-    "manhattan",
-    "ollama",
-    "openai",
-    "pydantic_ai",
-    "sentence_transformers",
-    "spacy",
-    "sparse_cosine",
-    "sparse_dot",
-    "sparse_encoder",
-    "voyageai",
+    "for_queries",
 ]
+
+lazy_exports(__name__)

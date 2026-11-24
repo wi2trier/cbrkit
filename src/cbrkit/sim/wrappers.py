@@ -1,366 +1,262 @@
-from collections import defaultdict
-from collections.abc import Callable, Mapping, MutableMapping, Sequence
-from dataclasses import InitVar, dataclass, field
-from typing import Any, cast, override
+"""Similarity functions that wrap others.
 
+`Combine` and `AttributeTable` are measures that serialize by their kind.
+`Transpose` and `Cache` need code, a conversion function or a runtime store,
+so they are built in Python only.
+"""
+
+from collections import defaultdict
+from collections.abc import Mapping, MutableMapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Literal, cast, override
+
+from .._util import get_value
 from ..helpers import (
-    batchify_sim,
-    get_metadata,
-    get_value,
+    batchify,
+    frozendict,
+    get_attribute,
     getitem_or_getattr,
     singleton,
 )
+from ..model import AttributeValueSim, Explanation
+from ..schema import PythonOnly, serializable
 from ..typing import (
-    AggregatorFunc,
     AnySimFunc,
+    AttributeGetter,
     BatchSimFunc,
     ConversionFunc,
     Float,
-    HasMetadata,
-    JsonDict,
+    HasValue,
     SimSeq,
-    StructuredValue,
 )
-from .aggregator import default_aggregator
-from .generic import static
+from ._explain import Explainable, explain, explain_attributes
+from ._nested import NestedMeasure
+from .aggregator import Aggregator, default_aggregator
+
+__all__ = [
+    "AttributeTable",
+    "Cache",
+    "Combine",
+    "Transpose",
+    "transpose_singleton",
+    "transpose_value",
+]
 
 
-@dataclass(slots=True)
-class transpose[V1, V2, S: Float](BatchSimFunc[V1, S]):
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Transpose[V1, V2, S: Float](BatchSimFunc[V1, S], Explainable[V1]):
     """Transforms a similarity function from one type to another.
 
     Args:
-        similarity_func: The similarity function to be used on the converted values.
-        conversion_func: A function that converts the input values from one type to another.
+        measure: The similarity function to be used on the converted values.
+        conversion: A function that converts the input values from one type to another.
 
     Examples:
-        >>> from cbrkit.sim.generic import equality
-        >>> sim = transpose(
-        ...     similarity_func=equality(),
-        ...     conversion_func=lambda x: x.lower(),
+        >>> from cbrkit.sim.generic import Equality
+        >>> sim = Transpose(
+        ...     measure=Equality(),
+        ...     conversion=lambda x: x.lower(),
         ... )
         >>> sim([("A", "a"), ("b", "B")])
         [1.0, 1.0]
     """
 
-    similarity_func: BatchSimFunc[V2, S]
-    conversion_func: ConversionFunc[V1, V2]
-
-    def __init__(
-        self,
-        similarity_func: AnySimFunc[V2, S],
-        conversion_func: ConversionFunc[V1, V2],
-    ):
-        self.similarity_func = batchify_sim(similarity_func)
-        self.conversion_func = conversion_func
+    measure: NestedMeasure[V2, S]
+    conversion: ConversionFunc[V1, V2]
 
     @override
     def __call__(self, batches: Sequence[tuple[V1, V1]]) -> Sequence[S]:
-        return self.similarity_func(
-            [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
+        return batchify(self.measure)(
+            [(self.conversion(x), self.conversion(y)) for x, y in batches]
+        )
+
+    @override
+    def explain(self, case: V1, query: V1, similarity: Float) -> Explanation:
+        return explain(
+            self.conversion(case), self.conversion(query), similarity, self.measure
         )
 
 
 def transpose_value[V, S: Float](
     func: AnySimFunc[V, S],
-) -> BatchSimFunc[StructuredValue[V], S]:
+) -> BatchSimFunc[HasValue[V], S]:
     """Create a transposed similarity function that extracts values before comparing."""
-    return transpose(func, get_value)
+    return Transpose(measure=func, conversion=get_value)
 
 
 def transpose_singleton[V, S: Float](
     func: AnySimFunc[V, S],
 ) -> BatchSimFunc[tuple[V, ...], S]:
     """Create a transposed similarity function that unwraps singleton tuples."""
-    return transpose(func, singleton)
+    return Transpose(measure=func, conversion=singleton)
 
 
-@dataclass(slots=True)
-class combine[V, S: Float](BatchSimFunc[V, float]):
-    """Combines multiple similarity functions into one.
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Combine[V, S: Float](BatchSimFunc[V, AttributeValueSim[S]], Explainable[V]):
+    """Combines several measures of the same values into one, keeping their similarities by name.
 
     Args:
-        sim_funcs: A list of similarity functions to be combined.
-        aggregator: A function to aggregate the results from the similarity functions.
-
-    Returns:
-        A similarity function that combines the results from multiple similarity functions.
+        measures: The measures by name.
+        aggregator: Aggregates the similarities of the measures by their names.
 
     Examples:
-        >>> from cbrkit.sim.generic import equality, static
-        >>> sim = combine([equality(), static(0.5)])
-        >>> sim([("a", "a"), ("a", "b")])
+        >>> from cbrkit.sim.generic import Equality, Static
+        >>> sim = Combine(measures={"equal": Equality(), "half": Static(value=0.5)})
+        >>> [float(value) for value in sim([("a", "a"), ("a", "b")])]
         [0.75, 0.25]
     """
 
-    sim_funcs: InitVar[Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]]
-    aggregator: AggregatorFunc[str, S] = default_aggregator
-    batch_sim_funcs: Sequence[BatchSimFunc[V, S]] | Mapping[str, BatchSimFunc[V, S]] = (
-        field(init=False, repr=False)
-    )
-
-    def __post_init__(
-        self, sim_funcs: Sequence[AnySimFunc[V, S]] | Mapping[str, AnySimFunc[V, S]]
-    ):
-        if isinstance(sim_funcs, Mapping):
-            funcs_map = cast(Mapping[str, AnySimFunc[V, S]], sim_funcs)
-            self.batch_sim_funcs = {
-                key: batchify_sim(func) for key, func in funcs_map.items()
-            }
-        elif isinstance(sim_funcs, Sequence):
-            self.batch_sim_funcs = [batchify_sim(func) for func in sim_funcs]
-        else:
-            raise TypeError(f"Invalid sim_funcs type: {type(sim_funcs)}")
+    measures: Mapping[str, NestedMeasure[V, S]]
+    aggregator: Aggregator = default_aggregator
+    kind: Literal["combine"] = field(default="combine", repr=False)
 
     @override
-    def __call__(self, batches: Sequence[tuple[V, V]]) -> Sequence[float]:
-        if isinstance(self.batch_sim_funcs, Mapping):
-            funcs_map = cast(Mapping[str, BatchSimFunc[V, S]], self.batch_sim_funcs)
-            func_results = {
-                func_key: func(batches) for func_key, func in funcs_map.items()
-            }
+    def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[AttributeValueSim[S]]:
+        named = {name: batchify(func)(batches) for name, func in self.measures.items()}
+        rows = (
+            {name: sims[idx] for name, sims in named.items()}
+            for idx in range(len(batches))
+        )
 
-            return [
-                self.aggregator(
-                    {
-                        func_key: batch_results[batch_idx]
-                        for func_key, batch_results in func_results.items()
-                    }
-                )
-                for batch_idx in range(len(batches))
-            ]
+        return [
+            AttributeValueSim(
+                value=float(self.aggregator(row)), similarities=frozendict(row)
+            )
+            for row in rows
+        ]
 
-        elif isinstance(self.batch_sim_funcs, Sequence):
-            func_results = [func(batches) for func in self.batch_sim_funcs]
-
-            return [
-                self.aggregator(
-                    [batch_results[batch_idx] for batch_results in func_results]
-                )
-                for batch_idx in range(len(batches))
-            ]
-
-        raise ValueError(f"Invalid batch_sim_funcs type: {type(self.batch_sim_funcs)}")
+    @override
+    def explain(self, case: V, query: V, similarity: Float) -> Explanation:
+        # the measures compare the whole values
+        return explain_attributes(
+            similarity, self.aggregator, self.measures, lambda _: (case, query)
+        )
 
 
-@dataclass(slots=True)
-class cache[V, U, S: Float](BatchSimFunc[V, S]):
-    """Caches similarity results to avoid redundant computations.
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Cache[V, U, S: Float](BatchSimFunc[V, S], Explainable[V]):
+    """Keeps the similarities of pairs in an explicit store to avoid computing them again.
 
     Args:
-        similarity_func: The similarity function to cache.
-        conversion_func: Optional function to convert values to cache keys.
+        measure: The similarity function to cache.
+        store: The similarities by pair of cache keys, which the caller owns and may share or persist.
+        conversion: Optional function to convert values to cache keys.
 
     Examples:
-        >>> from cbrkit.sim.generic import equality
-        >>> sim = cache(equality())
-        >>> len(sim.store)
-        0
+        >>> from cbrkit.sim.generic import Equality
+        >>> store = {}
+        >>> sim = Cache(measure=Equality(), store=store)
         >>> sim([("a", "a"), ("b", "b")])
         [1.0, 1.0]
-        >>> len(sim.store)
-        2
         >>> sim([("a", "a")])
         [1.0]
-        >>> len(sim.store)
+        >>> len(store)
         2
     """
 
-    similarity_func: BatchSimFunc[V, S]
-    conversion_func: ConversionFunc[V, U] | None
+    measure: NestedMeasure[V, S]
     store: MutableMapping[tuple[U, U], S] = field(repr=False)
-
-    def __init__(
-        self,
-        similarity_func: AnySimFunc[V, S],
-        conversion_func: ConversionFunc[V, U] | None = None,
-    ):
-        self.similarity_func = batchify_sim(similarity_func)
-        self.conversion_func = conversion_func
-        self.store = {}
+    conversion: ConversionFunc[V, U] | None = None
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]]) -> SimSeq[S]:
         transformed_batches = (
-            [(self.conversion_func(x), self.conversion_func(y)) for x, y in batches]
-            if self.conversion_func is not None
+            [(self.conversion(x), self.conversion(y)) for x, y in batches]
+            if self.conversion is not None
             else cast(list[tuple[U, U]], batches)
         )
-        uncached_indexes = [
-            idx
-            for idx, pair in enumerate(transformed_batches)
-            if pair not in self.store
-        ]
+        # the first index of every distinct pair that is not stored yet
+        uncached: dict[tuple[U, U], int] = {}
 
-        uncached_sims = self.similarity_func([batches[idx] for idx in uncached_indexes])
-        self.store.update(
-            {
-                transformed_batches[idx]: sim
-                for idx, sim in zip(uncached_indexes, uncached_sims, strict=True)
-            }
+        for idx, pair in enumerate(transformed_batches):
+            if pair not in uncached and pair not in self.store:
+                uncached[pair] = idx
+
+        uncached_sims = batchify(self.measure)(
+            [batches[idx] for idx in uncached.values()]
         )
+        self.store.update(zip(uncached, uncached_sims, strict=True))
 
         return [self.store[pair] for pair in transformed_batches]
 
+    @override
+    def explain(self, case: V, query: V, similarity: Float) -> Explanation:
+        return explain(case, query, similarity, self.measure)
 
-@dataclass(slots=True)
-class dynamic_table[K, U, V, S: Float](BatchSimFunc[U | V, S], HasMetadata):
-    """Allows to import a similarity values from a table.
+
+_OTHER = object()
+
+
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class AttributeTable[S: Float](BatchSimFunc[Any, S], Explainable[Any]):
+    """Similarity measure chosen by a shared value of an attribute, such as the type of a node, or by a shared type.
+
+    Pairs whose keys differ or are not listed get the `fallback` measure.
+    Differing keys of a pair never select a measure, so `fallback` also compares values of different types.
 
     Args:
-        entries: Sequence[tuple[a, b, sim(a, b)]
-        symmetric: If True, the table is assumed to be symmetric, i.e. sim(a, b) = sim(b, a)
-        default: Default similarity value for pairs not in the table
-        key_getter: A function that extracts the the key for lookup from the input values
+        attribute: Name of the attribute whose value is the key, the name of the type of the value if None.
+        entries: Measures by key.
+        fallback: Measure of the other pairs, which raise a `KeyError` if None.
+        value_getter: Reads the attribute of a value, a missing attribute counts as None.
 
     Examples:
-        >>> from cbrkit.helpers import identity
-        >>> from cbrkit.sim.generic import static
-        >>> sim = dynamic_table(
-        ...     {
-        ...         ("a", "b"): static(0.5),
-        ...         ("b", "c"): static(0.7)
-        ...     },
-        ...     symmetric=True,
-        ...     default=static(0.0),
-        ...     key_getter=identity,
-        ... )
-        >>> sim([("b", "a"), ("a", "c")])
-        [0.5, 0.0]
+        >>> from cbrkit.sim.generic import Equality, Static
+        >>> sim = AttributeTable(attribute="type", entries={"a": Equality()}, fallback=Static(value=0.0))
+        >>> sim([({"type": "a", "v": 1}, {"type": "a", "v": 1}), ({"type": "b"}, {"type": "b"})])
+        [1.0, 0.0]
+
+        Without an attribute, the measure is chosen by the name of the type of the values:
+
+        >>> from cbrkit.sim.numbers import Linear
+        >>> by_type = AttributeTable(entries={"str": Equality(), "int": Linear(max_distance=10)})
+        >>> by_type([("a", "a"), (1, 6)])
+        [1.0, 0.5]
     """
 
-    symmetric: bool
-    default: BatchSimFunc[U, S] | None
-    key_getter: Callable[[Any], K]
-    table: dict[tuple[K, K], BatchSimFunc[V, S]]
+    entries: Mapping[str, NestedMeasure[Any, S]]
+    attribute: str | None = None
+    fallback: NestedMeasure[Any, S] | None = None
+    value_getter: PythonOnly[AttributeGetter] = getitem_or_getattr
+    kind: Literal["attribute_table"] = field(default="attribute_table", repr=False)
 
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        """Return metadata describing the dynamic table configuration."""
-        return {
-            "symmetric": self.symmetric,
-            "default": get_metadata(self.default),
-            "key_getter": get_metadata(self.key_getter),
-            "table": [
-                {
-                    "x": str(k[0]),
-                    "y": str(k[1]),
-                    "value": get_metadata(v),
-                }
-                for k, v in self.table.items()
-            ],
-        }
+    def _key(self, value: Any) -> Any:
+        if self.attribute is None:
+            return type(value).__name__
 
-    def __init__(
-        self,
-        entries: Mapping[tuple[K, K], AnySimFunc[Any, S]]
-        | Mapping[K, AnySimFunc[Any, S]],
-        key_getter: Callable[[Any], K],
-        default: AnySimFunc[U, S] | S | None = None,
-        symmetric: bool = True,
-    ):
-        self.symmetric = symmetric
-        self.key_getter = key_getter
-        self.table = {}
+        return get_attribute(value, self.attribute, self.value_getter)
 
-        if default is None:
-            self.default = None
-        elif isinstance(default, Callable):
-            self.default = batchify_sim(cast(AnySimFunc[U, S], default))
-        else:
-            self.default = batchify_sim(static(cast(S, default)))
+    def _group(self, case: Any, query: Any) -> Any:
+        """The key of the measure of a pair, `_OTHER` for the fallback."""
+        key = self._key(query)
 
-        for key, val in entries.items():
-            func = batchify_sim(val)
+        return key if key in self.entries and self._key(case) == key else _OTHER
 
-            if isinstance(key, tuple):
-                x, y = cast(tuple[K, K], key)
-            else:
-                x = y = cast(K, key)
-
-            self.table[(x, y)] = func
-
-            if self.symmetric and x != y:
-                self.table[(y, x)] = func
+    def _measure(self, group: Any) -> AnySimFunc[Any, S] | None:
+        return self.fallback if group is _OTHER else self.entries[group]
 
     @override
-    def __call__(self, batches: Sequence[tuple[U | V, U | V]]) -> SimSeq[S]:
-        # then we group the batches by key to avoid redundant computations
-        idx_map: defaultdict[tuple[K, K] | None, list[int]] = defaultdict(list)
+    def __call__(self, batches: Sequence[tuple[Any, Any]]) -> SimSeq[S]:
+        groups: defaultdict[Any, list[int]] = defaultdict(list)
 
-        for idx, (x, y) in enumerate(batches):
-            key = (self.key_getter(x), self.key_getter(y))
+        for idx, (case, query) in enumerate(batches):
+            groups[self._group(case, query)].append(idx)
 
-            if key in self.table:
-                idx_map[key].append(idx)
-            else:
-                idx_map[None].append(idx)
-
-        # now we compute the similarities
         results: dict[int, S] = {}
 
-        for key, idxs in idx_map.items():
-            sim_func = cast(
-                BatchSimFunc[U | V, S] | None,
-                self.table.get(key) if key is not None else self.default,
-            )
+        for group, idxs in groups.items():
+            measure = self._measure(group)
 
-            if sim_func is None:
-                missing_entries = [batches[idx] for idx in idxs]
-                missing_keys = {
-                    (self.key_getter(x), self.key_getter(y)) for x, y in missing_entries
-                }
+            if measure is None:
+                raise KeyError(f"No measure for the pairs at {idxs}")
 
-                raise ValueError(f"Pairs {missing_keys} not in the table")
-
-            sims = sim_func([batches[idx] for idx in idxs])
-
-            for idx, sim in zip(idxs, sims, strict=True):
-                results[idx] = sim
+            sims = batchify(measure)([batches[idx] for idx in idxs])
+            results.update(zip(idxs, sims, strict=True))
 
         return [results[idx] for idx in range(len(batches))]
 
-
-table = dynamic_table
-
-
-def type_table[U, V, S: Float](
-    entries: Mapping[type[V], AnySimFunc[Any, S]],
-    default: AnySimFunc[U, S] | S | None = None,
-) -> BatchSimFunc[U | V, S]:
-    """Create a dynamic table that dispatches similarity functions by value type."""
-    return dynamic_table(
-        entries=cast(Mapping[type, AnySimFunc[Any, S]], entries),
-        key_getter=type,
-        default=default,
-        symmetric=False,
-    )
-
-
-@dataclass(slots=True, frozen=True)
-class attribute_table_key_getter[K]:
-    """Extracts a key from an object using a getter function and attribute name."""
-
-    func: Callable[[Any, str], K]
-    attribute: str
-
-    def __call__(self, x: Any) -> K:
-        return self.func(x, self.attribute)
-
-
-def attribute_table[K, U, S: Float](
-    entries: Mapping[K, AnySimFunc[Any, S]],
-    attribute: str,
-    default: AnySimFunc[U, S] | S | None = None,
-    value_getter: Callable[[Any, str], K] = getitem_or_getattr,
-) -> BatchSimFunc[Any, S]:
-    """Create a dynamic table that dispatches similarity functions by attribute value."""
-    key_getter = attribute_table_key_getter(value_getter, attribute)
-
-    return dynamic_table(
-        entries=entries,
-        key_getter=key_getter,
-        default=default,
-        symmetric=False,
-    )
+    @override
+    def explain(self, case: Any, query: Any, similarity: Float) -> Explanation:
+        return explain(case, query, similarity, self._measure(self._group(case, query)))

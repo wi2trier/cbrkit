@@ -1,34 +1,40 @@
 from collections.abc import Collection
 from collections.abc import Set as AbstractSet
-from dataclasses import dataclass
-from typing import override
+from dataclasses import dataclass, field
+from typing import Literal, override
 
-from ...helpers import dist2sim, optional_dependencies
+from ...schema import serializable
 from ...typing import SimFunc
 
 __all__ = [
-    "jaccard",
+    "Jaccard",
 ]
 
 
-with optional_dependencies():
-    from nltk.metrics import jaccard_distance
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Jaccard[V](SimFunc[Collection[V], float]):
+    """Jaccard similarity of two collections interpreted as sets.
 
-    @dataclass(slots=True, frozen=True)
-    class jaccard[V](SimFunc[Collection[V], float]):
-        """Jaccard similarity function.
+    Two empty collections are identical and have a similarity of 1.0.
 
-        Examples:
-            >>> sim = jaccard()
-            >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
-            0.8
-        """
+    Examples:
+        >>> sim = Jaccard()
+        >>> sim(["a", "b", "c", "d"], ["a", "b", "c"])
+        0.75
+        >>> sim([], [])
+        1.0
+    """
 
-        @override
-        def __call__(self, x: Collection[V], y: Collection[V]) -> float:
-            if not isinstance(x, AbstractSet):
-                x = set(x)
-            if not isinstance(y, AbstractSet):
-                y = set(y)
+    kind: Literal["jaccard"] = field(default="jaccard", repr=False)
 
-            return dist2sim(jaccard_distance(x, y))
+    @override
+    def __call__(self, case: Collection[V], query: Collection[V]) -> float:
+        x_set = case if isinstance(case, AbstractSet) else set(case)
+        y_set = query if isinstance(query, AbstractSet) else set(query)
+        union = x_set | y_set
+
+        if not union:
+            return 1.0
+
+        return len(x_set & y_set) / len(union)

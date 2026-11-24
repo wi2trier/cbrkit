@@ -1,142 +1,135 @@
-"""
-A taxonomy is a hierarchical structure of categories, where each category is a node in the taxonomy.
-The nodes are connected by parent-child relationships, and the root node is the top-level category.
-Each node may have the attributes `name`, `weight`, and `children` (see `cbrkit.sim.taxonomy.SerializedTaxonomyNode`).
-To simplify the creation of a taxonomy, the `cbrkit.sim.taxonomy.load` function can be used to load a taxonomy from a file (toml, json, or yaml).
-For nodes without a `weight` or `children`, it is also possible to pass its name as a string instead of a dictionary.
+"""Similarity of values by their nodes in a taxonomy, see `Taxonomy`.
 
-**Important:** If loading the taxonomy from a file, changes like adding children or weights need to be made there, not in the code.
+A taxonomy is a tree of categories whose nodes have the attributes `name`, `weight`, and `children`
+(see `SerializedTaxonomyNode`), and a node without weight or children may be given by its name only.
+`load` reads a taxonomy from a json or yaml file, which is also the place to change it.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Literal, Protocol, override
+from typing import Annotated, Literal, Protocol, assert_never, override
 
 from pydantic import BaseModel, Field
 
-from ..loaders import file as load_file
+from ..helpers import frozendict
+from ..io import load as load_file
+from ..schema import Family, Unit, serializable
+from ..typing import FilePath, SimFunc
 
 __all__ = [
+    "Levels",
+    "Paths",
     "SerializedTaxonomyNode",
     "Taxonomy",
     "TaxonomyNode",
     "TaxonomySimFunc",
     "TaxonomyStrategy",
-    "build",
-    "levels",
-    "paths",
-    "weights",
-    "wu_palmer",
+    "TaxonomyTree",
+    "Weights",
+    "WuPalmer",
+    "load",
 ]
 
 
 class SerializedTaxonomyNode(BaseModel):
-    """Serialized representation of a taxonomy node for loading from files."""
+    """A node of a taxonomy with its children, as stored in a file.
+
+    Args:
+        name: Name of the node, unique in the taxonomy.
+        weight: Similarity of two nodes below this one, used by `Weights` with user weights.
+        children: The child nodes, each given by a node or its name.
+    """
 
     name: str
     weight: float = 1.0
-    children: list["SerializedTaxonomyNode | str"] = Field(default_factory=list)
+    children: list[SerializedTaxonomyNode | str] = Field(default_factory=list)
 
 
-SerializedTaxonomyNode.model_rebuild()
+def load(path: FilePath) -> SerializedTaxonomyNode:
+    """Loads a taxonomy from a json or yaml file.
+
+    Args:
+        path: Path of the file.
+    """
+    return SerializedTaxonomyNode.model_validate(load_file(path))
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True, eq=False)
 class TaxonomyNode:
-    """Internal node in a parsed taxonomy tree."""
+    """A node of a parsed taxonomy, compared by identity.
+
+    Args:
+        name: Name of the node.
+        weight: Weight of the node.
+        depth: Number of edges from the root.
+        parent: The parent node, None for the root.
+    """
 
     name: str
     weight: float
     depth: int
-    parent: "TaxonomyNode | None"
-    children: dict[str, "TaxonomyNode"] = field(default_factory=dict)
+    parent: TaxonomyNode | None
 
     @property
     def level(self) -> int:
-        """Return the 1-based level of this node in the taxonomy."""
+        """The 1-based level of the node."""
         return self.depth + 1
 
 
-@dataclass(slots=True)
-class Taxonomy:
-    """Load a taxonomy and return a function that measures the similarity.
+@dataclass(slots=True, frozen=True)
+class TaxonomyTree:
+    """A parsed taxonomy whose nodes are found by their names, see `parse`.
 
-    The taxonomy is loaded from the given path and expected to conform to the following structure:
-
-    ```yaml
-    name: ROOT
-    weight: 0.0
-    children:
-      - name: CHILD1
-        weight: 0.4
-        children:
-          - name: GRANDCHILD1
-            weight: 0.8
-            children:
-              - name: GREATGRANDCHILD1
-              - name: GREATGRANDCHILD2
-          - name: GRANDCHILD2
-      - name: CHILD2
-        weight: 0.6
-        children: []
-    ```
-
-    The `name` field is required for each node, and the `children` field is optional.
-    The `weight` field is optional and can be used to assign a weight/similarity value to the node.
-    If not set, the default value is 1.0.
-    The `weight` is only used by the measure `user_weights` and ignored otherwise.
+    Args:
+        root: The root node.
+        nodes: Every node by its name.
+        max_depth: The largest depth of a node.
     """
 
-    root_name: str
-    nodes: dict[str, TaxonomyNode]
+    root: TaxonomyNode
+    nodes: Mapping[str, TaxonomyNode]
+    max_depth: int
 
-    def __init__(self, data: SerializedTaxonomyNode) -> None:
-        self.nodes = {}
-        self.root_name = self.parse(data).name
+    @classmethod
+    def parse(cls, data: SerializedTaxonomyNode | str) -> TaxonomyTree:
+        """Parses a serialized taxonomy.
 
-    @property
-    def root(self) -> TaxonomyNode:
-        """Return the root node of the taxonomy."""
-        return self.nodes[self.root_name]
+        Raises:
+            ValueError: If two nodes have the same name.
 
-    @property
-    def max_depth(self) -> int:
-        """Return the maximum depth across all nodes in the taxonomy."""
-        return max(node.depth for node in self.nodes.values())
+        Examples:
+            >>> taxonomy = TaxonomyTree.parse(SerializedTaxonomyNode(name="root", children=["a"]))
+            >>> taxonomy.nodes["a"].parent is taxonomy.root, taxonomy.max_depth
+            (True, 1)
+        """
+        nodes: dict[str, TaxonomyNode] = {}
+        pending: list[tuple[SerializedTaxonomyNode | str, TaxonomyNode | None]] = [
+            (data, None)
+        ]
 
-    @property
-    def max_level(self) -> int:
-        """Return the maximum level across all nodes in the taxonomy."""
-        return max(node.level for node in self.nodes.values())
+        while pending:
+            item, parent = pending.pop()
+            item = SerializedTaxonomyNode(name=item) if isinstance(item, str) else item
 
-    def parse(
-        self,
-        data: SerializedTaxonomyNode | str,
-        parent: TaxonomyNode | None = None,
-        depth: int = 0,
-    ) -> TaxonomyNode:
-        """Parse a serialized taxonomy node and register it in the taxonomy."""
-        if isinstance(data, str):
-            data = SerializedTaxonomyNode(name=data)
+            if item.name in nodes:
+                raise ValueError(f"Duplicate taxonomy node: {item.name}")
 
-        node = TaxonomyNode(
-            name=data.name,
-            weight=data.weight,
-            depth=depth,
-            parent=parent,
-        )
+            node = TaxonomyNode(
+                item.name,
+                item.weight,
+                0 if parent is None else parent.depth + 1,
+                parent,
+            )
+            nodes[node.name] = node
+            pending.extend((child, node) for child in item.children)
 
-        for child in data.children:
-            child_node = self.parse(child, node, depth + 1)
-            node.children[child_node.name] = child_node
+        root = nodes[data if isinstance(data, str) else data.name]
 
-        self.nodes[node.name] = node
-
-        return node
+        return cls(root, frozendict(nodes), max(node.depth for node in nodes.values()))
 
     def lca(self, node1: TaxonomyNode, node2: TaxonomyNode) -> TaxonomyNode:
-        """Find the lowest common ancestor of two taxonomy nodes."""
-        while node1 != node2:
+        """The lowest common ancestor of two nodes."""
+        while node1 is not node2:
             if node1.parent is None or node2.parent is None:
                 return self.root
 
@@ -148,38 +141,46 @@ class Taxonomy:
         return node1
 
 
-TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
+type TaxonomyStrategy = Literal["optimistic", "pessimistic", "average"]
+"""How a measure treats two nodes of which one is the lowest common ancestor of both."""
 
 
 class TaxonomySimFunc(Protocol):
-    """Computes similarity between two nodes in a taxonomy."""
+    """Similarity of two nodes of a taxonomy, given by their names."""
 
-    def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float: ...
+    def __call__(self, case: str, query: str, taxonomy: TaxonomyTree) -> float: ...
 
 
-@dataclass(slots=True, frozen=True)
-class wu_palmer(TaxonomySimFunc):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class WuPalmer(TaxonomySimFunc):
     """Wu & Palmer similarity measure of two nodes in a taxonomy.
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", wu_palmer())
+        >>> sim = Taxonomy(taxonomy=load("./data/cars-taxonomy.yaml"), measure=WuPalmer())
         >>> sim("audi", "porsche")
         0.5
         >>> sim("audi", "bmw")
         0.0
     """
 
+    kind: Literal["wu_palmer"] = field(default="wu_palmer", repr=False)
+
     @override
-    def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
+    def __call__(self, case: str, query: str, taxonomy: TaxonomyTree) -> float:
+        node1 = taxonomy.nodes[case]
+        node2 = taxonomy.nodes[query]
         lca = taxonomy.lca(node1, node2)
+
+        if node1.depth + node2.depth == 0:
+            return 1.0
 
         return (2 * lca.depth) / (node1.depth + node2.depth)
 
 
-@dataclass(slots=True, frozen=True)
-class weights(TaxonomySimFunc):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Weights(TaxonomySimFunc):
     """Weight-based similarity measure of two nodes in a taxonomy.
 
     The weights are defined by the user in the taxonomy file or automatically calculated based on the depth of the nodes.
@@ -194,7 +195,7 @@ class weights(TaxonomySimFunc):
     ![auto weights](/assets/taxonomy/auto-weights.png)
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", weights("auto", "optimistic"))
+        >>> sim = Taxonomy(taxonomy=load("./data/cars-taxonomy.yaml"), measure=Weights(source="auto", strategy="optimistic"))
         >>> sim("audi", "Volkswagen AG")
         1.0
         >>> sim("audi", "bmw")
@@ -203,32 +204,37 @@ class weights(TaxonomySimFunc):
 
     source: Literal["auto", "user"]
     strategy: TaxonomyStrategy
+    kind: Literal["weights"] = field(default="weights", repr=False)
 
     @override
-    def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
+    def __call__(self, case: str, query: str, taxonomy: TaxonomyTree) -> float:
+        node1 = taxonomy.nodes[case]
+        node2 = taxonomy.nodes[query]
         lca = taxonomy.lca(node1, node2)
         max_depth = taxonomy.max_depth
 
+        if max_depth == 0:
+            return 1.0
+
         weight: float = lca.weight if self.source == "user" else lca.depth / max_depth
 
-        if lca == node1 or lca == node2:
-            # pessimistic not needed: weight of lca already used
-            if self.strategy == "optimistic":
-                weight = 1.0
-            elif self.strategy == "average" and self.source == "user":
-                weight = (node1.weight + node2.weight) / 2
-            elif self.strategy == "average" and self.source == "auto":
-                weight1 = node1.depth / max_depth
-                weight2 = node2.depth / max_depth
-                weight = (weight1 + weight2) / 2
+        if lca is not node1 and lca is not node2:
+            return weight
 
-        return weight
+        match self.strategy, self.source:
+            case "optimistic", _:
+                return 1.0
+            case "pessimistic", _:
+                return weight
+            case "average", "user":
+                return (node1.weight + node2.weight) / 2
+            case "average", "auto":
+                return (node1.depth + node2.depth) / (2 * max_depth)
 
 
-@dataclass(slots=True, frozen=True)
-class levels(TaxonomySimFunc):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Levels(TaxonomySimFunc):
     """Node levels similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the levels of the nodes.
@@ -240,7 +246,7 @@ class levels(TaxonomySimFunc):
     ![node levels](/assets/taxonomy/node-levels.png)
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", levels("optimistic"))
+        >>> sim = Taxonomy(taxonomy=load("./data/cars-taxonomy.yaml"), measure=Levels(strategy="optimistic"))
         >>> sim("audi", "Volkswagen AG")
         1.0
         >>> sim("audi", "bmw")
@@ -248,25 +254,28 @@ class levels(TaxonomySimFunc):
     """
 
     strategy: TaxonomyStrategy
+    kind: Literal["levels"] = field(default="levels", repr=False)
 
     @override
-    def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
+    def __call__(self, case: str, query: str, taxonomy: TaxonomyTree) -> float:
+        node1 = taxonomy.nodes[case]
+        node2 = taxonomy.nodes[query]
         lca = taxonomy.lca(node1, node2)
 
-        if self.strategy == "optimistic":
-            return lca.level / min(node1.level, node2.level)
-        elif self.strategy == "pessimistic":
-            return lca.level / max(node1.level, node2.level)
-        elif self.strategy == "average":
-            return lca.level / ((node1.level + node2.level) / 2)
+        match self.strategy:
+            case "optimistic":
+                return lca.level / min(node1.level, node2.level)
+            case "pessimistic":
+                return lca.level / max(node1.level, node2.level)
+            case "average":
+                return lca.level / ((node1.level + node2.level) / 2)
+            case _:
+                assert_never(self.strategy)
 
-        return 0.0
 
-
-@dataclass(slots=True, frozen=True)
-class paths(TaxonomySimFunc):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Paths(TaxonomySimFunc):
     """Path steps similarity measure of two nodes in a taxonomy.
 
     The similarity is calculated based on the steps up and down from the lowest common ancestor (lca).
@@ -278,7 +287,7 @@ class paths(TaxonomySimFunc):
     ![path steps](/assets/taxonomy/path.png)
 
     Examples:
-        >>> sim = build("./data/cars-taxonomy.yaml", paths())
+        >>> sim = Taxonomy(taxonomy=load("./data/cars-taxonomy.yaml"), measure=Paths())
         >>> sim("audi", "Volkswagen AG")
         0.8333333333333334
         >>> sim("audi", "bmw")
@@ -287,11 +296,12 @@ class paths(TaxonomySimFunc):
 
     weight_up: float = 1.0
     weight_down: float = 1.0
+    kind: Literal["paths"] = field(default="paths", repr=False)
 
     @override
-    def __call__(self, x: str, y: str, taxonomy: Taxonomy) -> float:
-        node1 = taxonomy.nodes[x]
-        node2 = taxonomy.nodes[y]
+    def __call__(self, case: str, query: str, taxonomy: TaxonomyTree) -> float:
+        node1 = taxonomy.nodes[case]
+        node2 = taxonomy.nodes[query]
         lca = taxonomy.lca(node1, node2)
 
         steps_up = node1.depth - lca.depth
@@ -302,41 +312,50 @@ class paths(TaxonomySimFunc):
             taxonomy.max_depth * self.weight_down
         )
 
+        if max_weighted_steps == 0:
+            return 1.0
+
         return (max_weighted_steps - weighted_steps) / max_weighted_steps
 
 
-default_taxonomy_func = wu_palmer()
+TAXONOMY_FUNCS = Family(
+    "taxonomy function",
+    (WuPalmer, Weights, Levels, Paths),
+)
 
 
-@dataclass(slots=True, init=False)
-class build:
-    """Build a taxonomy similarity function.
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Taxonomy(SimFunc[str, float]):
+    """Similarity of two values by their nodes in a taxonomy.
 
     Args:
-        taxonomy: The taxonomy to use for the similarity measure.
+        taxonomy: The taxonomy, see `load` to read it from a file.
+        measure: Similarity of two nodes of the taxonomy.
+        default: Similarity of values that are not part of the taxonomy, which raise a `KeyError` if None.
 
-    Returns:
-        A function that measures the similarity between two nodes in the taxonomy.
+    Examples:
+        >>> sim = Taxonomy(taxonomy=load("./data/cars-taxonomy.yaml"), default=0.0)
+        >>> sim("audi", "unknown")
+        0.0
     """
 
-    taxonomy: Taxonomy = field(repr=False)
-    func: TaxonomySimFunc
+    taxonomy: SerializedTaxonomyNode
+    measure: Annotated[TaxonomySimFunc, TAXONOMY_FUNCS] = WuPalmer()
+    default: Unit | None = None
+    kind: Literal["taxonomy"] = field(default="taxonomy", repr=False)
+    _tree: TaxonomyTree = field(init=False, repr=False, compare=False)
 
-    def __init__(
-        self,
-        taxonomy: Taxonomy | SerializedTaxonomyNode | str | Path,
-        func: TaxonomySimFunc = default_taxonomy_func,
-    ) -> None:
-        if isinstance(taxonomy, Taxonomy):
-            self.taxonomy = taxonomy
-        elif isinstance(taxonomy, str | Path):
-            loaded_content = load_file(taxonomy)
-            serialized_taxonomy = SerializedTaxonomyNode.model_validate(loaded_content)
-            self.taxonomy = Taxonomy(serialized_taxonomy)
-        else:
-            self.taxonomy = Taxonomy(taxonomy)
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_tree", TaxonomyTree.parse(self.taxonomy))
 
-        self.func = func
+    @override
+    def __call__(self, case: str, query: str) -> float:
+        for value in (case, query):
+            if value not in self._tree.nodes:
+                if self.default is None:
+                    raise KeyError(f"Value not part of the taxonomy: {value}")
 
-    def __call__(self, x: str, y: str) -> float:
-        return self.func(x, y, self.taxonomy)
+                return self.default
+
+        return self.measure(case, query, self._tree)

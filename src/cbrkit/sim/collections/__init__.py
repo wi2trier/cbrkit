@@ -3,49 +3,47 @@
 This module provides similarity functions for unordered collections as well as
 for sequences, where the order of the elements matters.
 Sequence measures based on an alignment additionally expose the computed
-alignment through `SequenceSim`.
+alignment through `cbrkit.model.SequenceSim` if their `alignment` field is set.
+Measures of elements are similarities everywhere (`element_measure`),
+the elastic measures `DTW` and `TWED` take `1 - similarity` as the distance of two elements.
+The mapping measures keep the local similarities as returned by the element measure,
+two empty sequences are identical and an empty sequence has nothing in common with any other.
 
 Algorithms:
-- `jaccard`: Jaccard similarity of two collections interpreted as sets.
-- `dtw`: Dynamic Time Warping, which warps the sequences along the time axis.
-- `twed`: Time Warp Edit Distance, a metric alternative to `dtw` that deletes
+- `Jaccard`: Jaccard similarity of two collections interpreted as sets.
+- `DTW`: Dynamic Time Warping, which warps the sequences along the time axis.
+- `TWED`: Time Warp Edit Distance, a metric alternative to `DTW` that deletes
   unmatched elements instead of warping them.
-- `smith_waterman`: Smith-Waterman local alignment.
-- `mapping`: Optimal one-to-one mapping of the query elements onto the case elements.
-- `isolated_mapping`: Maps each query element to its most similar case element.
-- `sequence_mapping`: Element-wise comparison of sequences, optionally weighted and
+- `SmithWaterman`: Smith-Waterman local alignment.
+- `OptimalMapping`: Optimal one-to-one mapping of the query elements onto the case elements.
+- `IsolatedMapping`: Maps each query element to its most similar case element.
+- `SequenceMapping`: Element-wise comparison of sequences, optionally weighted and
   with a sliding window for sequences of different lengths.
-- `sequence_correctness`: Similarity based on the order of the shared elements.
+- `SequenceCorrectness`: Similarity based on the order of the shared elements.
 
 Types:
-- `SequenceSim`: Similarity value with optional local similarities and alignment.
-- `Weight`: Weighted interval used by `sequence_mapping`.
+- `Weight`: Weighted interval used by `SequenceMapping`.
 
 Example:
-    >>> sim = dtw()
+    >>> sim = DTW()
     >>> sim([1, 2, 3], [1, 2, 3, 4]).value
     0.5
 """
 
-from ...helpers import optional_dependencies
-from .alignment import dtw, smith_waterman, twed
-from .common import SequenceSim
-from .mapping import isolated_mapping, mapping
-from .sequence_correctness import sequence_correctness
-from .sequence_mapping import Weight, sequence_mapping
-
-with optional_dependencies():
-    from .jaccard import jaccard
+from .alignment import DTW, TWED, SmithWaterman
+from .jaccard import Jaccard
+from .mapping import IsolatedMapping, OptimalMapping
+from .sequence_correctness import SequenceCorrectness
+from .sequence_mapping import SequenceMapping, Weight
 
 __all__ = [
-    "SequenceSim",
+    "DTW",
+    "TWED",
+    "IsolatedMapping",
+    "Jaccard",
+    "OptimalMapping",
+    "SequenceCorrectness",
+    "SequenceMapping",
+    "SmithWaterman",
     "Weight",
-    "dtw",
-    "isolated_mapping",
-    "jaccard",
-    "mapping",
-    "sequence_correctness",
-    "sequence_mapping",
-    "smith_waterman",
-    "twed",
 ]

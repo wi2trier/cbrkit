@@ -1,71 +1,63 @@
 """sentence-transformers dense embedding provider."""
 
-from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Literal, cast, override
+import asyncio
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from functools import partial
+from typing import Any, Literal, cast, override
 
 from sentence_transformers import SentenceTransformer
 
-from ....typing import BatchConversionFunc, HasMetadata, JsonDict, NumpyArray
+from ....helpers import lazy
+from ....typing import EmbeddingFunc, NumpyArray
 
 
-@dataclass(slots=True)
-class sentence_transformers(BatchConversionFunc[str, NumpyArray], HasMetadata):
+def _load(model: str | SentenceTransformer, device: str | None) -> Callable[..., Any]:
+    return (
+        SentenceTransformer(model, device=device) if isinstance(model, str) else model
+    ).encode
+
+
+@dataclass(slots=True, frozen=True)
+class SentenceTransformers(EmbeddingFunc[str, NumpyArray]):
     """Semantic similarity using [sentence-transformers](https://www.sbert.net/)
+
+    The weights of a model given by name are loaded on the first call,
+    and the texts are encoded in a worker thread.
 
     Args:
         model: Either the name of a [pretrained model](https://www.sbert.net/docs/pretrained_models.html)
             or a `SentenceTransformer` model instance.
+        batch_size: Number of texts encoded per forward pass.
+        show_progress_bar: Whether to show a progress bar.
+        precision: Precision of the embeddings.
+        truncate_dim: Dimension to truncate the embeddings to, all if None.
+        normalize_embeddings: Whether to normalize the embeddings to unit length.
+        device: Device of a model given by name, such as `"cpu"`, detected if None.
     """
 
-    model: SentenceTransformer
-    batch_size: int
-    show_progress_bar: bool | None
-    precision: Literal["float32", "int8", "uint8", "binary", "ubinary"]
-    truncate_dim: int | None
-    normalize_embeddings: bool
-    _metadata: JsonDict
+    model: str | SentenceTransformer
+    batch_size: int = 32
+    show_progress_bar: bool | None = None
+    precision: Literal["float32", "int8", "uint8", "binary", "ubinary"] = "float32"
+    truncate_dim: int | None = None
+    normalize_embeddings: bool = False
+    device: str | None = None
+    _encode: Callable[..., Any] = field(init=False, repr=False, compare=False)
 
-    def __init__(
-        self,
-        model: str | SentenceTransformer,
-        batch_size: int = 32,
-        show_progress_bar: bool | None = None,
-        precision: Literal["float32", "int8", "uint8", "binary", "ubinary"] = "float32",
-        truncate_dim: int | None = None,
-        normalize_embeddings: bool = False,
-    ):
-        self._metadata = {}
-        self.batch_size = batch_size
-        self.show_progress_bar = show_progress_bar
-        self.precision = precision
-        self.truncate_dim = truncate_dim
-        self.normalize_embeddings = normalize_embeddings
-
-        if isinstance(model, str):
-            self.model = SentenceTransformer(model)
-            self._metadata["model"] = model
-        else:
-            self.model = model
-            self._metadata["model"] = (
-                model.model_card_data.model_id
-                or model.model_card_data.base_model
-                or "custom"
-            )
-
-    @property
-    @override
-    def metadata(self) -> JsonDict:
-        """Return metadata describing the sentence-transformers model."""
-        return self._metadata
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "_encode", lazy(partial(_load, self.model, self.device))
+        )
 
     @override
-    def __call__(self, texts: Sequence[str]) -> Sequence[NumpyArray]:
-        if not texts:
+    async def __call__(self, values: Sequence[str], /) -> Sequence[NumpyArray]:
+        if not values:
             return []
 
-        vecs = self.model.encode(
-            cast(list[str], texts),
+        vecs = await asyncio.to_thread(
+            self._encode,
+            cast(list[str], values),
             convert_to_numpy=True,
             batch_size=self.batch_size,
             show_progress_bar=self.show_progress_bar,
@@ -77,4 +69,4 @@ class sentence_transformers(BatchConversionFunc[str, NumpyArray], HasMetadata):
         return list(vecs)
 
 
-__all__ = ["sentence_transformers"]
+__all__ = ["SentenceTransformers"]

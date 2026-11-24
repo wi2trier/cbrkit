@@ -12,25 +12,26 @@ from typing import Any
 import pytest
 
 import cbrkit
+from cbrkit.helpers import unbatchify
 from cbrkit.model.graph import Graph, from_dict
-from cbrkit.sim.collections import dtw, mapping, smith_waterman, twed
+from cbrkit.sim.collections import DTW, TWED, OptimalMapping, SmithWaterman
+from cbrkit.sim.generic import Equality
 
 type NodeSim = Callable[[Any, Any], float]
 
 
-def equality(x: Any, y: Any) -> float:
-    return 1.0 if x == y else 0.0
+equality = Equality()
 
 
-ALIGNERS: dict[str, Callable[[NodeSim], Any]] = {
-    "dtw": cbrkit.sim.graphs.dtw,
-    "twed": cbrkit.sim.graphs.twed,
-    "smith_waterman": cbrkit.sim.graphs.smith_waterman,
+ALIGNERS: dict[str, Callable[..., Any]] = {
+    "dtw": cbrkit.sim.graphs.GraphDTW,
+    "twed": cbrkit.sim.graphs.GraphTWED,
+    "smith_waterman": cbrkit.sim.graphs.GraphSmithWaterman,
 }
 
 
-def abs_diff(x: float, y: float) -> float:
-    return abs(x - y)
+def aligner(name: str) -> Callable[[Any, Any], Any]:
+    return unbatchify(ALIGNERS[name](node_measure=equality))
 
 
 def weighted_sim(weights: list[list[float]]) -> NodeSim:
@@ -63,17 +64,17 @@ SHORT_Y = graph({"1": "A", "2": "B"}, [("e1", "1", "2")])
 @pytest.mark.parametrize("name", ALIGNERS.keys())
 def test_self_similarity_is_one(name: str) -> None:
     """D1/D2: the aligners used to score a graph against itself at 0.22 and 0.02."""
-    assert ALIGNERS[name](equality)(CHAIN_X, CHAIN_X).value == pytest.approx(1.0)
+    assert aligner(name)(CHAIN_X, CHAIN_X).value == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("name", ALIGNERS.keys())
 def test_agrees_with_astar(name: str) -> None:
     """D2: the aligners normalized twice, so their scale was not comparable to A*."""
-    baseline = cbrkit.sim.graphs.astar.build(node_sim_func=equality)
+    baseline = unbatchify(cbrkit.sim.graphs.Astar(node_measure=equality))
 
     for query in (CHAIN_X, CHAIN_Y, SHORT_Y):
         expected = baseline(CHAIN_X, query).value
-        assert ALIGNERS[name](equality)(CHAIN_X, query).value == pytest.approx(expected)
+        assert aligner(name)(CHAIN_X, query).value == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("name", ALIGNERS.keys())
@@ -83,24 +84,24 @@ def test_mapping_is_injective_and_query_keyed(name: str) -> None:
     query = graph(
         {"q1": "A", "q2": "A", "q3": "B"}, [("qe1", "q1", "q2"), ("qe2", "q2", "q3")]
     )
-    result = ALIGNERS[name](equality)(case, query)
+    result = aligner(name)(case, query)
 
-    assert set(result.node_mapping.keys()) <= set(query.nodes.keys())
-    assert set(result.node_mapping.values()) <= set(case.nodes.keys())
-    assert len(set(result.node_mapping.values())) == len(result.node_mapping)
+    assert set(result.mapping.keys()) <= set(query.nodes.keys())
+    assert set(result.mapping.values()) <= set(case.nodes.keys())
+    assert len(set(result.mapping.values())) == len(result.mapping)
 
 
 @pytest.mark.parametrize("name", ALIGNERS.keys())
 def test_differing_edge_counts(name: str) -> None:
     """D3: a strict zip over the edge lists raised ValueError for differing counts."""
-    result = ALIGNERS[name](equality)(CHAIN_X, SHORT_Y)
+    result = aligner(name)(CHAIN_X, SHORT_Y)
 
     assert 0.0 <= result.value <= 1.0
 
 
 def test_smith_waterman_uses_node_values() -> None:
     """D4: the alignment was computed over position indices, so only lengths mattered."""
-    sim = cbrkit.sim.graphs.smith_waterman(equality)
+    sim = aligner("smith_waterman")
     same_shape_worse = graph(
         {"1": "X", "2": "Y", "3": "Z"}, [("e1", "1", "2"), ("e2", "2", "3")]
     )
@@ -117,8 +118,10 @@ def test_retrieval_pipeline(name: str) -> None:
     sequence and a small sequential casebase is used instead.
     """
     casebase = {"exact": CHAIN_X, "partial": CHAIN_Y, "short": SHORT_Y}
-    retriever = cbrkit.retrieval.build(ALIGNERS[name](equality))
-    result = cbrkit.retrieval.apply_query(casebase, CHAIN_X, retriever)
+    retriever = cbrkit.retrieve.Retriever(
+        measure=ALIGNERS[name](node_measure=equality)
+    )
+    result = cbrkit.cycle.run_query(casebase, CHAIN_X, retriever)
 
     assert result.similarities["exact"].value == pytest.approx(1.0)
     assert result.ranking[0] == "exact"
@@ -126,7 +129,7 @@ def test_retrieval_pipeline(name: str) -> None:
 
 def test_smith_waterman_sequence_is_normalized() -> None:
     """D5: the sequence measure returned an unnormalized int such as 2 or 20."""
-    sim = smith_waterman()
+    sim = SmithWaterman()
 
     assert sim("abcde", "abcde").value == 1.0
     assert sim("abcdefghij", "abcdefghij").value == 1.0
@@ -138,24 +141,23 @@ def test_smith_waterman_sequence_is_normalized() -> None:
 
 def test_dtw_prefers_the_diagonal() -> None:
     """D8: ties were broken towards a gap, so identical sequences produced 3 steps."""
-    result = dtw()([0, 0], [0, 0], return_alignment=True)
+    result = DTW(alignment=True)([0, 0], [0, 0])
 
-    assert result.mapping == [(0, 0), (0, 0)]
+    assert result.mapping == ((0, 0), (0, 0))
 
 
-def test_dtw_calls_the_distance_func_once_per_pair() -> None:
+def test_dtw_calls_the_element_measure_once_per_pair() -> None:
     """D9: the backtracking used to re-invoke the distance function."""
-    calls = 0
+    calls: list[tuple[float, float]] = []
 
-    def distance_func(a: float, b: float) -> float:
-        nonlocal calls
-        calls += 1
+    def element_measure(a: float, b: float) -> float:
+        calls.append((a, b))
 
-        return abs(a - b)
+        return 1.0 - abs(a - b)
 
-    dtw(distance_func)([1, 2, 3], [1, 2, 3, 4], return_alignment=True)
+    DTW(element_measure=element_measure, alignment=True)([1, 2, 3], [1, 2, 3, 4])
 
-    assert calls == 12
+    assert len(calls) == 12
 
 
 def test_mapping_is_optimal() -> None:
@@ -170,27 +172,28 @@ def test_mapping_is_optimal() -> None:
             for perm in permutations(items)
         )
 
-        assert mapping(weighted_sim(weights))(items, items) == pytest.approx(
-            expected / size
-        )
+        assert float(
+            OptimalMapping(element_measure=weighted_sim(weights))(items, items)
+        ) == pytest.approx(expected / size)
 
 
 def test_mapping_edge_cases() -> None:
     """D6: duplicates collapsed, a longer query returned 0.0, and empty input raised."""
-    sim = mapping(equality)
+    sim = OptimalMapping(element_measure=equality)
 
-    assert sim(["a", "a"], ["a", "a"]) == 1.0
-    assert sim(["a", "b", "a"], ["a", "b", "a"]) == 1.0
-    assert sim(["a"], ["a", "b", "c"]) == pytest.approx(1 / 3)
-    assert sim([], []) == 0.0
-    assert sim([[1]], [[1]]) == 1.0
+    assert float(sim(["a", "a"], ["a", "a"])) == 1.0
+    assert float(sim(["a", "b", "a"], ["a", "b", "a"])) == 1.0
+    assert float(sim(["a"], ["a", "b", "c"])) == pytest.approx(1 / 3)
+    assert float(sim([], [])) == 1.0
+    assert float(sim([], ["a"])) == 0.0
+    assert float(sim([[1]], [[1]])) == 1.0
 
 
 def test_twed_graph_alignment_is_injective_without_filtering() -> None:
     """TWED deletes unmatched nodes, so its raw alignment is already injective."""
     x = [1, 2, 3]
     y = [1, 5, 3, 9]
-    result = twed(distance_func=abs_diff)(x, y, return_alignment=True)
+    result = TWED(alignment=True)(x, y)
 
     assert result.mapping is not None
 

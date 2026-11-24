@@ -1,94 +1,153 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import cast, override
+from dataclasses import dataclass, field
+from typing import Annotated, Any, cast
 
-from ..helpers import unpack_float
+import numpy as np
+import numpy.typing as npt
+
+from ..schema import serializable
 from ..typing import (
-    AggregatorFunc,
+    ColumnPoolingFunc,
     Float,
+    NumpyArray,
     PoolingFunc,
     SimMap,
     SimSeq,
+    WeightedPoolingFunc,
 )
-from .pooling import PoolingName, pooling_funcs
+from .pooling import POOLINGS, Mean
 
 __all__ = [
-    "aggregator",
+    "Aggregator",
     "default_aggregator",
 ]
 
 
-@dataclass(slots=True, frozen=True)
-class aggregator[K](AggregatorFunc[K, Float]):
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Aggregator[K = str]:
     """
     Aggregates local similarities to a global similarity using the specified pooling function.
 
+    Similarities with a weight of zero (or below) are left out.
+    Pooling functions with a weighted variant (`cbrkit.typing.WeightedPoolingFunc`) use it,
+    for example the weighted arithmetic mean or the weighted minimum and maximum from fuzzy logic.
+    Other pooling functions receive the similarities multiplied by the weights normalized to a mean of 1.
+    If no similarity is left, the result is 0.0.
+
     Args:
-        pooling: The pooling function to use. It can be either a string representing the name of the pooling function or a custom pooling function (see `cbrkit.typing.PoolingFunc`).
-        pooling_weights: The weights to apply to the similarities during pooling. It can be a sequence or a mapping. If None, every local similarity is weighted equally.
-        default_pooling_weight: The default weight to use if a similarity key is not found in the pooling_weights mapping.
+        pooling: Pooling function of the similarities, such as `cbrkit.sim.pooling.Mean`.
+        weights: Weights of the similarities by key, or by position for sequences of similarities,
+            `default_weight` for the others.
+        default_weight: Weight of a similarity whose key has no weight.
 
     Examples:
-        >>> agg = aggregator("mean")
+        >>> from cbrkit.sim.pooling import Min
+        >>> agg = Aggregator()
         >>> agg([0.5, 0.75, 1.0])
         0.75
-        >>> agg = aggregator("mean", {1: 1, 2: 1, 3: 0})
+        >>> agg = Aggregator(weights={1: 1, 2: 1, 3: 0})
         >>> agg({1: 1, 2: 1, 3: 1})
         1.0
-        >>> agg = aggregator("mean", {1: 1, 2: 1, 3: 2})
+        >>> agg = Aggregator(weights={1: 1, 2: 1, 3: 2})
         >>> agg({1: 1, 2: 1, 3: 1})
         1.0
+        >>> agg = Aggregator(pooling=Min(), weights={1: 1, 2: 0.5})
+        >>> agg({1: 1, 2: 0})
+        0.5
     """
 
-    pooling: PoolingName | PoolingFunc[float] = "mean"
-    pooling_weights: SimMap[K, float] | SimSeq[float] | None = None
-    default_pooling_weight: float = 1.0
+    pooling: Annotated[PoolingFunc[float], POOLINGS] = field(default_factory=Mean)
+    weights: Mapping[K, float] = field(default_factory=dict)
+    default_weight: float = 1.0
 
-    @override
+    def weight(self, key: K) -> float:
+        """The weight of the similarity of a key, `default_weight` if it has none."""
+        return self.weights.get(key, self.default_weight)
+
+    def _weights(self, similarities: SimMap[K, Float] | SimSeq[Float]) -> list[float]:
+        if isinstance(similarities, Mapping):
+            return [self.weight(key) for key in similarities]
+
+        # sequences are weighted by position
+        weights: Mapping[Any, float] = self.weights
+
+        return [
+            weights.get(index, self.default_weight)
+            for index in range(len(similarities))
+        ]
+
     def __call__(self, similarities: SimMap[K, Float] | SimSeq[Float]) -> float:
-        pooling_func = (
-            pooling_funcs[cast(PoolingName, self.pooling)]
-            if isinstance(self.pooling, str)
-            else self.pooling
+        values = (
+            similarities.values()
+            if isinstance(similarities, Mapping)
+            else cast(SimSeq[Float], similarities)
         )
-        assert (self.pooling_weights is None) or (
-            type(similarities) is type(self.pooling_weights)
-        )
+        pairs = [
+            (float(sim), weight)
+            for sim, weight in zip(values, self._weights(similarities), strict=True)
+            if weight > 0
+        ]
 
-        pooling_factor = 1.0
-        sims: Sequence[float]
+        if not pairs:
+            return 0.0
 
-        if isinstance(similarities, Mapping) and isinstance(
-            self.pooling_weights, Mapping
-        ):
-            sim_map = cast(SimMap[K, Float], similarities)
-            weight_map = cast(SimMap[K, float], self.pooling_weights)
-            sims = [
-                unpack_float(sim) * weight_map.get(key, self.default_pooling_weight)
-                for key, sim in sim_map.items()
-            ]
-            pooling_factor = len(sim_map) / sum(
-                weight_map.get(key, self.default_pooling_weight) for key in sim_map
+        sims = [sim for sim, _ in pairs]
+        factor = len(pairs) / sum(weight for _, weight in pairs)
+        weights = [weight * factor for _, weight in pairs]
+
+        if not self.weights:
+            return self.pooling(sims)
+
+        if isinstance(self.pooling, WeightedPoolingFunc):
+            return self.pooling.weighted(sims, weights)
+
+        return self.pooling([s * w for s, w in zip(sims, weights, strict=True)])
+
+    def columns(
+        self,
+        keys: Sequence[K],
+        similarities: NumpyArray,
+        present: npt.NDArray[np.bool_],
+    ) -> NumpyArray:
+        """Aggregates every row of a similarity matrix like a mapping of its present similarities.
+
+        Pooling functions with a numpy variant (`cbrkit.typing.ColumnPoolingFunc`) pool all rows at once,
+        other pooling functions and weights by position aggregate row by row.
+
+        Args:
+            keys: The keys of the columns.
+            similarities: The similarities with one row per mapping and one column per key.
+            present: Whether a similarity is part of its row.
+
+        Examples:
+            >>> agg = Aggregator(weights={"a": 3, "b": 1})
+            >>> sims = np.array([[1.0, 0.0], [0.5, 0.0]])
+            >>> agg.columns(["a", "b"], sims, np.array([[True, True], [True, False]]))
+            array([0.75, 0.5 ])
+        """
+        if not isinstance(self.pooling, ColumnPoolingFunc):
+            rows = zip(similarities.tolist(), present.tolist(), strict=True)
+
+            return np.array(
+                [
+                    self({k: v for k, v, p in zip(keys, row, mask, strict=True) if p})
+                    for row, mask in rows
+                ],
+                dtype=np.float64,
             )
-        elif isinstance(similarities, Sequence) and isinstance(
-            self.pooling_weights, Sequence
-        ):
-            sim_seq = cast(SimSeq[Float], similarities)
-            weight_seq = cast(SimSeq[float], self.pooling_weights)
-            sims = [
-                unpack_float(s) * w for s, w in zip(sim_seq, weight_seq, strict=True)
-            ]
-            pooling_factor = len(sim_seq) / sum(weight_seq)
-        elif isinstance(similarities, Sequence) and self.pooling_weights is None:
-            sim_seq = cast(SimSeq[Float], similarities)
-            sims = [unpack_float(s) for s in sim_seq]
-        elif isinstance(similarities, Mapping) and self.pooling_weights is None:
-            sim_map = cast(SimMap[K, Float], similarities)
-            sims = [unpack_float(s) for s in sim_map.values()]
-        else:
-            raise NotImplementedError()
 
-        return pooling_func(sims) * pooling_factor
+        weights = np.array([self.weight(key) for key in keys], dtype=np.float64)
+        kept = present & (weights > 0)
+        count = kept.sum(axis=1)
+        values = np.where(kept, similarities, 0.0)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            normalized = np.where(kept, weights, 0.0)
+            normalized *= (count / normalized.sum(axis=1))[:, None]
+            result = self.pooling.columns(values, normalized, kept)
+
+        return np.where(count > 0, result, 0.0)
 
 
-default_aggregator = aggregator()
+default_aggregator = Aggregator()
