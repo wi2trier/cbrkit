@@ -1,15 +1,15 @@
 """Regression tests for degenerate inputs and reported bugs."""
 
-
 import asyncio
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+
 import numpy as np
 import pytest
+
 import cbrkit
 from cbrkit.errors import Refused
-
 
 equality = cbrkit.sim.generic.Equality()
 
@@ -178,6 +178,36 @@ def test_embedding_cache_is_keyed_by_model(tmp_path):
     assert list(cbrkit.sim.embed.SQLiteStore(path, "second", table)) == ["text"]
     del second["text"]
     assert len(second) == 0
+
+
+def test_executor_runs_chunks_of_pairs():
+    sizes = []
+
+    @cbrkit.helpers.batched
+    def similarity(batches):
+        sizes.append(len(batches))
+        return [1.0 if case == query else 0.0 for case, query in batches]
+
+    with ThreadPoolExecutor(2) as executor:
+        retriever = cbrkit.retrieve.Retriever(
+            measure=similarity, executor=executor, chunksize=1
+        )
+        result = cbrkit.cycle.run_query({"a": "x", "b": "y"}, "x", retriever)
+        distributed = cbrkit.retrieve.Distribute(
+            retriever=retriever, executor=executor
+        )
+
+        assert asyncio.run(distributed([({"a": "x"}, "x")])) == [
+            ({"a": "x"}, {"a": 1.0})
+        ]
+
+    assert result.similarities == {"a": 1.0, "b": 0.0}
+    assert sizes[:2] == [1, 1]
+
+
+def test_cycle_requires_a_function():
+    with pytest.raises(ValueError):
+        cbrkit.cycle.run_query({"a": "x"}, "x")
 
 
 def test_read_only_formats(tmp_path):
