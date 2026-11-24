@@ -131,15 +131,17 @@ let
             buildPhase = ''
               runHook preBuild
 
-              typer ./src/cbrkit/cli.py utils docs --name cbrkit --output cli.md
+              # the cli module docstring includes this reference, so pdoc renders it on the cli page
+              typer cbrkit.cli utils docs --name cbrkit --output cli.md
+              CBRKIT_EAGER_IMPORTS=1 python docs/llms.py > llms.txt
 
-              pdoc \
+              # pdoc reads the module namespaces, which hold lazy exports only once imported
+              CBRKIT_EAGER_IMPORTS=1 pdoc \
                 -d google \
                 -t ${pdocRepo}/examples/dark-mode \
                 --math \
                 --logo https://raw.githubusercontent.com/wi2trier/cbrkit/main/assets/logo.png \
                 -o "$out" \
-                ./src/cbrkit/api.py \
                 ./src/cbrkit/cli.py \
                 ./src/cbrkit
 
@@ -149,6 +151,7 @@ let
               runHook preInstall
 
               cp -rf ./assets "$out/assets"
+              cp llms.txt "$out"
 
               runHook postInstall
             '';
