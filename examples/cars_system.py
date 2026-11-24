@@ -1,115 +1,26 @@
-# uv run cbrkit uvicorn --search-path ./examples cars_system:api_app
+# uv run --with uvicorn examples/cars_system.py
+"""Serves the cars case base over REST and MCP after inferring its sidecar once."""
 
-from collections.abc import Mapping
-from typing import Literal, cast
+from pathlib import Path
 
-import polars as pl
 from fastapi import FastAPI
-from fastmcp import FastMCP
-from pydantic import BaseModel, NonNegativeInt
 
-import cbrkit
-
-
-class CarModel(BaseModel):
-    price: NonNegativeInt
-    year: NonNegativeInt
-    manufacturer: str
-    make: str
-    fuel: Literal["gas", "diesel"]
-    miles: NonNegativeInt
-    title_status: Literal["clean", "rebuilt"]
-    transmission: Literal["automatic", "manual"]
-    drive: Literal["fwd", "rwd", "4wd"]
-    type: str
-    paint_color: str
+from cbrkit import io, spec
+from cbrkit.system import System
+from cbrkit.system.api import app
 
 
-class RetrieverConfig(BaseModel):
-    limit: NonNegativeInt = 5
+def main(casebase: Path) -> FastAPI:
+    """The REST and MCP app of a case base, inferring and writing its sidecar if there is none."""
+    if not io.companion(casebase, "sidecar").exists():
+        source = io.detect(casebase)
+        config = spec.infer(io.load(casebase, source), source)
+        spec.write(io.companion(casebase, "sidecar"), config)
+
+    return app(System.load(casebase), mcp=True)
 
 
-class RetrieveRequest(BaseModel):
-    query: CarModel
-    config: RetrieverConfig | None
+if __name__ == "__main__":
+    import uvicorn
 
-
-type RetrieveResponse = cbrkit.retrieval.QueryResultStep[
-    int, CarModel, cbrkit.sim.AttributeValueSim[float]
-]
-
-
-def retriever_factory(
-    config: RetrieverConfig | None,
-) -> cbrkit.typing.RetrieverFunc[int, CarModel, cbrkit.sim.AttributeValueSim[float]]:
-    if not config:
-        config = RetrieverConfig()
-
-    return cbrkit.retrieval.dropout(
-        cbrkit.retrieval.build(
-            cbrkit.sim.attribute_value[CarModel, float](
-                attributes={
-                    "year": cbrkit.sim.numbers.linear(max=50),
-                    "make": cbrkit.sim.strings.levenshtein(),
-                    "miles": cbrkit.sim.numbers.linear(max=1000000),
-                },
-                aggregator=cbrkit.sim.aggregator(pooling="mean"),
-            ),
-        ),
-        limit=config.limit,
-    )
-
-
-df = pl.read_csv("data/cars-1k.csv")
-casebase = cbrkit.loaders.validate(cbrkit.loaders.polars(df), CarModel)
-system = cbrkit.system.System(
-    casebase=casebase,
-    retriever_factory=retriever_factory,
-)
-
-mcp = FastMCP("cbrkit")
-
-
-@mcp.tool("retrieve")
-def mcp_retrieve(
-    query: CarModel,
-    config: RetrieverConfig | None = None,
-) -> RetrieveResponse:
-    return system.retrieve(query, config=config)
-
-
-@mcp.resource("casebase://{key}", mime_type="application/json")
-def mcp_case(key: int) -> str:
-    car = cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))[
-        key
-    ]
-
-    return car.model_dump_json()
-
-
-mcp_app = mcp.http_app("/")
-
-api_app = FastAPI(lifespan=mcp_app.lifespan)
-api_app.mount("/mcp", mcp_app)
-
-
-@api_app.head("/health")
-def health() -> None:
-    return None
-
-
-@api_app.post("/retrieve")
-def api_retrieve(req: RetrieveRequest) -> RetrieveResponse:
-    return system.retrieve(req.query, config=req.config)
-
-
-@api_app.get("/casebase")
-def api_casebase() -> Mapping[int, CarModel]:
-    return cast(Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase))
-
-
-@api_app.get("/casebase/{key}")
-def api_case(key: int) -> CarModel:
-    return cast(
-        Mapping[int, CarModel], cbrkit.helpers.produce_factory(system.casebase)
-    )[key]
+    uvicorn.run(main(Path("data/cars-1k.csv")))
