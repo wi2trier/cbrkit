@@ -269,12 +269,16 @@ class SQLiteVec[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
         """
         assert self.value_column is not None
         key, val, main = self.key, self.value_column, self._table.name
-        shadows = [("TABLE", self.fingerprint_table_name, "(fingerprint TEXT NOT NULL)")]
+        shadows = [
+            ("TABLE", self.fingerprint_table_name, "(fingerprint TEXT NOT NULL)")
+        ]
 
         if has_dense(self.index_type):
             assert self.vector_dim is not None
             vec = self.vec_table_name
-            pk_type = "integer" if isinstance(self._table.c[key].type, sa.Integer) else "text"
+            pk_type = (
+                "integer" if isinstance(self._table.c[key].type, sa.Integer) else "text"
+            )
             col_type = _SQLITE_VEC_TYPES[self.vector_type].column_type
             metric = _SQLITE_VEC_METRICS[type(self.metric)].distance_metric
             # vec0's own DDL parser does not accept quoted column identifiers.
@@ -282,8 +286,16 @@ class SQLiteVec[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
             # The embedding is computed in Python, so only deletes are
             # trigger-maintained, upserts happen in _do_upsert.
             shadows += [
-                ("VIRTUAL TABLE", vec, f"USING vec0({columns} distance_metric={metric})"),
-                ("TRIGGER", f"{vec}_ad", f'AFTER DELETE ON "{main}" BEGIN {_delete(vec, key)} END'),
+                (
+                    "VIRTUAL TABLE",
+                    vec,
+                    f"USING vec0({columns} distance_metric={metric})",
+                ),
+                (
+                    "TRIGGER",
+                    f"{vec}_ad",
+                    f'AFTER DELETE ON "{main}" BEGIN {_delete(vec, key)} END',
+                ),
             ]
 
         if has_sparse(self.index_type):
@@ -295,16 +307,30 @@ class SQLiteVec[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
             # including the base upsert that updates rows in place.
             shadows += [
                 ("VIRTUAL TABLE", fts, f'USING fts5("{key}" UNINDEXED, "{val}"{tok})'),
-                ("TRIGGER", f"{fts}_ai", f'AFTER INSERT ON "{main}" BEGIN {insert} END'),
-                ("TRIGGER", f"{fts}_ad", f'AFTER DELETE ON "{main}" BEGIN {delete} END'),
-                ("TRIGGER", f"{fts}_au", f'AFTER UPDATE ON "{main}" BEGIN {delete} {insert} END'),
+                (
+                    "TRIGGER",
+                    f"{fts}_ai",
+                    f'AFTER INSERT ON "{main}" BEGIN {insert} END',
+                ),
+                (
+                    "TRIGGER",
+                    f"{fts}_ad",
+                    f'AFTER DELETE ON "{main}" BEGIN {delete} END',
+                ),
+                (
+                    "TRIGGER",
+                    f"{fts}_au",
+                    f'AFTER UPDATE ON "{main}" BEGIN {delete} {insert} END',
+                ),
             ]
 
         return shadows
 
     def _create_shadows(self, sync_conn: sa.Connection) -> None:
         for kind, name, definition in self._shadows():
-            sync_conn.execute(sa.text(f'CREATE {kind} IF NOT EXISTS "{name}" {definition}'))
+            sync_conn.execute(
+                sa.text(f'CREATE {kind} IF NOT EXISTS "{name}" {definition}')
+            )
 
     async def _populate_system_columns(self, rows: list[dict[str, Any]]) -> None:
         """Embed the text column into a serialized vector on each row.

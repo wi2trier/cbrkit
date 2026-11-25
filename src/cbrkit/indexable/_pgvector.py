@@ -268,7 +268,9 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
         target = self._table.c[column]
 
         if declared := [
-            index for index in self._table.indexes if index.columns.contains_column(target)
+            index
+            for index in self._table.indexes
+            if index.columns.contains_column(target)
         ]:
             return declared
 
@@ -285,7 +287,9 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
                 )
             ]
 
-        return [sa.Index(f"ix_{self._table.name}_{column}", target, postgresql_using="gin")]
+        return [
+            sa.Index(f"ix_{self._table.name}_{column}", target, postgresql_using="gin")
+        ]
 
     def _create_system_indexes(self, sync_conn: sa.Connection) -> None:
         for column in self._system_column_names():
@@ -403,7 +407,9 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
         for statement in self._replacement(column, conn.dialect):
             conn.execute(sa.text(statement))
 
-    def _replacement(self, column: sa.Column[Any], dialect: sa.Dialect) -> tuple[str, str]:
+    def _replacement(
+        self, column: sa.Column[Any], dialect: sa.Dialect
+    ) -> tuple[str, str]:
         """The statements that drop a column of the table and add it again, see `_replace_column`."""
         dropped = dialect.identifier_preparer.format_column(column)
         added = sa.schema.CreateColumn(column).compile(dialect=dialect)
@@ -438,7 +444,9 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
 
     def _complete_vector(self, conn: sa.Connection, fingerprint: str) -> None:
         """Restore `NOT NULL`, build the indexes once over the filled column, and record the fingerprint."""
-        column = self._detached_column(self._table.c[self.vector_column], comment=fingerprint)
+        column = self._detached_column(
+            self._table.c[self.vector_column], comment=fingerprint
+        )
         preparer = conn.dialect.identifier_preparer
         self._alter(conn, f"ALTER COLUMN {preparer.format_column(column)} SET NOT NULL")
         conn.execute(sa.schema.SetColumnComment(column))
@@ -461,7 +469,9 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
             sa.MetaData(),
             sa.Column(self.value_column, self._table.c[self.value_column].type),
             sa.Column(
-                declared.name, declared.type, sa.Computed(computed.sqltext, persisted=True)
+                declared.name,
+                declared.type,
+                sa.Computed(computed.sqltext, persisted=True),
             ),
             schema="pg_temp",
             prefixes=["TEMPORARY"],
@@ -474,7 +484,10 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
                 _GENERATED_EXPR,
                 {"table": table, "column": declared.name},
             ).scalar_one_or_none()
-            for table in (preparer.format_table(self._table), preparer.format_table(probe))
+            for table in (
+                preparer.format_table(self._table),
+                preparer.format_table(probe),
+            )
         )
 
         if live == expected:
@@ -497,7 +510,11 @@ class Pgvector[K: Hashable, V = Mapping[str, Any]](SQLAlchemy[K, V]):
         copy = sa.Column(
             column.name,
             column.type,
-            *(() if computed is None else (sa.Computed(computed.sqltext, persisted=True),)),
+            *(
+                ()
+                if computed is None
+                else (sa.Computed(computed.sqltext, persisted=True),)
+            ),
             nullable=column.nullable if nullable is None else nullable,
             comment=column.comment if comment is None else comment,
         )

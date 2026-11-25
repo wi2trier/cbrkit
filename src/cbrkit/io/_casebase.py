@@ -303,7 +303,9 @@ def detect_files(files: Mapping[str, bytes], *, folder: bool = False) -> Source:
         return files[file.as_posix()]
 
     if folder:
-        members = sorted(path for key in files if (path := _member_path(key)) is not None)
+        members = sorted(
+            path for key in files if (path := _member_path(key)) is not None
+        )
         return _detect(Path("."), members, read)
 
     return _detect(Path(next(iter(files))), None, read)

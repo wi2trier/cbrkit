@@ -193,9 +193,7 @@ def test_executor_runs_chunks_of_pairs():
             measure=similarity, executor=executor, chunksize=1
         )
         result = cbrkit.cycle.run_query({"a": "x", "b": "y"}, "x", retriever)
-        distributed = cbrkit.retrieve.Distribute(
-            retriever=retriever, executor=executor
-        )
+        distributed = cbrkit.retrieve.Distribute(retriever=retriever, executor=executor)
 
         assert asyncio.run(distributed([({"a": "x"}, "x")])) == [
             ({"a": "x"}, {"a": 1.0})

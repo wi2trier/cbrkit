@@ -145,7 +145,10 @@ class System[V]:
         return Outcome(hits=hits, changes=changes)
 
     def _explain(
-        self, hits: Sequence[Hit[Any, V, SerializedFloat]], query: V, measure: Measure[V, Any]
+        self,
+        hits: Sequence[Hit[Any, V, SerializedFloat]],
+        query: V,
+        measure: Measure[V, Any],
     ) -> list[Hit[Any, V, SerializedFloat]]:
         return [
             hit.model_copy(
@@ -179,7 +182,11 @@ class System[V]:
         """The retriever of the limit and the configured sections, in order and with their measures filled in."""
         return [
             self._retriever(limit),
-            *(self._bound.phase(section) for section in sections if section is not None),
+            *(
+                self._bound.phase(section)
+                for section in sections
+                if section is not None
+            ),
         ]
 
     def _check_cost(self, casebase: Casebase[Any, V], *queries: V) -> None:
@@ -430,7 +437,11 @@ class System[V]:
 
         if self._retainer is not None and self.config.cycle_retains:
             changes = await self._store(
-                self._retainer, changed(result.casebase, casebase), query, dry_run, casebase
+                self._retainer,
+                changed(result.casebase, casebase),
+                query,
+                dry_run,
+                casebase,
             )
 
         return await self._outcome(result, changes, _measure(steps[-1], explain))

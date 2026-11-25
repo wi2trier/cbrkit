@@ -215,10 +215,14 @@ class Config(Model):
             ('a',)
         """
         steps: tuple[AnyCbrFunc[Any, Any, Any], ...] = tuple(
-            self.phase(p) for p in (self.retrieve, self.reuse, self.revise) if p is not None
+            self.phase(p)
+            for p in (self.retrieve, self.reuse, self.revise)
+            if p is not None
         )
         retainer = (
-            self.retainer(storage) if storage is not None and self.cycle_retains else None
+            self.retainer(storage)
+            if storage is not None and self.cycle_retains
+            else None
         )
 
         return steps if retainer is None else (*steps, retainer)

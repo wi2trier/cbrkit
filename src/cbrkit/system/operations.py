@@ -136,7 +136,10 @@ def _outcome(case: type[BaseModel]) -> type[BaseModel]:
     return _concrete(
         Outcome,
         case,
-        hits=(GenericAlias(Sequence, (_concrete(Hit, Key, case, SerializedFloat),)), ()),
+        hits=(
+            GenericAlias(Sequence, (_concrete(Hit, Key, case, SerializedFloat),)),
+            (),
+        ),
         changes=(changes | None, None),
     )
 

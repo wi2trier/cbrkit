@@ -118,9 +118,7 @@ def test_retrieval_pipeline(name: str) -> None:
     sequence and a small sequential casebase is used instead.
     """
     casebase = {"exact": CHAIN_X, "partial": CHAIN_Y, "short": SHORT_Y}
-    retriever = cbrkit.retrieve.Retriever(
-        measure=ALIGNERS[name](node_measure=equality)
-    )
+    retriever = cbrkit.retrieve.Retriever(measure=ALIGNERS[name](node_measure=equality))
     result = cbrkit.cycle.run_query(casebase, CHAIN_X, retriever)
 
     assert result.similarities["exact"].value == pytest.approx(1.0)

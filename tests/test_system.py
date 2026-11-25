@@ -254,7 +254,9 @@ def test_the_cycle_retains_what_reuse_proposes(reuse: bool):
     )
     cycle = next(op for op in operations(system) if op.__name__ == "cycle")
 
-    outcome = asyncio.run(system.cycle({"price": 18.0, "fuel": "diesel"}, limit=2, explain=True))
+    outcome = asyncio.run(
+        system.cycle({"price": 18.0, "fuel": "diesel"}, limit=2, explain=True)
+    )
     stored = asyncio.run(storage.get_index())
     explanation = outcome.hits[0].explanation
 

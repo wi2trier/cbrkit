@@ -392,7 +392,6 @@ def test_pgvector_deletes_keys_through_one_array_parameter() -> None:
     assert len(compiled.params) == 1
 
 
-
 def test_pgvector_reconcile_replaces_columns_as_declared() -> None:
     """The columns that `reconcile` swaps are added as declared, an empty vector column nullable until filled."""
     pytest.importorskip("aiosqlite")
@@ -434,6 +433,7 @@ def test_pgvector_reconcile_replaces_columns_as_declared() -> None:
         ),
         "COMMENT ON COLUMN cases.vector IS 'm'",
     ]
+
 
 def test_sqlite_vec_uuid_keys_and_native_where() -> None:
     """Keys come back as the key column's Python type, here `UUID`.
