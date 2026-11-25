@@ -58,27 +58,31 @@ http = ["httpx2>=2,<3"]
 pydantic-ai = ["pydantic-ai-slim>=2,<3"]
 
 # NLP / text processing
-bm25 = ["bm25s[core,stem,indexing]>=0.3,<0.4"]
+bm25 = ["bm25s[core,stem,indexing]>=0.3,<1"]
 
 # ML / embeddings
 transformers = ["sentence-transformers>=6,<7"]
 
 # Graphs
 bpmn = ["xsdata>=26,<27"]
-graphs = ["networkx>=3,<4", "rustworkx>=0.18,<0.19"]
+graphs = ["networkx>=3,<4", "rustworkx>=0.18,<1"]
 graphviz = ["pygraphviz>=2,<3"]
 
 # Data
-fastexcel = ["fastexcel>=0.21,<0.22"]
-lancedb = ["lancedb>=0.41,<0.42"]
-pgvector = ["pgvector>=0.5,<0.6", "cbrkit[sql]"]
+fastexcel = ["fastexcel>=0.21,<1"]
+lancedb = ["lancedb>=0.41,<1"]
+pgvector = ["pgvector>=0.5,<1", "cbrkit[sql]"]
 sql = ["sqlalchemy[asyncio]>=2,<3"]
-sqlite-vec = ["sqlite-vec>=0.1,<0.2", "aiosqlite>=0.22,<0.23", "cbrkit[sql]"]
-zvec = ["zvec>=0.8,<0.9"]
+sqlite-vec = ["sqlite-vec>=0.1,<1", "aiosqlite>=0.22,<1", "cbrkit[sql]"]
+zvec = ["zvec>=0.8,<1"]
 
 # Entry points
-api = ["fastapi>=0.163,<0.164", "uvicorn>=0.54,<0.55", "cbrkit[cli]"]
-cli = ["typer>=0.29,<0.30"]
+api = [
+    "fastapi>=0.165,<1",
+    "uvicorn>=0.54,<1",
+    "cbrkit[cli]",
+]
+cli = ["typer>=0.29,<1"]
 mcp = ["fastmcp>=4,<5", "cbrkit[cli]"]
 
 # Bundle
@@ -92,7 +96,7 @@ docs = ["pdoc>=16,<17"]
 test = ["pytest>=9,<10", "pytest-cov>=7,<8"]
 
 [build-system]
-requires = ["uv-build>=0.13,<0.14"]
+requires = ["uv-build>=0.13,<1"]
 build-backend = "uv_build"
 
 [tool.pytest]
