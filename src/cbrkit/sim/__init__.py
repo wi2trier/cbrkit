@@ -19,7 +19,7 @@ Submodules:
 - `cbrkit.sim.embed`: Embedding-based similarity with caching (Sentence Transformers, BM25, remote providers).
 - `cbrkit.sim.graphs`: Graph similarity algorithms (A*, VF2, greedy, LAP, QAP, etc.).
 - `cbrkit.sim.taxonomy`: Similarity of values by their nodes in a taxonomy (Wu-Palmer, weights, levels, paths).
-- `cbrkit.sim.llm`: Similarity judged by a language model of the host (`Critique`).
+- `cbrkit.sim.llm`: Similarity judged by a language model of the host (`Critique`) or a decision model (`Fit`).
 - `cbrkit.sim.pooling`: Pooling functions of an `Aggregator`, one class of `POOLINGS` per pooling such as `Mean` or `KMax`.
 
 Top-Level Measures and Helpers:
@@ -121,6 +121,7 @@ MEASURES = Family(
         graphs.VF2Networkx,
         graphs.VF2Rustworkx,
         llm.Critique,
+        llm.Fit,
         numbers.Exponential,
         numbers.Linear,
         numbers.LinearInterval,

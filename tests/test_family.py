@@ -65,6 +65,7 @@ MEASURE_EXAMPLES = {
     "vf2_rustworkx": {"node_measure": EQUALITY},
     "word_coverage": {},
     "critique": {"model": "judge", "instructions": "Judge the solution."},
+    "fit": {"model": "judge", "instructions": "Is the solution affordable?"},
 }
 ADAPTATION_EXAMPLES = {
     "aggregate": {},

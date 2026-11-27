@@ -1,4 +1,4 @@
-"""Similarity judged by a language model of the host, see `Critique`, and the binding of language models.
+"""Similarity judged by a language model of the host, see `Critique` and `Fit`, and the binding of language models.
 
 Measures and adaptations, such as `Critique` and `cbrkit.adapt.llm.Rewrite`,
 refer to a language model by its name only, a `LanguageModel`,
@@ -31,7 +31,15 @@ from ..typing import BatchSimFunc, GenerationFunc, SimSeq
 if TYPE_CHECKING:
     from ._pydantic_ai import PydanticAI
 
-__all__ = ["Critique", "Judgement", "LanguageModel", "PydanticAI", "prompt"]
+__all__ = [
+    "Critique",
+    "Fit",
+    "Fitness",
+    "Judgement",
+    "LanguageModel",
+    "PydanticAI",
+    "prompt",
+]
 
 
 @dataclass(slots=True, frozen=True)
@@ -69,6 +77,21 @@ def prompt(instructions: str, **values: object) -> str:
     ]
 
     return "\n\n".join([instructions, "\n".join(parts)])
+
+
+def _respond[V, R](
+    model: LanguageModel,
+    instructions: str,
+    batches: Sequence[tuple[V, V]],
+    response_type: type[R],
+) -> Sequence[R]:
+    """The responses of a model to the instructions about every pair of a case and a query, waiting for them."""
+    return wait(
+        model(
+            [prompt(instructions, query=query, case=case) for case, query in batches],
+            response_type,
+        )
+    )
 
 
 class Judgement(BaseModel):
@@ -109,15 +132,7 @@ class Critique[V](BatchSimFunc[V, CritiqueSim]):
 
     @override
     def __call__(self, batches: Sequence[tuple[V, V]], /) -> SimSeq[CritiqueSim]:
-        judgements = wait(
-            self.model(
-                [
-                    prompt(self.instructions, query=query, case=case)
-                    for case, query in batches
-                ],
-                Judgement,
-            )
-        )
+        judgements = _respond(self.model, self.instructions, batches, Judgement)
 
         return [
             CritiqueSim(
@@ -126,6 +141,47 @@ class Critique[V](BatchSimFunc[V, CritiqueSim]):
                 model=self.model.name,
             )
             for judgement in judgements
+        ]
+
+
+class Fitness(BaseModel):
+    """Whether a case fits a query, the probability of which is the similarity."""
+
+    fits: float = Field(
+        ge=0,
+        le=1,
+        description="Does the case fit the query as the instructions describe?",
+    )
+
+
+@serializable
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Fit[V](BatchSimFunc[V, float]):
+    """Similarity of a case to a query as the probability that it fits, judged by a model.
+
+    Unlike `Critique`, the model writes nothing, so a decision model judges as well as a language model,
+    the decision model with a calibrated probability, such as Pydantic AI's `system-one:<model>`.
+
+    Args:
+        model: Name of a model of the host, see the providers section of `cbrkit.spec`.
+        instructions: What makes a case fit the query.
+
+    Examples:
+        >>> async def judge(prompts, response_type):
+        ...     return [response_type(fits=0.75) for _ in prompts]
+        >>> Fit(model=LanguageModel("judge", judge), instructions="Is the offer affordable?")([({"price": 30}, {"price": 20})])
+        [0.75]
+    """
+
+    model: LanguageModel
+    instructions: str
+    kind: Literal["fit"] = field(default="fit", repr=False)
+
+    @override
+    def __call__(self, batches: Sequence[tuple[V, V]], /) -> SimSeq[float]:
+        return [
+            item.fits
+            for item in _respond(self.model, self.instructions, batches, Fitness)
         ]
 
 
